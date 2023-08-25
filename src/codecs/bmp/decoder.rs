@@ -1428,7 +1428,7 @@ mod test {
         let mut decoder = super::BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
-        decoder.read_rect(0, 0, 8, 8, &mut *buf).unwrap();
+        decoder.read_rect(0, 0, 8, 8, &mut buf).unwrap();
     }
 
     #[test]

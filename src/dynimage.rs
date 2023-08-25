@@ -1344,7 +1344,7 @@ mod test {
         let pixels = vec![65535u16; 64 * 64];
         let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
 
-        let img = super::DynamicImage::ImageLuma16(img.into());
+        let img = super::DynamicImage::ImageLuma16(img);
         assert!(img.as_luma16().is_some());
 
         let bytes: Vec<u8> = img.into_bytes();

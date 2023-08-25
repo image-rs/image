@@ -7,8 +7,8 @@ use std::path::PathBuf;
 extern crate glob;
 extern crate image;
 
-const BASE_PATH: [&'static str; 2] = [".", "tests"];
-const IMAGE_DIR: &'static str = "images";
+const BASE_PATH: [&str; 2] = [".", "tests"];
+const IMAGE_DIR: &str = "images";
 
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where

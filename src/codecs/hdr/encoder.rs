@@ -374,26 +374,26 @@ fn noruncombine_test() {
         v
     }
 
-    let v = vec![];
+    let v = [];
     let mut rsi = NorunCombineIterator::new(&v[..]);
     assert_eq!(rsi.next(), None);
 
-    let v = vec![1];
+    let v = [1];
     let mut rsi = NorunCombineIterator::new(&v[..]);
     assert_eq!(rsi.next(), Some(Norun(0, 1)));
     assert_eq!(rsi.next(), None);
 
-    let v = vec![2, 2];
+    let v = [2, 2];
     let mut rsi = NorunCombineIterator::new(&v[..]);
     assert_eq!(rsi.next(), Some(Norun(0, 2)));
     assert_eq!(rsi.next(), None);
 
-    let v = vec![3, 3, 3];
+    let v = [3, 3, 3];
     let mut rsi = NorunCombineIterator::new(&v[..]);
     assert_eq!(rsi.next(), Some(Run(3, 3)));
     assert_eq!(rsi.next(), None);
 
-    let v = vec![4, 4, 3, 3, 3];
+    let v = [4, 4, 3, 3, 3];
     let mut rsi = NorunCombineIterator::new(&v[..]);
     assert_eq!(rsi.next(), Some(Norun(0, 2)));
     assert_eq!(rsi.next(), Some(Run(3, 3)));

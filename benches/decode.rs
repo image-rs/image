@@ -11,7 +11,7 @@ struct BenchDef {
 }
 
 fn load_all(c: &mut Criterion) {
-    const BENCH_DEFS: &'static [BenchDef] = &[
+    const BENCH_DEFS: &[BenchDef] = &[
         BenchDef {
             dir: &["bmp", "images"],
             files: &[
@@ -106,4 +106,4 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     }
 }
 
-const IMAGE_DIR: [&'static str; 3] = [".", "tests", "images"];
+const IMAGE_DIR: [&str; 3] = [".", "tests", "images"];

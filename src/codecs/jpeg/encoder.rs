@@ -1058,7 +1058,7 @@ mod tests {
         let qtable = [0u8; 64];
         build_quantization_segment(&mut buf, 8, 1, &qtable);
         let mut expected = vec![];
-        expected.push(0 << 4 | 1);
+        expected.push(1);
         expected.extend_from_slice(&[0; 64]);
         assert_eq!(buf, expected)
     }

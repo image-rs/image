@@ -735,7 +735,7 @@ mod tests {
         let mut output = Vec::new();
         super::WebPEncoder::new_lossless(&mut output)
             .write_image(
-                &img.inner_pixels(),
+                img.inner_pixels(),
                 img.width(),
                 img.height(),
                 crate::ColorType::Rgba8,

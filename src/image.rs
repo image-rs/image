@@ -1877,7 +1877,7 @@ mod tests {
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;
-        const ALL_FORMATS: &'static [ImageFormat] = &[
+        const ALL_FORMATS: &[ImageFormat] = &[
             Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
         ];
         for &format in ALL_FORMATS {

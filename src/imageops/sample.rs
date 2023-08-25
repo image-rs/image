@@ -1025,7 +1025,7 @@ mod tests {
     #[cfg(feature = "png")]
     fn test_resize_same_size() {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resize.pixels()))
     }
@@ -1034,7 +1034,7 @@ mod tests {
     #[cfg(feature = "png")]
     fn test_sample_bilinear() {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         assert!(sample_bilinear(&img, 0., 0.).is_some());
         assert!(sample_bilinear(&img, 1., 0.).is_some());
         assert!(sample_bilinear(&img, 0., 1.).is_some());
@@ -1053,7 +1053,7 @@ mod tests {
     #[cfg(feature = "png")]
     fn test_sample_nearest() {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         assert!(sample_nearest(&img, 0., 0.).is_some());
         assert!(sample_nearest(&img, 1., 0.).is_some());
         assert!(sample_nearest(&img, 0., 1.).is_some());

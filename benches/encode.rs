@@ -21,7 +21,7 @@ struct BenchDef {
 }
 
 fn encode_all(c: &mut Criterion) {
-    const BENCH_DEFS: &'static [BenchDef] = &[
+    const BENCH_DEFS: &[BenchDef] = &[
         BenchDef {
             with: &Bmp,
             name: "bmp",

@@ -1051,7 +1051,7 @@ ENDHDR
     fn pbm_binary() {
         // The data contains two rows of the image (each line is padded to the full byte). For
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
-        let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100 as u8, 0b10110111]].concat();
+        let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100_u8, 0b10110111]].concat();
         let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
@@ -1260,7 +1260,7 @@ ENDHDR
 
     #[test]
     fn issue_1616_overflow() {
-        let data = vec![
+        let data = [
             80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56,
         ];
         // Validate: we have a header. Note: we might already calculate that this will fail but

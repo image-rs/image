@@ -117,11 +117,11 @@ impl std::str::FromStr for ReferenceTestCase {
 
         if meta.len() == 1 {
             // `CRC`
-            crc = parse_crc(&meta[0]).ok_or("malformed CRC")?;
+            crc = parse_crc(meta[0]).ok_or("malformed CRC")?;
             kind = ReferenceTestKind::SingleImage;
         } else if meta.len() == 3 && meta[0] == "anim" {
             // `anim_FRAME_CRC`
-            crc = parse_crc(&meta[2]).ok_or("malformed CRC")?;
+            crc = parse_crc(meta[2]).ok_or("malformed CRC")?;
             let frame: usize = meta[1].parse().map_err(|_| "malformed frame number")?;
             kind = ReferenceTestKind::AnimatedFrame {
                 frame: frame.checked_sub(1).ok_or("frame number must be 1-based")?,
@@ -211,7 +211,7 @@ fn check_references() {
                     };
 
                     // Select a single frame
-                    let frame = frames.drain(frame_num..).nth(0).unwrap();
+                    let frame = frames.drain(frame_num..).next().unwrap();
 
                     // Convert the frame to a`RgbaImage`
                     test_img = Some(DynamicImage::from(frame.into_buffer()));
@@ -239,7 +239,7 @@ fn check_references() {
                     };
 
                     // Select a single frame
-                    let frame = frames.drain(frame_num..).nth(0).unwrap();
+                    let frame = frames.drain(frame_num..).next().unwrap();
 
                     // Convert the frame to a`RgbaImage`
                     test_img = Some(DynamicImage::from(frame.into_buffer()));

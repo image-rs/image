@@ -720,7 +720,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     ),
                 ));
             }
-            11 | 12 | 13 => {
+            11..=13 => {
                 // CMYK types are not implemented yet.
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -1428,7 +1428,7 @@ mod test {
         let mut decoder = super::BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
-        decoder.read_rect(0, 0, 8, 8, &mut *buf).unwrap();
+        decoder.read_rect(0, 0, 8, 8, &mut buf).unwrap();
     }
 
     #[test]

@@ -49,7 +49,7 @@ mod test {
             if new_w as u64 * 400u64 >= old_w as u64 * u64::from(u32::MAX) { return true; }
 
             let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
-            let exact = (400 as f64 * new_w as f64 / old_w as f64).round() as u32;
+            let exact = (400_f64 * new_w as f64 / old_w as f64).round() as u32;
             result.0 == new_w && result.1 == exact.max(1)
         }
     }
@@ -62,7 +62,7 @@ mod test {
             if 400u64 * new_h as u64 >= old_h as u64 * u64::from(u32::MAX) { return true; }
 
             let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
-            let exact = (400 as f64 * new_h as f64 / old_h as f64).round() as u32;
+            let exact = (400_f64 * new_h as f64 / old_h as f64).round() as u32;
             result.1 == new_h && result.0 == exact.max(1)
         }
     }

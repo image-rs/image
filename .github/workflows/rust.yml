@@ -86,17 +86,17 @@ jobs:
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
 
-      - name: Cross-Compile project to mips-unknown-linux-gnu
+      - name: Cross-Compile project to powerpc-unknown-linux-gnu
         run: |
-          cross build --target=mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+          cross build --target=powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
 
       # https://github.com/cross-rs/cross#supported-targets
-      - name: Cross-Run Tests in mips-unknown-linux-gnu using Qemu
+      - name: Cross-Run Tests in powerpc-unknown-linux-gnu using Qemu
         continue-on-error: true
         run: |
-          cross test --target mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+          cross test --target powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
 

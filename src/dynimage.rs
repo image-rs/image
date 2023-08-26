@@ -118,6 +118,24 @@ macro_rules! dynamic_map(
 );
 
 impl DynamicImage {
+    /// Creates a dynamic image backed by a buffer depending on
+    /// the color type given.
+    pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicImage {
+        use color::ColorType::*;
+        match color {
+            L8 => Self::new_luma8(w, h),
+            La8 => Self::new_luma_a8(w, h),
+            Rgb8 => Self::new_rgb8(w, h),
+            Rgba8 => Self::new_rgba8(w, h),
+            L16 => Self::new_luma16(w, h),
+            La16 => Self::new_luma_a16(w, h),
+            Rgb16 => Self::new_rgb16(w, h),
+            Rgba16 => Self::new_rgba16(w, h),
+            Rgb32F => Self::new_rgb32f(w, h),
+            Rgba32F => Self::new_rgba32f(w, h),
+        }
+    }
+
     /// Creates a dynamic image backed by a buffer of gray pixels.
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
@@ -1234,6 +1252,8 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use crate::color::ColorType;
+
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
@@ -1276,51 +1296,61 @@ mod test {
     #[test]
     fn test_grayscale_luma8() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_luma8(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L8));
     }
 
     #[test]
     fn test_grayscale_luma_a8() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a8(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La8));
     }
 
     #[test]
     fn test_grayscale_rgb8() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_rgb8(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb8));
     }
 
     #[test]
     fn test_grayscale_rgba8() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba8(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba8));
     }
 
     #[test]
     fn test_grayscale_luma16() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_luma16(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L16));
     }
 
     #[test]
     fn test_grayscale_luma_a16() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a16(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La16));
     }
 
     #[test]
     fn test_grayscale_rgb16() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_rgb16(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb16));
     }
 
     #[test]
     fn test_grayscale_rgba16() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba16(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba16));
     }
 
     #[test]
     fn test_grayscale_rgb32f() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_rgb32f(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb32F));
     }
 
     #[test]
     fn test_grayscale_rgba32f() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba32F));
     }
 
     #[test]

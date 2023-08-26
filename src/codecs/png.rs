@@ -10,10 +10,9 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, Read, Write};
 
-use num_rational::Ratio;
 use png::{BlendOp, DisposeOp};
 
-use crate::animation::{Delay, Frame, Frames};
+use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,

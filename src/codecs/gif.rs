@@ -34,9 +34,8 @@ use std::mem;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
-use num_rational::Ratio;
 
-use crate::animation;
+use crate::animation::{self, Ratio};
 use crate::color::{ColorType, Rgba};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind,

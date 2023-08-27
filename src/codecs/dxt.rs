@@ -100,7 +100,13 @@ impl<R: Read> DxtDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(u64::try_from(buf.len()), Ok(#[allow(deprecated)] self.scanline_bytes()));
+        assert_eq!(
+            u64::try_from(buf.len()),
+            Ok(
+                #[allow(deprecated)]
+                self.scanline_bytes()
+            )
+        );
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -134,7 +140,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(DxtReader {
-            buffer: ImageReadBuffer::new(#[allow(deprecated)] self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(
+                #[allow(deprecated)]
+                self.scanline_bytes(),
+                self.total_bytes(),
+            ),
             decoder: self,
         })
     }

@@ -1,40 +1,52 @@
 //! Utility functions
-use std::iter::{repeat, StepBy};
+use std::iter::StepBy;
 use std::ops::Range;
 
 #[inline(always)]
-pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
+pub fn unpack_bits<F>(input: &[u8], output: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where
     F: Fn(u8, &mut [u8]),
 {
-    // Return early if empty. This enables to subtract `channels` later without overflow.
-    if buf.len() < channels {
-        return;
-    }
+    // Only [1, 2, 4, 8] are valid bit depths
+    assert!(matches!(bit_depth, 1 | 2 | 4 | 8));
+    // Check that `input` is capable of producing a buffer as long as `output`:
+    // number of shift lookups per bit depth * channels * input length
+    assert!((8 / bit_depth as usize * channels).saturating_mul(input.len()) >= output.len());
 
-    let bits = buf.len() / channels * bit_depth as usize;
-    let extra_bits = bits % 8;
-    let entries = bits / 8
-        + match extra_bits {
-            0 => 0,
-            _ => 1,
-        };
-    let skip = match extra_bits {
-        0 => 0,
-        n => (8 - n) / bit_depth as usize,
-    };
-    let mask = ((1u16 << bit_depth) - 1) as u8;
-    let i = (0..entries)
-        .rev() // reverse iterator
-        .flat_map(|idx|
-            // this has to be reversed too
-            (0..8).step_by(bit_depth.into())
-            .zip(repeat(idx)))
-        .skip(skip);
-    let j = (0..=buf.len() - channels).rev().step_by(channels);
-    for ((shift, i), j) in i.zip(j) {
-        let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j..(j + channels)])
+    let mut buf_chunks = output.chunks_exact_mut(channels);
+    let mut iter = input.iter();
+
+    // `shift` iterates through the corresponding bit depth sequence:
+    // 1 => &[7, 6, 5, 4, 3, 2, 1, 0],
+    // 2 => &[6, 4, 2, 0],
+    // 4 => &[4, 0],
+    // 8 => &[0],
+    //
+    // `(0..8).step_by(bit_depth.into()).rev()` doesn't always optimize well so
+    // shifts are calculated instead. (2023-08, Rust 1.71)
+
+    if bit_depth == 8 {
+        for (&curr, chunk) in iter.zip(&mut buf_chunks) {
+            func(curr, chunk);
+        }
+    } else {
+        let mask = ((1u16 << bit_depth) - 1) as u8;
+
+        // These variables are initialized in the loop
+        let mut shift = -1;
+        let mut curr = 0;
+
+        for chunk in buf_chunks {
+            if shift < 0 {
+                shift = 8 - bit_depth as i32;
+                curr = *iter.next().expect("input for unpack bits is not empty");
+            }
+
+            let pixel = (curr >> shift) & mask;
+            func(pixel, chunk);
+
+            shift -= bit_depth as i32;
+        }
     }
 }
 

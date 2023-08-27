@@ -101,7 +101,7 @@ macro_rules! dynamic_map(
             }
         });
 
-        ($dynimage: expr, |$image: pat| $action: expr) => (
+        ($dynimage: expr, $image:pat_param, $action: expr) => (
             match $dynimage {
                 DynamicImage::ImageLuma8($image) => $action,
                 DynamicImage::ImageLumaA8($image) => $action,
@@ -195,62 +195,62 @@ impl DynamicImage {
 
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb8(&self) -> RgbImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb16(&self) -> Rgb16Image {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb32f(&self) -> Rgb32FImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba8(&self) -> RgbaImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba16(&self) -> Rgba16Image {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba32f(&self) -> Rgba32FImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
     pub fn to_luma8(&self) -> GrayImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
     pub fn to_luma16(&self) -> Gray16Image {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
     pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-        dynamic_map!(*self, |ref p| p.convert())
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Consume the image and returns a RGB image.
@@ -570,17 +570,21 @@ impl DynamicImage {
     /// Return this image's pixels as a native endian byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(*self, |ref image_buffer| bytemuck::cast_slice(
-            image_buffer.as_raw().as_ref()
-        ))
+        dynamic_map!(
+            *self,
+            ref image_buffer,
+            bytemuck::cast_slice(image_buffer.as_raw().as_ref())
+        )
     }
 
     // TODO: choose a name under which to expose?
     fn inner_bytes(&self) -> &[u8] {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(*self, |ref image_buffer| bytemuck::cast_slice(
-            image_buffer.inner_pixels()
-        ))
+        dynamic_map!(
+            *self,
+            ref image_buffer,
+            bytemuck::cast_slice(image_buffer.inner_pixels())
+        )
     }
 
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`
@@ -588,7 +592,7 @@ impl DynamicImage {
     /// is returned.
     pub fn into_bytes(self) -> Vec<u8> {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(self, |image_buffer| {
+        dynamic_map!(self, image_buffer, {
             match bytemuck::allocation::try_cast_vec(image_buffer.into_raw()) {
                 Ok(vec) => vec,
                 Err((_, vec)) => {
@@ -631,12 +635,12 @@ impl DynamicImage {
 
     /// Returns the width of the underlying image
     pub fn width(&self) -> u32 {
-        dynamic_map!(*self, |ref p| { p.width() })
+        dynamic_map!(*self, ref p, { p.width() })
     }
 
     /// Returns the height of the underlying image
     pub fn height(&self) -> u32 {
-        dynamic_map!(*self, |ref p| { p.height() })
+        dynamic_map!(*self, ref p, { p.height() })
     }
 
     /// Return a grayscale version of this image.
@@ -672,7 +676,7 @@ impl DynamicImage {
     /// Invert the colors of this image.
     /// This method operates inplace.
     pub fn invert(&mut self) {
-        dynamic_map!(*self, |ref mut p| imageops::invert(p))
+        dynamic_map!(*self, ref mut p, imageops::invert(p))
     }
 
     /// Resize this image using the specified filter algorithm.
@@ -874,7 +878,7 @@ impl DynamicImage {
 
     /// Encode this image with the provided encoder.
     pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
-        dynamic_map!(self, |ref p| p.write_with_encoder(encoder))
+        dynamic_map!(self, ref p, p.write_with_encoder(encoder))
     }
 
     /// Saves the buffer to a file at the path specified.
@@ -884,7 +888,7 @@ impl DynamicImage {
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, |ref p| p.save(path))
+        dynamic_map!(*self, ref p, p.save(path))
     }
 
     /// Saves the buffer to a file at the specified path in
@@ -896,7 +900,7 @@ impl DynamicImage {
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, |ref p| p.save_with_format(path, format))
+        dynamic_map!(*self, ref p, p.save_with_format(path, format))
     }
 }
 
@@ -977,15 +981,15 @@ impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
     fn dimensions(&self) -> (u32, u32) {
-        dynamic_map!(*self, |ref p| p.dimensions())
+        dynamic_map!(*self, ref p, p.dimensions())
     }
 
     fn bounds(&self) -> (u32, u32, u32, u32) {
-        dynamic_map!(*self, |ref p| p.bounds())
+        dynamic_map!(*self, ref p, p.bounds())
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
-        dynamic_map!(*self, |ref p| p.get_pixel(x, y).to_rgba().into_color())
+        dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
     }
 }
 

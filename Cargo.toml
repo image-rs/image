@@ -16,18 +16,15 @@ readme = "README.md"
 documentation = "https://docs.rs/image"
 repository = "https://github.com/image-rs/image"
 homepage = "https://github.com/image-rs/image"
-categories = ["multimedia::images", "multimedia::encoding"]
+categories = ["multimedia::images", "multimedia::encoding", "encoding"]
 
-# Crate build related
-exclude = [
-    "src/png/testdata/*",
-    "examples/*",
-    "tests/*",
+include = [
+    "/LICENSE",
+    "/README.md",
+    "/CHANGES.md",
+    "/src/",
+    "/benches/",
 ]
-
-[lib]
-name = "image"
-path = "./src/lib.rs"
 
 [dependencies]
 bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes cast_vec

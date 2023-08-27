@@ -340,10 +340,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
+        #[allow(deprecated)]
         self.inner.scanline_bytes()
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        #[allow(deprecated)]
         self.inner.into_reader()
     }
 

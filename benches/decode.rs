@@ -71,13 +71,8 @@ fn load_all(c: &mut Criterion) {
             format: ImageFormat::Tiff,
         },
         BenchDef {
-            dir: &["webp", "images"],
-            files: &[
-                "simple-gray.webp",
-                "simple-rgb.webp",
-                "vp8x-gray.webp",
-                "vp8x-rgb.webp",
-            ],
+            dir: &["webp", "lossy_images"],
+            files: &["simple-gray.webp", "simple-rgb.webp"],
             format: ImageFormat::WebP,
         },
     ];

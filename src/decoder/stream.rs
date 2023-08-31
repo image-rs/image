@@ -1088,9 +1088,18 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::iCCP }.into(),
             ))
         } else if info.icc_profile.is_some() {
-            Err(DecodingError::Format(
-                FormatErrorInner::DuplicateChunk { kind: chunk::iCCP }.into(),
-            ))
+            // We have already encountered an iCCP chunk before.
+            //
+            // Section "4.2.2.4. iCCP Embedded ICC profile" of the spec says:
+            //   > A file should contain at most one embedded profile,
+            //   > whether explicit like iCCP or implicit like sRGB.
+            // but
+            //   * This is a "should", not a "must"
+            //   * The spec also says that "All ancillary chunks are optional, in the sense that
+            //     [...] decoders can ignore them."
+            //   * The reference implementation (libpng) ignores the subsequent iCCP chunks
+            //     (treating them as a benign error).
+            Ok(Decoded::Nothing)
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
 
@@ -1572,5 +1581,24 @@ mod tests {
         trial("tests/pngsuite/z03n2c08.png", None);
         trial("tests/pngsuite/z06n2c08.png", None);
         Ok(())
+    }
+
+    /// Test handling of a PNG file that contains *two* iCCP chunks.
+    /// This is a regression test for https://github.com/image-rs/image/issues/1825.
+    #[test]
+    fn test_two_iccp_chunks() {
+        // The test file has been taken from
+        // https://github.com/image-rs/image/issues/1825#issuecomment-1321798639,
+        // but the 2nd iCCP chunk has been altered manually (see the 2nd comment below for more
+        // details).
+        let decoder = crate::Decoder::new(File::open("tests/bugfixes/issue#1825.png").unwrap());
+        let reader = decoder.read_info().unwrap();
+        let icc_profile = reader.info().icc_profile.clone().unwrap().into_owned();
+
+        // Assert that the contents of the *first* iCCP chunk are returned.
+        //
+        // Note that the 2nd chunk in the test file has been manually altered to have a different
+        // content (`b"test iccp contents"`) which would have a different CRC (797351983).
+        assert_eq!(4070462061, crc32fast::hash(&icc_profile));
     }
 }

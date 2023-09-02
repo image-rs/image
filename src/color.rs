@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, ToPrimitive, Zero};
 use bytemuck::TransparentWrapper;
+use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Enlargeable, Pixel, Primitive};
 

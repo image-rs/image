@@ -740,6 +740,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
+        #[allow(deprecated)]
         let correct_bytes = dec
             .into_reader()
             .expect("Unable to read file")

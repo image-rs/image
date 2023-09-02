@@ -514,6 +514,7 @@ where
     let dimensions = decoder.dimensions();
     let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
+    #[allow(deprecated)]
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
 
@@ -716,6 +717,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns a reader that can be used to obtain the bytes of the image. For the best
     /// performance, always try to read at least `scanline_bytes` from the reader at a time. Reading
     /// fewer bytes will cause the reader to perform internal buffering.
+    #[deprecated = "Planned for removal. See https://github.com/image-rs/image/issues/1989"]
     fn into_reader(self) -> ImageResult<Self::Reader>;
 
     /// Returns the total number of bytes in the decoded image.
@@ -733,6 +735,7 @@ pub trait ImageDecoder<'a>: Sized {
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
     /// be as few as 1 or as many as `total_bytes()`.
+    #[deprecated = "Planned for removal. See https://github.com/image-rs/image/issues/1989"]
     fn scanline_bytes(&self) -> u64 {
         self.total_bytes()
     }
@@ -759,11 +762,13 @@ pub trait ImageDecoder<'a>: Sized {
     /// }
     /// ```
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        #[allow(deprecated)]
         self.read_image_with_progress(buf, |_| {})
     }
 
     /// Same as `read_image` but periodically calls the provided callback to give updates on loading
     /// progress.
+    #[deprecated = "Use read_image instead. See https://github.com/image-rs/image/issues/1989"]
     fn read_image_with_progress<F: Fn(Progress)>(
         self,
         buf: &mut [u8],
@@ -772,6 +777,7 @@ pub trait ImageDecoder<'a>: Sized {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         let total_bytes = self.total_bytes() as usize;
+        #[allow(deprecated)]
         let scanline_bytes = self.scanline_bytes() as usize;
         let target_read_size = if scanline_bytes < 4096 {
             (4096 / scanline_bytes) * scanline_bytes
@@ -779,6 +785,7 @@ pub trait ImageDecoder<'a>: Sized {
             scanline_bytes
         };
 
+        #[allow(deprecated)]
         let mut reader = self.into_reader()?;
 
         let mut bytes_read = 0;
@@ -828,6 +835,7 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         height: u32,
         buf: &mut [u8],
     ) -> ImageResult<()> {
+        #[allow(deprecated)]
         self.read_rect_with_progress(x, y, width, height, buf, |_| {})
     }
 
@@ -843,6 +851,7 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     ///
     /// This function will panic if the output buffer isn't at least
     /// `color_type().bytes_per_pixel() * color_type().channel_count() * width * height` bytes long.
+    #[deprecated = "Use read_image instead. See https://github.com/image-rs/image/issues/1989"]
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,

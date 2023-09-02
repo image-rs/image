@@ -3,7 +3,7 @@ cargo-features = ["public-dependency"]
 [package]
 name = "image"
 version = "0.24.0-alpha"
-edition = "2018"
+edition = "2021"
 rust-version = "1.56"
 
 license = "MIT"

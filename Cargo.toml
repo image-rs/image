@@ -27,7 +27,7 @@ include = [
 ]
 
 [dependencies]
-bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes cast_vec
+bytemuck = { version = "1.7.0", features = ["extern_crate_alloc", "derive"] } # includes cast_vec
 byteorder = "1.3.2"
 num-traits = "0.2.0"
 gif = { version = "0.12", optional = true }

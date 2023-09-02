@@ -121,6 +121,7 @@
 #![allow(clippy::many_single_char_names)]
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
+#![forbid(unsafe_code)]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;

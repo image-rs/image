@@ -1,6 +1,7 @@
 use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
+use bytemuck::TransparentWrapper;
 
 use crate::traits::{Enlargeable, Pixel, Primitive};
 
@@ -211,8 +212,8 @@ macro_rules! define_colors {
 $( // START Structure definitions
 
 $(#[$doc])*
-#[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
-#[repr(C)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy, Hash, TransparentWrapper)]
+#[repr(transparent)]
 #[allow(missing_docs)]
 pub struct $ident<T> (pub [T; $channels]);
 
@@ -246,12 +247,10 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
     }
 
     fn from_slice(slice: &[T]) -> &$ident<T> {
-        assert_eq!(slice.len(), $channels);
-        unsafe { &*(slice.as_ptr() as *const $ident<T>) }
+        Self::wrap_ref(slice.try_into().unwrap())
     }
     fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
-        assert_eq!(slice.len(), $channels);
-        unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
+        Self::wrap_mut(slice.try_into().unwrap())
     }
 
     fn to_rgb(&self) -> Rgb<T> {

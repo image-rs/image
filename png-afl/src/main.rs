@@ -1,17 +1,8 @@
-
 #![forbid(unsafe_code)]
 
 #[macro_use]
 extern crate afl;
 extern crate png;
-
-// detect_odr_violation=0 is for https://github.com/rust-lang/rust/issues/41807
-const ASAN_DEFAULT_OPTIONS: &'static [u8] = b"detect_odr_violation=0\0";
-
-#[no_mangle]
-pub extern "C" fn __asan_default_options() -> *const u8 {
-    ASAN_DEFAULT_OPTIONS as *const [u8] as *const u8
-}
 
 #[inline(always)]
 fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {

@@ -813,6 +813,11 @@ mod native_tests {
 
         fn fuzz_webp_no_panic(data: Vec<u8>, width: u8, height: u8, quality: u8) -> bool {
             // Check random (usually invalid) parameters do not panic.
+
+            if data.len() < width as usize * height as usize * 4 {
+                return true;
+            }
+
             let mut buffer = Vec::<u8>::new();
             for color in [ColorType::Rgb8, ColorType::Rgba8] {
                 for webp_quality in [WebPQuality::lossless(), #[allow(deprecated)] WebPQuality::lossy(quality)] {
@@ -820,8 +825,12 @@ mod native_tests {
                     #[allow(deprecated)]
                     let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
                     // Ignore errors.
-                    let _ = encoder
-                        .write_image(&data, width as u32, height as u32, color);
+                    let _ = encoder.write_image(
+                        &data[..width as usize * height as usize * color.bytes_per_pixel() as usize],
+                        width as u32,
+                        height as u32,
+                        color,
+                    );
                 }
             }
             true

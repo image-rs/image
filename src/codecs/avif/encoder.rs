@@ -105,7 +105,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
     ) -> ImageResult<()> {
         assert_eq!(
             (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
-            buf.len() as u64
+            data.len() as u64
         );
 
         self.set_color(color);

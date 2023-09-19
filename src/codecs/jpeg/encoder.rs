@@ -436,6 +436,10 @@ impl<W: Write> JpegEncoder<W> {
     /// and ```ColorType``` ```c```
     ///
     /// The Image in encoded with subsampling ratio 4:2:2
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
     pub fn encode(
         &mut self,
         image: &[u8],
@@ -443,6 +447,11 @@ impl<W: Write> JpegEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            image.len() as u64
+        );
+
         match color_type {
             ColorType::L8 => {
                 let image: ImageBuffer<Luma<_>, _> =

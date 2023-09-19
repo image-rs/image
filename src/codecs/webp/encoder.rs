@@ -700,7 +700,16 @@ impl<W: Write> WebPEncoder<W> {
     /// Encode image data with the indicated color type.
     ///
     /// The encoder requires image data be Rgb8 or Rgba8.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color.bytes_per_pixel() != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
+            data.len() as u64
+        );
+
         if let WebPQuality(Quality::Lossless) = self.quality {
             self.encode_lossless(data, width, height, color)
         } else {

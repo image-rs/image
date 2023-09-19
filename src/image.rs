@@ -881,6 +881,10 @@ pub trait ImageEncoder {
     ///
     /// See also `ImageDecoder::read_image` which reads byte buffers into
     /// native endian.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color_type.bytes_per_pixel() != buf.len()`.
     fn write_image(
         self,
         buf: &[u8],

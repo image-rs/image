@@ -355,9 +355,8 @@ where
 {
     /// Writes the complete image.
     ///
-    /// Returns an Error if it has an invalid length.
-    /// Assumes the writer is buffered. In most cases,
-    /// you should wrap your writer in a `BufWriter` for best performance.
+    /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
+    /// for best performance.
     fn write_image(
         self,
         buf: &[u8],
@@ -365,6 +364,11 @@ where
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         write_buffer(self.0, buf, width, height, color_type)
     }
 }

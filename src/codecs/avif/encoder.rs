@@ -103,6 +103,11 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         height: u32,
         color: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         self.set_color(color);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.

@@ -426,6 +426,9 @@ impl SampleLayout {
     /// Assumes that the image is backed by some sufficiently large buffer. Then computation can
     /// not overflow as we could represent the maximum coordinate. Since overflow is defined either
     /// way, this method can not be unsafe.
+    ///
+    /// Behavior is *unspecified* if the index is out of bounds or this sample layout would require
+    /// a buffer larger than `isize::MAX` bytes.
     pub fn in_bounds_index(&self, c: u8, x: u32, y: u32) -> usize {
         let (c_stride, x_stride, y_stride) = self.strides_cwh();
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)

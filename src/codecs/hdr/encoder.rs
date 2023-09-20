@@ -1,12 +1,59 @@
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
-use crate::error::ImageResult;
+use crate::error::{EncodingError, ImageFormatHint, ImageResult};
 use std::cmp::Ordering;
 use std::io::{Result, Write};
+use std::mem;
+use crate::{ColorType, ImageEncoder, ImageError, ImageFormat};
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W: Write> {
     w: W,
+}
+
+impl<W: Write> ImageEncoder for HdrEncoder<W> {
+    fn write_image(self, unaligned_bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
+        if color_type != ColorType::Rgb32F {
+            return Err(ImageError::Encoding(EncodingError::new(
+                ImageFormatHint::Exact(ImageFormat::Hdr),
+                format!("hdr encoder currently only supports the Rgb32F format"),
+            )))
+        }
+
+        let channel_count = ColorType::Rgb32F.channel_count() as usize;
+        let bytes_per_pixel = ColorType::Rgb32F.bytes_per_pixel() as usize;
+        let bytes_per_float = mem::size_of::<f32>();
+
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(bytes_per_pixel as u64),
+            unaligned_bytes.len() as u64
+        );
+
+        // bytes might be unaligned so we cannot cast the whole thing, instead lookup each f32 individually
+        // TODO dedup with openexr implementation?
+        let lookup_f32 = move |f32_index: usize| -> f32 {
+            let unaligned_f32_bytes_slice = &unaligned_bytes[
+                f32_index * bytes_per_float .. (f32_index + 1) * bytes_per_float
+            ];
+
+            let f32_bytes_array = unaligned_f32_bytes_slice
+                .try_into()
+                .expect("indexing error");
+
+            f32::from_ne_bytes(f32_bytes_array)
+        };
+
+        let get_rgbf32 = move |pixel_index| {
+            let first_f32_index = pixel_index * channel_count;
+            Rgb::<f32>([
+                lookup_f32(first_f32_index),
+                lookup_f32(first_f32_index + 1),
+                lookup_f32(first_f32_index + 2)
+            ])
+        };
+
+        self.encode_pixels_by_index(get_rgbf32, width as usize, height as usize)
+    }
 }
 
 impl<W: Write> HdrEncoder<W> {
@@ -17,8 +64,14 @@ impl<W: Write> HdrEncoder<W> {
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
-        assert!(data.len() >= width * height);
+    pub fn encode(self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
+        self.encode_pixels_by_index(|i| data[i], width, height)
+    }
+
+    /// Encodes the image ```data```
+    /// that has dimensions ```width``` and ```height```.
+    /// The callback must return the color for the given flattened index of the pixel (row major).
+    pub fn encode_pixels_by_index(mut self, get_rgbaf32_pixel: impl Fn(usize) -> Rgb<f32>, width: usize, height: usize) -> ImageResult<()> {
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
         w.write_all(b"\n")?;
@@ -27,7 +80,7 @@ impl<W: Write> HdrEncoder<W> {
         w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
 
         if !(8..=32_768).contains(&width) {
-            for &pix in data {
+            for pix in (0..width * height).map(|i| get_rgbaf32_pixel(i)) {
                 write_rgbe8(w, to_rgbe8(pix))?;
             }
         } else {
@@ -39,13 +92,17 @@ impl<W: Write> HdrEncoder<W> {
             let mut bufb = vec![0; width];
             let mut bufe = vec![0; width];
             let mut rle_buf = vec![0; width];
-            for scanline in data.chunks(width) {
-                for ((((r, g), b), e), &pix) in bufr
+            for y in 0..height {
+                let scanline = (0..width).map(|x|
+                    get_rgbaf32_pixel(y * width + x)
+                );
+
+                for ((((r, g), b), e), pix) in bufr
                     .iter_mut()
                     .zip(bufg.iter_mut())
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
-                    .zip(scanline.iter())
+                    .zip(scanline)
                 {
                     let cp = to_rgbe8(pix);
                     *r = cp.c[0];
@@ -77,6 +134,7 @@ enum RunOrNot {
     Run(u8, usize),
     Norun(usize, usize),
 }
+
 use self::RunOrNot::{Norun, Run};
 
 const RUN_MAX_LEN: usize = 127;

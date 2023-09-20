@@ -640,6 +640,11 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
         use ColorType::*;
 
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
         // contract of `write_image`.

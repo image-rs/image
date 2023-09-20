@@ -296,6 +296,11 @@ impl<W: Write> ImageEncoder for PnmEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         self.encode(buf, width, height, color_type)
     }
 }

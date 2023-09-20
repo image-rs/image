@@ -257,9 +257,16 @@ impl<W: Write> FarbfeldEncoder<W> {
         FarbfeldEncoder { w: buffered_writer }
     }
 
-    /// Encodes the image ```data``` (native endian)
-    /// that has dimensions ```width``` and ```height```
+    /// Encodes the image `data` (native endian) that has dimensions `width` and `height`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * 8 != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(8),
+            data.len() as u64
+        );
         self.encode_impl(data, width, height)?;
         Ok(())
     }

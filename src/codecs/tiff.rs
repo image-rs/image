@@ -297,7 +297,16 @@ impl<W: Write + Seek> TiffEncoder<W> {
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
     ///
     /// 16-bit types assume the buffer is native endian.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
+            data.len() as u64
+        );
+
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color {

@@ -47,6 +47,10 @@ impl<W: Write> TgaEncoder<W> {
     ///
     /// The dimensions of the image must be between 0 and 65535 (inclusive) or
     /// an error will be returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     pub fn encode(
         mut self,
         buf: &[u8],
@@ -54,6 +58,11 @@ impl<W: Write> TgaEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         // Validate dimensions.
         let width = u16::try_from(width)
             .map_err(|_| ImageError::from(EncoderError::WidthInvalid(width)))?;

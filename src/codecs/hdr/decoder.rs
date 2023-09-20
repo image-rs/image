@@ -1,3 +1,5 @@
+use crate::traits::PixelWithColorType;
+use crate::Pixel;
 use crate::Primitive;
 use num_traits::identities::Zero;
 #[cfg(test)]
@@ -9,8 +11,6 @@ use std::marker::PhantomData;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 use std::{error, fmt, mem};
-use crate::{Pixel};
-use crate::traits::PixelWithColorType;
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{
@@ -160,17 +160,13 @@ impl<R: BufRead> HdrAdapter<R> {
         let bytes_per_pixel = Rgb::<f32>::COLOR_TYPE.bytes_per_pixel() as usize;
 
         match self.inner.take() {
-            Some(decoder) => {
-                decoder.read_image_transform(
-                    |index, pix| {
-                        let rgb_f32 = pix.to_hdr_scale_gamma(1.0, 2.2);
-                        let pixel_bytes: &[u8] = bytemuck::cast_slice(rgb_f32.channels());
+            Some(decoder) => decoder.read_image_transform(|index, pix| {
+                let rgb_f32 = pix.to_hdr_scale_gamma(1.0, 2.2);
+                let pixel_bytes: &[u8] = bytemuck::cast_slice(rgb_f32.channels());
 
-                        image_bytes[index * bytes_per_pixel..(index + 1) * bytes_per_pixel]
-                            .copy_from_slice(pixel_bytes);
-                    },
-                )
-            }
+                image_bytes[index * bytes_per_pixel..(index + 1) * bytes_per_pixel]
+                    .copy_from_slice(pixel_bytes);
+            }),
             None => Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::NoMoreData,
             ))),
@@ -312,9 +308,11 @@ impl Rgbe8Pixel {
         fn sg(v: f32, scale: f32, gamma: f32) -> f32 {
             // Disassembly shows that t_max_f32 is compiled into constant
             let fv = f32::powf(v * scale, gamma);
-            if fv < 0.0 { 0.0 }
-            else if fv > 1.0 { 1.0 }
-            else {
+            if fv < 0.0 {
+                0.0
+            } else if fv > 1.0 {
+                1.0
+            } else {
                 num_traits::NumCast::from(fv)
                     .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
@@ -347,15 +345,17 @@ impl Rgbe8Pixel {
             let t_max_f32: f32 = num_traits::NumCast::from(t_max)
                 .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
 
-            if fv <= 0.0 { T::zero() }
-            else if fv > t_max_f32 { t_max }
-            else {
+            if fv <= 0.0 {
+                T::zero()
+            } else if fv > t_max_f32 {
+                t_max
+            } else {
                 num_traits::NumCast::from(fv)
                     .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
         }
 
-        Rgb([sg(r), sg(g), sg(b), ])
+        Rgb([sg(r), sg(g), sg(b)])
     }
 }
 
@@ -386,7 +386,7 @@ impl<R: BufRead> HdrDecoder<R> {
                 if signature != SIGNATURE {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
-                // skip signature line ending
+                  // skip signature line ending
                 read_line_u8(r)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
@@ -408,14 +408,14 @@ impl<R: BufRead> HdrDecoder<R> {
                             // skip comments
                             continue;
                         } // no else
-                        // process attribute line
+                          // process attribute line
                         let line = String::from_utf8_lossy(&line[..]);
                         attributes.update_header_info(&line, strict)?;
                     } // <= Some(line)
                 } // match read_line_u8()
             } // loop
         } // scope to end borrow of reader
-        // parse dimensions
+          // parse dimensions
         let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions
@@ -832,7 +832,7 @@ impl HdrMetadata {
                                 LineType::Exposure,
                                 parse_error,
                             )
-                                .into());
+                            .into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -849,7 +849,7 @@ impl HdrMetadata {
                                 LineType::Pixaspect,
                                 parse_error,
                             )
-                                .into());
+                            .into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -922,8 +922,8 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
         // extra data in dimensions line
         return Err(DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT).into());
     } // no else
-    // dimensions line is in the form "-Y 10 +X 20"
-    // There are 8 possible orientations: +Y +X, +X -Y and so on
+      // dimensions line is in the form "-Y 10 +X 20"
+      // There are 8 possible orientations: +Y +X, +X -Y and so on
     match (c1_tag, c2_tag) {
         ("-Y", "+X") => {
             // Common orientation (left-right, top-down)

@@ -7,10 +7,10 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::ImageBuffer;
-use crate::image::GenericImageView;
-use crate::utils::clamp;
+use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::utils::clamp;
+use crate::{ImageBuffer, Rgba32FImage};
 
 /// Available Sampling Filters.
 ///
@@ -110,7 +110,7 @@ struct FloatNearest(f32);
 // to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
 // Note that to_f64 by default calls to_i64 and thus needs to be overridden.
 impl ToPrimitive for FloatNearest {
-    // to_{i,u}64 is required, to_{i,u}{8,16} are usefull.
+    // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
     // If a usecase for full 32 bits is found its trivial to add
     fn to_i8(&self) -> Option<i8> {
         self.0.round().to_i8()
@@ -161,10 +161,13 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
     let a = x.abs();
 
     let k = if a < 1.0 {
-        (12.0 - 9.0 * b - 6.0 * c) * a.powi(3) + (-18.0 + 12.0 * b + 6.0 * c) * a.powi(2)
+        (12.0 - 9.0 * b - 6.0 * c) * a.powi(3)
+            + (-18.0 + 12.0 * b + 6.0 * c) * a.powi(2)
             + (6.0 - 2.0 * b)
     } else if a < 2.0 {
-        (-b - 6.0 * c) * a.powi(3) + (6.0 * b + 30.0 * c) * a.powi(2) + (-12.0 * b - 48.0 * c) * a
+        (-b - 6.0 * c) * a.powi(3)
+            + (6.0 * b + 30.0 * c) * a.powi(2)
+            + (-12.0 * b - 48.0 * c) * a
             + (8.0 * b + 24.0 * c)
     } else {
         0.0
@@ -217,13 +220,13 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<I, P, S>(
-    image: &I,
+// ```image``` is not necessarily Rgba and the order of channels is passed through.
+fn horizontal_sample<P, S>(
+    image: &Rgba32FImage,
     new_width: u32,
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -278,13 +281,7 @@ where
                 let p = image.get_pixel(left + i as u32, y);
 
                 #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
+                let vec = p.channels4();
 
                 t.0 += vec.0 * w;
                 t.1 += vec.1 * w;
@@ -292,14 +289,12 @@ where
                 t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-
             #[allow(deprecated)]
             let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -309,15 +304,152 @@ where
     out
 }
 
+/// Linearly sample from an image using coordinates in [0, 1].
+pub fn sample_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+
+    let ui = w as f32 * u - 0.5;
+    let vi = h as f32 * v - 0.5;
+    interpolate_bilinear(
+        img,
+        ui.max(0.).min((w - 1) as f32),
+        vi.max(0.).min((h - 1) as f32),
+    )
+}
+
+/// Sample from an image using coordinates in [0, 1], taking the nearest coordinate.
+pub fn sample_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    let ui = w as f32 * u - 0.5;
+    let ui = ui.max(0.).min((w.saturating_sub(1)) as f32);
+
+    let vi = h as f32 * v - 0.5;
+    let vi = vi.max(0.).min((h.saturating_sub(1)) as f32);
+    interpolate_nearest(img, ui, vi)
+}
+
+/// Sample from an image using coordinates in [0, w-1] and [0, h-1], taking the
+/// nearest pixel.
+///
+/// Coordinates outside the image bounds will return `None`, however the
+/// behavior for points within half a pixel of the image bounds may change in
+/// the future.
+pub fn interpolate_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    Some(img.get_pixel(x.round() as u32, y.round() as u32))
+}
+
+/// Linearly sample from an image using coordinates in [0, w-1] and [0, h-1].
+pub fn interpolate_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    let uf = x.floor();
+    let vf = y.floor();
+    let uc = (x + 1.).min((w - 1) as f32);
+    let vc = (y + 1.).min((h - 1) as f32);
+
+    // clamp coords to the range of the image
+    let coords = [[uf, vf], [uf, vc], [uc, vf], [uc, vc]];
+
+    assert!(coords
+        .iter()
+        .all(|&[u, v]| { img.in_bounds(u as u32, v as u32) }));
+    let samples = coords.map(|[u, v]| img.get_pixel(u as u32, v as u32));
+    assert!(P::CHANNEL_COUNT <= 4);
+
+    // convert samples to f32
+    // currently rgba is the largest one,
+    // so just store as many items as necessary,
+    // because there's not a simple way to be generic over all of them.
+    let [sff, sfc, scf, scc] = samples.map(|s| {
+        let mut out = [0.; 4];
+        for (i, c) in s.channels().iter().enumerate() {
+            out[i] = c.to_f32().unwrap();
+        }
+        out
+    });
+    // weights
+    let [ufw, vfw] = [x - uf, y - vf];
+    let [ucw, vcw] = [1. - ufw, 1. - vfw];
+
+    // https://en.wikipedia.org/wiki/Bilinear_interpolation#Weighted_mean
+    // the distance between pixels is 1 so there is no denominator
+    let wff = ucw * vcw;
+    let wfc = ucw * vfw;
+    let wcf = ufw * vcw;
+    let wcc = ufw * vfw;
+    assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
+
+    // hack to get around not being able to construct a generic Pixel
+    let mut out = samples[0];
+    for (i, c) in out.channels_mut().iter_mut().enumerate() {
+        let v = wff * sff[i] + wfc * sfc[i] + wcf * scf[i] + wcc * scc[i];
+        // this rounding may introduce quantization errors,
+        // but cannot do anything about it.
+        *c = <P::Subpixel as NumCast>::from(v.round()).unwrap_or({
+            if v < 0.0 {
+                P::Subpixel::DEFAULT_MIN_VALUE
+            } else {
+                P::Subpixel::DEFAULT_MAX_VALUE
+            }
+        })
+    }
+    Some(out)
+}
+
 // Sample the columns of the supplied image using the provided filter.
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<I, P, S>(
-    image: &I,
-    new_height: u32,
-    filter: &mut Filter,
-) -> ImageBuffer<P, Vec<S>>
+// The return value is not necessarily Rgba, the underlying order of channels in ```image``` is
+// preserved.
+fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
@@ -327,8 +459,6 @@ where
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -380,15 +510,9 @@ where
                 t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-
             #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
-            );
+            // This is not necessarily Rgba.
+            let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
 
             out.put_pixel(x, outy, t);
         }
@@ -402,14 +526,19 @@ struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger,
 
 impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {
-        ThumbnailSum(S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero())
+        ThumbnailSum(
+            S::Larger::zero(),
+            S::Larger::zero(),
+            S::Larger::zero(),
+            S::Larger::zero(),
+        )
     }
 
     fn sample_val(val: S) -> S::Larger {
         <S::Larger as NumCast>::from(val).unwrap()
     }
 
-    fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+    fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
         #[allow(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
@@ -447,55 +576,58 @@ where
         let bottomf = outy as f32 * y_ratio;
         let topf = bottomf + y_ratio;
 
-        let bottom = clamp(
-            bottomf.ceil() as u32,
-            0,
-            height - 1,
-        );
-        let top = clamp(
-            topf.ceil() as u32,
-            bottom,
-            height,
-        );
+        let bottom = clamp(bottomf.ceil() as u32, 0, height - 1);
+        let top = clamp(topf.ceil() as u32, bottom, height);
 
         for outx in 0..new_width {
             let leftf = outx as f32 * x_ratio;
             let rightf = leftf + x_ratio;
 
-            let left = clamp(
-                leftf.ceil() as u32,
-                0,
-                width - 1,
-            );
-            let right = clamp(
-                rightf.ceil() as u32,
-                left,
-                width,
-            );
+            let left = clamp(leftf.ceil() as u32, 0, width - 1);
+            let right = clamp(rightf.ceil() as u32, left, width);
 
             let avg = if bottom != top && left != right {
                 thumbnail_sample_block(image, left, right, bottom, top)
-            } else if bottom != top {  // && left == right
+            } else if bottom != top {
+                // && left == right
                 // In the first column we have left == 0 and right > ceil(y_scale) > 0 so this
                 // assertion can never trigger.
-                debug_assert!(left > 0 && right > 0,
-                    "First output column must have corresponding pixels");
+                debug_assert!(
+                    left > 0 && right > 0,
+                    "First output column must have corresponding pixels"
+                );
 
-                let fraction_horizontal = (leftf.fract() + rightf.fract())/2.;
-                thumbnail_sample_fraction_horizontal(image, right - 1, fraction_horizontal, bottom, top)
-            } else if left != right {  // && bottom == top
+                let fraction_horizontal = (leftf.fract() + rightf.fract()) / 2.;
+                thumbnail_sample_fraction_horizontal(
+                    image,
+                    right - 1,
+                    fraction_horizontal,
+                    bottom,
+                    top,
+                )
+            } else if left != right {
+                // && bottom == top
                 // In the first line we have bottom == 0 and top > ceil(x_scale) > 0 so this
                 // assertion can never trigger.
-                debug_assert!(bottom > 0 && top > 0,
-                    "First output row must have corresponding pixels");
+                debug_assert!(
+                    bottom > 0 && top > 0,
+                    "First output row must have corresponding pixels"
+                );
 
-                let fraction_vertical = (topf.fract() + bottomf.fract())/2.;
+                let fraction_vertical = (topf.fract() + bottomf.fract()) / 2.;
                 thumbnail_sample_fraction_vertical(image, left, right, top - 1, fraction_vertical)
-            } else {  // bottom == top && left == right
-                let fraction_horizontal = (topf.fract() + bottomf.fract())/2.;
-                let fraction_vertical= (leftf.fract() + rightf.fract())/2.;
+            } else {
+                // bottom == top && left == right
+                let fraction_horizontal = (topf.fract() + bottomf.fract()) / 2.;
+                let fraction_vertical = (leftf.fract() + rightf.fract()) / 2.;
 
-                thumbnail_sample_fraction_both(image, right - 1, fraction_horizontal, top - 1, fraction_vertical)
+                thumbnail_sample_fraction_both(
+                    image,
+                    right - 1,
+                    fraction_horizontal,
+                    top - 1,
+                    fraction_vertical,
+                )
             };
 
             #[allow(deprecated)]
@@ -529,15 +661,13 @@ where
         }
     }
 
-    let n = <S::Larger as NumCast>::from(
-        (right - left) * (top - bottom)).unwrap();
-    let round = <S::Larger as NumCast>::from(
-        n / NumCast::from(2).unwrap()).unwrap();
+    let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
+    let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
     (
-        S::clamp_from((sum.0 + round)/n),
-        S::clamp_from((sum.1 + round)/n),
-        S::clamp_from((sum.2 + round)/n),
-        S::clamp_from((sum.3 + round)/n),
+        S::clamp_from((sum.0 + round) / n),
+        S::clamp_from((sum.1 + round) / n),
+        S::clamp_from((sum.2 + round) / n),
+        S::clamp_from((sum.3 + round) / n),
     )
 }
 
@@ -567,14 +697,15 @@ where
     }
 
     // Now we approximate: left/n*(1-fract) + right/n*fract
-    let fact_right =       fract /((top - bottom) as f32);
-    let fact_left  = (1. - fract)/((top - bottom) as f32);
+    let fact_right = fract / ((top - bottom) as f32);
+    let fact_left = (1. - fract) / ((top - bottom) as f32);
 
-    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger|
+    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| {
         <S as NumCast>::from(
-            fact_left * leftv.to_f32().unwrap() +
-            fact_right * rightv.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+            fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap(),
+        )
+        .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix_left_and_right(sum_left.0, sum_right.0),
@@ -610,14 +741,13 @@ where
     }
 
     // Now we approximate: bot/n*fract + top/n*(1-fract)
-    let fact_top =       fract /((right - left) as f32);
-    let fact_bot = (1. - fract)/((right - left) as f32);
+    let fact_top = fract / ((right - left) as f32);
+    let fact_bot = (1. - fract) / ((right - left) as f32);
 
-    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger|
-        <S as NumCast>::from(
-            fact_bot * botv.to_f32().unwrap() +
-            fact_top * topv.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| {
+        <S as NumCast>::from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
+            .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix_bot_and_top(sum_bot.0, sum_top.0),
@@ -641,29 +771,31 @@ where
     S: Primitive + Enlargeable,
 {
     #[allow(deprecated)]
-    let k_bl = image.get_pixel(left,     bottom    ).channels4();
+    let k_bl = image.get_pixel(left, bottom).channels4();
     #[allow(deprecated)]
-    let k_tl = image.get_pixel(left,     bottom + 1).channels4();
+    let k_tl = image.get_pixel(left, bottom + 1).channels4();
     #[allow(deprecated)]
-    let k_br = image.get_pixel(left + 1, bottom    ).channels4();
+    let k_br = image.get_pixel(left + 1, bottom).channels4();
     #[allow(deprecated)]
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
 
-    let fact_tr = frac_v        * frac_h;
-    let fact_tl = frac_v        * (1. - frac_h);
+    let fact_tr = frac_v * frac_h;
+    let fact_tl = frac_v * (1. - frac_h);
     let fact_br = (1. - frac_v) * frac_h;
     let fact_bl = (1. - frac_v) * (1. - frac_h);
 
-    let mix = |br: S, tr: S, bl: S, tl: S|
+    let mix = |br: S, tr: S, bl: S, tl: S| {
         <S as NumCast>::from(
-            fact_br * br.to_f32().unwrap() +
-            fact_tr * tr.to_f32().unwrap() +
-            fact_bl * bl.to_f32().unwrap() +
-            fact_tl * tl.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+            fact_br * br.to_f32().unwrap()
+                + fact_tr * tr.to_f32().unwrap()
+                + fact_bl * bl.to_f32().unwrap()
+                + fact_tl * tl.to_f32().unwrap(),
+        )
+        .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
@@ -767,6 +899,13 @@ where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Subpixel: 'static,
 {
+    // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
+    if (nwidth, nheight) == image.dimensions() {
+        let mut tmp = ImageBuffer::new(image.width(), image.height());
+        tmp.copy_from(image, 0, 0).unwrap();
+        return tmp;
+    }
+
     let mut method = match filter {
         FilterType::Nearest => Filter {
             kernel: Box::new(box_kernel),
@@ -790,7 +929,8 @@ where
         },
     };
 
-    let tmp = vertical_sample(image, nheight, &mut method);
+    // Note: tmp is not necessarily actually Rgba
+    let tmp: Rgba32FImage = vertical_sample(image, nheight, &mut method);
     horizontal_sample(&tmp, nwidth, &mut method)
 }
 
@@ -814,7 +954,8 @@ where
 
     // Keep width and height the same for horizontal and
     // vertical sampling.
-    let tmp = vertical_sample(image, height, &mut method);
+    // Note: tmp is not necessarily actually Rgba
+    let tmp: Rgba32FImage = vertical_sample(image, height, &mut method);
     horizontal_sample(&tmp, width, &mut method)
 }
 
@@ -864,8 +1005,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, FilterType};
-    use crate::{ImageBuffer, RgbImage};
+    use super::{resize, sample_bilinear, sample_nearest, FilterType};
+    use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -881,6 +1022,123 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "png")]
+    fn test_resize_same_size() {
+        use std::path::Path;
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
+        let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
+        assert!(img.pixels().eq(resize.pixels()))
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_bilinear() {
+        use std::path::Path;
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_bilinear(&img, 0., 0.).is_some());
+        assert!(sample_bilinear(&img, 1., 0.).is_some());
+        assert!(sample_bilinear(&img, 0., 1.).is_some());
+        assert!(sample_bilinear(&img, 1., 1.).is_some());
+        assert!(sample_bilinear(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_bilinear(&img, 1.2, 0.5).is_none());
+        assert!(sample_bilinear(&img, 0.5, 1.2).is_none());
+        assert!(sample_bilinear(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_bilinear(&img, -0.1, 0.2).is_none());
+        assert!(sample_bilinear(&img, 0.2, -0.1).is_none());
+        assert!(sample_bilinear(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_nearest() {
+        use std::path::Path;
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_nearest(&img, 0., 0.).is_some());
+        assert!(sample_nearest(&img, 1., 0.).is_some());
+        assert!(sample_nearest(&img, 0., 1.).is_some());
+        assert!(sample_nearest(&img, 1., 1.).is_some());
+        assert!(sample_nearest(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_nearest(&img, 1.2, 0.5).is_none());
+        assert!(sample_nearest(&img, 0.5, 1.2).is_none());
+        assert!(sample_nearest(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_nearest(&img, -0.1, 0.2).is_none());
+        assert!(sample_nearest(&img, 0.2, -0.1).is_none());
+        assert!(sample_nearest(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
+    fn test_sample_bilinear_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+        assert_eq!(sample_bilinear(&img, 0.5, 0.5), Some(Rgba([64; 4])));
+        assert_eq!(sample_bilinear(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 0.0),
+            Some(Rgba([128, 0, 128, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.0, 0.5),
+            Some(Rgba([128, 128, 0, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 1.0),
+            Some(Rgba([0, 128, 0, 128]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 1.0, 0.5),
+            Some(Rgba([0, 0, 128, 128]))
+        );
+    }
+    #[test]
+    fn test_sample_nearest_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+
+        assert_eq!(sample_nearest(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(sample_nearest(&img, 0.5, 0.5), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 0.5, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 0.5), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.5, 1.0), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.5), Some(Rgba([0, 0, 0, 255])));
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_resize_same_size(b: &mut test::Bencher) {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
+        let image = crate::open(path).unwrap();
+        b.iter(|| {
+            test::black_box(image.resize(image.width(), image.height(), FilterType::CatmullRom));
+        });
+        b.bytes = (image.width() * image.height() * 3) as u64;
+    }
+
+    #[test]
     fn test_issue_186() {
         let img: RgbImage = ImageBuffer::new(100, 100);
         let _ = resize(&img, 50, 50, FilterType::Lanczos3);
@@ -889,7 +1147,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap();
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
@@ -900,7 +1161,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap().thumbnail(256, 256);
         b.iter(|| {
             test::black_box(image.thumbnail(512, 512));
@@ -911,7 +1175,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap().thumbnail(193, 193);
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
@@ -934,7 +1201,8 @@ mod tests {
                 assert!(
                     alpha != 254 && alpha != 253,
                     "alpha value: {}, {:?}",
-                    alpha, filter
+                    alpha,
+                    filter
                 );
             }
         }
@@ -949,5 +1217,12 @@ mod tests {
         for filter in filters {
             assert_resize(rgba8, *filter);
         }
+    }
+
+    #[test]
+    fn bug_1600() {
+        let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
+        let result = resize(&image, 22, 22, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().any(|c| c != 0));
     }
 }

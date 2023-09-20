@@ -14,7 +14,7 @@ use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
 use dcv_color_primitives as dcp;
-use mp4parse::{ParseStrictness, read_avif};
+use mp4parse::{read_avif, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -27,33 +27,41 @@ pub struct AvifDecoder<R> {
     inner: PhantomData<R>,
     picture: dav1d::Picture,
     alpha_picture: Option<dav1d::Picture>,
+    icc_profile: Option<Vec<u8>>,
 }
 
 impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
         let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
-        let mut primary_decoder = dav1d::Decoder::new();
-        let coded = ctx.primary_item_coded_data();
+        let coded = ctx.primary_item_coded_data().unwrap_or_default();
+
+        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
         primary_decoder
-            .send_data(coded, None, None, None)
+            .send_data(coded.to_vec(), None, None, None)
             .map_err(error_map)?;
         let picture = primary_decoder.get_picture().map_err(error_map)?;
-        let alpha_item = ctx.alpha_item_coded_data();
+        let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
         let alpha_picture = if !alpha_item.is_empty() {
-            let mut alpha_decoder = dav1d::Decoder::new();
+            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
             alpha_decoder
-                .send_data(alpha_item, None, None, None)
+                .send_data(alpha_item.to_vec(), None, None, None)
                 .map_err(error_map)?;
             Some(alpha_decoder.get_picture().map_err(error_map)?)
         } else {
             None
         };
+        let icc_profile = ctx
+            .icc_colour_information()
+            .map(|x| x.ok().unwrap_or_default())
+            .map(|x| x.to_vec());
+
         assert_eq!(picture.bit_depth(), 8);
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,
             alpha_picture,
+            icc_profile,
         })
     }
 }
@@ -85,6 +93,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         ColorType::Rgba8
     }
 
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        self.icc_profile.clone()
+    }
+
     fn into_reader(self) -> ImageResult<Self::Reader> {
         let plane = self.picture.plane(PlanarImageComponent::Y);
         Ok(AvifReader(
@@ -104,7 +116,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 PixelLayout::I420 => dcp::PixelFormat::I420,
                 PixelLayout::I422 => dcp::PixelFormat::I422,
                 PixelLayout::I444 => dcp::PixelFormat::I444,
-                PixelLayout::Unknown => panic!("Unknown pixel layout"),
             };
             let src_format = dcp::ImageFormat {
                 pixel_format,
@@ -112,8 +123,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 num_planes: 3,
             };
             let dst_format = dcp::ImageFormat {
-                pixel_format: dcp::PixelFormat::Bgra,
-                color_space: dcp::ColorSpace::Lrgb,
+                pixel_format: dcp::PixelFormat::Rgba,
+                color_space: dcp::ColorSpace::Rgb,
                 num_planes: 1,
             };
             let (width, height) = self.dimensions();
@@ -158,11 +169,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                     buf[3 + i * 4] = slice[i];
                 }
             }
-        }
-
-        // Convert Bgra to Rgba
-        for chunk in buf.chunks_exact_mut(4) {
-            chunk.swap(0, 2);
         }
 
         Ok(())

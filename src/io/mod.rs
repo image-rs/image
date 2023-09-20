@@ -1,19 +1,23 @@
 //! Input and output of images.
 
+use std::convert::TryFrom;
+
 use crate::{error, ImageError, ImageResult};
 
-mod reader;
 pub(crate) mod free_functions;
+mod reader;
 
 pub use self::reader::Reader;
 
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct LimitSupport {
     _non_exhaustive: (),
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for LimitSupport {
     fn default() -> LimitSupport {
         LimitSupport {
@@ -25,12 +29,12 @@ impl Default for LimitSupport {
 /// Resource limits for decoding.
 ///
 /// Limits can be either *strict* or *non-strict*. Non-strict limits are best-effort
-/// limits where the library does not guarantee that limit will not be exceeded. Do note 
-/// that it is still considered a bug if a non-strict limit is exceeded, however as 
-/// some of the underlying decoders do not support not support such limits one cannot 
-/// rely on these limits being supported. For stric limits the library makes a stronger 
-/// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered 
-/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it 
+/// limits where the library does not guarantee that limit will not be exceeded. Do note
+/// that it is still considered a bug if a non-strict limit is exceeded, however as
+/// some of the underlying decoders do not support not support such limits one cannot
+/// rely on these limits being supported. For stric limits the library makes a stronger
+/// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered
+/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it
 /// *must* fail with `image::error::LimitErrorKind::Unsupported`.
 ///
 /// Currently the only strict limits supported are the `max_image_width` and `max_image_height`
@@ -45,12 +49,13 @@ impl Default for LimitSupport {
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct Limits {
     /// The maximum allowed image width. This limit is strict. The default is no limit.
     pub max_image_width: Option<u32>,
     /// The maximum allowed image height. This limit is strict. The default is no limit.
     pub max_image_height: Option<u32>,
-    /// The maximum allowed sum of allocations allocated by the decoder at any one time exluding
+    /// The maximum allowed sum of allocations allocated by the decoder at any one time excluding
     /// allocator overhead. This limit is non-strict by default and some decoders may ignore it.
     /// The default is 512MiB.
     pub max_alloc: Option<u64>,
@@ -62,7 +67,7 @@ impl Default for Limits {
         Limits {
             max_image_width: None,
             max_image_height: None,
-            max_alloc: Some(512*1024*1024),
+            max_alloc: Some(512 * 1024 * 1024),
             _non_exhaustive: (),
         }
     }
@@ -90,14 +95,16 @@ impl Limits {
         if let Some(max_width) = self.max_image_width {
             if width > max_width {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::DimensionError)))
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
         if let Some(max_height) = self.max_image_height {
             if height > max_height {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::DimensionError)))
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
@@ -110,7 +117,8 @@ impl Limits {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             if *max_alloc < amount {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory)))
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
             }
 
             *max_alloc -= amount;
@@ -119,13 +127,40 @@ impl Limits {
         Ok(())
     }
 
+    /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
+    pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
+        match u64::try_from(amount) {
+            Ok(n) => self.reserve(n),
+            Err(_) if self.max_alloc.is_some() => Err(ImageError::Limits(
+                error::LimitError::from_kind(error::LimitErrorKind::InsufficientMemory),
+            )),
+            Err(_) => {
+                // Out of bounds, but we weren't asked to consider any limit.
+                Ok(())
+            }
+        }
+    }
+
     /// This function increases the `max_alloc` limit with amount. Should only be used
-    /// togheter with [`reserve`].
+    /// together with [`reserve`].
     ///
     /// [`reserve`]: #method.reserve
     pub fn free(&mut self, amount: u64) {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             *max_alloc = max_alloc.saturating_add(amount);
+        }
+    }
+
+    /// This function acts identically to [`free`], but takes a `usize` for convenience.
+    pub fn free_usize(&mut self, amount: usize) {
+        match u64::try_from(amount) {
+            Ok(n) => self.free(n),
+            Err(_) if self.max_alloc.is_some() => {
+                panic!("max_alloc is set, we should have exited earlier when the reserve failed");
+            }
+            Err(_) => {
+                // Out of bounds, but we weren't asked to consider any limit.
+            }
         }
     }
 }

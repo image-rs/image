@@ -7,7 +7,7 @@ use std::cmp::max;
 /// will either fill the dimensions to fit inside the smaller constraint
 /// (will overflow the specified bounds on one axis to preserve
 /// aspect ratio), or will shrink so that both dimensions are
-/// completely contained with in the given `width` and `height`,
+/// completely contained within the given `width` and `height`,
 /// with empty space on one axis.
 pub(crate) fn resize_dimensions(
     width: u32,
@@ -44,16 +44,26 @@ mod test {
     quickcheck! {
         fn resize_bounds_correctly_width(old_w: u32, new_w: u32) -> bool {
             if old_w == 0 || new_w == 0 { return true; }
+            // In this case, the scaling is limited by scaling of height.
+            // We could check that case separately but it does not conform to the same expectation.
+            if new_w as u64 * 400u64 >= old_w as u64 * u64::from(u32::MAX) { return true; }
+
             let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
-            result.0 == new_w && result.1 == (400 as f64 * new_w as f64 / old_w as f64).round() as u32
+            let exact = (400_f64 * new_w as f64 / old_w as f64).round() as u32;
+            result.0 == new_w && result.1 == exact.max(1)
         }
     }
 
     quickcheck! {
         fn resize_bounds_correctly_height(old_h: u32, new_h: u32) -> bool {
             if old_h == 0 || new_h == 0 { return true; }
+            // In this case, the scaling is limited by scaling of width.
+            // We could check that case separately but it does not conform to the same expectation.
+            if 400u64 * new_h as u64 >= old_h as u64 * u64::from(u32::MAX) { return true; }
+
             let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
-            result.1 == new_h && result.0 == (400 as f64 * new_h as f64 / old_h as f64).round() as u32
+            let exact = (400_f64 * new_h as f64 / old_h as f64).round() as u32;
+            result.1 == new_h && result.0 == exact.max(1)
         }
     }
 

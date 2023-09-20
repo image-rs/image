@@ -151,13 +151,20 @@ impl<W: Write> PnmEncoder<W> {
     {
         let image = image.into();
         match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color.into()),
+            HeaderStrategy::Dynamic => {
+                self.write_dynamic_header(image, width, height, color.into())
+            }
             HeaderStrategy::Subtype(subtype) => {
                 self.write_subtyped_header(subtype, image, width, height, color.into())
             }
-            HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, image, width, height, color.into())
-            }
+            HeaderStrategy::Chosen(ref header) => Self::write_with_header(
+                &mut self.writer,
+                header,
+                image,
+                width,
+                height,
+                color.into(),
+            ),
         }
     }
 
@@ -289,6 +296,11 @@ impl<W: Write> ImageEncoder for PnmEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         self.encode(buf, width, height, color_type)
     }
 }
@@ -344,7 +356,7 @@ impl<'a> UncheckedHeader<'a> {
 
 impl<'a> CheckedDimensions<'a> {
     // Check color compatibility with the header. This will only error when we are certain that
-    // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
+    // the combination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ExtendedColorType) -> ImageResult<CheckedHeaderColor<'a>> {
         let components = u32::from(color.channel_count());
@@ -454,13 +466,11 @@ impl<'a> CheckedHeaderColor<'a> {
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Bgr8
-            | ExtendedColorType::Bgra8
-                => 0xff,
+            | ExtendedColorType::Bgra8 => 0xff,
             ExtendedColorType::L16
             | ExtendedColorType::La16
             | ExtendedColorType::Rgb16
-            | ExtendedColorType::Rgba16
-                => 0xffff,
+            | ExtendedColorType::Rgba16 => 0xffff,
             _ => {
                 // Unsupported target color type.
                 return Err(ImageError::Unsupported(
@@ -647,13 +657,11 @@ impl<'a> TupleEncoding<'a> {
             } => writer.write_all(samples).map_err(ImageError::IoError),
             TupleEncoding::Bytes {
                 samples: FlatSamples::U16(samples),
-            } => samples
-                .iter()
-                .try_for_each(|&sample| {
-                    writer
-                        .write_u16::<BigEndian>(sample)
-                        .map_err(ImageError::IoError)
-                }),
+            } => samples.iter().try_for_each(|&sample| {
+                writer
+                    .write_u16::<BigEndian>(sample)
+                    .map_err(ImageError::IoError)
+            }),
 
             TupleEncoding::Ascii {
                 samples: FlatSamples::U8(samples),

@@ -18,27 +18,33 @@ All image processing functions provided operate on types that implement the `Gen
 
 `image` provides implementations of common image format encoders and decoders.
 
+<!--- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
+
 | Format | Decoding | Encoding |
 | ------ | -------- | -------- |
-| PNG    | All supported color types | Same as decoding |
-| JPEG   | Baseline and progressive | Baseline JPEG |
-| GIF    | Yes | Yes |
+| AVIF   | Only 8-bit \*\* | Lossy |
 | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
-| ICO    | Yes | Yes |
-| TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
-| WebP   | Lossy(Rgb only) | No |
-| AVIF   | Only 8-bit | Lossy |
-| PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |
-| TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+| Farbfeld | Yes | Yes |
+| GIF    | Yes | Yes |
+| ICO    | Yes | Yes |
+| JPEG   | Baseline and progressive | Baseline JPEG |
 | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
-| farbfeld | Yes | Yes |
+| PNG    | All supported color types | Same as decoding |
+| PNM    | PBM, PGM, PPM, standard PAM | Yes |
+| QOI    | Yes | Yes |
+| TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+| TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
+| WebP   | Yes | Rgb8, Rgba8 \* |
 
-### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/*/image/trait.ImageDecoderExt.html) Traits
+- \* Requires the `webp-encoder` feature, uses the libwebp C library.
+- \*\* Requires the `avif-decoder` feature, uses the libdav1d C library.
+
+### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
-additionally provide `ImageDecoderExt` implementations which allow for
+additionally provide `ImageDecoderRect` implementations which allow for
 decoding only part of an image at once.
 
 The most important methods for decoders are...
@@ -50,7 +56,7 @@ The most important methods for decoders are...
 
 `image` provides the following pixel types:
 + **Rgb**: RGB pixel
-+ **Rgba**: RGBA pixel
++ **Rgba**: RGB with alpha (RGBA pixel)
 + **Luma**: Grayscale pixel
 + **LumaA**: Grayscale with alpha
 
@@ -78,8 +84,6 @@ While some of the methods for `GenericImage` are...
 An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
 
 ```rust
-extern crate image;
-
 use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
 
 // Construct a new RGB ImageBuffer with the specified width and height.
@@ -125,8 +129,6 @@ The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
 ```rust
-extern crate image;
-
 use image::{GenericImageView, ImageBuffer, RgbImage, imageops};
 
 let mut img: RgbImage = ImageBuffer::new(512, 512);
@@ -165,8 +167,6 @@ format is determined from the path's file extension. An `io` module provides a
 reader which offer some more control.
 
 ```rust,no_run
-extern crate image;
-
 use image::GenericImageView;
 
 fn main() {
@@ -189,9 +189,6 @@ fn main() {
 
 ```rust,no_run
 //! An example of generating julia fractals.
-extern crate image;
-extern crate num_complex;
-
 fn main() {
     let imgx = 800;
     let imgy = 800;
@@ -243,8 +240,6 @@ Example output:
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
 
 ```rust,no_run
-extern crate image;
-
 fn main() {
 
     let buffer: &[u8] = unimplemented!(); // Generate the image data
@@ -252,5 +247,4 @@ fn main() {
     // Save the buffer as "image.png"
     image::save_buffer("image.png", buffer, 800, 600, image::ColorType::Rgb8).unwrap()
 }
-
 ```

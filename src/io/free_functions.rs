@@ -1,22 +1,24 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Seek, BufRead};
+use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
 
 use crate::codecs::*;
 
-use crate::{ImageOutputFormat, color, error::{UnsupportedError, UnsupportedErrorKind}};
-use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
+use crate::image;
 use crate::image::ImageFormat;
-#[allow(unused_imports)]  // When no features are supported
+#[allow(unused_imports)] // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
+use crate::{
+    color,
+    error::{UnsupportedError, UnsupportedErrorKind},
+    ImageOutputFormat,
+};
 
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
-    let buffered_read = BufReader::new(
-        File::open(path).map_err(ImageError::IoError)?
-    );
+    let buffered_read = BufReader::new(File::open(path).map_err(ImageError::IoError)?);
 
     load(buffered_read, ImageFormat::from_path(path)?)
 }
@@ -40,14 +42,19 @@ pub(crate) trait DecoderVisitor {
     fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result>;
 }
 
-pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(r: R, format: ImageFormat, visitor: V) -> ImageResult<V::Result> {
+pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
+    r: R,
+    format: ImageFormat,
+    limits: super::Limits,
+    visitor: V,
+) -> ImageResult<V::Result> {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "avif-decoder")]
         image::ImageFormat::Avif => visitor.visit_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::with_limits(r, limits)?),
         #[cfg(feature = "gif")]
         image::ImageFormat::Gif => visitor.visit_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
@@ -66,23 +73,34 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(r: R, format: I
         image::ImageFormat::Ico => visitor.visit_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => visitor.visit_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
-        #[cfg(feature = "openexr")]
+        #[cfg(feature = "exr")]
         image::ImageFormat::OpenExr => visitor.visit_decoder(openexr::OpenExrDecoder::new(r)?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => visitor.visit_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
-        _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+        #[cfg(feature = "qoi")]
+        image::ImageFormat::Qoi => visitor.visit_decoder(qoi::QoiDecoder::new(r)?),
+        _ => Err(ImageError::Unsupported(
+            ImageFormatHint::Exact(format).into(),
+        )),
     }
 }
 
-pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub(crate) fn load_inner<R: BufRead + Seek>(
+    r: R,
+    limits: super::Limits,
+    format: ImageFormat,
+) -> ImageResult<DynamicImage> {
     struct LoadVisitor(super::Limits);
 
     impl DecoderVisitor for LoadVisitor {
         type Result = DynamicImage;
 
-        fn visit_decoder<'a, D: ImageDecoder<'a>>(self, mut decoder: D) -> ImageResult<Self::Result> {
+        fn visit_decoder<'a, D: ImageDecoder<'a>>(
+            self,
+            mut decoder: D,
+        ) -> ImageResult<Self::Result> {
             let mut limits = self.0;
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
@@ -92,7 +110,7 @@ pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format:
         }
     }
 
-    load_decoder(r, format, LoadVisitor(limits))
+    load_decoder(r, format, limits.clone(), LoadVisitor(limits))
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
@@ -103,19 +121,20 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
 
 #[allow(unused_variables)]
 // fin is unused if no features are supported.
-pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(buffered_read: R, format: ImageFormat)
-                                                                   -> ImageResult<(u32, u32)>
-{
-        struct DimVisitor;
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(
+    buffered_read: R,
+    format: ImageFormat,
+) -> ImageResult<(u32, u32)> {
+    struct DimVisitor;
 
-        impl DecoderVisitor for DimVisitor {
-            type Result = (u32, u32);
-            fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result> {
-                Ok(decoder.dimensions())
-            }
+    impl DecoderVisitor for DimVisitor {
+        type Result = (u32, u32);
+        fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result> {
+            Ok(decoder.dimensions())
         }
+    }
 
-        load_decoder(buffered_read, format, DimVisitor)
+    load_decoder(buffered_read, format, super::Limits::default(), DimVisitor)
 }
 
 #[allow(unused_variables)]
@@ -127,7 +146,7 @@ pub(crate) fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> ImageResult<()> {
-    let format =  ImageFormat::from_path(path)?;
+    let format = ImageFormat::from_path(path)?;
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
@@ -146,17 +165,22 @@ pub(crate) fn save_buffer_with_format_impl(
     let format = match format {
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
-            let ext = path.extension()
-            .and_then(|s| s.to_str())
-            .map_or("".to_string(), |s| s.to_ascii_lowercase());
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map_or("".to_string(), |s| s.to_ascii_lowercase());
             ImageOutputFormat::Pnm(match &*ext {
                 "pbm" => pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary),
                 "pgm" => pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary),
                 "ppm" => pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary),
                 "pam" => pnm::PnmSubtype::ArbitraryMap,
-                _ => { return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())) }, // Unsupported Pnm subtype.
+                _ => {
+                    return Err(ImageError::Unsupported(
+                        ImageFormatHint::Exact(format).into(),
+                    ))
+                } // Unsupported Pnm subtype.
             })
-        },
+        }
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
         format => format.into(),
@@ -177,40 +201,69 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
 ) -> ImageResult<()> {
     match format {
         #[cfg(feature = "png")]
-        ImageOutputFormat::Png => png::PngEncoder::new(buffered_write).write_image(buf, width, height, color),
+        ImageOutputFormat::Png => {
+            png::PngEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "jpeg")]
-        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(buffered_write, quality)
-            .write_image(buf, width, height, color),
+        ImageOutputFormat::Jpeg(quality) => {
+            jpeg::JpegEncoder::new_with_quality(buffered_write, quality)
+                .write_image(buf, width, height, color)
+        }
         #[cfg(feature = "pnm")]
         ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(buffered_write)
             .with_subtype(subtype)
             .write_image(buf, width, height, color),
         #[cfg(feature = "gif")]
-        ImageOutputFormat::Gif => gif::GifEncoder::new(buffered_write).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        ImageOutputFormat::Ico => ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "farbfeld")]
-        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "tga")]
-        ImageOutputFormat::Tga => tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "openexr")]
-        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "tiff")]
-        ImageOutputFormat::Tiff => tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color),
-        #[cfg(feature = "avif-encoder")]
-        ImageOutputFormat::Avif => avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color),
-
-        image::ImageOutputFormat::Unsupported(msg) => {
-            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
+        ImageOutputFormat::Gif => {
+            gif::GifEncoder::new(buffered_write).encode(buf, width, height, color)
         }
+        #[cfg(feature = "ico")]
+        ImageOutputFormat::Ico => {
+            ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "bmp")]
+        ImageOutputFormat::Bmp => {
+            bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "farbfeld")]
+        ImageOutputFormat::Farbfeld => {
+            farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "tga")]
+        ImageOutputFormat::Tga => {
+            tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "exr")]
+        ImageOutputFormat::OpenExr => {
+            openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "tiff")]
+        ImageOutputFormat::Tiff => {
+            tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "avif-encoder")]
+        ImageOutputFormat::Avif => {
+            avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "qoi")]
+        ImageOutputFormat::Qoi => {
+            qoi::QoiEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
+        #[cfg(feature = "webp")]
+        ImageOutputFormat::WebP => {
+            webp::WebPEncoder::new_lossless(buffered_write).write_image(buf, width, height, color)
+        }
+
+        image::ImageOutputFormat::Unsupported(msg) => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)),
+            ),
+        )),
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 23] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -231,7 +284,9 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
+    (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
+    (b"qoif", ImageFormat::Qoi),
 ];
 
 /// Guess image format from memory block

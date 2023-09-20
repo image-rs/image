@@ -1,8 +1,9 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::color::ColorType;
-use crate::error::ImageResult;
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageEncoder;
 
 use crate::codecs::png::PngEncoder;
@@ -19,6 +20,67 @@ pub struct IcoEncoder<W: Write> {
     w: W,
 }
 
+/// An ICO image entry
+pub struct IcoFrame<'a> {
+    // Pre-encoded PNG or BMP
+    encoded_image: Cow<'a, [u8]>,
+    // Stored as `0 => 256, n => n`
+    width: u8,
+    // Stored as `0 => 256, n => n`
+    height: u8,
+    color_type: ColorType,
+}
+
+impl<'a> IcoFrame<'a> {
+    /// Construct a new `IcoFrame` using a pre-encoded PNG or BMP
+    ///
+    /// The `width` and `height` must be between 1 and 256 (inclusive).
+    pub fn with_encoded(
+        encoded_image: impl Into<Cow<'a, [u8]>>,
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<Self> {
+        let encoded_image = encoded_image.into();
+
+        if !(1..=256).contains(&width) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the image width must be `1..=256`, instead width {} was provided",
+                    width,
+                )),
+            )));
+        }
+
+        if !(1..=256).contains(&height) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the image height must be `1..=256`, instead height {} was provided",
+                    height,
+                )),
+            )));
+        }
+
+        Ok(Self {
+            encoded_image,
+            width: width as u8,
+            height: height as u8,
+            color_type,
+        })
+    }
+
+    /// Construct a new `IcoFrame` by encoding `buf` as a PNG
+    ///
+    /// The `width` and `height` must be between 1 and 256 (inclusive)
+    pub fn as_png(buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<Self> {
+        let mut image_data: Vec<u8> = Vec::new();
+        PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
+
+        let frame = Self::with_encoded(image_data, width, height, color_type)?;
+        Ok(frame)
+    }
+}
+
 impl<W: Write> IcoEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> IcoEncoder<W> {
@@ -28,31 +90,61 @@ impl<W: Write> IcoEncoder<W> {
     /// Encodes the image ```image``` that has dimensions ```width``` and
     /// ```height``` and ```ColorType``` ```c```.  The dimensions of the image
     /// must be between 1 and 256 (inclusive) or an error will be returned.
-    pub fn encode(
-        mut self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-        color: ColorType,
-    ) -> ImageResult<()> {
+    ///
+    /// Expects data to be big endian.
+    #[deprecated = "Use `IcoEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let mut image_data: Vec<u8> = Vec::new();
+        #[allow(deprecated)]
         PngEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
-        write_icondir(&mut self.w, 1)?;
-        write_direntry(
-            &mut self.w,
-            width,
-            height,
-            color,
-            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
-            image_data.len() as u32,
-        )?;
-        self.w.write_all(&image_data)?;
+        let image = IcoFrame::with_encoded(&image_data, width, height, color)?;
+        self.encode_images(&[image])
+    }
+
+    /// Takes some [`IcoFrame`]s and encodes them into an ICO.
+    ///
+    /// `images` is a list of images, usually ordered by dimension, which
+    /// must be between 1 and 65535 (inclusive) in length.
+    pub fn encode_images(mut self, images: &[IcoFrame<'_>]) -> ImageResult<()> {
+        if !(1..=usize::from(u16::MAX)).contains(&images.len()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the number of images must be `1..=u16::MAX`, instead {} images were provided",
+                    images.len(),
+                )),
+            )));
+        }
+        let num_images = images.len() as u16;
+
+        let mut offset = ICO_ICONDIR_SIZE + (ICO_DIRENTRY_SIZE * (images.len() as u32));
+        write_icondir(&mut self.w, num_images)?;
+        for image in images {
+            write_direntry(
+                &mut self.w,
+                image.width,
+                image.height,
+                image.color_type,
+                offset,
+                image.encoded_image.len() as u32,
+            )?;
+
+            offset += image.encoded_image.len() as u32;
+        }
+        for image in images {
+            self.w.write_all(&image.encoded_image)?;
+        }
         Ok(())
     }
 }
 
 impl<W: Write> ImageEncoder for IcoEncoder<W> {
+    /// Write an ICO image with the specified width, height, and color type.
+    ///
+    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
+    /// native endian.
+    ///
+    /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian.
     fn write_image(
         self,
         buf: &[u8],
@@ -60,7 +152,13 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
-        self.encode(buf, width, height, color_type)
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
+        let image = IcoFrame::as_png(buf, width, height, color_type)?;
+        self.encode_images(&[image])
     }
 }
 
@@ -76,15 +174,15 @@ fn write_icondir<W: Write>(w: &mut W, num_images: u16) -> io::Result<()> {
 
 fn write_direntry<W: Write>(
     w: &mut W,
-    width: u32,
-    height: u32,
+    width: u8,
+    height: u8,
     color: ColorType,
     data_start: u32,
     data_size: u32,
 ) -> io::Result<()> {
     // Image dimensions:
-    write_width_or_height(w, width)?;
-    write_width_or_height(w, height)?;
+    w.write_u8(width)?;
+    w.write_u8(height)?;
     // Number of colors in palette (or zero for no palette):
     w.write_u8(0)?;
     // Reserved field (must be zero):
@@ -98,18 +196,4 @@ fn write_direntry<W: Write>(
     // Image data offset, in bytes:
     w.write_u32::<LittleEndian>(data_start)?;
     Ok(())
-}
-
-/// Encode a width/height value as a single byte, where 0 means 256.
-fn write_width_or_height<W: Write>(w: &mut W, value: u32) -> io::Result<()> {
-    if value < 1 || value > 256 {
-        // TODO: this is not very idiomatic yet. Should return an EncodingError and be checked
-        // prior to encoding.
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid ICO dimensions (width and \
-             height must be between 1 and 256)",
-        ));
-    }
-    w.write_u8(if value < 256 { value as u8 } else { 0 })
 }

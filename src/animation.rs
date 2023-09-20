@@ -1,14 +1,13 @@
+use std::cmp::Ordering;
 use std::iter::Iterator;
 use std::time::Duration;
 
-use num_rational::Ratio;
-
-use crate::RgbaImage;
 use crate::error::ImageResult;
+use crate::RgbaImage;
 
 /// An implementation dependent iterator, reading the frames as requested
 pub struct Frames<'a> {
-    iterator: Box<dyn Iterator<Item = ImageResult<Frame>> + 'a>
+    iterator: Box<dyn Iterator<Item = ImageResult<Frame>> + 'a>,
 }
 
 impl<'a> Frames<'a> {
@@ -49,21 +48,21 @@ pub struct Frame {
 /// The delay of a frame relative to the previous one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub struct Delay {
-    ratio: Ratio<u32>,
+    ratio: Ratio,
 }
 
 impl Frame {
-    /// Contructs a new frame without any delay.
+    /// Constructs a new frame without any delay.
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
-            delay: Delay::from_ratio(Ratio::from_integer(0)),
+            delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
             left: 0,
             top: 0,
             buffer,
         }
     }
 
-    /// Contructs a new frame
+    /// Constructs a new frame
     pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
         Frame {
             delay,
@@ -114,7 +113,9 @@ impl Delay {
     /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
     /// ```
     pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {
-        Delay { ratio: Ratio::new_raw(numerator, denominator) }
+        Delay {
+            ratio: Ratio::new(numerator, denominator),
+        }
     }
 
     /// Convert from a duration, clamped between 0 and an implemented defined maximum.
@@ -146,14 +147,14 @@ impl Delay {
         let submillis = (duration.as_nanos() % 1_000_000) as u32;
 
         let max_b = if millis > 0 {
-            ((MILLIS_BOUND + 1)/(millis + 1)) as u32
+            ((MILLIS_BOUND + 1) / (millis + 1)) as u32
         } else {
             MILLIS_BOUND as u32
         };
         let millis = millis as u32;
 
         let (a, b) = Self::closest_bounded_fraction(max_b, submillis, 1_000_000);
-        Self::from_numer_denom_ms(a + b*millis, b)
+        Self::from_numer_denom_ms(a + b * millis, b)
     }
 
     /// The numerator and denominator of the delay in milliseconds.
@@ -161,14 +162,14 @@ impl Delay {
     /// This is guaranteed to be an exact conversion if the `Delay` was previously created with the
     /// `from_numer_denom_ms` constructor.
     pub fn numer_denom_ms(self) -> (u32, u32) {
-        (*self.ratio.numer(), *self.ratio.denom())
+        (self.ratio.numer, self.ratio.denom)
     }
 
-    pub(crate) fn from_ratio(ratio: Ratio<u32>) -> Self {
+    pub(crate) fn from_ratio(ratio: Ratio) -> Self {
         Delay { ratio }
     }
 
-    pub(crate) fn into_ratio(self) -> Ratio<u32> {
+    pub(crate) fn into_ratio(self) -> Ratio {
         self.ratio
     }
 
@@ -177,7 +178,7 @@ impl Delay {
     /// Note that `denom_bound` bounds nominator and denominator of all intermediate
     /// approximations and the end result.
     fn closest_bounded_fraction(denom_bound: u32, nom: u32, denom: u32) -> (u32, u32) {
-        use std::cmp::Ordering::{self, *};
+        use std::cmp::Ordering::*;
         assert!(0 < denom);
         assert!(0 < denom_bound);
         assert!(nom < denom);
@@ -188,13 +189,13 @@ impl Delay {
 
         // Compare two fractions whose parts fit into a u32.
         fn compare_fraction((an, ad): (u64, u64), (bn, bd): (u64, u64)) -> Ordering {
-            (an*bd).cmp(&(bn*ad))
+            (an * bd).cmp(&(bn * ad))
         }
 
         // Computes the nominator of the absolute difference between two such fractions.
         fn abs_diff_nom((an, ad): (u64, u64), (bn, bd): (u64, u64)) -> u64 {
-            let c0 = an*bd;
-            let c1 = ad*bn;
+            let c0 = an * bd;
+            let c1 = ad * bn;
 
             let d0 = c0.max(c1);
             let d1 = c0.min(c1);
@@ -207,7 +208,7 @@ impl Delay {
         // The upper bound fraction, numerator and denominator.
         let mut upper = (1u64, 1u64);
         // The closest approximation for now.
-        let mut guess = (u64::from(nom*2 > denom), 1u64);
+        let mut guess = (u64::from(nom * 2 > denom), 1u64);
 
         // loop invariant: ad, bd <= denom_bound
         // iterates the Farey sequence.
@@ -243,14 +244,19 @@ impl Delay {
             // The difference |n - f| is smaller than |g - f| if either the integral part of the
             // fraction |n_diff_nom|/nd is smaller than the one of |g_diff_nom|/gd or if they are
             // the same but the fractional part is larger.
-            if match (n_diff_nom/next.1).cmp(&(g_diff_nom/guess.1)) {
+            if match (n_diff_nom / next.1).cmp(&(g_diff_nom / guess.1)) {
                 Less => true,
                 Greater => false,
                 // Note that the nominator for the fractional part is smaller than its denominator
                 // which is smaller than u32 and can't overflow the multiplication with the other
                 // denominator, that is we can compare these fractions by multiplication with the
                 // respective other denominator.
-                Equal => compare_fraction((n_diff_nom%next.1, next.1), (g_diff_nom%guess.1, guess.1)) == Less,
+                Equal => {
+                    compare_fraction(
+                        (n_diff_nom % next.1, next.1),
+                        (g_diff_nom % guess.1, guess.1),
+                    ) == Less
+                }
             } {
                 guess = next;
             }
@@ -264,9 +270,66 @@ impl From<Delay> for Duration {
     fn from(delay: Delay) -> Self {
         let ratio = delay.into_ratio();
         let ms = ratio.to_integer();
-        let rest = ratio.numer() % ratio.denom();
-        let nanos = (u64::from(rest) * 1_000_000) / u64::from(*ratio.denom());
+        let rest = ratio.numer % ratio.denom;
+        let nanos = (u64::from(rest) * 1_000_000) / u64::from(ratio.denom);
         Duration::from_millis(ms.into()) + Duration::from_nanos(nanos)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Ratio {
+    numer: u32,
+    denom: u32,
+}
+
+impl Ratio {
+    #[inline]
+    pub(crate) fn new(numerator: u32, denominator: u32) -> Self {
+        assert_ne!(denominator, 0);
+        Self {
+            numer: numerator,
+            denom: denominator,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn to_integer(&self) -> u32 {
+        self.numer / self.denom
+    }
+}
+
+impl PartialEq for Ratio {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Ratio {}
+
+impl PartialOrd for Ratio {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ratio {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // The following comparison can be simplified:
+        // a / b <cmp> c / d
+        // We multiply both sides by `b`:
+        // a <cmp> c * b / d
+        // We multiply both sides by `d`:
+        // a * d <cmp> c * b
+
+        let a: u32 = self.numer;
+        let b: u32 = self.denom;
+        let c: u32 = other.numer;
+        let d: u32 = other.denom;
+
+        // We cast the types from `u32` to `u64` in order
+        // to not overflow the multiplications.
+
+        (a as u64 * d as u64).cmp(&(c as u64 * b as u64))
     }
 }
 
@@ -306,7 +369,8 @@ mod tests {
         let delay = Delay::from_saturating_duration(inbounds);
         assert_eq!(delay.numer_denom_ms(), (0xFFFF_FFFF, 1));
 
-        let fine = Duration::from_millis(0xFFFF_FFFF/1000) + Duration::from_micros(0xFFFF_FFFF%1000);
+        let fine =
+            Duration::from_millis(0xFFFF_FFFF / 1000) + Duration::from_micros(0xFFFF_FFFF % 1000);
         let delay = Delay::from_saturating_duration(fine);
         // Funnily, 0xFFFF_FFFF is divisble by 5, thus we compare with a `Ratio`.
         assert_eq!(delay.into_ratio(), Ratio::new(0xFFFF_FFFF, 1000));
@@ -320,7 +384,6 @@ mod tests {
         let delay = Delay::from_saturating_duration(exceed);
         assert_eq!(Duration::from(delay), exceed);
     }
-
 
     #[test]
     fn small() {

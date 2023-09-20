@@ -10,7 +10,7 @@ use byteorder::ReadBytesExt;
 use std::{
     convert::TryFrom,
     io::{self, Read, Seek},
-    mem
+    mem,
 };
 
 struct ColorMap {
@@ -254,9 +254,12 @@ impl<R: Read + Seek> TgaDecoder<R> {
                     .by_ref()
                     .take(self.bytes_per_pixel as u64)
                     .read_to_end(&mut repeat_buf)?;
-                
+
                 // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
-                let data = repeat_buf.iter().cycle().take(repeat_count * self.bytes_per_pixel);
+                let data = repeat_buf
+                    .iter()
+                    .cycle()
+                    .take(repeat_count * self.bytes_per_pixel);
                 pixel_data.extend(data);
                 repeat_buf.clear();
             } else {
@@ -313,7 +316,8 @@ impl<R: Read + Seek> TgaDecoder<R> {
         // expects `self.line_remain_buff` to be empty from
         // the above `pixel_data.append` call
         debug_assert!(self.line_remain_buff.is_empty());
-        self.line_remain_buff.extend_from_slice(&line_data[num_bytes..]);
+        self.line_remain_buff
+            .extend_from_slice(&line_data[num_bytes..]);
 
         Ok(pixel_data)
     }
@@ -431,7 +435,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(TGAReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(
+                #[allow(deprecated)]
+                self.scanline_bytes(),
+                self.total_bytes(),
+            ),
             decoder: self,
         })
     }

@@ -1,9 +1,11 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use crate::color;
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
+};
 use crate::image::ImageEncoder;
+use crate::{color, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -20,9 +22,11 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         BmpEncoder { writer: w }
     }
 
-    /// Encodes the image ```image```
-    /// that has dimensions ```width``` and ```height```
-    /// and ```ColorType``` ```c```.
+    /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
     pub fn encode(
         &mut self,
         image: &[u8],
@@ -33,8 +37,12 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         self.encode_with_palette(image, width, height, c, None)
     }
 
-    /// Same as ```encode```, but allow a palette to be passed in.
-    /// The ```palette``` is ignored for color types other than Luma/Luma-with-alpha.
+    /// Same as `encode`, but allow a palette to be passed in. The `palette` is ignored for color
+    /// types other than Luma/Luma-with-alpha.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
     pub fn encode_with_palette(
         &mut self,
         image: &[u8],
@@ -50,12 +58,18 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                     "Unsupported color type {:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8).",
                     c
                 ),
-            )))
+            )));
         }
+
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64),
+            image.len() as u64
+        );
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
-        let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c, palette)?;
+        let (dib_header_size, written_pixel_size, palette_color_count) =
+            get_pixel_info(c, palette)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
         let image_size = width
             .checked_mul(height)
@@ -67,7 +81,16 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                 ))
             })?;
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
-        let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
+        let file_size = bmp_header_size
+            .checked_add(dib_header_size)
+            .and_then(|v| v.checked_add(palette_size))
+            .and_then(|v| v.checked_add(image_size))
+            .ok_or_else(|| {
+                ImageError::Encoding(EncodingError::new(
+                    ImageFormatHint::Exact(ImageFormat::Bmp),
+                    "calculated BMP header size larger than 2^32",
+                ))
+            })?;
 
         // write BMP header
         self.writer.write_u8(b'B')?;
@@ -112,12 +135,8 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::Rgb8 => {
-                self.encode_rgb(image, width, height, row_pad_size, 3)?
-            }
-            color::ColorType::Rgba8 => {
-                self.encode_rgba(image, width, height, row_pad_size, 4)?
-            }
+            color::ColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
+            color::ColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
             color::ColorType::L8 => {
                 self.encode_gray(image, width, height, row_pad_size, 1, palette)?
             }
@@ -266,8 +285,16 @@ fn get_pixel_info(c: color::ColorType, palette: Option<&[[u8; 3]]>) -> io::Resul
     let sizes = match c {
         color::ColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
         color::ColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
-        color::ColorType::L8 => (BITMAPINFOHEADER_SIZE, 1, palette.map(|p| p.len()).unwrap_or(256) as u32),
-        color::ColorType::La8 => (BITMAPINFOHEADER_SIZE, 1, palette.map(|p| p.len()).unwrap_or(256) as u32),
+        color::ColorType::L8 => (
+            BITMAPINFOHEADER_SIZE,
+            1,
+            palette.map(|p| p.len()).unwrap_or(256) as u32,
+        ),
+        color::ColorType::La8 => (
+            BITMAPINFOHEADER_SIZE,
+            1,
+            palette.map(|p| p.len()).unwrap_or(256) as u32,
+        ),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -292,7 +319,7 @@ mod tests {
         {
             let mut encoder = BmpEncoder::new(&mut encoded_data);
             encoder
-                .encode(&image, width, height, c)
+                .encode(image, width, height, c)
                 .expect("could not encode image");
         }
 
@@ -314,6 +341,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn huge_files_return_error() {
         let mut encoded_data = Vec::new();
         let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap

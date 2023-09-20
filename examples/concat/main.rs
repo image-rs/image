@@ -1,5 +1,3 @@
-extern crate image;
-
 use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
 
 /// Example showcasing a generic implementation of image concatenation.

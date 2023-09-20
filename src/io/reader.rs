@@ -1,10 +1,10 @@
 use std::fs::File;
-use std::io::{self, BufReader, Cursor, Read, Seek, SeekFrom, BufRead};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::dynimage::DynamicImage;
-use crate::image::ImageFormat;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
+use crate::image::ImageFormat;
 use crate::{ImageError, ImageResult};
 
 use super::free_functions;
@@ -141,7 +141,10 @@ impl Reader<BufReader<File>> {
     /// on file extensions, follow this call with a call to [`with_guessed_format`].
     ///
     /// [`with_guessed_format`]: #method.with_guessed_format
-    pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
+    pub fn open<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         Self::open_impl(path.as_ref())
     }
 
@@ -194,11 +197,12 @@ impl<R: BufRead + Seek> Reader<R> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
-        let cur = self.inner.seek(SeekFrom::Current(0))?;
+        let cur = self.inner.stream_position()?;
         let len = io::copy(
             // Accept shorter files but read at most 16 bytes.
             &mut self.inner.by_ref().take(16),
-            &mut Cursor::new(&mut start[..]))?;
+            &mut Cursor::new(&mut start[..]),
+        )?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
         Ok(free_functions::guess_format_impl(&start[..len as usize]))
@@ -225,9 +229,11 @@ impl<R: BufRead + Seek> Reader<R> {
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {
-        self.format.ok_or_else(||
+        self.format.ok_or_else(|| {
             ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Unknown))))
+                UnsupportedErrorKind::Format(ImageFormatHint::Unknown),
+            ))
+        })
     }
 }

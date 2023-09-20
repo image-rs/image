@@ -7,18 +7,24 @@
 //!
 
 use std::convert::TryFrom;
+use std::fmt;
 use std::io::{self, Read, Write};
 
-use num_rational::Ratio;
 use png::{BlendOp, DisposeOp};
 
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, RgbaImage, Rgb, Rgba};
-use crate::animation::{Delay, Frame, Frames};
+use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::io::Limits;
+use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
+
+// http://www.w3.org/TR/PNG-Structure.html
+// The first eight bytes of a PNG file always contain the following (decimal) values:
+pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /// Png Reader
 ///
@@ -41,7 +47,9 @@ impl<R: Read> PngReader<R> {
         // as most interlaced images should fit in memory.
         let buffer = if reader.info().interlaced {
             let mut buffer = vec![0; len];
-            reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+            reader
+                .next_frame(&mut buffer)
+                .map_err(ImageError::from_png)?;
             buffer
         } else {
             Vec::new()
@@ -67,13 +75,13 @@ impl<R: Read> Read for PngReader<R> {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
-                    let readed  = buf.write(row.data()).unwrap();
+                    let readed = buf.write(row.data()).unwrap();
                     bytes += readed;
 
-                    self.buffer = (&row.data()[readed..]).to_owned();
+                    self.buffer = row.data()[readed..].to_owned();
                     self.index = 0;
                 }
-                None => return Ok(bytes)
+                None => return Ok(bytes),
             }
         }
 
@@ -109,15 +117,24 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
-        let limits = png::Limits {
-            bytes: usize::max_value(),
-        };
-        let mut decoder = png::Decoder::new_with_limits(r, limits);
+        Self::with_limits(r, Limits::default())
+    }
+
+    /// Creates a new decoder that decodes from the stream ```r``` with the given limits.
+    pub fn with_limits(r: R, limits: Limits) -> ImageResult<PngDecoder<R>> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
+        let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
+
+        let info = decoder.read_header_info().map_err(ImageError::from_png)?;
+        limits.check_dimensions(info.width, info.height)?;
+
         // By default the PNG decoder will scale 16 bpc to 8 bpc, so custom
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
-        let mut reader = decoder.read_info().map_err(ImageError::from_png)?;
+        let reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
@@ -129,35 +146,48 @@ impl<R: Read> PngDecoder<R> {
             (png::ColorType::Rgba, png::BitDepth::Eight) => ColorType::Rgba8,
             (png::ColorType::Rgba, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
-            (png::ColorType::Grayscale, png::BitDepth::One) =>
-                return Err(unsupported_color(ExtendedColorType::L1)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
-                return Err(unsupported_color(ExtendedColorType::La1)),
-            (png::ColorType::Rgb, png::BitDepth::One) =>
-                return Err(unsupported_color(ExtendedColorType::Rgb1)),
-            (png::ColorType::Rgba, png::BitDepth::One) =>
-                return Err(unsupported_color(ExtendedColorType::Rgba1)),
+            (png::ColorType::Grayscale, png::BitDepth::One) => {
+                return Err(unsupported_color(ExtendedColorType::L1))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => {
+                return Err(unsupported_color(ExtendedColorType::La1))
+            }
+            (png::ColorType::Rgb, png::BitDepth::One) => {
+                return Err(unsupported_color(ExtendedColorType::Rgb1))
+            }
+            (png::ColorType::Rgba, png::BitDepth::One) => {
+                return Err(unsupported_color(ExtendedColorType::Rgba1))
+            }
 
-            (png::ColorType::Grayscale, png::BitDepth::Two) =>
-                return Err(unsupported_color(ExtendedColorType::L2)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
-                return Err(unsupported_color(ExtendedColorType::La2)),
-            (png::ColorType::Rgb, png::BitDepth::Two) =>
-                return Err(unsupported_color(ExtendedColorType::Rgb2)),
-            (png::ColorType::Rgba, png::BitDepth::Two) =>
-                return Err(unsupported_color(ExtendedColorType::Rgba2)),
+            (png::ColorType::Grayscale, png::BitDepth::Two) => {
+                return Err(unsupported_color(ExtendedColorType::L2))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => {
+                return Err(unsupported_color(ExtendedColorType::La2))
+            }
+            (png::ColorType::Rgb, png::BitDepth::Two) => {
+                return Err(unsupported_color(ExtendedColorType::Rgb2))
+            }
+            (png::ColorType::Rgba, png::BitDepth::Two) => {
+                return Err(unsupported_color(ExtendedColorType::Rgba2))
+            }
 
-            (png::ColorType::Grayscale, png::BitDepth::Four) =>
-                return Err(unsupported_color(ExtendedColorType::L4)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
-                return Err(unsupported_color(ExtendedColorType::La4)),
-            (png::ColorType::Rgb, png::BitDepth::Four) =>
-                return Err(unsupported_color(ExtendedColorType::Rgb4)),
-            (png::ColorType::Rgba, png::BitDepth::Four) =>
-                return Err(unsupported_color(ExtendedColorType::Rgba4)),
+            (png::ColorType::Grayscale, png::BitDepth::Four) => {
+                return Err(unsupported_color(ExtendedColorType::L4))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => {
+                return Err(unsupported_color(ExtendedColorType::La4))
+            }
+            (png::ColorType::Rgb, png::BitDepth::Four) => {
+                return Err(unsupported_color(ExtendedColorType::Rgb4))
+            }
+            (png::ColorType::Rgba, png::BitDepth::Four) => {
+                return Err(unsupported_color(ExtendedColorType::Rgba4))
+            }
 
-            (png::ColorType::Indexed, bits) =>
-                return Err(unsupported_color(ExtendedColorType::Unknown(bits as u8))),
+            (png::ColorType::Indexed, bits) => {
+                return Err(unsupported_color(ExtendedColorType::Unknown(bits as u8)))
+            }
         };
 
         Ok(PngDecoder { color_type, reader })
@@ -206,6 +236,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         self.color_type
     }
 
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        self.reader.info().icc_profile.as_ref().map(|x| x.to_vec())
+    }
+
     fn into_reader(self) -> ImageResult<Self::Reader> {
         PngReader::new(self.reader)
     }
@@ -220,8 +254,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         // contract of `read_image`.
         // TODO: assumes equal channel bit depth.
         let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
+
         match bpc {
-            1 => (),  // No reodering necessary for u8
+            1 => (), // No reodering necessary for u8
             2 => buf.chunks_mut(2).for_each(|c| {
                 let v = BigEndian::read_u16(c);
                 NativeEndian::write_u16(c, v)
@@ -299,7 +334,10 @@ impl<R: Read> ApngDecoder<R> {
         if self.has_thumbnail {
             self.has_thumbnail = false;
             let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
-            self.inner.reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+            self.inner
+                .reader
+                .next_frame(&mut buffer)
+                .map_err(ImageError::from_png)?;
         }
 
         self.animatable_color_type()?;
@@ -311,7 +349,9 @@ impl<R: Read> ApngDecoder<R> {
             }
             DisposeOp::Background => {
                 self.previous.clone_from(&self.current);
-                self.current.pixels_mut().for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
+                self.current
+                    .pixels_mut()
+                    .for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
             }
             DisposeOp::Previous => {
                 self.current.clone_from(&self.previous);
@@ -320,7 +360,10 @@ impl<R: Read> ApngDecoder<R> {
 
         // Read next frame data.
         let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
-        self.inner.reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+        self.inner
+            .reader
+            .next_frame(&mut buffer)
+            .map_err(ImageError::from_png)?;
         let info = self.inner.reader.info();
 
         // Find out how to interpret the decoded frame.
@@ -357,9 +400,7 @@ impl<R: Read> ApngDecoder<R> {
                 let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
                 DynamicImage::ImageRgb8(image).into_rgba8()
             }
-            ColorType::Rgba8 => {
-                ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap()
-            }
+            ColorType::Rgba8 => ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
             ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
                 // TODO: to enable remove restriction in `animatable_color_type` method.
                 unreachable!("16-bit apng not yet support")
@@ -369,7 +410,8 @@ impl<R: Read> ApngDecoder<R> {
 
         match blend {
             BlendOp::Source => {
-                self.current.copy_from(&source, px, py)
+                self.current
+                    .copy_from(&source, px, py)
                     .expect("Invalid png image not detected in png");
             }
             BlendOp::Over => {
@@ -390,9 +432,9 @@ impl<R: Read> ApngDecoder<R> {
         match self.inner.color_type {
             ColorType::L8 | ColorType::Rgb8 | ColorType::La8 | ColorType::Rgba8 => Ok(()),
             // TODO: do not handle multi-byte colors. Remember to implement it in `mix_next_frame`.
-            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16  => {
+            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
                 Err(unsupported_color(self.inner.color_type.into()))
-            },
+            }
             _ => unreachable!("{:?} not a valid png color", self.inner.color_type),
         }
     }
@@ -448,8 +490,10 @@ pub enum CompressionType {
     /// High compression level
     Best,
     /// Huffman coding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Huffman,
     /// Run-length encoding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Rle,
 }
 
@@ -459,7 +503,7 @@ pub enum CompressionType {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum FilterType {
-    /// No processing done, best used for low bit depth greyscale or data with a
+    /// No processing done, best used for low bit depth grayscale or data with a
     /// low color count
     NoFilter,
     /// Filters based on previous pixel in the same scanline
@@ -473,6 +517,12 @@ pub enum FilterType {
     /// Uses a heuristic to select one of the preceding filters for each
     /// scanline rather than one filter for the entire image
     Adaptive,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+enum BadPngRepresentation {
+    ColorType(ColorType),
 }
 
 impl<W: Write> PngEncoder<W> {
@@ -497,7 +547,11 @@ impl<W: Write> PngEncoder<W> {
     /// Note that it is not optimal to use a single filter type, so an adaptive
     /// filter type is selected as the default. The filter which best minimizes
     /// file size may change with the type of compression used.
-    pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PngEncoder<W> {
+    pub fn new_with_quality(
+        w: W,
+        compression: CompressionType,
+        filter: FilterType,
+    ) -> PngEncoder<W> {
         PngEncoder {
             w,
             compression,
@@ -506,7 +560,20 @@ impl<W: Write> PngEncoder<W> {
     }
 
     /// Encodes the image `data` that has dimensions `width` and `height` and `ColorType` `c`.
+    ///
+    /// Expects data in big endian.
+    #[deprecated = "Use `PngEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        self.encode_inner(data, width, height, color)
+    }
+
+    fn encode_inner(
+        self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
@@ -516,20 +583,25 @@ impl<W: Write> PngEncoder<W> {
             ColorType::Rgb16 => (png::ColorType::Rgb, png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::Rgba, png::BitDepth::Eight),
             ColorType::Rgba16 => (png::ColorType::Rgba, png::BitDepth::Sixteen),
-            _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormat::Png.into(),
-                UnsupportedErrorKind::Color(color.into()),
-            ))),
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Png.into(),
+                        UnsupportedErrorKind::Color(color.into()),
+                    ),
+                ))
+            }
         };
         let comp = match self.compression {
             CompressionType::Default => png::Compression::Default,
-            CompressionType::Fast => png::Compression::Fast,
             CompressionType::Best => png::Compression::Best,
-            CompressionType::Huffman => png::Compression::Huffman,
-            CompressionType::Rle => png::Compression::Rle,
+            _ => png::Compression::Fast,
         };
         let (filter, adaptive_filter) = match self.filter {
-            FilterType::NoFilter => (png::FilterType::NoFilter, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::NoFilter => (
+                png::FilterType::NoFilter,
+                png::AdaptiveFilterType::NonAdaptive,
+            ),
             FilterType::Sub => (png::FilterType::Sub, png::AdaptiveFilterType::NonAdaptive),
             FilterType::Up => (png::FilterType::Up, png::AdaptiveFilterType::NonAdaptive),
             FilterType::Avg => (png::FilterType::Avg, png::AdaptiveFilterType::NonAdaptive),
@@ -543,12 +615,21 @@ impl<W: Write> PngEncoder<W> {
         encoder.set_compression(comp);
         encoder.set_filter(filter);
         encoder.set_adaptive_filter(adaptive_filter);
-        let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
-        writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| ImageError::IoError(e.into()))?;
+        writer
+            .write_image_data(data)
+            .map_err(|e| ImageError::IoError(e.into()))
     }
 }
 
 impl<W: Write> ImageEncoder for PngEncoder<W> {
+    /// Write a PNG image with the specified width, height, and color type.
+    ///
+    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
+    /// native endian. PngEncoder will automatically convert to big endian as required by the
+    /// underlying PNG format.
     fn write_image(
         self,
         buf: &[u8],
@@ -557,15 +638,23 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         color_type: ColorType,
     ) -> ImageResult<()> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
+        use ColorType::*;
+
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
         // contract of `write_image`.
         // TODO: assumes equal channel bit depth.
-        let bpc = color_type.bytes_per_pixel() / color_type.channel_count();
-        match bpc {
-            1 => self.encode(buf, width, height, color_type),  // No reodering necessary for u8
-            2 => {
+        match color_type {
+            L8 | La8 | Rgb8 | Rgba8 => {
+                // No reodering necessary for u8
+                self.encode_inner(buf, width, height, color_type)
+            }
+            L16 | La16 | Rgb16 | Rgba16 => {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
@@ -573,9 +662,12 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 buf.chunks(2)
                     .zip(reordered.chunks_mut(2))
                     .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
-                self.encode(&reordered, width, height, color_type)
-            },
-            _ => unreachable!(),
+                self.encode_inner(&reordered, width, height, color_type)
+            }
+            _ => Err(ImageError::Encoding(EncodingError::new(
+                ImageFormat::Png.into(),
+                BadPngRepresentation::ColorType(color_type),
+            ))),
         }
     }
 }
@@ -586,20 +678,19 @@ impl ImageError {
         match err {
             IoError(err) => ImageError::IoError(err),
             // The input image was not a valid PNG.
-            err @ Format(_) => ImageError::Decoding(DecodingError::new(
-                ImageFormat::Png.into(),
-                err,
-            )),
+            err @ Format(_) => {
+                ImageError::Decoding(DecodingError::new(ImageFormat::Png.into(), err))
+            }
             // Other is used when:
             // - The decoder is polled for more animation frames despite being done (or not being animated
             //   in the first place).
             // - The output buffer does not have the required size.
             err @ Parameter(_) => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic(err.to_string())
+                ParameterErrorKind::Generic(err.to_string()),
             )),
-            LimitsExceeded => ImageError::Limits(LimitError::from_kind(
-                LimitErrorKind::InsufficientMemory,
-            )),
+            LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
         }
     }
 }
@@ -616,16 +707,35 @@ impl Default for FilterType {
     }
 }
 
+impl fmt::Display for BadPngRepresentation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::ColorType(color_type) => write!(
+                f,
+                "The color {:?} can not be represented in PNG.",
+                color_type
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BadPngRepresentation {}
+
 #[cfg(test)]
 mod tests {
-    use crate::image::ImageDecoder;
-    use std::io::Read;
     use super::*;
+    use crate::image::ImageDecoder;
+    use crate::ImageOutputFormat;
+
+    use std::io::{Cursor, Read};
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PngDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
-            .expect("Unable to read PNG file (does it exist?)");
+        let dec = PngDecoder::new(
+            std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
+                .unwrap(),
+        )
+        .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
 
@@ -635,6 +745,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
+        #[allow(deprecated)]
         let correct_bytes = dec
             .into_reader()
             .expect("Unable to read file")
@@ -649,7 +760,9 @@ mod tests {
     fn underlying_error() {
         use std::error::Error;
 
-        let mut not_png = std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap();
+        let mut not_png =
+            std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
+                .unwrap();
         not_png[0] = 0;
 
         let error = PngDecoder::new(&not_png[..]).err().unwrap();
@@ -658,5 +771,13 @@ mod tests {
             .unwrap()
             .downcast_ref::<png::DecodingError>()
             .expect("Caused by a png error");
+    }
+
+    #[test]
+    fn encode_bad_color_type() {
+        // regression test for issue #1663
+        let image = DynamicImage::new_rgb32f(1, 1);
+        let mut target = Cursor::new(vec![]);
+        let _ = image.write_to(&mut target, ImageOutputFormat::Png);
     }
 }

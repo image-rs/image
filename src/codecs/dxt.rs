@@ -12,7 +12,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progress};
+use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageReadBuffer, Progress};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -100,7 +100,13 @@ impl<R: Read> DxtDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.scanline_bytes()));
+        assert_eq!(
+            u64::try_from(buf.len()),
+            Ok(
+                #[allow(deprecated)]
+                self.scanline_bytes()
+            )
+        );
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -134,7 +140,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(DxtReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(
+                #[allow(deprecated)]
+                self.scanline_bytes(),
+                self.total_bytes(),
+            ),
             decoder: self,
         })
     }
@@ -142,14 +152,15 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        for chunk in buf.chunks_mut(self.scanline_bytes() as usize) {
+        #[allow(deprecated)]
+        for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
             self.read_scanline(chunk)?;
         }
         Ok(())
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for DxtDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,
@@ -159,16 +170,25 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        let encoded_scanline_bytes = self.variant.encoded_bytes_per_block() as u64
-            * u64::from(self.width_blocks);
+        let encoded_scanline_bytes =
+            self.variant.encoded_bytes_per_block() as u64 * u64::from(self.width_blocks);
 
-        let start = self.inner.seek(SeekFrom::Current(0))?;
-        image::load_rect(x, y, width, height, buf, progress_callback, self,
-                         |s, scanline| {
-                             s.inner.seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
-                             Ok(())
-                         },
-                         |s, buf| s.read_scanline(buf).map(|_| ()))?;
+        let start = self.inner.stream_position()?;
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |s, scanline| {
+                s.inner
+                    .seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
+                Ok(())
+            },
+            |s, buf| s.read_scanline(buf).map(|_| ()),
+        )?;
         self.inner.seek(SeekFrom::Start(start))?;
         Ok(())
     }
@@ -271,7 +291,8 @@ fn square(a: i32) -> i32 {
 
 /// returns the squared error between two RGB values
 fn diff(a: Rgb, b: Rgb) -> i32 {
-    square(i32::from(a[0]) - i32::from(b[0])) + square(i32::from(a[1]) - i32::from(b[1]))
+    square(i32::from(a[0]) - i32::from(b[0]))
+        + square(i32::from(a[1]) - i32::from(b[1]))
         + square(i32::from(a[2]) - i32::from(b[2]))
 }
 
@@ -309,8 +330,10 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     // extract color data
     let color0 = u16::from(source[0]) | (u16::from(source[1]) << 8);
     let color1 = u16::from(source[2]) | (u16::from(source[3]) << 8);
-    let color_table = u32::from(source[4]) | (u32::from(source[5]) << 8)
-        | (u32::from(source[6]) << 16) | (u32::from(source[7]) << 24);
+    let color_table = u32::from(source[4])
+        | (u32::from(source[5]) << 8)
+        | (u32::from(source[6]) << 16)
+        | (u32::from(source[7]) << 24);
     // let color_table = source[4..8].iter().rev().fold(0, |t, &b| (t << 8) | b as u32);
 
     // decode the colors to rgb format
@@ -466,7 +489,7 @@ fn decode_dxt5_row(source: &[u8], dest: &mut [u8]) {
 /// Another way to perform this analysis would be to perform a
 /// singular value decomposition of the different colors, and
 /// then pick 2 points on this line as the base colors. But
-/// this is still rather unwieldly math and has issues
+/// this is still rather unwieldy math and has issues
 /// with the 3-linear-colors-and-0 case, it's also worse
 /// at conserving the original colors.
 ///
@@ -562,7 +585,6 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
             colors[1] = c2;
 
             if is_dxt1 {
-
                 // what's inside here is ran at most 120 times.
                 for use_0 in 0..2 {
                     // and 240 times here.
@@ -578,9 +600,11 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
                         // interpolate to get 2 more colors
                         for i in 0..3 {
                             colors[2][i] =
-                                ((u16::from(colors[0][i]) * 2 + u16::from(colors[1][i]) + 1) / 3) as u8;
+                                ((u16::from(colors[0][i]) * 2 + u16::from(colors[1][i]) + 1) / 3)
+                                    as u8;
                             colors[3][i] =
-                                ((u16::from(colors[0][i]) + u16::from(colors[1][i]) * 2 + 1) / 3) as u8;
+                                ((u16::from(colors[0][i]) + u16::from(colors[1][i]) * 2 + 1) / 3)
+                                    as u8;
                         }
                     }
 

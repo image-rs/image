@@ -1,10 +1,10 @@
 extern crate criterion;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use image::{ColorType, codecs::bmp::BmpEncoder, codecs::jpeg::JpegEncoder};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use image::{codecs::bmp::BmpEncoder, codecs::jpeg::JpegEncoder, ColorType};
 
 use std::fs::File;
-use std::io::{BufWriter, Write, Seek, SeekFrom};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 
 trait Encoder {
     fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ColorType);
@@ -21,7 +21,7 @@ struct BenchDef {
 }
 
 fn encode_all(c: &mut Criterion) {
-    const BENCH_DEFS: &'static [BenchDef] = &[
+    const BENCH_DEFS: &[BenchDef] = &[
         BenchDef {
             with: &Bmp,
             name: "bmp",
@@ -54,20 +54,32 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: C
     let bytes = size as usize * usize::from(color.bytes_per_pixel());
     let im = vec![0; bytes * bytes];
 
-    group.bench_with_input(BenchmarkId::new(format!("zero-{:?}-rawvec", color), size), &im, |b, image| {
-        let mut v = vec![];
-        with.encode_raw(&mut v, &im, size, color);
-        b.iter(|| with.encode_raw(&mut v, image, size, color));
-    });
-    group.bench_with_input(BenchmarkId::new(format!("zero-{:?}-bufvec", color), size), &im, |b, image| {
-        let mut v = vec![];
-        with.encode_raw(&mut v, &im, size, color);
-        b.iter(|| with.encode_bufvec(&mut v, image, size, color));
-    });
-    group.bench_with_input(BenchmarkId::new(format!("zero-{:?}-file", color), size), &im, |b, image| {
-        let file = File::create("temp.bmp").unwrap();
-        b.iter(|| with.encode_file(&file, image, size, color));
-    });
+    group.bench_with_input(
+        BenchmarkId::new(format!("zero-{:?}-rawvec", color), size),
+        &im,
+        |b, image| {
+            let mut v = vec![];
+            with.encode_raw(&mut v, &im, size, color);
+            b.iter(|| with.encode_raw(&mut v, image, size, color));
+        },
+    );
+    group.bench_with_input(
+        BenchmarkId::new(format!("zero-{:?}-bufvec", color), size),
+        &im,
+        |b, image| {
+            let mut v = vec![];
+            with.encode_raw(&mut v, &im, size, color);
+            b.iter(|| with.encode_bufvec(&mut v, image, size, color));
+        },
+    );
+    group.bench_with_input(
+        BenchmarkId::new(format!("zero-{:?}-file", color), size),
+        &im,
+        |b, image| {
+            let file = File::create("temp.bmp").unwrap();
+            b.iter(|| with.encode_file(&file, image, size, color));
+        },
+    );
 }
 
 fn encode_definition(criterion: &mut Criterion, def: &BenchDef) {

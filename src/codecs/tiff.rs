@@ -9,7 +9,7 @@
 extern crate tiff;
 
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read, Write, Seek};
+use std::io::{self, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -23,31 +23,33 @@ use crate::utils;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     dimensions: (u32, u32),
     color_type: ColorType,
-    inner: tiff::decoder::Decoder<R>,
+
+    // We only use an Option here so we can call with_limits on the decoder without moving.
+    inner: Option<tiff::decoder::Decoder<R>>,
 }
 
 impl<R> TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
-        let dimensions = inner.dimensions()
-            .map_err(ImageError::from_tiff_decode)?;
-        let color_type = inner.colortype()
-            .map_err(ImageError::from_tiff_decode)?;
+        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
+        let color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
         match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
                     check_sample_format(format)?;
                 }
             }
-            Ok(None) => { /* assume UInt format */ },
+            Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         };
 
@@ -64,17 +66,18 @@ impl<R> TiffDecoder<R>
             tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
                 return Err(err_unknown_color_type(n))
             }
-            tiff::ColorType::GrayA(n) => return Err(err_unknown_color_type(n * 2)),
-            tiff::ColorType::RGB(n) => return Err(err_unknown_color_type(n * 3)),
+            tiff::ColorType::GrayA(n) => return Err(err_unknown_color_type(n.saturating_mul(2))),
+            tiff::ColorType::RGB(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
+            tiff::ColorType::YCbCr(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
             tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
-                return Err(err_unknown_color_type(n * 4))
+                return Err(err_unknown_color_type(n.saturating_mul(4)))
             }
         };
 
         Ok(TiffDecoder {
             dimensions,
             color_type,
-            inner,
+            inner: Some(inner),
         })
     }
 }
@@ -82,19 +85,18 @@ impl<R> TiffDecoder<R>
 fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
     match tiff::tags::SampleFormat::from_u16(sample_format) {
         Some(tiff::tags::SampleFormat::Uint) => Ok(()),
-        Some(other) => {
-            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        Some(other) => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
                 ImageFormat::Tiff.into(),
-                UnsupportedErrorKind::GenericFeature(
-                    format!("Unhandled TIFF sample format {:?}", other)
-                ),
-            )))
-        }
-        None => {
-            Err(ImageError::Decoding(
-                    DecodingError::from_format_hint(ImageFormat::Tiff.into())
-            ))
-        }
+                UnsupportedErrorKind::GenericFeature(format!(
+                    "Unhandled TIFF sample format {:?}",
+                    other
+                )),
+            ),
+        )),
+        None => Err(ImageError::Decoding(DecodingError::from_format_hint(
+            ImageFormat::Tiff.into(),
+        ))),
     }
 }
 
@@ -109,7 +111,9 @@ impl ImageError {
     fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
+            err @ tiff::TiffError::FormatError(_)
+            | err @ tiff::TiffError::IntSizeError
+            | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -127,7 +131,9 @@ impl ImageError {
     fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
+            err @ tiff::TiffError::FormatError(_)
+            | err @ tiff::TiffError::IntSizeError
+            | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -170,9 +176,38 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.color_type
     }
 
-    fn into_reader(mut self) -> ImageResult<Self::Reader> {
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        if let Some(decoder) = &mut self.inner {
+            decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok()
+        } else {
+            None
+        }
+    }
+
+    fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
+
+        let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
+        let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes());
+
+        let mut tiff_limits: tiff::decoder::Limits = Default::default();
+        tiff_limits.decoding_buffer_size =
+            usize::try_from(max_alloc - max_intermediate_alloc).unwrap_or(usize::MAX);
+        tiff_limits.intermediate_buffer_size =
+            usize::try_from(max_intermediate_alloc).unwrap_or(usize::MAX);
+        tiff_limits.ifd_value_size = tiff_limits.intermediate_buffer_size;
+        self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
+
+        Ok(())
+    }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
         let buf = match self
             .inner
+            .unwrap()
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
@@ -191,10 +226,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         Ok(TiffReader(Cursor::new(buf), PhantomData))
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self
             .inner
+            .unwrap()
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
@@ -261,16 +297,43 @@ impl<W: Write + Seek> TiffEncoder<W> {
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
     ///
     /// 16-bit types assume the buffer is native endian.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
+            data.len() as u64
+        );
+
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color {
-            ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
-            ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
-            ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, u8_slice_as_u16(data)?),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, u8_slice_as_u16(data)?),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, u8_slice_as_u16(data)?),
+            ColorType::L8 => {
+                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)
+            }
+            ColorType::Rgb8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)
+            }
+            ColorType::Rgba8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)
+            }
+            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::u32;
 
 use crc32fast::Hasher as Crc32;
-use image::DynamicImage;
+use image::{ColorType, DynamicImage};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -74,17 +74,29 @@ fn render_images() {
             format!("{:x}", crc.finalize()),
             "png"
         ));
-        img.save(out_path).unwrap();
+
+        let png_img = match img.color() {
+
+            // hdr images use f32, but png does not support that,
+            // so downsample now before encoding
+            ColorType::Rgb32F => DynamicImage::from(img.to_rgb8()),
+
+            _ => img,
+        };
+
+        png_img.save(out_path).unwrap();
     })
 }
 
 /// Describes a single test case of `check_references`.
+#[derive(Debug)]
 struct ReferenceTestCase {
     orig_filename: String,
     crc: u32,
     kind: ReferenceTestKind,
 }
 
+#[derive(Debug)]
 enum ReferenceTestKind {
     /// The test image is loaded using `image::open`, and the result is compared
     /// against the reference image.
@@ -171,6 +183,7 @@ fn check_references() {
         // Parse the file name to obtain the test case information
         let filename_str = filename.as_os_str().to_str().unwrap();
         let case: ReferenceTestCase = filename_str.parse().unwrap();
+        dbg!(&case);
 
         let mut img_path = base.clone();
         img_path.push(IMAGE_DIR);
@@ -254,7 +267,15 @@ fn check_references() {
             ReferenceTestKind::SingleImage => {
                 // Read the input file as a single image
                 match image::open(&img_path) {
-                    Ok(img) => test_img = Some(img),
+
+                    // hdr is f32, but png does not support that,
+                    // so we downsample hdr images to u8 now
+                    Ok(f32_img @ DynamicImage::ImageRgb32F(_)) =>
+                        test_img = Some(DynamicImage::from(f32_img.to_rgb8())),
+
+                    Ok(png_compatible_image) =>
+                        test_img = Some(png_compatible_image),
+
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
@@ -264,10 +285,13 @@ fn check_references() {
             }
         }
 
+
         let test_img = match test_img.as_ref() {
             Some(img) => img,
             None => return,
         };
+
+        dbg!(&test_img.color());
 
         let test_crc_actual = {
             let mut hasher = Crc32::new();

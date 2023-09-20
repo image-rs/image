@@ -202,16 +202,11 @@ impl<R: Read> PngDecoder<R> {
     /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
     /// > the values given above as if they had appeared in gAMA and cHRM chunks.
     pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
-        let gamma = if self.reader.info().srgb.is_some() {
-            Some(0.45455)
-        } else {
-            self.reader
-                .info()
-                .gama_chunk
-                .map(|x| x.into_scaled() as f64 / 100000.0)
-        };
-
-        Ok(gamma)
+        Ok(self
+            .reader
+            .info()
+            .source_gamma
+            .map(|x| x.into_scaled() as f64 / 100000.0))
     }
 
     /// Turn this into an iterator over the animation frames.

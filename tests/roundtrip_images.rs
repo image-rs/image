@@ -1,33 +1,19 @@
 use std::path::PathBuf;
-use tiff::encoder::ImageEncoder;
 use image::{DynamicImage, ImageFormat, ImageResult, ImageError};
 use std::io::Cursor;
 use image::io::Reader;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 
-fn process_images(process_image: impl Fn(PathBuf)) {
-    let base: PathBuf = BASE_PATH.iter().collect();
-    let extensions = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp", "exr"];
-    for extension in extensions {
-        let mut path = base.clone();
-        path.push("**");
-        path.push("*.".to_string() + extension);
-        let pattern = &*format!("{}", path.display());
-        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            process_image(path)
-        }
-    }
-}
 
 #[test]
 fn roundtrip() {
-    process_images(|path| {
+    for_each_image_file_in_repository(|path| {
         println!("round trip test at path {:?}", path);
 
         let format_and_image: ImageResult<(ImageFormat, DynamicImage)> = Reader::open(&path)
             .map_err(|err| err.into())
-            .and_then(|reader|{
+            .and_then(|reader| {
                 let reader = reader.with_guessed_format()?;
                 let format = reader.format();
                 let content = reader.decode()?;
@@ -52,13 +38,31 @@ fn roundtrip() {
 
                     Err(_) => panic!("cannot write image even though format says so"),
                 }
-            }
-            else {
+            } else {
                 println!("Skipping read-only format {:?}", format);
             }
-        }
-        else {
+        } else {
             println!("Skipping invalid image at path {:?}", &path);
         }
     })
+}
+
+
+fn for_each_image_file_in_repository(process_image: impl Fn(PathBuf)) {
+    let base: PathBuf = BASE_PATH.iter().collect();
+
+    let extensions = &[
+        "tga", "tiff", "png", "gif", "bmp", "ico",
+        "jpg", "hdr", "pbm", "webp", "exr"
+    ];
+
+    for extension in extensions {
+        let mut path = base.clone();
+        path.push("**");
+        path.push("*.".to_string() + extension);
+        let pattern = &*format!("{}", path.display());
+        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+            process_image(path)
+        }
+    }
 }

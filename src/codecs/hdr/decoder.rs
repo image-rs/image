@@ -163,10 +163,10 @@ impl<R: BufRead> HdrAdapter<R> {
             Some(decoder) => {
                 decoder.read_image_transform(
                     |index, pix| {
-                        let rgb_f32 = pix.to_hdr();
+                        let rgb_f32 = pix.to_hdr_scale_gamma(1.0, 2.2);
                         let pixel_bytes: &[u8] = bytemuck::cast_slice(rgb_f32.channels());
 
-                        image_bytes[index * bytes_per_pixel .. (index + 1) * bytes_per_pixel]
+                        image_bytes[index * bytes_per_pixel..(index + 1) * bytes_per_pixel]
                             .copy_from_slice(pixel_bytes);
                     },
                 )
@@ -180,6 +180,7 @@ impl<R: BufRead> HdrAdapter<R> {
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct HdrReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+
 impl<R> Read for HdrReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -299,6 +300,32 @@ impl Rgbe8Pixel {
         self.to_ldr_scale_gamma(1.0, 2.2)
     }
 
+    /// Converts `Rgbe8Pixel` to floats using provided scale and gamma.
+    ///
+    /// color_hdr = (color_hdr*scale)<sup>gamma</sup>
+    /// Panics when scale or gamma is NaN
+    #[inline]
+    pub fn to_hdr_scale_gamma(self, scale: f32, gamma: f32) -> Rgb<f32> {
+        let Rgb(data) = self.to_hdr();
+        let (r, g, b) = (data[0], data[1], data[2]);
+        #[inline]
+        fn sg(v: f32, scale: f32, gamma: f32) -> f32 {
+            // Disassembly shows that t_max_f32 is compiled into constant
+            let fv = f32::powf(v * scale, gamma);
+            if fv < 0.0 { 0.0 }
+            else if fv > 1.0 { 1.0 }
+            else {
+                num_traits::NumCast::from(fv)
+                    .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
+            }
+        }
+        Rgb([
+            sg(r, scale, gamma),
+            sg(g, scale, gamma),
+            sg(b, scale, gamma),
+        ])
+    }
+
     /// Converts `Rgbe8Pixel` into `Rgb<T>` using provided scale and gamma
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
@@ -309,29 +336,26 @@ impl Rgbe8Pixel {
     /// Panics when scale or gamma is NaN
     #[inline]
     pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
-        let Rgb(data) = self.to_hdr();
+        let Rgb(data) = self.to_hdr_scale_gamma(scale, gamma);
         let (r, g, b) = (data[0], data[1], data[2]);
+
         #[inline]
-        fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {
+        fn sg<T: Primitive + Zero>(fv: f32) -> T {
             let t_max = T::max_value();
+
             // Disassembly shows that t_max_f32 is compiled into constant
             let t_max_f32: f32 = num_traits::NumCast::from(t_max)
                 .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
-            let fv = f32::powf(v * scale, gamma) * t_max_f32 + 0.5;
-            if fv < 0.0 {
-                T::zero()
-            } else if fv > t_max_f32 {
-                t_max
-            } else {
+
+            if fv <= 0.0 { T::zero() }
+            else if fv > t_max_f32 { t_max }
+            else {
                 num_traits::NumCast::from(fv)
                     .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
         }
-        Rgb([
-            sg(r, scale, gamma),
-            sg(g, scale, gamma),
-            sg(b, scale, gamma),
-        ])
+
+        Rgb([sg(r), sg(g), sg(b), ])
     }
 }
 
@@ -362,7 +386,7 @@ impl<R: BufRead> HdrDecoder<R> {
                 if signature != SIGNATURE {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
-                  // skip signature line ending
+                // skip signature line ending
                 read_line_u8(r)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
@@ -384,14 +408,14 @@ impl<R: BufRead> HdrDecoder<R> {
                             // skip comments
                             continue;
                         } // no else
-                          // process attribute line
+                        // process attribute line
                         let line = String::from_utf8_lossy(&line[..]);
                         attributes.update_header_info(&line, strict)?;
                     } // <= Some(line)
                 } // match read_line_u8()
             } // loop
         } // scope to end borrow of reader
-          // parse dimensions
+        // parse dimensions
         let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions
@@ -453,7 +477,7 @@ impl<R: BufRead> HdrDecoder<R> {
     /// The callback gets a flattened index as the first argument.
     pub fn read_image_transform<F: Send + Sync + FnMut(usize, Rgbe8Pixel)>(
         mut self,
-        mut store_rgbe_pixel: F
+        mut store_rgbe_pixel: F,
     ) -> ImageResult<()> {
         if self.width == 0 || self.height == 0 {
             return Ok(());
@@ -461,7 +485,7 @@ impl<R: BufRead> HdrDecoder<R> {
 
         let mut rgbe_pixel_line_tmp_buffer = vec![Default::default(); self.width as usize];
 
-        for y_index in 0 .. self.height as usize {
+        for y_index in 0..self.height as usize {
             read_scanline(&mut self.r, rgbe_pixel_line_tmp_buffer.as_mut())?;
 
             for (x_index, &rgbe_pixel) in rgbe_pixel_line_tmp_buffer.iter().enumerate() {
@@ -509,10 +533,14 @@ impl<R: BufRead> IntoIterator for HdrDecoder<R> {
 pub struct HdrImageDecoderIterator<R: BufRead> {
     r: R,
     scanline_cnt: usize,
-    buf: Vec<Rgbe8Pixel>, // scanline buffer
-    col: usize,           // current position in scanline
-    scanline: usize,      // current scanline
-    trouble: bool,        // optimization, true indicates that we need to check something
+    buf: Vec<Rgbe8Pixel>,
+    // scanline buffer
+    col: usize,
+    // current position in scanline
+    scanline: usize,
+    // current scanline
+    trouble: bool,
+    // optimization, true indicates that we need to check something
     error_encountered: bool,
 }
 
@@ -804,7 +832,7 @@ impl HdrMetadata {
                                 LineType::Exposure,
                                 parse_error,
                             )
-                            .into());
+                                .into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -821,7 +849,7 @@ impl HdrMetadata {
                                 LineType::Pixaspect,
                                 parse_error,
                             )
-                            .into());
+                                .into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -894,8 +922,8 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
         // extra data in dimensions line
         return Err(DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT).into());
     } // no else
-      // dimensions line is in the form "-Y 10 +X 20"
-      // There are 8 possible orientations: +Y +X, +X -Y and so on
+    // dimensions line is in the form "-Y 10 +X 20"
+    // There are 8 possible orientations: +Y +X, +X -Y and so on
     match (c1_tag, c2_tag) {
         ("-Y", "+X") => {
             // Common orientation (left-right, top-down)

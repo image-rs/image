@@ -19,8 +19,6 @@ use crate::error::{
 };
 use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageFormat, Progress};
 
-#[cfg(test)]
-use std::borrow::Cow;
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum DecoderError {

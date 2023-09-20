@@ -45,11 +45,11 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
 
         let get_rgbf32 = move |pixel_index| {
             let first_f32_index = pixel_index * channel_count;
-            Rgb::<f32>([
+            to_rgbe8(Rgb::<f32>([
                 lookup_f32(first_f32_index),
                 lookup_f32(first_f32_index + 1),
                 lookup_f32(first_f32_index + 2)
-            ])
+            ]))
         };
 
         self.encode_pixels_by_index(get_rgbf32, width as usize, height as usize)
@@ -64,14 +64,14 @@ impl<W: Write> HdrEncoder<W> {
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
-        self.encode_pixels_by_index(|i| data[i], width, height)
+    pub fn encode(self, rgb: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
+        self.encode_pixels_by_index(|i| to_rgbe8(rgb[i]), width, height)
     }
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```.
     /// The callback must return the color for the given flattened index of the pixel (row major).
-    pub fn encode_pixels_by_index(mut self, get_rgbaf32_pixel: impl Fn(usize) -> Rgb<f32>, width: usize, height: usize) -> ImageResult<()> {
+    pub fn encode_pixels_by_index(mut self, get_rgbaf32_pixel: impl Fn(usize) -> Rgbe8Pixel, width: usize, height: usize) -> ImageResult<()> {
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
         w.write_all(b"\n")?;
@@ -81,7 +81,7 @@ impl<W: Write> HdrEncoder<W> {
 
         if !(8..=32_768).contains(&width) {
             for pix in (0..width * height).map(|i| get_rgbaf32_pixel(i)) {
-                write_rgbe8(w, to_rgbe8(pix))?;
+                write_rgbe8(w, pix)?;
             }
         } else {
             // new RLE marker contains scanline width
@@ -104,7 +104,7 @@ impl<W: Write> HdrEncoder<W> {
                     .zip(bufe.iter_mut())
                     .zip(scanline)
                 {
-                    let cp = to_rgbe8(pix);
+                    let cp = pix;
                     *r = cp.c[0];
                     *g = cp.c[1];
                     *b = cp.c[2];

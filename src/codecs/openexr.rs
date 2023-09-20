@@ -471,12 +471,11 @@ mod test {
                 .clone()
                 .join("overexposed gradient - data window equals display window.exr");
 
-            let hdr: Vec<Rgb<f32>> = crate::codecs::hdr::HdrDecoder::new(std::io::BufReader::new(
+            let hdr_decoder = crate::codecs::hdr::HdrDecoder::new(std::io::BufReader::new(
                 std::fs::File::open(&reference_path).unwrap(),
             ))
-            .unwrap()
-            .read_image_hdr()
             .unwrap();
+            let hdr = hdr_decoder.read_image_hdr().unwrap();
 
             let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
             assert_eq!(

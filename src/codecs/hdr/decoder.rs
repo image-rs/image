@@ -249,7 +249,7 @@ const SIGNATURE_LENGTH: usize = 10;
 /// An Radiance HDR decoder
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
-    reader: R,
+    r: R,
     width: u32,
     height: u32,
     meta: HdrMetadata,
@@ -418,7 +418,7 @@ impl<R: BufRead> HdrDecoder<R> {
         }
 
         Ok(HdrDecoder {
-            reader: reader,
+            r: reader,
 
             width,
             height,
@@ -445,7 +445,7 @@ impl<R: BufRead> HdrDecoder<R> {
         let pixel_count = self.width as usize * self.height as usize;
         let mut ret = vec![Default::default(); pixel_count];
         for chunk in ret.chunks_mut(self.width as usize) {
-            read_scanline(&mut self.reader, chunk)?;
+            read_scanline(&mut self.r, chunk)?;
         }
         Ok(ret)
     }
@@ -462,7 +462,7 @@ impl<R: BufRead> HdrDecoder<R> {
         let mut rgbe_pixel_line_tmp_buffer = vec![Default::default(); self.width as usize];
 
         for y_index in 0 .. self.height as usize {
-            read_scanline(&mut self.reader, rgbe_pixel_line_tmp_buffer.as_mut())?;
+            read_scanline(&mut self.r, rgbe_pixel_line_tmp_buffer.as_mut())?;
 
             for (x_index, &rgbe_pixel) in rgbe_pixel_line_tmp_buffer.iter().enumerate() {
                 store_rgbe_pixel(y_index * self.width as usize + x_index, rgbe_pixel);
@@ -494,7 +494,7 @@ impl<R: BufRead> IntoIterator for HdrDecoder<R> {
 
     fn into_iter(self) -> Self::IntoIter {
         HdrImageDecoderIterator {
-            r: self.reader,
+            r: self.r,
             scanline_cnt: self.height as usize,
             buf: vec![Default::default(); self.width as usize],
             col: 0,

@@ -283,11 +283,11 @@ fn write_buffer(
                     let pixel_index = pixel.flat_index_for_size(Vec2(width, height));
                     let start_byte = pixel_index * bytes_per_pixel;
 
-                    let [r,g,b]: [f32; 3] = bytemuck::pod_read_unaligned(&unaligned_bytes[
-                        start_byte .. start_byte + bytes_per_pixel
-                    ]);
+                    let [r, g, b]: [f32; 3] = bytemuck::pod_read_unaligned(
+                        &unaligned_bytes[start_byte..start_byte + bytes_per_pixel],
+                    );
 
-                    (r,g,b)
+                    (r, g, b)
                 }),
             )
             .write()
@@ -304,11 +304,11 @@ fn write_buffer(
                     let pixel_index = pixel.flat_index_for_size(Vec2(width, height));
                     let start_byte = pixel_index * bytes_per_pixel;
 
-                    let [r,g,b, a]: [f32; 4] = bytemuck::pod_read_unaligned(&unaligned_bytes[
-                        start_byte .. start_byte + bytes_per_pixel
-                    ]);
+                    let [r, g, b, a]: [f32; 4] = bytemuck::pod_read_unaligned(
+                        &unaligned_bytes[start_byte..start_byte + bytes_per_pixel],
+                    );
 
-                    (r,g,b,a)
+                    (r, g, b, a)
                 }),
             )
             .write()

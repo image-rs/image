@@ -44,3 +44,9 @@ benchmarks = []
 path = "benches/decoder.rs"
 name = "decoder"
 harness = false
+
+[[bench]]
+path = "benches/unfilter.rs"
+name = "unfilter"
+harness = false
+required-features = ["benchmarks"]

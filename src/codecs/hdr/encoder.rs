@@ -47,7 +47,7 @@ impl<W: Write> HdrEncoder<W> {
     /// that has dimensions ```width``` and ```height```.
     /// The callback must return the color for the given flattened index of the pixel (row major).
     pub fn encode_pixels(mut self, mut flattened_rgbe_pixels: impl ExactSizeIterator<Item=Rgbe8Pixel>, width: usize, height: usize) -> ImageResult<()> {
-        assert!(flattened_rgbe_pixels.len() >= width * height, "not enough pixels provided"); // this might elide some bounds checks
+        assert!(flattened_rgbe_pixels.len() >= width * height, "not enough pixels provided"); // bonus: this might elide some bounds checks
 
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
@@ -57,8 +57,8 @@ impl<W: Write> HdrEncoder<W> {
         w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
 
         if !(8..=32_768).contains(&width) {
-            for _ in 0 .. width * height {
-                write_rgbe8(w, flattened_rgbe_pixels.next().expect("not enough pixels provided"))?;
+            for pixel in flattened_rgbe_pixels {
+                write_rgbe8(w, pixel)?;
             }
         } else {
             // new RLE marker contains scanline width
@@ -70,6 +70,8 @@ impl<W: Write> HdrEncoder<W> {
             let mut bufe = vec![0; width];
             let mut rle_buf = vec![0; width];
             for _scanline_index in 0 .. height {
+                assert!(flattened_rgbe_pixels.len() >= width); // may reduce the bound checks
+
                 for (((r, g), b), e) in bufr
                     .iter_mut()
                     .zip(bufg.iter_mut())
@@ -77,7 +79,7 @@ impl<W: Write> HdrEncoder<W> {
                     .zip(bufe.iter_mut())
                 {
                     let cp = flattened_rgbe_pixels.next()
-                        .expect("not enough pixels provided");
+                        .unwrap(); // we know it's here because the length is checked earlier
 
                     *r = cp.c[0];
                     *g = cp.c[1];

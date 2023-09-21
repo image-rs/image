@@ -365,6 +365,10 @@ pub enum ImageOutputFormat {
     /// An image in WebP Format.
     WebP,
 
+    #[cfg(feature = "hdr")]
+    /// An image in HDR Format.
+    Hdr,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.

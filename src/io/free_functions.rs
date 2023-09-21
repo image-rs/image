@@ -253,6 +253,10 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageOutputFormat::WebP => {
             webp::WebPEncoder::new_lossless(buffered_write).write_image(buf, width, height, color)
         }
+        #[cfg(feature = "hdr")]
+        ImageOutputFormat::Hdr => {
+            hdr::HdrEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
 
         image::ImageOutputFormat::Unsupported(msg) => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(

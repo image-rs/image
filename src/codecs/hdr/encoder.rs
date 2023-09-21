@@ -22,9 +22,9 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
                 self.encode_pixels(rgbe_pixels, width as usize, height as usize)
             },
 
-            _ => return Err(ImageError::Encoding(EncodingError::new(
+            _ => Err(ImageError::Encoding(EncodingError::new(
                 ImageFormatHint::Exact(ImageFormat::Hdr),
-                format!("hdr format currently only supports the `Rgb32F` color type"),
+                "hdr format currently only supports the `Rgb32F` color type".to_string(),
             )))
         }
     }

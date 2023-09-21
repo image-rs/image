@@ -1,9 +1,9 @@
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
+use crate::{ColorType, ImageEncoder, ImageError, ImageFormat};
 use std::cmp::Ordering;
 use std::io::{Result, Write};
-use crate::{ColorType, ImageEncoder, ImageError, ImageFormat};
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W: Write> {
@@ -11,7 +11,13 @@ pub struct HdrEncoder<W: Write> {
 }
 
 impl<W: Write> ImageEncoder for HdrEncoder<W> {
-    fn write_image(self, unaligned_bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
+    fn write_image(
+        self,
+        unaligned_bytes: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
         match color_type {
             ColorType::Rgb32F => {
                 let rgbe_pixels = unaligned_bytes
@@ -20,16 +26,15 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
 
                 // the length will be checked inside encode_pixels
                 self.encode_pixels(rgbe_pixels, width as usize, height as usize)
-            },
+            }
 
             _ => Err(ImageError::Encoding(EncodingError::new(
                 ImageFormatHint::Exact(ImageFormat::Hdr),
                 "hdr format currently only supports the `Rgb32F` color type".to_string(),
-            )))
+            ))),
         }
     }
 }
-
 
 impl<W: Write> HdrEncoder<W> {
     /// Creates encoder
@@ -46,8 +51,16 @@ impl<W: Write> HdrEncoder<W> {
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```.
     /// The callback must return the color for the given flattened index of the pixel (row major).
-    pub fn encode_pixels(mut self, mut flattened_rgbe_pixels: impl ExactSizeIterator<Item=Rgbe8Pixel>, width: usize, height: usize) -> ImageResult<()> {
-        assert!(flattened_rgbe_pixels.len() >= width * height, "not enough pixels provided"); // bonus: this might elide some bounds checks
+    pub fn encode_pixels(
+        mut self,
+        mut flattened_rgbe_pixels: impl ExactSizeIterator<Item = Rgbe8Pixel>,
+        width: usize,
+        height: usize,
+    ) -> ImageResult<()> {
+        assert!(
+            flattened_rgbe_pixels.len() >= width * height,
+            "not enough pixels provided"
+        ); // bonus: this might elide some bounds checks
 
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
@@ -69,7 +82,7 @@ impl<W: Write> HdrEncoder<W> {
             let mut bufb = vec![0; width];
             let mut bufe = vec![0; width];
             let mut rle_buf = vec![0; width];
-            for _scanline_index in 0 .. height {
+            for _scanline_index in 0..height {
                 assert!(flattened_rgbe_pixels.len() >= width); // may reduce the bound checks
 
                 for (((r, g), b), e) in bufr
@@ -78,8 +91,7 @@ impl<W: Write> HdrEncoder<W> {
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
                 {
-                    let cp = flattened_rgbe_pixels.next()
-                        .unwrap(); // we know it's here because the length is checked earlier
+                    let cp = flattened_rgbe_pixels.next().unwrap(); // we know it's here because the length is checked earlier
 
                     *r = cp.c[0];
                     *g = cp.c[1];

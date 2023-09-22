@@ -6,6 +6,7 @@ use crate::{error, ImageError, ImageResult};
 
 pub(crate) mod free_functions;
 mod reader;
+pub(crate) mod track_progress;
 
 pub use self::reader::Reader;
 

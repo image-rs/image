@@ -25,10 +25,10 @@ use crate::Progress;
 /// The progress callback will never overshoot.
 pub struct TrackProgressReader<R, F> {
     inner: R,
-    loaded: u64,
-    approximate_total: u64,
     on_progress: F,
     complete_on_drop: bool,
+    loaded_bytes: u64,
+    approximate_total_bytes: u64,
 }
 
 /// A byte writer, like a file or a network stream.
@@ -38,10 +38,10 @@ pub struct TrackProgressReader<R, F> {
 /// The progress callback will never overshoot.
 pub struct TrackProgressWriter<R, F> {
     inner: R,
-    loaded: u64,
-    approximate_total: u64,
     on_progress: F,
     complete_on_drop: bool,
+    written_bytes: u64,
+    approximate_total_bytes: u64,
 }
 
 impl<F> TrackProgressReader<File, F> {
@@ -52,9 +52,9 @@ impl<F> TrackProgressReader<File, F> {
         Self {
             on_progress,
             inner: file,
-            approximate_total: file.metadata()?.len(),
+            approximate_total_bytes: file.metadata()?.len(),
             complete_on_drop: true,
-            loaded: 0,
+            loaded_bytes: 0,
         }
     }
 }
@@ -65,9 +65,9 @@ impl<R: Read, F> TrackProgressReader<R, F> {
         Self {
             on_progress,
             inner,
-            approximate_total: file_size,
+            approximate_total_bytes: file_size,
             complete_on_drop: true,
-            loaded: 0,
+            loaded_bytes: 0,
         }
     }
 
@@ -78,7 +78,7 @@ impl<R: Read, F> TrackProgressReader<R, F> {
 
     /// Called after meta data was read, but before reading the content of the file.
     pub fn update_expected_size(&mut self, file_size: u64){
-        self.approximate_total = file_size;
+        self.approximate_total_bytes = file_size;
     }
 }
 
@@ -88,9 +88,9 @@ impl<W: Write, F> TrackProgressWriter<W, F> {
         Self {
             inner,
             on_progress,
-            approximate_total: estimated_compressed_file_size,
+            approximate_total_bytes: estimated_compressed_file_size,
             complete_on_drop: true,
-            loaded: 0,
+            written_bytes: 0,
         }
     }
 
@@ -108,8 +108,8 @@ impl<R,F> Read for TrackProgressReader<R, F>
 
         if let Some(&count) = &result {
             // report progress of the bytes that have definitely been processed
-            self.on_progress(new_progress(self.loaded, self.approximate_total));
-            self.loaded += count;
+            self.on_progress(new_progress(self.loaded_bytes, self.approximate_total_bytes));
+            self.loaded_bytes += count;
         }
 
         result
@@ -124,10 +124,10 @@ impl<W,F> Write for TrackProgressWriter<W, F>
         let result = self.inner.write(buffer);
 
         if let Some(&count) = &result {
-            self.loaded += count;
+            self.written_bytes += count;
 
             // report progress of written state
-            self.on_progress(new_progress(self.loaded, self.approximate_total));
+            self.on_progress(new_progress(self.written_bytes, self.approximate_total_bytes));
         }
 
         result
@@ -141,7 +141,7 @@ impl<W,F> Write for TrackProgressWriter<W, F>
 impl<R, F: FnMut(Progress)> Drop for TrackProgressReader<R, F> {
     fn drop(&mut self) {
         if self.complete_on_drop {
-            self.on_progress(complete_progress(self.approximate_total))
+            self.on_progress(complete_progress(self.approximate_total_bytes))
         }
     }
 }
@@ -149,7 +149,7 @@ impl<R, F: FnMut(Progress)> Drop for TrackProgressReader<R, F> {
 impl<W, F: FnMut(Progress)> Drop for TrackProgressWriter<W, F> {
     fn drop(&mut self) {
         if self.complete_on_drop {
-            self.on_progress(complete_progress(self.approximate_total))
+            self.on_progress(complete_progress(self.approximate_total_bytes))
         }
     }
 }

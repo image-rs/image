@@ -594,7 +594,7 @@ impl Info<'_> {
     /// has the consequence that the number of possible values is rather small. To make this fact
     /// more obvious in the type system and the optimizer we use an explicit enum here.
     pub(crate) fn bpp_in_prediction(&self) -> BytesPerPixel {
-        BytesPerPixel::for_prediction(self.bytes_per_pixel())
+        BytesPerPixel::from_usize(self.bytes_per_pixel())
     }
 
     /// Returns the number of bytes needed for one deinterlaced image.
@@ -687,7 +687,7 @@ impl Info<'_> {
 }
 
 impl BytesPerPixel {
-    pub(crate) fn for_prediction(bpp: usize) -> Self {
+    pub(crate) fn from_usize(bpp: usize) -> Self {
         match bpp {
             1 => BytesPerPixel::One,
             2 => BytesPerPixel::Two,

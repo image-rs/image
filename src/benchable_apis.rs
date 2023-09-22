@@ -7,6 +7,6 @@ use crate::filter::FilterType;
 /// Re-exporting `unfilter` to make it easier to benchmark, despite some items being only
 /// `pub(crate)`: `fn unfilter`, `enum BytesPerPixel`.
 pub fn unfilter(filter: FilterType, tbpp: u8, previous: &[u8], current: &mut [u8]) {
-    let tbpp = BytesPerPixel::for_prediction(tbpp as usize);
+    let tbpp = BytesPerPixel::from_usize(tbpp as usize);
     crate::filter::unfilter(filter, tbpp, previous, current)
 }

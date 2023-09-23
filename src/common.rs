@@ -594,15 +594,7 @@ impl Info<'_> {
     /// has the consequence that the number of possible values is rather small. To make this fact
     /// more obvious in the type system and the optimizer we use an explicit enum here.
     pub(crate) fn bpp_in_prediction(&self) -> BytesPerPixel {
-        match self.bytes_per_pixel() {
-            1 => BytesPerPixel::One,
-            2 => BytesPerPixel::Two,
-            3 => BytesPerPixel::Three,
-            4 => BytesPerPixel::Four,
-            6 => BytesPerPixel::Six,   // Only rgb×16bit
-            8 => BytesPerPixel::Eight, // Only rgba×16bit
-            _ => unreachable!("Not a possible byte rounded pixel width"),
-        }
+        BytesPerPixel::from_usize(self.bytes_per_pixel())
     }
 
     /// Returns the number of bytes needed for one deinterlaced image.
@@ -695,6 +687,18 @@ impl Info<'_> {
 }
 
 impl BytesPerPixel {
+    pub(crate) fn from_usize(bpp: usize) -> Self {
+        match bpp {
+            1 => BytesPerPixel::One,
+            2 => BytesPerPixel::Two,
+            3 => BytesPerPixel::Three,
+            4 => BytesPerPixel::Four,
+            6 => BytesPerPixel::Six,   // Only rgb×16bit
+            8 => BytesPerPixel::Eight, // Only rgba×16bit
+            _ => unreachable!("Not a possible byte rounded pixel width"),
+        }
+    }
+
     pub(crate) fn into_usize(self) -> usize {
         self as usize
     }

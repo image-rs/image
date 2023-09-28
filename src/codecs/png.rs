@@ -193,6 +193,22 @@ impl<R: Read> PngDecoder<R> {
         Ok(PngDecoder { color_type, reader })
     }
 
+    /// Returns the gamma value of the image or None if no gamma value is indicated.
+    ///
+    /// If an sRGB chunk is present this method returns a gamma value of 0.45455 and ignores the
+    /// value in the gAMA chunk. This is the recommended behavior according to the PNG standard:
+    ///
+    /// > When the sRGB chunk is present, [...] decoders that recognize the sRGB chunk but are not
+    /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
+    /// > the values given above as if they had appeared in gAMA and cHRM chunks.
+    pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
+        Ok(self
+            .reader
+            .info()
+            .source_gamma
+            .map(|x| x.into_scaled() as f64 / 100000.0))
+    }
+
     /// Turn this into an iterator over the animation frames.
     ///
     /// Reading the complete animation requires more memory than reading the data from the IDAT

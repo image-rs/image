@@ -25,7 +25,7 @@ use crate::error::{
 };
 use crate::image::ImageFormat;
 
-use crate::utils::clamp;
+use crate::utils::{clamp, clamp_simd};
 
 const MAX_SEGMENTS: usize = 4;
 const NUM_DCT_TOKENS: usize = 12;
@@ -929,19 +929,15 @@ impl Frame {
         let d: i32 = i32::from(u) - 128;
         let e: i32 = i32::from(v) - 128;
 
-        let r: u8 = clamp((298 * c + 409 * e + 128) >> 8, 0, 255)
-            .try_into()
-            .unwrap();
-        let g: u8 = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255)
-            .try_into()
-            .unwrap();
-        let b: u8 = clamp((298 * c + 516 * d + 128) >> 8, 0, 255)
-            .try_into()
-            .unwrap();
+        let r = (298 * c + 409 * e + 128) >> 8;
+        let g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+        let b = (298 * c + 516 * d + 128) >> 8;
 
-        rgb[0] = r;
-        rgb[1] = g;
-        rgb[2] = b;
+        let clamped = clamp_simd([r, g, b, 0], 0, 255);
+
+        rgb[0] = clamped[0].try_into().unwrap();
+        rgb[1] = clamped[1].try_into().unwrap();
+        rgb[2] = clamped[2].try_into().unwrap();
     }
 
     /// Gets the buffer size

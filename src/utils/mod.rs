@@ -92,8 +92,20 @@ where
     }
 }
 
+#[inline]
+pub(crate) fn clamp_simd<N>(mut a: [N; 4], min: N, max: N) -> [N; 4]
+where
+    N: Ord + Copy,
+{
+    a.iter_mut().for_each(|i| *i = max.min(*i));
+    a.iter_mut().for_each(|i| *i = min.max(*i));
+    a
+}
+
 #[cfg(test)]
 mod test {
+    use super::clamp_simd;
+
     #[test]
     fn gray_to_luma8_skip() {
         let check = |bit_depth, w, from, to| {
@@ -124,5 +136,12 @@ mod test {
         );
         // Bit depth 4, skip is half a byte
         check(4, 1, &[0b11110011, 0b00001100], vec![255, 0]);
+    }
+
+    #[test]
+    fn simd_clamp() {
+        let input = [-5, 0, 5, 500];
+        let result = clamp_simd(input, 0, 255);
+        assert_eq!(result, [0, 0, 5, 255]);
     }
 }

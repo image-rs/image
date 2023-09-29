@@ -1,10 +1,15 @@
 //! Does loop filtering on webp lossy images
 
-use crate::utils::clamp;
+use crate::utils::{clamp, clamp_simd};
 
 #[inline]
 fn c(val: i32) -> i32 {
     clamp(val, -128, 127)
+}
+
+#[inline]
+fn c_simd(val: [i32; 4]) -> [i32; 4] {
+    clamp_simd(val, -128, 127)
 }
 
 //unsigned to signed
@@ -17,6 +22,14 @@ fn u2s(val: u8) -> i32 {
 #[inline]
 fn s2u(val: i32) -> u8 {
     (c(val) + 128) as u8
+}
+
+//signed to unsigned
+#[inline]
+fn s2u_simd(mut val: [i32; 4]) -> [u8; 4] {
+    val.iter_mut().for_each(|i| *i += 128);
+    c_simd(val);
+    [val[0] as u8, val[1] as u8, val[2] as u8, val[3] as u8]
 }
 
 #[inline]
@@ -126,20 +139,34 @@ pub(crate) fn macroblock_filter(
         if !high_edge_variance(hev_threshold, pixels, point, stride) {
             let w = c(c(spixels[2] - spixels[5]) + 3 * (spixels[4] - spixels[3]));
 
-            let mut a = c((27 * w + 63) >> 7);
+            let a = c_simd([
+                (27 * w + 63) >> 7, // a1
+                (18 * w + 63) >> 7, // a2
+                (9 * w + 63) >> 7,  // a3
+                0,                  // padding to 4 elements in SIMD lane
+            ]);
 
-            pixels[point] = s2u(spixels[4] - a);
-            pixels[point - stride] = s2u(spixels[3] + a);
+            // Gather the values we're going to use into SIMD registers.
+            // The last element is going to be unused, it just has to be 4 to match SIMD lanes
+            let mut sub: [i32; 4] = spixels[4..8].try_into().unwrap();
+            let mut add: [i32; 4] = spixels[1..5].try_into().unwrap();
 
-            a = c((18 * w + 63) >> 7);
+            // Run the addition and subtraction operations
+            sub.iter_mut().zip(a.iter()).for_each(|(i, a)| *i -= a);
+            add.iter_mut().zip(a.iter()).for_each(|(i, a)| *i += a);
 
-            pixels[point + stride] = s2u(spixels[5] - a);
-            pixels[point - 2 * stride] = s2u(spixels[2] + a);
+            // Convert from i32 to u8, clamping the values
+            let add = s2u_simd(add);
+            let sub = s2u_simd(sub);
 
-            a = c((9 * w + 63) >> 7);
+            // Take the values out of SIMD lanes and output them
+            pixels[point] = sub[0];
+            pixels[point + stride] = sub[1];
+            pixels[point + 2 * stride] = sub[2];
 
-            pixels[point + 2 * stride] = s2u(spixels[6] - a);
-            pixels[point - 3 * stride] = s2u(spixels[1] + a);
+            pixels[point - 3 * stride] = add[0];
+            pixels[point - 2 * stride] = add[1];
+            pixels[point - stride] = add[2];
         } else {
             common_adjust(true, pixels, point, stride);
         }

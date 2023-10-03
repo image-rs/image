@@ -40,7 +40,14 @@ impl<R: Read> AvifDecoder<R> {
         primary_decoder
             .send_data(coded.to_vec(), None, None, None)
             .map_err(error_map)?;
-        let picture = primary_decoder.get_picture().map_err(error_map)?;
+        let picture = match primary_decoder.get_picture() {
+            Ok(p) => p,
+            Err(dav1d::Error::Again) => {
+                primary_decoder.send_pending_data().map_err(error_map)?;
+                primary_decoder.get_picture().map_err(error_map)?
+            }
+            Err(e) => return Err(error_map(e)),
+        };
         let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
         let alpha_picture = if !alpha_item.is_empty() {
             let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;

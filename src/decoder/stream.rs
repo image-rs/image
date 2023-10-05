@@ -30,9 +30,18 @@ const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
 /// Kind of `u32` value that is being read via `State::U32Byte...`.
 #[derive(Debug)]
 enum U32ValueKind {
+    /// Chunk length - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
     Length,
+    /// Chunk type - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
     Type { length: u32 },
+    /// Chunk checksum - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
     Crc(ChunkType),
+    /// Sequence number from an `fdAT` chunk - see
+    /// https://wiki.mozilla.org/APNG_Specification#.60fdAT.60:_The_Frame_Data_Chunk
+    ApngSequenceNumber,
 }
 
 #[derive(Debug)]
@@ -423,8 +432,6 @@ pub struct StreamingDecoder {
     pub(crate) info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
-    /// Stores where in decoding an `fdAT` chunk we are.
-    apng_seq_handled: bool,
     have_idat: bool,
     decode_options: DecodeOptions,
 }
@@ -462,7 +469,6 @@ impl StreamingDecoder {
             inflater,
             info: None,
             current_seq_no: None,
-            apng_seq_handled: false,
             have_idat: false,
             decode_options,
         }
@@ -477,7 +483,6 @@ impl StreamingDecoder {
         self.inflater.reset();
         self.info = None;
         self.current_seq_no = None;
-        self.apng_seq_handled = false;
         self.have_idat = false;
     }
 
@@ -596,9 +601,11 @@ impl StreamingDecoder {
                             self.current_chunk.crc.update(&type_str.0);
                         }
                         self.current_chunk.remaining = length;
-                        self.apng_seq_handled = false;
                         self.current_chunk.raw_bytes.clear();
-                        self.state = Some(ReadChunk(type_str));
+                        self.state = match type_str {
+                            chunk::fdAT => Some(U32(ApngSequenceNumber)),
+                            _ => Some(ReadChunk(type_str)),
+                        };
                         Ok((1, Decoded::ChunkBegin(length, type_str)))
                     }
                     Crc(type_str) => {
@@ -629,6 +636,36 @@ impl StreamingDecoder {
                             ))
                         }
                     }
+                    ApngSequenceNumber => {
+                        debug_assert_eq!(self.current_chunk.type_, chunk::fdAT);
+                        let next_seq_no = val;
+                        self.current_chunk.remaining -= 4;
+
+                        if let Some(seq_no) = self.current_seq_no {
+                            if next_seq_no != seq_no + 1 {
+                                return Err(DecodingError::Format(
+                                    FormatErrorInner::ApngOrder {
+                                        present: next_seq_no,
+                                        expected: seq_no + 1,
+                                    }
+                                    .into(),
+                                ));
+                            }
+                            self.current_seq_no = Some(next_seq_no);
+                        } else {
+                            return Err(DecodingError::Format(
+                                FormatErrorInner::MissingFctl.into(),
+                            ));
+                        }
+
+                        if !self.decode_options.ignore_crc {
+                            let data = next_seq_no.to_be_bytes();
+                            self.current_chunk.crc.update(&data);
+                        }
+
+                        self.state = Some(ReadChunk(chunk::fdAT));
+                        Ok((1, Decoded::PartialChunk(chunk::fdAT)))
+                    }
                 }
             }
             U32Byte2(type_, val) => {
@@ -651,32 +688,7 @@ impl StreamingDecoder {
                         Ok((0, Decoded::PartialChunk(type_str)))
                     }
                     chunk::fdAT => {
-                        let data_start;
-                        if let Some(seq_no) = self.current_seq_no {
-                            if !self.apng_seq_handled {
-                                data_start = 4;
-                                let mut buf = &self.current_chunk.raw_bytes[..];
-                                let next_seq_no = buf.read_be()?;
-                                if next_seq_no != seq_no + 1 {
-                                    return Err(DecodingError::Format(
-                                        FormatErrorInner::ApngOrder {
-                                            present: next_seq_no,
-                                            expected: seq_no + 1,
-                                        }
-                                        .into(),
-                                    ));
-                                }
-                                self.current_seq_no = Some(next_seq_no);
-                                self.apng_seq_handled = true;
-                            } else {
-                                data_start = 0;
-                            }
-                        } else {
-                            return Err(DecodingError::Format(
-                                FormatErrorInner::MissingFctl.into(),
-                            ));
-                        }
-                        self.state = Some(DecodeData(type_str, data_start));
+                        self.state = Some(DecodeData(type_str, 0));
                         Ok((0, Decoded::PartialChunk(type_str)))
                     }
                     // Handle other chunks

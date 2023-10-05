@@ -27,21 +27,21 @@ pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
 /// be used to detect that build.
 const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
 
+/// Kind of `u32` value that is being read via `State::U32Byte...`.
 #[derive(Debug)]
-enum U32Value {
-    // CHUNKS
+enum U32ValueKind {
     Length,
-    Type(u32),
+    Type { length: u32 },
     Crc(ChunkType),
 }
 
 #[derive(Debug)]
 enum State {
     Signature(u8, [u8; 7]),
-    U32Byte3(U32Value, u32),
-    U32Byte2(U32Value, u32),
-    U32Byte1(U32Value, u32),
-    U32(U32Value),
+    U32Byte3(U32ValueKind, u32),
+    U32Byte2(U32ValueKind, u32),
+    U32Byte1(U32ValueKind, u32),
+    U32(U32ValueKind),
     ReadChunk(ChunkType),
     PartialChunk(ChunkType),
     DecodeData(ChunkType, usize),
@@ -559,21 +559,21 @@ impl StreamingDecoder {
             Signature(_, signature)
                 if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 =>
             {
-                self.state = Some(U32(U32Value::Length));
+                self.state = Some(U32(U32ValueKind::Length));
                 Ok((1, Decoded::Nothing))
             }
             Signature(..) => Err(DecodingError::Format(
                 FormatErrorInner::InvalidSignature.into(),
             )),
             U32Byte3(type_, mut val) => {
-                use self::U32Value::*;
+                use self::U32ValueKind::*;
                 val |= u32::from(current_byte);
                 match type_ {
                     Length => {
-                        self.state = Some(U32(Type(val)));
+                        self.state = Some(U32(Type { length: val }));
                         Ok((1, Decoded::Nothing))
                     }
-                    Type(length) => {
+                    Type { length } => {
                         let type_str = ChunkType([
                             (val >> 24) as u8,
                             (val >> 16) as u8,
@@ -587,7 +587,7 @@ impl StreamingDecoder {
                             self.current_chunk.type_ = type_str;
                             self.inflater.finish_compressed_chunks(image_data)?;
                             self.inflater.reset();
-                            self.state = Some(U32Byte3(Type(length), val & !0xff));
+                            self.state = Some(U32Byte3(Type { length }, val & !0xff));
                             return Ok((0, Decoded::ImageDataFlushed));
                         }
                         self.current_chunk.type_ = type_str;
@@ -612,7 +612,7 @@ impl StreamingDecoder {
                         };
 
                         if val == sum || CHECKSUM_DISABLED {
-                            self.state = Some(State::U32(U32Value::Length));
+                            self.state = Some(State::U32(U32ValueKind::Length));
                             if type_str == IEND {
                                 Ok((1, Decoded::ImageEnd))
                             } else {
@@ -699,7 +699,7 @@ impl StreamingDecoder {
                 // The _previous_ event wanted to return the contents of raw_bytes, and let the
                 // caller consume it,
                 if self.current_chunk.remaining == 0 {
-                    self.state = Some(U32(U32Value::Crc(type_str)));
+                    self.state = Some(U32(U32ValueKind::Crc(type_str)));
                     Ok((0, Decoded::Nothing))
                 } else {
                     let ChunkState {
@@ -766,7 +766,7 @@ impl StreamingDecoder {
     }
 
     fn parse_chunk(&mut self, type_str: ChunkType) -> Result<Decoded, DecodingError> {
-        self.state = Some(State::U32(U32Value::Crc(type_str)));
+        self.state = Some(State::U32(U32ValueKind::Crc(type_str)));
         if self.info.is_none() && type_str != IHDR {
             return Err(DecodingError::Format(
                 FormatErrorInner::ChunkBeforeIhdr { kind: type_str }.into(),

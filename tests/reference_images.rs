@@ -69,10 +69,9 @@ fn render_images() {
         out_path.push(testsuite.as_os_str());
         fs::create_dir_all(&out_path).unwrap();
         out_path.push(format!(
-            "{}.{}.{}",
+            "{}.{:x}.png",
             filename.as_os_str().to_str().unwrap(),
-            format!("{:x}", crc.finalize()),
-            "png"
+            crc.finalize(),
         ));
         img.save(out_path).unwrap();
     })

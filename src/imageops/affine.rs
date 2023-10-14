@@ -305,10 +305,10 @@ mod test {
     #[test]
     fn test_rotate90() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(2, 3, vec![10u8, 00u8, 11u8, 01u8, 12u8, 02u8]).unwrap();
+            ImageBuffer::from_raw(2, 3, vec![10u8, 0u8, 11u8, 1u8, 12u8, 2u8]).unwrap();
 
         assert_pixels_eq!(&rotate90(&image), &expected);
     }
@@ -316,10 +316,10 @@ mod test {
     #[test]
     fn test_rotate180() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 02u8, 01u8, 00u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
 
         assert_pixels_eq!(&rotate180(&image), &expected);
     }
@@ -327,10 +327,10 @@ mod test {
     #[test]
     fn test_rotate270() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(2, 3, vec![02u8, 12u8, 01u8, 11u8, 00u8, 10u8]).unwrap();
+            ImageBuffer::from_raw(2, 3, vec![2u8, 12u8, 1u8, 11u8, 0u8, 10u8]).unwrap();
 
         assert_pixels_eq!(&rotate270(&image), &expected);
     }
@@ -338,10 +338,10 @@ mod test {
     #[test]
     fn test_rotate180_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 02u8, 01u8, 00u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
 
         rotate180_in_place(&mut image);
 
@@ -351,10 +351,10 @@ mod test {
     #[test]
     fn test_flip_horizontal() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![02u8, 01u8, 00u8, 12u8, 11u8, 10u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
 
         assert_pixels_eq!(&flip_horizontal(&image), &expected);
     }
@@ -362,10 +362,10 @@ mod test {
     #[test]
     fn test_flip_vertical() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 00u8, 01u8, 02u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
 
         assert_pixels_eq!(&flip_vertical(&image), &expected);
     }
@@ -373,10 +373,10 @@ mod test {
     #[test]
     fn test_flip_horizontal_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![02u8, 01u8, 00u8, 12u8, 11u8, 10u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
 
         flip_horizontal_in_place(&mut image);
 
@@ -386,16 +386,17 @@ mod test {
     #[test]
     fn test_flip_vertical_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 00u8, 01u8, 02u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
 
         flip_vertical_in_place(&mut image);
 
         assert_pixels_eq!(&image, &expected);
     }
 
+    #[allow(clippy::type_complexity)]
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
     where
         I: GenericImage<Pixel = P>,

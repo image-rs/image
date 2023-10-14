@@ -117,8 +117,6 @@
 #![deny(deprecated)]
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
-// it's a bit of a pain otherwise
-#![allow(clippy::many_single_char_names)]
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
 

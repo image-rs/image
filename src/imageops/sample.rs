@@ -1014,7 +1014,7 @@ mod tests {
     #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {
             test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });

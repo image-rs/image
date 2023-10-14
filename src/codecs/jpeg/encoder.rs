@@ -964,8 +964,7 @@ mod tests {
                 assert_eq!(err.kind(), DimensionMismatch)
             }
             other => {
-                assert!(
-                    false,
+                panic!(
                     "Encoding an image that is too large should return a DimensionError \
                                 it returned {:?} instead",
                     other

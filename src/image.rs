@@ -1517,8 +1517,7 @@ mod tests {
     fn test_copy_sub_image() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         let view = source.view(0, 0, 3, 3);
-        let mut views = Vec::new();
-        views.push(view);
+        let _view2 = view;
         view.to_image();
     }
 

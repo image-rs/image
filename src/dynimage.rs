@@ -836,15 +836,9 @@ impl DynamicImage {
         w: &mut W,
         format: F,
     ) -> ImageResult<()> {
-        #[allow(unused_variables)]
-        // When no features are supported
-        let w = w;
-        #[allow(unused_variables, unused_mut)]
-        let mut bytes = self.inner_bytes();
-        #[allow(unused_variables)]
+        let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
-        #[allow(unused_variables, unused_mut)]
-        let mut color = self.color();
+        let color = self.color();
         let format = format.into();
 
         // TODO do not repeat this match statement across the crate

@@ -1455,7 +1455,7 @@ mod test {
     #[test]
     fn get_pixel_checked() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
-        a.get_pixel_mut_checked(0, 1).map(|b| b[0] = 255);
+        a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
 
         assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
         assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));

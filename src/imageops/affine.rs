@@ -396,6 +396,7 @@ mod test {
         assert_pixels_eq!(&image, &expected);
     }
 
+    #[allow(clippy::type_complexity)]
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
     where
         I: GenericImage<Pixel = P>,

@@ -472,7 +472,7 @@ mod test {
                 .join("overexposed gradient - data window equals display window.exr");
 
             let hdr: Vec<Rgb<f32>> = crate::codecs::hdr::HdrDecoder::new(std::io::BufReader::new(
-                std::fs::File::open(&reference_path).unwrap(),
+                std::fs::File::open(reference_path).unwrap(),
             ))
             .unwrap()
             .read_image_hdr()
@@ -501,7 +501,7 @@ mod test {
 
     #[test]
     fn roundtrip_rgba() {
-        let mut next_random = vec![1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0]
+        let mut next_random = vec![1.0, 0.0, -1.0, -3.15, 27.0, 11.0, 31.0]
             .into_iter()
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
@@ -519,7 +519,7 @@ mod test {
 
     #[test]
     fn roundtrip_rgb() {
-        let mut next_random = vec![1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0]
+        let mut next_random = vec![1.0, 0.0, -1.0, -3.15, 27.0, 11.0, 31.0]
             .into_iter()
             .cycle();
         let mut next_random = move || next_random.next().unwrap();

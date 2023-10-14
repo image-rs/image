@@ -802,9 +802,8 @@ mod native_tests {
                 buffer.clear();
                 #[allow(deprecated)]
                 let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
-                if !encoder
-                    .write_image(&image.data, image.width, image.height, image.color)
-                    .is_ok() {
+                if encoder
+                    .write_image(&image.data, image.width, image.height, image.color).is_err() {
                     return false;
                 }
             }

@@ -2599,7 +2599,7 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     fn make_sample_image() -> Vec<u8> {
-        let mut v = Vec::with_capacity((W * H * 4) as usize);
+        let mut v = Vec::with_capacity(W * H * 4);
         for c in 0u8..=255 {
             for k in 0u8..=255 {
                 v.push(c);
@@ -2637,7 +2637,7 @@ mod test {
         ];
 
         b.iter(|| {
-            black_box(predict_4x4(&mut v, W * 2, &modes, &res_data));
+            predict_4x4(&mut v, W * 2, &modes, &res_data);
         });
     }
 
@@ -2657,7 +2657,7 @@ mod test {
         let mut v = black_box(make_sample_image());
 
         b.iter(|| {
-            black_box(predict_bldpred(black_box(&mut v), 5, 5, W * 2));
+            predict_bldpred(black_box(&mut v), 5, 5, W * 2);
         });
     }
 
@@ -2667,7 +2667,7 @@ mod test {
         let mut v = black_box(make_sample_image());
 
         b.iter(|| {
-            black_box(predict_brdpred(black_box(&mut v), 5, 5, W * 2));
+            predict_brdpred(black_box(&mut v), 5, 5, W * 2);
         });
     }
 
@@ -2677,7 +2677,7 @@ mod test {
         let mut v = black_box(make_sample_image());
 
         b.iter(|| {
-            black_box(predict_bhepred(black_box(&mut v), 5, 5, W * 2));
+            predict_bhepred(black_box(&mut v), 5, 5, W * 2);
         });
     }
 

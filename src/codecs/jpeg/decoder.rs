@@ -1264,7 +1264,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_cmyk_to_rgb(b: &mut Bencher) {
-        let mut v = Vec::with_capacity((W * H * 4) as usize);
+        let mut v = Vec::with_capacity(W * H * 4);
         for c in 0..=255 {
             for k in 0..=255 {
                 v.push(c as u8);

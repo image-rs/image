@@ -1674,8 +1674,6 @@ mod test {
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
     use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
-    use crate::GenericImage;
-    use test;
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {

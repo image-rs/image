@@ -1076,7 +1076,7 @@ mod tests {
     fn bench_jpeg_encoder_new(b: &mut Bencher) {
         b.iter(|| {
             let mut y = vec![];
-            let x = JpegEncoder::new(&mut y);
+            let _x = JpegEncoder::new(&mut y);
         })
     }
 }

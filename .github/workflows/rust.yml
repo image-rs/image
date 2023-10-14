@@ -128,7 +128,7 @@ jobs:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: dtolnay/rust-toolchain@nightly
       with:
         components: clippy
     - run: cargo clippy --all-features --all-targets -- -D warnings

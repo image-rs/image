@@ -590,10 +590,10 @@ mod test {
     #[test]
     fn test_grayscale() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         assert_pixels_eq!(&grayscale(&mut image), &expected);
     }
@@ -601,7 +601,7 @@ mod test {
     #[test]
     fn test_invert() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
@@ -612,7 +612,7 @@ mod test {
     #[test]
     fn test_brighten() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
@@ -623,7 +623,7 @@ mod test {
     #[test]
     fn test_brighten_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();

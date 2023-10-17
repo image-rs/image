@@ -959,7 +959,7 @@ pub trait GenericImageView {
         h
     }
 
-    /// The bounding rectangle of this image.
+    /// The bounding rectangle (x, y, w, h) of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
     /// Returns true if this x, y coordinate is contained inside the image.

@@ -1386,13 +1386,8 @@ where
 {
     type Pixel = P;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.inner.layout.width, self.inner.layout.height)
-    }
-
     fn bounds(&self) -> (u32, u32, u32, u32) {
-        let (w, h) = self.dimensions();
-        (0, 0, w, h)
+        (0, 0, self.inner.layout.width, self.inner.layout.height)
     }
 
     fn in_bounds(&self, x: u32, y: u32) -> bool {
@@ -1429,13 +1424,8 @@ where
 {
     type Pixel = P;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.inner.layout.width, self.inner.layout.height)
-    }
-
     fn bounds(&self) -> (u32, u32, u32, u32) {
-        let (w, h) = self.dimensions();
-        (0, 0, w, h)
+        (0, 0, self.inner.layout.width, self.inner.layout.height)
     }
 
     fn in_bounds(&self, x: u32, y: u32) -> bool {

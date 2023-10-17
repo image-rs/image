@@ -945,7 +945,10 @@ pub trait GenericImageView {
     type Pixel: Pixel;
 
     /// The width and height of this image.
-    fn dimensions(&self) -> (u32, u32);
+    fn dimensions(&self) -> (u32, u32) {
+        let (_, _, w, h) = self.bounds();
+        (w, h)
+    }
 
     /// The width of this image.
     fn width(&self) -> u32 {

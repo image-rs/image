@@ -559,7 +559,7 @@ impl<W: Write> PngEncoder<W> {
     /// option for encoding a particular image. That is, using options that map directly to a PNG
     /// image parameter will use this parameter where possible. But variants that have no direct
     /// mapping may be interpreted differently in minor versions. The exact output is expressly
-    /// __not__ part the SemVer stability guarantee.
+    /// __not__ part of the SemVer stability guarantee.
     ///
     /// Note that it is not optimal to use a single filter type, so an adaptive
     /// filter type is selected as the default. The filter which best minimizes

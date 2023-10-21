@@ -1169,10 +1169,6 @@ where
 {
     type Pixel = P;
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.dimensions()
-    }
-
     fn bounds(&self) -> (u32, u32, u32, u32) {
         (0, 0, self.width, self.height)
     }

@@ -960,10 +960,12 @@ pub trait GenericImageView {
     }
 
     /// The bounding rectangle of this image.
+    #[deprecated = "This method has inconsistent behavior between implementations (#1829). Use `dimensions` instead"]
     fn bounds(&self) -> (u32, u32, u32, u32);
 
     /// Returns true if this x, y coordinate is contained inside the image.
     fn in_bounds(&self, x: u32, y: u32) -> bool {
+        #[allow(deprecated)]
         let (ix, iy, iw, ih) = self.bounds();
         x >= ix && x < ix + iw && y >= iy && y < iy + ih
     }

@@ -1262,7 +1262,7 @@ impl<R: Read> Vp8Decoder<R> {
 
             self.top = init_top_macroblocks(self.frame.width as usize);
             // Almost always the first macro block, except when non exists (i.e. `width == 0`)
-            self.left = self.top.get(0).cloned().unwrap_or_default();
+            self.left = self.top.first().cloned().unwrap_or_default();
 
             self.mbwidth = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;

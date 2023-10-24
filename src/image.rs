@@ -353,7 +353,7 @@ impl ImageFormat {
     }
 
     /// Return all ImageFormats
-    fn all() -> impl Iterator<Item = ImageFormat> {
+    pub fn all() -> impl Iterator<Item = ImageFormat> {
         [
             ImageFormat::Gif,
             ImageFormat::Ico,
@@ -1992,13 +1992,13 @@ mod tests {
     #[test]
     fn reading_enabled() {
         assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.reading_enabled());
-        assert_eq!(false, ImageFormat::Dds.reading_enabled());
+        assert!(!ImageFormat::Dds.reading_enabled());
     }
 
     #[test]
     fn writing_enabled() {
         assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.writing_enabled());
-        assert_eq!(false, ImageFormat::Hdr.writing_enabled());
-        assert_eq!(false, ImageFormat::Dds.writing_enabled());
+        assert!(!ImageFormat::Hdr.writing_enabled());
+        assert!(!ImageFormat::Dds.writing_enabled());
     }
 }

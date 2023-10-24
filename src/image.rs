@@ -307,6 +307,73 @@ impl ImageFormat {
             ImageFormat::Qoi => &["qoi"],
         }
     }
+
+    /// Return the ImageFormats which are enabled for reading.
+    #[inline]
+    pub fn reading_enabled(&self) -> bool {
+        match self {
+            ImageFormat::Png => cfg!(feature = "png"),
+            ImageFormat::Gif => cfg!(feature = "gif"),
+            ImageFormat::Jpeg => cfg!(feature = "jpeg"),
+            ImageFormat::WebP => cfg!(feature = "webp"),
+            ImageFormat::Tiff => cfg!(feature = "tiff"),
+            ImageFormat::Tga => cfg!(feature = "tga"),
+            ImageFormat::Bmp => cfg!(feature = "bmp"),
+            ImageFormat::Ico => cfg!(feature = "ico"),
+            ImageFormat::Hdr => cfg!(feature = "hdr"),
+            ImageFormat::OpenExr => cfg!(feature = "openexr"),
+            ImageFormat::Pnm => cfg!(feature = "pnm"),
+            ImageFormat::Farbfeld => cfg!(feature = "farbfeld"),
+            ImageFormat::Avif => cfg!(feature = "avif"),
+            ImageFormat::Qoi => cfg!(feature = "qoi"),
+            ImageFormat::Dds => false,
+        }
+    }
+
+    /// Return the ImageFormats which are enabled for writing.
+    #[inline]
+    pub fn writing_enabled(&self) -> bool {
+        match self {
+            ImageFormat::Gif => cfg!(feature = "gif"),
+            ImageFormat::Ico => cfg!(feature = "ico"),
+            ImageFormat::Jpeg => cfg!(feature = "jpeg"),
+            ImageFormat::Png => cfg!(feature = "png"),
+            ImageFormat::Bmp => cfg!(feature = "bmp"),
+            ImageFormat::Tiff => cfg!(feature = "tiff"),
+            ImageFormat::Tga => cfg!(feature = "tga"),
+            ImageFormat::Pnm => cfg!(feature = "pnm"),
+            ImageFormat::Farbfeld => cfg!(feature = "farbfeld"),
+            ImageFormat::Avif => cfg!(feature = "avif"),
+            ImageFormat::WebP => cfg!(feature = "webp"),
+            ImageFormat::OpenExr => cfg!(feature = "openexr"),
+            ImageFormat::Qoi => cfg!(feature = "qoi"),
+            ImageFormat::Dds => false,
+            ImageFormat::Hdr => false,
+        }
+    }
+
+    /// Return all ImageFormats
+    pub fn all() -> impl Iterator<Item = ImageFormat> {
+        [
+            ImageFormat::Gif,
+            ImageFormat::Ico,
+            ImageFormat::Jpeg,
+            ImageFormat::Png,
+            ImageFormat::Bmp,
+            ImageFormat::Tiff,
+            ImageFormat::Tga,
+            ImageFormat::Pnm,
+            ImageFormat::Farbfeld,
+            ImageFormat::Avif,
+            ImageFormat::WebP,
+            ImageFormat::OpenExr,
+            ImageFormat::Qoi,
+            ImageFormat::Dds,
+            ImageFormat::Hdr,
+        ]
+        .iter()
+        .copied()
+    }
 }
 
 /// An enumeration of supported image formats for encoding.
@@ -1386,6 +1453,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::io;
     use std::path::Path;
 
@@ -1909,5 +1977,28 @@ mod tests {
 
         let v: ImageResult<Vec<u8>> = super::decoder_to_vec(D);
         assert!(v.is_err());
+    }
+
+    #[test]
+    fn all() {
+        let all_formats: HashSet<ImageFormat> = HashSet::from_iter(ImageFormat::all());
+        assert!(all_formats.contains(&ImageFormat::Avif));
+        assert!(all_formats.contains(&ImageFormat::Gif));
+        assert!(all_formats.contains(&ImageFormat::Bmp));
+        assert!(all_formats.contains(&ImageFormat::Farbfeld));
+        assert!(all_formats.contains(&ImageFormat::Jpeg));
+    }
+
+    #[test]
+    fn reading_enabled() {
+        assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.reading_enabled());
+        assert!(!ImageFormat::Dds.reading_enabled());
+    }
+
+    #[test]
+    fn writing_enabled() {
+        assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.writing_enabled());
+        assert!(!ImageFormat::Hdr.writing_enabled());
+        assert!(!ImageFormat::Dds.writing_enabled());
     }
 }

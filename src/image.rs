@@ -326,7 +326,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => cfg!(feature = "farbfeld"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
-            ImageFormat::Dds => false
+            ImageFormat::Dds => false,
         }
     }
 
@@ -348,16 +348,31 @@ impl ImageFormat {
             ImageFormat::OpenExr => cfg!(feature = "openexr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Dds => false,
-            ImageFormat::Hdr => false
+            ImageFormat::Hdr => false,
         }
     }
 
     /// Return all ImageFormats
-    fn all() -> impl Iterator<Item=ImageFormat> {
-        [ImageFormat::Gif, ImageFormat::Ico, ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Bmp,
-            ImageFormat::Tiff, ImageFormat::Tga, ImageFormat::Pnm, ImageFormat::Farbfeld,
-            ImageFormat::Avif, ImageFormat::WebP, ImageFormat::OpenExr, ImageFormat::Qoi,
-            ImageFormat::Dds, ImageFormat::Hdr].iter().copied()
+    fn all() -> impl Iterator<Item = ImageFormat> {
+        [
+            ImageFormat::Gif,
+            ImageFormat::Ico,
+            ImageFormat::Jpeg,
+            ImageFormat::Png,
+            ImageFormat::Bmp,
+            ImageFormat::Tiff,
+            ImageFormat::Tga,
+            ImageFormat::Pnm,
+            ImageFormat::Farbfeld,
+            ImageFormat::Avif,
+            ImageFormat::WebP,
+            ImageFormat::OpenExr,
+            ImageFormat::Qoi,
+            ImageFormat::Dds,
+            ImageFormat::Hdr,
+        ]
+        .iter()
+        .copied()
     }
 }
 

@@ -18,7 +18,7 @@ All image processing functions provided operate on types that implement the `Gen
 
 `image` provides implementations of common image format encoders and decoders.
 
-<!--- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
+<!-- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
 
 | Format | Decoding | Encoding |
 | ------ | -------- | -------- |

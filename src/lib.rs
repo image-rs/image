@@ -203,7 +203,7 @@ pub mod flat;
 ///
 /// # Supported formats
 ///
-/// <!--- NOTE: Make sure to keep this table in sync with the README -->
+/// <!-- NOTE: Make sure to keep this table in sync with the README -->
 ///
 /// | Format | Decoding | Encoding |
 /// | ------ | -------- | -------- |

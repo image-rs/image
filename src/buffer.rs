@@ -789,7 +789,7 @@ where
             .saturating_mul(num_channels);
 
         self.data
-            .get(i..i + num_channels)
+            .get(i..i.checked_add(num_channels)?)
             .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
     }
 
@@ -967,7 +967,7 @@ where
             .saturating_mul(num_channels);
 
         self.data
-            .get_mut(i..i + num_channels)
+            .get_mut(i..i.checked_add(num_channels)?)
             .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
     }
 

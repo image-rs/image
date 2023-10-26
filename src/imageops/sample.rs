@@ -568,6 +568,9 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
+    if height == 0 || width == 0 {
+        return out;
+    }
 
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;

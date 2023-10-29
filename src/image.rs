@@ -1350,8 +1350,8 @@ where
         use crate::GenericImageView as _;
         assert!(x as u64 + width as u64 <= self.inner.width() as u64);
         assert!(y as u64 + height as u64 <= self.inner.height() as u64);
-        let x = self.inner.xoffset + x;
-        let y = self.inner.yoffset + y;
+        let x = self.inner.xoffset.saturating_add(x);
+        let y = self.inner.yoffset.saturating_add(y);
         SubImage::new(&*self.inner.image, x, y, width, height)
     }
 
@@ -1378,8 +1378,8 @@ where
     ) -> SubImage<&mut I::Target> {
         assert!(x as u64 + width as u64 <= self.inner.width() as u64);
         assert!(y as u64 + height as u64 <= self.inner.height() as u64);
-        let x = self.inner.xoffset + x;
-        let y = self.inner.yoffset + y;
+        let x = self.inner.xoffset.saturating_add(x);
+        let y = self.inner.yoffset.saturating_add(y);
         SubImage::new(&mut *self.inner.image, x, y, width, height)
     }
 

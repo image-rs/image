@@ -1525,6 +1525,12 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
     }
 
+    /// Consume the stream writer with validation.
+    ///
+    /// Unlike a simple drop this ensures that the all data was written correctly. When other
+    /// validation options (chunk sequencing) had been turned on in the configuration of inner
+    /// [`Writer`], then it will also do a check on their correctness. Differently from
+    /// [`Writer::finish`], this just `flush`es, returns error if some data is abandoned.
     pub fn finish(mut self) -> Result<()> {
         if self.to_write > 0 {
             let err = FormatErrorKind::MissingData(self.to_write).into();

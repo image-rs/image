@@ -40,14 +40,14 @@ impl<R: Read> AvifDecoder<R> {
         primary_decoder
             .send_data(coded.to_vec(), None, None, None)
             .map_err(error_map)?;
-        let picture = primary_decoder.get_picture().map_err(error_map)?;
+        let picture = read_until_ready(&mut primary_decoder)?;
         let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
         let alpha_picture = if !alpha_item.is_empty() {
             let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
             alpha_decoder
                 .send_data(alpha_item.to_vec(), None, None, None)
                 .map_err(error_map)?;
-            Some(alpha_decoder.get_picture().map_err(error_map)?)
+            Some(read_until_ready(&mut alpha_decoder)?)
         } else {
             None
         };
@@ -172,5 +172,32 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         }
 
         Ok(())
+    }
+}
+
+/// `get_picture` and `send_pending_data` yield `Again` as a non-fatal error requesting more data is sent to the decoder
+/// This ensures that in the case of `Again` all pending data is submitted
+/// This should be called after `send_data` (which does not yield `Again` when called the first time)
+fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture> {
+    loop {
+        match decoder.get_picture() {
+            Ok(pic) => {
+                break Ok(pic);
+            }
+            Err(e) => {
+                if e != dav1d::Error::Again {
+                    return Err(error_map(e));
+                } else {
+                    match decoder.send_pending_data() {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if e != dav1d::Error::Again {
+                                return Err(error_map(e));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

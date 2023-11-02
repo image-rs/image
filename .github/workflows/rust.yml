@@ -55,7 +55,7 @@ jobs:
     - run: rustup default stable
     - name: test
       run: >
-        cargo test -v --all-targets --all-features
+        cargo test -v --all-targets
   rustfmt:
     runs-on: ubuntu-latest
     steps:

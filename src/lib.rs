@@ -58,6 +58,7 @@
 //! ```
 //!
 
+#![cfg_attr(feature = "unstable", feature(portable_simd))]
 #![forbid(unsafe_code)]
 
 #[macro_use]

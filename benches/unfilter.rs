@@ -2,9 +2,9 @@
 //!
 //! ```
 //! $ alias bench="rustup run nightly cargo bench"
-//! $ bench --bench=unfilter --features=benchmarks -- --save-baseline my_baseline
+//! $ bench --bench=unfilter --features=benchmarks,unstable -- --save-baseline my_baseline
 //! ... tweak something, say the Sub filter ...
-//! $ bench --bench=unfilter --features=benchmarks -- filter=Sub --baseline my_baseline
+//! $ bench --bench=unfilter --features=benchmarks,unstable -- filter=Sub --baseline my_baseline
 //! ```
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};

@@ -68,6 +68,7 @@ impl<R: Read> AvifDecoder<R> {
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct AvifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+
 impl<R> Read for AvifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -179,23 +180,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
 fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture> {
     loop {
         match decoder.get_picture() {
-            Ok(pic) => {
-                break Ok(pic);
-            }
-            Err(e) => {
-                if e != dav1d::Error::Again {
-                    return Err(error_map(e));
-                } else {
-                    match decoder.send_pending_data() {
-                        Ok(_) => {}
-                        Err(e) => {
-                            if e != dav1d::Error::Again {
-                                return Err(error_map(e));
-                            }
-                        }
-                    }
-                }
-            }
+            Err(dav1d::Error::Again) => match decoder.send_pending_data() {
+                Ok(_) => {}
+                Err(dav1d::Error::Again) => {}
+                Err(e) => return Err(error_map(e)),
+            },
+            r => return r.map_err(error_map),
         }
     }
 }

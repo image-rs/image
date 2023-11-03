@@ -108,8 +108,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        dcp::initialize();
-
         if self.picture.pixel_layout() != PixelLayout::I400 {
             let pixel_format = match self.picture.pixel_layout() {
                 PixelLayout::I400 => todo!(),

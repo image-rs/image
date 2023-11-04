@@ -40,14 +40,14 @@ jobs:
         cargo check --tests --no-default-features --features="$FEATURES"
       env:
         FEATURES: ${{ matrix.features }}
-  mips_cross:
+  powerpc_cross:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: add_cross_target
       run: |
-        rustup target add mips64-unknown-linux-gnuabi64
-        cargo build --all-features --target mips64-unknown-linux-gnuabi64
+        rustup target add powerpc-unknown-linux-gnu
+        cargo build --target powerpc-unknown-linux-gnu
   test_all:
     runs-on: ubuntu-latest
     steps:

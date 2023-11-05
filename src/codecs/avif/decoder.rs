@@ -159,11 +159,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
             if picture.pixel_layout() != PixelLayout::I400 {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
-                        ImageFormatHint::Exact(ImageFormat::Avif),
-                        UnsupportedErrorKind::Format(ImageFormatHint::Name(format!(
-                            "{:?}",
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Alpha must be PixelLayout::I400 but was: {:?}",
                             picture.pixel_layout() // PixelLayout does not implement display
-                        ))),
+                        )),
                     ),
                 ));
             }

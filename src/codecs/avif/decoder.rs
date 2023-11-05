@@ -9,7 +9,7 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::error::{DecodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{DecodingError, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};

@@ -9,7 +9,7 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::error::DecodingError;
+use crate::error::{DecodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
@@ -156,7 +156,17 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         }
 
         if let Some(picture) = self.alpha_picture {
-            assert_eq!(picture.pixel_layout(), PixelLayout::I400);
+            if picture.pixel_layout() != PixelLayout::I400 {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormatHint::Exact(ImageFormat::Avif),
+                        UnsupportedErrorKind::Format(ImageFormatHint::Name(format!(
+                            "{:?}",
+                            picture.pixel_layout() // PixelLayout does not implement display
+                        ))),
+                    ),
+                ));
+            }
             let stride = picture.stride(PlanarImageComponent::Y) as usize;
             let plane = picture.plane(PlanarImageComponent::Y);
             let width = picture.width();

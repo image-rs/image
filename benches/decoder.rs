@@ -3,6 +3,8 @@ use std::fs;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use png::Decoder;
 
+mod png_generator;
+
 fn load_all(c: &mut Criterion) {
     for entry in fs::read_dir("tests/benches/").unwrap().flatten() {
         match entry.path().extension() {
@@ -13,14 +15,29 @@ fn load_all(c: &mut Criterion) {
         let data = fs::read(entry.path()).unwrap();
         bench_file(c, data, entry.file_name().into_string().unwrap());
     }
+
+    bench_noncompressed_png(c, 8);
+    bench_noncompressed_png(c, 128);
 }
 
 criterion_group!(benches, load_all);
 criterion_main!(benches);
 
+fn bench_noncompressed_png(c: &mut Criterion, width: u32) {
+    let mut data = Vec::new();
+    png_generator::write_noncompressed_png(&mut data, width);
+    bench_file(
+        c,
+        data,
+        format!("png_generator::noncompressed-{width}x{width}.png"),
+    );
+}
+
 fn bench_file(c: &mut Criterion, data: Vec<u8>, name: String) {
     let mut group = c.benchmark_group("decode");
-    group.sample_size(20);
+    if data.len() > 100000 {
+        group.sample_size(20);
+    }
 
     let decoder = Decoder::new(&*data);
     let mut reader = decoder.read_info().unwrap();

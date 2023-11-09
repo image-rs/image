@@ -282,12 +282,21 @@ fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
 }
 
 pub(crate) fn unfilter(
-    filter: FilterType,
+    mut filter: FilterType,
     tbpp: BytesPerPixel,
     previous: &[u8],
     current: &mut [u8],
 ) {
     use self::FilterType::*;
+
+    // If the previous row is empty, then treat it as if it were filled with zeros.
+    if previous.is_empty() {
+        if filter == Paeth {
+            filter = Sub;
+        } else if filter == Up {
+            filter = NoFilter;
+        }
+    }
 
     // [2023/01 @okaneco] - Notes on optimizing decoding filters
     //
@@ -452,6 +461,82 @@ pub(crate) fn unfilter(
                 *curr = curr.wrapping_add(above);
             }
         }
+        Avg if previous.is_empty() => match tbpp {
+            BytesPerPixel::One => {
+                current.iter_mut().reduce(|&mut prev, curr| {
+                    *curr = curr.wrapping_add(prev / 2);
+                    curr
+                });
+            }
+            BytesPerPixel::Two => {
+                let mut prev = [0; 2];
+                for chunk in current.chunks_exact_mut(2) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0] / 2),
+                        chunk[1].wrapping_add(prev[1] / 2),
+                    ];
+                    *TryInto::<&mut [u8; 2]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Three => {
+                let mut prev = [0; 3];
+                for chunk in current.chunks_exact_mut(3) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0] / 2),
+                        chunk[1].wrapping_add(prev[1] / 2),
+                        chunk[2].wrapping_add(prev[2] / 2),
+                    ];
+                    *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Four => {
+                let mut prev = [0; 4];
+                for chunk in current.chunks_exact_mut(4) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0] / 2),
+                        chunk[1].wrapping_add(prev[1] / 2),
+                        chunk[2].wrapping_add(prev[2] / 2),
+                        chunk[3].wrapping_add(prev[3] / 2),
+                    ];
+                    *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Six => {
+                let mut prev = [0; 6];
+                for chunk in current.chunks_exact_mut(6) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0] / 2),
+                        chunk[1].wrapping_add(prev[1] / 2),
+                        chunk[2].wrapping_add(prev[2] / 2),
+                        chunk[3].wrapping_add(prev[3] / 2),
+                        chunk[4].wrapping_add(prev[4] / 2),
+                        chunk[5].wrapping_add(prev[5] / 2),
+                    ];
+                    *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Eight => {
+                let mut prev = [0; 8];
+                for chunk in current.chunks_exact_mut(8) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0] / 2),
+                        chunk[1].wrapping_add(prev[1] / 2),
+                        chunk[2].wrapping_add(prev[2] / 2),
+                        chunk[3].wrapping_add(prev[3] / 2),
+                        chunk[4].wrapping_add(prev[4] / 2),
+                        chunk[5].wrapping_add(prev[5] / 2),
+                        chunk[6].wrapping_add(prev[6] / 2),
+                        chunk[7].wrapping_add(prev[7] / 2),
+                    ];
+                    *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+        },
         Avg => match tbpp {
             BytesPerPixel::One => {
                 let mut lprev = [0; 1];

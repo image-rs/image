@@ -210,9 +210,9 @@ impl<R: Read> Decoder<R> {
             subframe: SubframeInfo::not_yet_init(),
             fctl_read: 0,
             next_frame: SubframeIdx::Initial,
-            prev: Vec::new(),
-            current: Vec::new(),
-            scan_start: 0,
+            data_stream: Vec::new(),
+            prev_start: 0,
+            current_start: 0,
             transform: self.transform,
             scratch_buffer: Vec::new(),
             limits: self.limits,
@@ -347,12 +347,12 @@ pub struct Reader<R: Read> {
     /// control chunk. The IDAT image _may_ have such a chunk applying to it.
     fctl_read: u32,
     next_frame: SubframeIdx,
-    /// Previous raw line
-    prev: Vec<u8>,
-    /// Current raw line
-    current: Vec<u8>,
-    /// Start index of the current scan line.
-    scan_start: usize,
+    /// Vec containing the uncompressed image data currently being processed.
+    data_stream: Vec<u8>,
+    /// Index in `data_stream` where the previous row starts.
+    prev_start: usize,
+    /// Index in `data_stream` where the current row starts.
+    current_start: usize,
     /// Output transformations
     transform: Transformations,
     /// This buffer is only used so that `next_row` and `next_interlaced_row` can return reference
@@ -444,8 +444,7 @@ impl<R: Read> Reader<R> {
             return Err(DecodingError::LimitsExceeded);
         }
 
-        self.prev.clear();
-        self.prev.resize(self.subframe.rowlen, 0);
+        self.prev_start = self.current_start;
 
         Ok(())
     }
@@ -504,8 +503,9 @@ impl<R: Read> Reader<R> {
             line_size: self.output_line_size(self.subframe.width),
         };
 
-        self.current.clear();
-        self.scan_start = 0;
+        self.data_stream.clear();
+        self.current_start = 0;
+        self.prev_start = 0;
         let width = self.info().width;
         if self.info().interlaced {
             while let Some(InterlacedRow {
@@ -597,7 +597,8 @@ impl<R: Read> Reader<R> {
         output_buffer: &mut [u8],
     ) -> Result<(), DecodingError> {
         self.next_raw_interlaced_row(rowlen)?;
-        let row = &self.prev[1..rowlen];
+        assert_eq!(self.current_start - self.prev_start, rowlen - 1);
+        let row = &self.data_stream[self.prev_start..self.current_start];
 
         // Apply transformations and write resulting data to buffer.
         let (color_type, bit_depth, trns) = {
@@ -706,8 +707,7 @@ impl<R: Read> Reader<R> {
                 let (pass, line, width) = adam7.next()?;
                 let rowlen = self.info().raw_row_length_from_width(width);
                 if last_pass != pass {
-                    self.prev.clear();
-                    self.prev.resize(rowlen, 0u8);
+                    self.prev_start = self.current_start;
                 }
                 Some((rowlen, InterlaceInfo::Adam7 { pass, line, width }))
             }
@@ -723,7 +723,7 @@ impl<R: Read> Reader<R> {
     /// The scanline is filtered against the previous scanline according to the specification.
     fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<(), DecodingError> {
         // Read image data until we have at least one full row (but possibly more than one).
-        while self.current.len() - self.scan_start < rowlen {
+        while self.data_stream.len() - self.current_start < rowlen {
             if self.subframe.consumed_and_flushed {
                 return Err(DecodingError::Format(
                     FormatErrorInner::NoMoreImageData.into(),
@@ -731,19 +731,20 @@ impl<R: Read> Reader<R> {
             }
 
             // Clear the current buffer before appending more data.
-            if self.scan_start > 0 {
-                self.current.drain(..self.scan_start).for_each(drop);
-                self.scan_start = 0;
+            if self.prev_start > 0 {
+                self.data_stream.drain(..self.prev_start).for_each(drop);
+                self.current_start -= self.prev_start;
+                self.prev_start = 0;
             }
 
-            match self.decoder.decode_next(&mut self.current)? {
+            match self.decoder.decode_next(&mut self.data_stream)? {
                 Some(Decoded::ImageData) => {}
                 Some(Decoded::ImageDataFlushed) => {
                     self.subframe.consumed_and_flushed = true;
                 }
                 None => {
                     return Err(DecodingError::Format(
-                        if self.current.is_empty() {
+                        if self.data_stream.is_empty() {
                             FormatErrorInner::NoMoreImageData
                         } else {
                             FormatErrorInner::UnexpectedEndOfChunk
@@ -756,17 +757,21 @@ impl<R: Read> Reader<R> {
         }
 
         // Get a reference to the current row and point scan_start to the next one.
-        let row = &mut self.current[self.scan_start..];
-        self.scan_start += rowlen;
+        let (prev, row) = self.data_stream.split_at_mut(self.current_start);
 
         // Unfilter the row.
         let filter = FilterType::from_u8(row[0]).ok_or(DecodingError::Format(
             FormatErrorInner::UnknownFilterMethod(row[0]).into(),
         ))?;
-        unfilter(filter, self.bpp, &self.prev[1..rowlen], &mut row[1..rowlen]);
+        unfilter(
+            filter,
+            self.bpp,
+            &prev[self.prev_start..],
+            &mut row[1..rowlen],
+        );
 
-        // Save the current row for the next pass.
-        self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
+        self.prev_start = self.current_start + 1;
+        self.current_start += rowlen;
 
         Ok(())
     }

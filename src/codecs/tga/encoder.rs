@@ -1,5 +1,8 @@
 use super::header::Header;
-use crate::{error::EncodingError, ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
+use crate::{
+    codecs::tga::header::ImageType, error::EncodingError, ColorType, ImageEncoder, ImageError,
+    ImageFormat, ImageResult,
+};
 use std::{convert::TryFrom, error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -34,12 +37,59 @@ impl error::Error for EncoderError {}
 /// TGA encoder.
 pub struct TgaEncoder<W: Write> {
     writer: W,
+
+    /// Run-length encoding
+    use_rel: bool,
 }
+
+const MAX_RUN_LENGTH: u8 = 128;
 
 impl<W: Write> TgaEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> TgaEncoder<W> {
-        TgaEncoder { writer: w }
+        TgaEncoder {
+            writer: w,
+            use_rel: false,
+        }
+    }
+
+    /// Enables run-length encoding
+    pub fn use_rel(mut self) -> TgaEncoder<W> {
+        self.use_rel = true;
+        self
+    }
+
+    fn run_length_encode(&mut self, image: &[u8], color_type: ColorType) -> ImageResult<()> {
+        let mut counter: u8 = 0;
+        let mut previous_pixel: Option<&[u8]> = None;
+
+        for current_pixel in image.chunks(usize::from(color_type.bytes_per_pixel())) {
+            let prev = previous_pixel.unwrap_or(current_pixel);
+
+            if current_pixel == prev && counter < MAX_RUN_LENGTH {
+                counter += 1;
+            } else {
+                // Set high bit = 1 and store counter
+                let header = 0x80 | (counter - 1);
+
+                self.writer.write_all(&[header])?;
+                self.writer.write_all(prev)?;
+
+                counter = 1;
+            }
+
+            previous_pixel = Some(current_pixel);
+        }
+
+        if counter > 0 {
+            // Set high bit = 1 and store counter
+            let header = 0x80 | (counter - 1);
+
+            self.writer.write_all(&[header])?;
+            self.writer.write_all(previous_pixel.unwrap())?;
+        }
+
+        Ok(())
     }
 
     /// Encodes the image ```buf``` that has dimensions ```width```
@@ -71,22 +121,48 @@ impl<W: Write> TgaEncoder<W> {
             .map_err(|_| ImageError::from(EncoderError::HeightInvalid(height)))?;
 
         // Write out TGA header.
-        let header = Header::from_pixel_info(color_type, width, height)?;
+        let header = Header::from_pixel_info(color_type, width, height, self.use_rel)?;
         header.write_to(&mut self.writer)?;
 
-        // Write out Bgr(a)8 or L(a)8 image data.
-        match color_type {
-            ColorType::Rgb8 | ColorType::Rgba8 => {
-                let mut image = Vec::from(buf);
+        let image_type = ImageType::new(header.image_type);
 
-                for chunk in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
-                    chunk.swap(0, 2);
+        match image_type {
+            //TODO: support RunColorMap, and change match to image_type.is_encoded()
+            ImageType::RunTrueColor | ImageType::RunGrayScale => {
+                // Write run-length encoded image data
+
+                match color_type {
+                    ColorType::Rgb8 | ColorType::Rgba8 => {
+                        let mut image = Vec::from(buf);
+
+                        for pixel in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
+                            pixel.swap(0, 2);
+                        }
+
+                        self.run_length_encode(&image, color_type)?;
+                    }
+                    _ => {
+                        self.run_length_encode(buf, color_type)?;
+                    }
                 }
-
-                self.writer.write_all(&image)?;
             }
             _ => {
-                self.writer.write_all(buf)?;
+                // Write uncompressed image data
+
+                match color_type {
+                    ColorType::Rgb8 | ColorType::Rgba8 => {
+                        let mut image = Vec::from(buf);
+
+                        for pixel in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
+                            pixel.swap(0, 2);
+                        }
+
+                        self.writer.write_all(&image)?;
+                    }
+                    _ => {
+                        self.writer.write_all(buf)?;
+                    }
+                }
             }
         }
 

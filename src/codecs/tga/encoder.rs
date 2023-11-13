@@ -59,6 +59,14 @@ impl<W: Write> TgaEncoder<W> {
         self
     }
 
+    fn write_rle_encoded_packet(&mut self, pixel: &[u8], counter: u8) -> ImageResult<()> {
+        // Set high bit = 1 and store counter - 1 (because 0 would be useless)
+        let header = 0x80 | (counter - 1);
+        self.writer.write_all(&[header])?;
+        self.writer.write_all(pixel)?;
+        Ok(())
+    }
+
     fn run_length_encode(&mut self, image: &[u8], color_type: ColorType) -> ImageResult<()> {
         let mut counter: u8 = 0;
         let mut previous_pixel: Option<&[u8]> = None;
@@ -69,12 +77,7 @@ impl<W: Write> TgaEncoder<W> {
             if current_pixel == prev && counter < MAX_RUN_LENGTH {
                 counter += 1;
             } else {
-                // Set high bit = 1 and store counter
-                let header = 0x80 | (counter - 1);
-
-                self.writer.write_all(&[header])?;
-                self.writer.write_all(prev)?;
-
+                self.write_rle_encoded_packet(prev, counter)?;
                 counter = 1;
             }
 
@@ -82,11 +85,7 @@ impl<W: Write> TgaEncoder<W> {
         }
 
         if counter > 0 {
-            // Set high bit = 1 and store counter
-            let header = 0x80 | (counter - 1);
-
-            self.writer.write_all(&[header])?;
-            self.writer.write_all(previous_pixel.unwrap())?;
+            self.write_rle_encoded_packet(previous_pixel.unwrap(), counter)?;
         }
 
         Ok(())

@@ -59,6 +59,7 @@ impl<W: Write> TgaEncoder<W> {
         self
     }
 
+    /// Writes a run-length encoded packet to the writer
     fn write_rle_encoded_packet(&mut self, pixel: &[u8], counter: u8) -> ImageResult<()> {
         // Set high bit = 1 and store counter - 1 (because 0 would be useless)
         let header = 0x80 | (counter - 1);
@@ -67,6 +68,7 @@ impl<W: Write> TgaEncoder<W> {
         Ok(())
     }
 
+    /// Writes the run-length encoded buffer to the writer
     fn run_length_encode(&mut self, image: &[u8], color_type: ColorType) -> ImageResult<()> {
         let mut counter: u8 = 0;
         let mut previous_pixel: Option<&[u8]> = None;

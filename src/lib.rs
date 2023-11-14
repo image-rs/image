@@ -81,5 +81,8 @@ pub use crate::decoder::{
 pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
 pub use crate::filter::{AdaptiveFilterType, FilterType};
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 #[cfg(feature = "benchmarks")]
 pub mod benchable_apis;

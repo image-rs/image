@@ -1,3 +1,11 @@
+//! A set of test utilities.
+//!
+//! There is some overlap between this module and `src/encoder.rs` module, but:
+//!
+//! * This module (unlike `src/encoder.rs`) performs no validation of the data being written - this
+//!   allows building testcases that use arbitrary, potentially invalid PNGs as input.
+//! * This module can be reused from `benches/decoder.rs` (a separate crate).
+
 use byteorder::WriteBytesExt;
 use std::io::Write;
 
@@ -18,19 +26,24 @@ use std::io::Write;
 /// [this
 /// discussion](https://github.com/image-rs/image-png/discussions/416#discussioncomment-7436871)
 /// for more details).
+#[allow(dead_code)] // Used from `benches/decoder.rs`
 pub fn write_noncompressed_png(w: &mut impl Write, width: u32) {
     write_png_sig(w);
-    write_ihdr(w, width);
-    write_noncompressed_idat(w, width);
+    write_rgba8_ihdr_with_width(w, width);
+    write_rgba8_idat_with_width(w, width);
     write_iend(w);
 }
 
-fn write_png_sig(w: &mut impl Write) {
+/// Writes PNG signature.
+/// See http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#PNG-file-signature
+pub fn write_png_sig(w: &mut impl Write) {
     const SIG: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
     w.write_all(&SIG).unwrap();
 }
 
-fn write_chunk(w: &mut impl Write, chunk_type: &[u8], data: &[u8]) {
+/// Writes an arbitrary PNG chunk.
+pub fn write_chunk(w: &mut impl Write, chunk_type: &[u8], data: &[u8]) {
+    assert_eq!(chunk_type.len(), 4);
     let crc = {
         let input = chunk_type
             .iter()
@@ -46,7 +59,9 @@ fn write_chunk(w: &mut impl Write, chunk_type: &[u8], data: &[u8]) {
     w.write_u32::<byteorder::BigEndian>(crc).unwrap();
 }
 
-fn write_ihdr(w: &mut impl Write, width: u32) {
+/// Writes an IHDR chunk that indicates a non-interlaced RGBA8 that uses the same height and
+/// `width`.  See http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#C.IHDR
+pub fn write_rgba8_ihdr_with_width(w: &mut impl Write, width: u32) {
     let mut data = Vec::new();
     data.write_u32::<byteorder::BigEndian>(width).unwrap();
     data.write_u32::<byteorder::BigEndian>(width).unwrap(); // height
@@ -58,7 +73,8 @@ fn write_ihdr(w: &mut impl Write, width: u32) {
     write_chunk(w, b"IHDR", &data);
 }
 
-fn write_noncompressed_idat(w: &mut impl Write, width: u32) {
+/// Generates RGBA8 `width` x `width` image and wraps it in a store-only zlib container.
+pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
     // Generate arbitrary test pixels.
     let image_pixels = {
         let mut row = Vec::new();
@@ -85,9 +101,16 @@ fn write_noncompressed_idat(w: &mut impl Write, width: u32) {
     store_only_compressor.write_data(&image_pixels).unwrap();
     store_only_compressor.finish().unwrap();
 
-    write_chunk(w, b"IDAT", &zlib_data);
+    zlib_data
 }
 
-fn write_iend(w: &mut impl Write) {
+/// Writes an IDAT chunk.
+pub fn write_rgba8_idat_with_width(w: &mut impl Write, width: u32) {
+    write_chunk(w, b"IDAT", &generate_rgba8_with_width(width));
+}
+
+/// Writes an IEND chunk.
+/// See http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#C.IEND
+pub fn write_iend(w: &mut impl Write) {
     write_chunk(w, b"IEND", &[]);
 }

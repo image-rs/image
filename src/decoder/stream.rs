@@ -27,24 +27,39 @@ pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
 /// be used to detect that build.
 const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
 
+/// Kind of `u32` value that is being read via `State::U32Byte...`.
 #[derive(Debug)]
-enum U32Value {
-    // CHUNKS
+enum U32ValueKind {
+    /// Chunk length - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
     Length,
-    Type(u32),
+    /// Chunk type - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
+    Type { length: u32 },
+    /// Chunk checksum - see
+    /// http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html#Chunk-layout
     Crc(ChunkType),
+    /// Sequence number from an `fdAT` chunk - see
+    /// https://wiki.mozilla.org/APNG_Specification#.60fdAT.60:_The_Frame_Data_Chunk
+    ApngSequenceNumber,
 }
 
 #[derive(Debug)]
 enum State {
     Signature(u8, [u8; 7]),
-    U32Byte3(U32Value, u32),
-    U32Byte2(U32Value, u32),
-    U32Byte1(U32Value, u32),
-    U32(U32Value),
-    ReadChunk(ChunkType),
-    PartialChunk(ChunkType),
-    DecodeData(ChunkType, usize),
+    U32Byte3(U32ValueKind, u32),
+    U32Byte2(U32ValueKind, u32),
+    U32Byte1(U32ValueKind, u32),
+    U32(U32ValueKind),
+    /// In this state we are reading chunk data from external input, and appending it to
+    /// `ChunkState::raw_bytes`.
+    ReadChunkData(ChunkType),
+    /// In this state we check if all chunk data has been already read into `ChunkState::raw_bytes`
+    /// and if so then we parse the chunk.  Otherwise, we go back to the `ReadChunkData` state.
+    ParseChunkData(ChunkType),
+    /// In this state we are reading image data from external input and feeding it directly into
+    /// `StreamingDecoder::inflater`.
+    ImageData(ChunkType),
 }
 
 #[derive(Debug)]
@@ -202,6 +217,8 @@ pub(crate) enum FormatErrorInner {
     NoMoreImageData,
     /// Bad text encoding
     BadTextEncoding(TextDecodingError),
+    /// fdAT shorter than 4 bytes
+    FdatShorterThanFourBytes,
 }
 
 impl error::Error for DecodingError {
@@ -322,6 +339,7 @@ impl fmt::Display for FormatError {
                     }
                 }
             }
+            FdatShorterThanFourBytes => write!(fmt, "fdAT chunk shorter than 4 bytes"),
         }
     }
 }
@@ -423,8 +441,8 @@ pub struct StreamingDecoder {
     pub(crate) info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
-    /// Stores where in decoding an `fdAT` chunk we are.
-    apng_seq_handled: bool,
+    /// Whether we have already seen a start of an IDAT chunk.  (Used to validate chunk ordering -
+    /// some chunk types can only appear before or after an IDAT chunk.)
     have_idat: bool,
     decode_options: DecodeOptions,
 }
@@ -462,7 +480,6 @@ impl StreamingDecoder {
             inflater,
             info: None,
             current_seq_no: None,
-            apng_seq_handled: false,
             have_idat: false,
             decode_options,
         }
@@ -477,7 +494,6 @@ impl StreamingDecoder {
         self.inflater.reset();
         self.info = None;
         self.current_seq_no = None;
-        self.apng_seq_handled = false;
         self.have_idat = false;
     }
 
@@ -559,21 +575,21 @@ impl StreamingDecoder {
             Signature(_, signature)
                 if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 =>
             {
-                self.state = Some(U32(U32Value::Length));
+                self.state = Some(U32(U32ValueKind::Length));
                 Ok((1, Decoded::Nothing))
             }
             Signature(..) => Err(DecodingError::Format(
                 FormatErrorInner::InvalidSignature.into(),
             )),
             U32Byte3(type_, mut val) => {
-                use self::U32Value::*;
+                use self::U32ValueKind::*;
                 val |= u32::from(current_byte);
                 match type_ {
                     Length => {
-                        self.state = Some(U32(Type(val)));
+                        self.state = Some(U32(Type { length: val }));
                         Ok((1, Decoded::Nothing))
                     }
-                    Type(length) => {
+                    Type { length } => {
                         let type_str = ChunkType([
                             (val >> 24) as u8,
                             (val >> 16) as u8,
@@ -587,7 +603,7 @@ impl StreamingDecoder {
                             self.current_chunk.type_ = type_str;
                             self.inflater.finish_compressed_chunks(image_data)?;
                             self.inflater.reset();
-                            self.state = Some(U32Byte3(Type(length), val & !0xff));
+                            self.state = Some(U32Byte3(Type { length }, val & !0xff));
                             return Ok((0, Decoded::ImageDataFlushed));
                         }
                         self.current_chunk.type_ = type_str;
@@ -596,9 +612,22 @@ impl StreamingDecoder {
                             self.current_chunk.crc.update(&type_str.0);
                         }
                         self.current_chunk.remaining = length;
-                        self.apng_seq_handled = false;
                         self.current_chunk.raw_bytes.clear();
-                        self.state = Some(ReadChunk(type_str));
+                        self.state = match type_str {
+                            chunk::fdAT => {
+                                if length < 4 {
+                                    return Err(DecodingError::Format(
+                                        FormatErrorInner::FdatShorterThanFourBytes.into(),
+                                    ));
+                                }
+                                Some(U32(ApngSequenceNumber))
+                            }
+                            IDAT => {
+                                self.have_idat = true;
+                                Some(ImageData(type_str))
+                            }
+                            _ => Some(ReadChunkData(type_str)),
+                        };
                         Ok((1, Decoded::ChunkBegin(length, type_str)))
                     }
                     Crc(type_str) => {
@@ -612,7 +641,7 @@ impl StreamingDecoder {
                         };
 
                         if val == sum || CHECKSUM_DISABLED {
-                            self.state = Some(State::U32(U32Value::Length));
+                            self.state = Some(State::U32(U32ValueKind::Length));
                             if type_str == IEND {
                                 Ok((1, Decoded::ImageEnd))
                             } else {
@@ -629,6 +658,39 @@ impl StreamingDecoder {
                             ))
                         }
                     }
+                    ApngSequenceNumber => {
+                        debug_assert_eq!(self.current_chunk.type_, chunk::fdAT);
+                        let next_seq_no = val;
+
+                        // Should be verified by the FdatShorterThanFourBytes check earlier.
+                        debug_assert!(self.current_chunk.remaining >= 4);
+                        self.current_chunk.remaining -= 4;
+
+                        if let Some(seq_no) = self.current_seq_no {
+                            if next_seq_no != seq_no + 1 {
+                                return Err(DecodingError::Format(
+                                    FormatErrorInner::ApngOrder {
+                                        present: next_seq_no,
+                                        expected: seq_no + 1,
+                                    }
+                                    .into(),
+                                ));
+                            }
+                            self.current_seq_no = Some(next_seq_no);
+                        } else {
+                            return Err(DecodingError::Format(
+                                FormatErrorInner::MissingFctl.into(),
+                            ));
+                        }
+
+                        if !self.decode_options.ignore_crc {
+                            let data = next_seq_no.to_be_bytes();
+                            self.current_chunk.crc.update(&data);
+                        }
+
+                        self.state = Some(ImageData(chunk::fdAT));
+                        Ok((1, Decoded::PartialChunk(chunk::fdAT)))
+                    }
                 }
             }
             U32Byte2(type_, val) => {
@@ -643,63 +705,24 @@ impl StreamingDecoder {
                 self.state = Some(U32Byte1(type_, u32::from(current_byte) << 24));
                 Ok((1, Decoded::Nothing))
             }
-            PartialChunk(type_str) => {
-                match type_str {
-                    IDAT => {
-                        self.have_idat = true;
-                        self.state = Some(DecodeData(type_str, 0));
-                        Ok((0, Decoded::PartialChunk(type_str)))
-                    }
-                    chunk::fdAT => {
-                        let data_start;
-                        if let Some(seq_no) = self.current_seq_no {
-                            if !self.apng_seq_handled {
-                                data_start = 4;
-                                let mut buf = &self.current_chunk.raw_bytes[..];
-                                let next_seq_no = buf.read_be()?;
-                                if next_seq_no != seq_no + 1 {
-                                    return Err(DecodingError::Format(
-                                        FormatErrorInner::ApngOrder {
-                                            present: next_seq_no,
-                                            expected: seq_no + 1,
-                                        }
-                                        .into(),
-                                    ));
-                                }
-                                self.current_seq_no = Some(next_seq_no);
-                                self.apng_seq_handled = true;
-                            } else {
-                                data_start = 0;
-                            }
-                        } else {
-                            return Err(DecodingError::Format(
-                                FormatErrorInner::MissingFctl.into(),
-                            ));
-                        }
-                        self.state = Some(DecodeData(type_str, data_start));
-                        Ok((0, Decoded::PartialChunk(type_str)))
-                    }
-                    // Handle other chunks
-                    _ => {
-                        if self.current_chunk.remaining == 0 {
-                            // complete chunk
-                            Ok((0, self.parse_chunk(type_str)?))
-                        } else {
-                            // Make sure we have room to read more of the chunk.
-                            // We need it fully before parsing.
-                            self.reserve_current_chunk()?;
+            ParseChunkData(type_str) => {
+                debug_assert!(type_str != IDAT && type_str != chunk::fdAT);
+                if self.current_chunk.remaining == 0 {
+                    // Got complete chunk.
+                    Ok((0, self.parse_chunk(type_str)?))
+                } else {
+                    // Make sure we have room to read more of the chunk.
+                    // We need it fully before parsing.
+                    self.reserve_current_chunk()?;
 
-                            self.state = Some(ReadChunk(type_str));
-                            Ok((0, Decoded::PartialChunk(type_str)))
-                        }
-                    }
+                    self.state = Some(ReadChunkData(type_str));
+                    Ok((0, Decoded::PartialChunk(type_str)))
                 }
             }
-            ReadChunk(type_str) => {
-                // The _previous_ event wanted to return the contents of raw_bytes, and let the
-                // caller consume it,
+            ReadChunkData(type_str) => {
+                debug_assert!(type_str != IDAT && type_str != chunk::fdAT);
                 if self.current_chunk.remaining == 0 {
-                    self.state = Some(U32(U32Value::Crc(type_str)));
+                    self.state = Some(U32(U32ValueKind::Crc(type_str)));
                     Ok((0, Decoded::Nothing))
                 } else {
                     let ChunkState {
@@ -713,7 +736,7 @@ impl StreamingDecoder {
                     let bytes_avail = min(buf.len(), buf_avail);
                     let n = min(*remaining, bytes_avail as u32);
                     if buf_avail == 0 {
-                        self.state = Some(PartialChunk(type_str));
+                        self.state = Some(ParseChunkData(type_str));
                         Ok((0, Decoded::Nothing))
                     } else {
                         let buf = &buf[..n as usize];
@@ -724,27 +747,27 @@ impl StreamingDecoder {
 
                         *remaining -= n;
                         if *remaining == 0 {
-                            self.state = Some(PartialChunk(type_str));
+                            self.state = Some(ParseChunkData(type_str));
                         } else {
-                            self.state = Some(ReadChunk(type_str));
+                            self.state = Some(ReadChunkData(type_str));
                         }
                         Ok((n as usize, Decoded::Nothing))
                     }
                 }
             }
-            DecodeData(type_str, mut n) => {
-                let chunk_len = self.current_chunk.raw_bytes.len();
-                let chunk_data = &self.current_chunk.raw_bytes[n..];
-                let c = self.inflater.decompress(chunk_data, image_data)?;
-                n += c;
-                if n == chunk_len && c == 0 {
-                    self.current_chunk.raw_bytes.clear();
-                    self.state = Some(ReadChunk(type_str));
-                    Ok((0, Decoded::ImageData))
+            ImageData(type_str) => {
+                debug_assert!(type_str == IDAT || type_str == chunk::fdAT);
+                let len = std::cmp::min(buf.len(), self.current_chunk.remaining as usize);
+                let buf = &buf[..len];
+                let consumed = self.inflater.decompress(buf, image_data)?;
+                self.current_chunk.crc.update(&buf[..consumed]);
+                self.current_chunk.remaining -= consumed as u32;
+                if self.current_chunk.remaining == 0 {
+                    self.state = Some(U32(U32ValueKind::Crc(type_str)));
                 } else {
-                    self.state = Some(DecodeData(type_str, n));
-                    Ok((0, Decoded::ImageData))
+                    self.state = Some(ImageData(type_str));
                 }
+                Ok((consumed, Decoded::ImageData))
             }
         }
     }
@@ -766,7 +789,7 @@ impl StreamingDecoder {
     }
 
     fn parse_chunk(&mut self, type_str: ChunkType) -> Result<Decoded, DecodingError> {
-        self.state = Some(State::U32(U32Value::Crc(type_str)));
+        self.state = Some(State::U32(U32ValueKind::Crc(type_str)));
         if self.info.is_none() && type_str != IHDR {
             return Err(DecodingError::Format(
                 FormatErrorInner::ChunkBeforeIhdr { kind: type_str }.into(),
@@ -1353,7 +1376,11 @@ impl Default for ChunkState {
 mod tests {
     use super::ScaledFloat;
     use super::SourceChromaticities;
+    use crate::test_utils::*;
+    use crate::{Decoder, DecodingError};
+    use byteorder::WriteBytesExt;
     use std::fs::File;
+    use std::io::Write;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {
@@ -1600,5 +1627,182 @@ mod tests {
         // Note that the 2nd chunk in the test file has been manually altered to have a different
         // content (`b"test iccp contents"`) which would have a different CRC (797351983).
         assert_eq!(4070462061, crc32fast::hash(&icc_profile));
+    }
+
+    /// Writes an acTL chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60acTL.60:_The_Animation_Control_Chunk
+    fn write_actl(w: &mut impl Write, animation: &crate::AnimationControl) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(animation.num_frames)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(animation.num_plays)
+            .unwrap();
+        write_chunk(w, b"acTL", &data);
+    }
+
+    /// Writes an fcTL chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60fcTL.60:_The_Frame_Control_Chunk
+    fn write_fctl(w: &mut impl Write, frame: &crate::FrameControl) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(frame.sequence_number)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.width).unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.height)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.x_offset)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.y_offset)
+            .unwrap();
+        data.write_u16::<byteorder::BigEndian>(frame.delay_num)
+            .unwrap();
+        data.write_u16::<byteorder::BigEndian>(frame.delay_den)
+            .unwrap();
+        data.write_u8(frame.dispose_op as u8).unwrap();
+        data.write_u8(frame.blend_op as u8).unwrap();
+        write_chunk(w, b"fcTL", &data);
+    }
+
+    /// Writes an fdAT chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60fdAT.60:_The_Frame_Data_Chunk
+    fn write_fdat(w: &mut impl Write, sequence_number: u32, image_data: &[u8]) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(sequence_number)
+            .unwrap();
+        data.write_all(&image_data).unwrap();
+        write_chunk(w, b"fdAT", &data);
+    }
+
+    /// Writes PNG signature and chunks that can precede an fdAT chunk that is expected
+    /// to have
+    /// - `sequence_number` set to 0
+    /// - image data with rgba8 pixels in a `width` by `width` image
+    fn write_fdat_prefix(w: &mut impl Write, num_frames: u32, width: u32) {
+        write_png_sig(w);
+        write_rgba8_ihdr_with_width(w, width);
+        write_actl(
+            w,
+            &crate::AnimationControl {
+                num_frames,
+                num_plays: 0,
+            },
+        );
+
+        let mut fctl = crate::FrameControl {
+            width,
+            height: width,
+            ..Default::default()
+        };
+        write_fctl(w, &fctl);
+        write_rgba8_idat_with_width(w, width);
+
+        fctl.sequence_number += 1;
+        write_fctl(w, &fctl);
+    }
+
+    #[test]
+    fn test_fdat_chunk_payload_length_0() {
+        let mut png = Vec::new();
+        write_fdat_prefix(&mut png, 2, 8);
+        write_chunk(&mut png, b"fdAT", &[]);
+
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+
+        // 0-length fdAT should result in an error.
+        let err = reader.next_frame(&mut buf).unwrap_err();
+        assert!(matches!(&err, DecodingError::Format(_)));
+        let msg = format!("{err}");
+        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+    }
+
+    #[test]
+    fn test_fdat_chunk_payload_length_3() {
+        let mut png = Vec::new();
+        write_fdat_prefix(&mut png, 2, 8);
+        write_chunk(&mut png, b"fdAT", &[1, 0, 0]);
+
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+
+        // 3-bytes-long fdAT should result in an error.
+        let err = reader.next_frame(&mut buf).unwrap_err();
+        assert!(matches!(&err, DecodingError::Format(_)));
+        let msg = format!("{err}");
+        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+    }
+
+    #[test]
+    fn test_frame_split_across_two_fdat_chunks() {
+        // Generate test data where the 2nd animation frame is split across 2 fdAT chunks.
+        //
+        // This is similar to the example given in
+        // https://wiki.mozilla.org/APNG_Specification#Chunk_Sequence_Numbers:
+        //
+        // ```
+        //    Sequence number    Chunk
+        //    (none)             `acTL`
+        //    0                  `fcTL` first frame
+        //    (none)             `IDAT` first frame / default image
+        //    1                  `fcTL` second frame
+        //    2                  first `fdAT` for second frame
+        //    3                  second `fdAT` for second frame
+        // ```
+        let png = {
+            let mut png = Vec::new();
+            write_fdat_prefix(&mut png, 2, 8);
+            let image_data = generate_rgba8_with_width(8);
+            write_fdat(&mut png, 2, &image_data[..30]);
+            write_fdat(&mut png, 3, &image_data[30..]);
+            write_iend(&mut png);
+            png
+        };
+
+        // Start decoding.
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let Some(animation_control) = reader.info().animation_control else {
+            panic!("No acTL");
+        };
+        assert_eq!(animation_control.num_frames, 2);
+
+        // Process the 1st animation frame.
+        let first_frame: Vec<u8>;
+        {
+            reader.next_frame(&mut buf).unwrap();
+            first_frame = buf.clone();
+
+            // Note that the doc comment of `Reader::next_frame` says that "[...]
+            // can be checked afterwards by calling `info` **after** a successful call and
+            // inspecting the `frame_control` data.".  (Note the **emphasis** on "after".)
+            let Some(frame_control) = reader.info().frame_control else {
+                panic!("No fcTL (1st frame)");
+            };
+            // The sequence number is taken from the `fcTL` chunk that comes before the `IDAT`
+            // chunk.
+            assert_eq!(frame_control.sequence_number, 0);
+        }
+
+        // Process the 2nd animation frame.
+        let second_frame: Vec<u8>;
+        {
+            reader.next_frame(&mut buf).unwrap();
+            second_frame = buf.clone();
+
+            // Same as above - updated `frame_control` is available *after* the `next_frame` call.
+            let Some(frame_control) = reader.info().frame_control else {
+                panic!("No fcTL (2nd frame)");
+            };
+            // The sequence number is taken from the `fcTL` chunk that comes before the two `fdAT`
+            // chunks.  Note that sequence numbers inside `fdAT` chunks are not publically exposed
+            // (but they are still checked when decoding to verify that they are sequential).
+            assert_eq!(frame_control.sequence_number, 1);
+        }
+
+        assert_eq!(first_frame, second_frame);
     }
 }

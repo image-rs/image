@@ -73,8 +73,8 @@ pub fn write_rgba8_ihdr_with_width(w: &mut impl Write, width: u32) {
     write_chunk(w, b"IHDR", &data);
 }
 
-/// Writes an IDAT chunk.
-pub fn write_rgba8_idat_with_width(w: &mut impl Write, width: u32) {
+/// Generates RGBA8 `width` x `width` image and wraps it in a store-only zlib container.
+pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
     // Generate arbitrary test pixels.
     let image_pixels = {
         let mut row = Vec::new();
@@ -101,9 +101,16 @@ pub fn write_rgba8_idat_with_width(w: &mut impl Write, width: u32) {
     store_only_compressor.write_data(&image_pixels).unwrap();
     store_only_compressor.finish().unwrap();
 
-    write_chunk(w, b"IDAT", &zlib_data);
+    zlib_data
 }
 
-fn write_iend(w: &mut impl Write) {
+/// Writes an IDAT chunk.
+pub fn write_rgba8_idat_with_width(w: &mut impl Write, width: u32) {
+    write_chunk(w, b"IDAT", &generate_rgba8_with_width(width));
+}
+
+/// Writes an IEND chunk.
+/// See http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#C.IEND
+pub fn write_iend(w: &mut impl Write) {
     write_chunk(w, b"IEND", &[]);
 }

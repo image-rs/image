@@ -1662,6 +1662,16 @@ mod tests {
         write_chunk(w, b"fcTL", &data);
     }
 
+    /// Writes an fdAT chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60fdAT.60:_The_Frame_Data_Chunk
+    fn write_fdat(w: &mut impl Write, sequence_number: u32, image_data: &[u8]) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(sequence_number)
+            .unwrap();
+        data.write_all(&image_data).unwrap();
+        write_chunk(w, b"fdAT", &data);
+    }
+
     /// Writes PNG signature and chunks that can precede an fdAT chunk that is expected
     /// to have
     /// - `sequence_number` set to 0
@@ -1723,5 +1733,76 @@ mod tests {
         assert!(matches!(&err, DecodingError::Format(_)));
         let msg = format!("{err}");
         assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+    }
+
+    #[test]
+    fn test_frame_split_across_two_fdat_chunks() {
+        // Generate test data where the 2nd animation frame is split across 2 fdAT chunks.
+        //
+        // This is similar to the example given in
+        // https://wiki.mozilla.org/APNG_Specification#Chunk_Sequence_Numbers:
+        //
+        // ```
+        //    Sequence number    Chunk
+        //    (none)             `acTL`
+        //    0                  `fcTL` first frame
+        //    (none)             `IDAT` first frame / default image
+        //    1                  `fcTL` second frame
+        //    2                  first `fdAT` for second frame
+        //    3                  second `fdAT` for second frame
+        // ```
+        let png = {
+            let mut png = Vec::new();
+            write_fdat_prefix(&mut png, 2, 8);
+            let image_data = generate_rgba8_with_width(8);
+            write_fdat(&mut png, 2, &image_data[..30]);
+            write_fdat(&mut png, 3, &image_data[30..]);
+            write_iend(&mut png);
+            png
+        };
+
+        // Start decoding.
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let Some(animation_control) = reader.info().animation_control else {
+            panic!("No acTL");
+        };
+        assert_eq!(animation_control.num_frames, 2);
+
+        // Process the 1st animation frame.
+        let first_frame: Vec<u8>;
+        {
+            reader.next_frame(&mut buf).unwrap();
+            first_frame = buf.clone();
+
+            // Note that the doc comment of `Reader::next_frame` says that "[...]
+            // can be checked afterwards by calling `info` **after** a successful call and
+            // inspecting the `frame_control` data.".  (Note the **emphasis** on "after".)
+            let Some(frame_control) = reader.info().frame_control else {
+                panic!("No fcTL (1st frame)");
+            };
+            // The sequence number is taken from the `fcTL` chunk that comes before the `IDAT`
+            // chunk.
+            assert_eq!(frame_control.sequence_number, 0);
+        }
+
+        // Process the 2nd animation frame.
+        let second_frame: Vec<u8>;
+        {
+            reader.next_frame(&mut buf).unwrap();
+            second_frame = buf.clone();
+
+            // Same as above - updated `frame_control` is available *after* the `next_frame` call.
+            let Some(frame_control) = reader.info().frame_control else {
+                panic!("No fcTL (2nd frame)");
+            };
+            // The sequence number is taken from the `fcTL` chunk that comes before the two `fdAT`
+            // chunks.  Note that sequence numbers inside `fdAT` chunks are not publically exposed
+            // (but they are still checked when decoding to verify that they are sequential).
+            assert_eq!(frame_control.sequence_number, 1);
+        }
+
+        assert_eq!(first_frame, second_frame);
     }
 }

@@ -428,17 +428,20 @@ pub fn interpolate_bilinear<P: Pixel>(
 
     // hack to get around not being able to construct a generic Pixel
     let mut out = samples[0];
+    // hack to see if primitive is an integer or a float
+    let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
         let v = wff * sff[i] + wfc * sfc[i] + wcf * scf[i] + wcc * scc[i];
         // this rounding may introduce quantization errors,
-        // but cannot do anything about it.
-        *c = <P::Subpixel as NumCast>::from(v.round()).unwrap_or({
+        // Specifically what is meant is that many samples may deviate
+        // from the mean value of the originals, but it's not possible to fix that.
+        *c = <P::Subpixel as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
             if v < 0.0 {
                 P::Subpixel::DEFAULT_MIN_VALUE
             } else {
                 P::Subpixel::DEFAULT_MAX_VALUE
             }
-        })
+        });
     }
     Some(out)
 }

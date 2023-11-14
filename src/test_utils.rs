@@ -1,3 +1,5 @@
+//! A set of test utilities.
+
 use byteorder::WriteBytesExt;
 use std::io::Write;
 

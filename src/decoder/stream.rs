@@ -217,6 +217,8 @@ pub(crate) enum FormatErrorInner {
     NoMoreImageData,
     /// Bad text encoding
     BadTextEncoding(TextDecodingError),
+    /// fdAT shorter than 4 bytes
+    FdatShorterThanFourBytes,
 }
 
 impl error::Error for DecodingError {
@@ -337,6 +339,7 @@ impl fmt::Display for FormatError {
                     }
                 }
             }
+            FdatShorterThanFourBytes => write!(fmt, "fdAT chunk shorter than 4 bytes"),
         }
     }
 }
@@ -611,7 +614,14 @@ impl StreamingDecoder {
                         self.current_chunk.remaining = length;
                         self.current_chunk.raw_bytes.clear();
                         self.state = match type_str {
-                            chunk::fdAT => Some(U32(ApngSequenceNumber)),
+                            chunk::fdAT => {
+                                if length < 4 {
+                                    return Err(DecodingError::Format(
+                                        FormatErrorInner::FdatShorterThanFourBytes.into(),
+                                    ));
+                                }
+                                Some(U32(ApngSequenceNumber))
+                            }
                             IDAT => {
                                 self.have_idat = true;
                                 Some(ImageData(type_str))
@@ -651,6 +661,9 @@ impl StreamingDecoder {
                     ApngSequenceNumber => {
                         debug_assert_eq!(self.current_chunk.type_, chunk::fdAT);
                         let next_seq_no = val;
+
+                        // Should be verified by the FdatShorterThanFourBytes check earlier.
+                        debug_assert!(self.current_chunk.remaining >= 4);
                         self.current_chunk.remaining -= 4;
 
                         if let Some(seq_no) = self.current_seq_no {
@@ -1363,7 +1376,11 @@ impl Default for ChunkState {
 mod tests {
     use super::ScaledFloat;
     use super::SourceChromaticities;
+    use crate::test_utils::*;
+    use crate::{Decoder, DecodingError};
+    use byteorder::WriteBytesExt;
     use std::fs::File;
+    use std::io::Write;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {
@@ -1610,5 +1627,101 @@ mod tests {
         // Note that the 2nd chunk in the test file has been manually altered to have a different
         // content (`b"test iccp contents"`) which would have a different CRC (797351983).
         assert_eq!(4070462061, crc32fast::hash(&icc_profile));
+    }
+
+    /// Writes an acTL chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60acTL.60:_The_Animation_Control_Chunk
+    fn write_actl(w: &mut impl Write, animation: &crate::AnimationControl) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(animation.num_frames)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(animation.num_plays)
+            .unwrap();
+        write_chunk(w, b"acTL", &data);
+    }
+
+    /// Writes an fcTL chunk.
+    /// See https://wiki.mozilla.org/APNG_Specification#.60fcTL.60:_The_Frame_Control_Chunk
+    fn write_fctl(w: &mut impl Write, frame: &crate::FrameControl) {
+        let mut data = Vec::new();
+        data.write_u32::<byteorder::BigEndian>(frame.sequence_number)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.width).unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.height)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.x_offset)
+            .unwrap();
+        data.write_u32::<byteorder::BigEndian>(frame.y_offset)
+            .unwrap();
+        data.write_u16::<byteorder::BigEndian>(frame.delay_num)
+            .unwrap();
+        data.write_u16::<byteorder::BigEndian>(frame.delay_den)
+            .unwrap();
+        data.write_u8(frame.dispose_op as u8).unwrap();
+        data.write_u8(frame.blend_op as u8).unwrap();
+        write_chunk(w, b"fcTL", &data);
+    }
+
+    /// Writes PNG signature and chunks that can precede an fdAT chunk that is expected
+    /// to have
+    /// - `sequence_number` set to 0
+    /// - image data with rgba8 pixels in a `width` by `width` image
+    fn write_fdat_prefix(w: &mut impl Write, num_frames: u32, width: u32) {
+        write_png_sig(w);
+        write_rgba8_ihdr_with_width(w, width);
+        write_actl(
+            w,
+            &crate::AnimationControl {
+                num_frames,
+                num_plays: 0,
+            },
+        );
+
+        let mut fctl = crate::FrameControl {
+            width,
+            height: width,
+            ..Default::default()
+        };
+        write_fctl(w, &fctl);
+        write_rgba8_idat_with_width(w, width);
+
+        fctl.sequence_number += 1;
+        write_fctl(w, &fctl);
+    }
+
+    #[test]
+    fn test_fdat_chunk_payload_length_0() {
+        let mut png = Vec::new();
+        write_fdat_prefix(&mut png, 2, 8);
+        write_chunk(&mut png, b"fdAT", &[]);
+
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+
+        // 0-length fdAT should result in an error.
+        let err = reader.next_frame(&mut buf).unwrap_err();
+        assert!(matches!(&err, DecodingError::Format(_)));
+        let msg = format!("{err}");
+        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+    }
+
+    #[test]
+    fn test_fdat_chunk_payload_length_3() {
+        let mut png = Vec::new();
+        write_fdat_prefix(&mut png, 2, 8);
+        write_chunk(&mut png, b"fdAT", &[1, 0, 0]);
+
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+
+        // 3-bytes-long fdAT should result in an error.
+        let err = reader.next_frame(&mut buf).unwrap_err();
+        assert!(matches!(&err, DecodingError::Format(_)));
+        let msg = format!("{err}");
+        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
     }
 }

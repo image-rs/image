@@ -100,8 +100,6 @@ impl<W: Write> TgaEncoder<W> {
         let mut packet_type = Rle;
 
         for pixel in image.chunks(usize::from(bytes_per_pixel)) {
-            debug_assert!(buf.len() <= capacity_in_bytes);
-
             // Make sure we are not at the first pixel
             if let Some(prev) = prev_pixel {
                 if pixel == prev {
@@ -122,6 +120,8 @@ impl<W: Write> TgaEncoder<W> {
 
             counter += 1;
             buf.extend_from_slice(pixel);
+
+            debug_assert!(buf.len() <= capacity_in_bytes);
 
             if counter == MAX_RUN_LENGTH {
                 match packet_type {

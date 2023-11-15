@@ -44,6 +44,12 @@ pub struct TgaEncoder<W: Write> {
 
 const MAX_RUN_LENGTH: u8 = 128;
 
+#[derive(Debug, Eq, PartialEq)]
+enum PacketType {
+    Raw,
+    Rle,
+}
+
 impl<W: Write> TgaEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> TgaEncoder<W> {
@@ -59,6 +65,16 @@ impl<W: Write> TgaEncoder<W> {
         self
     }
 
+    /// Writes a raw packet to the writer
+    fn write_raw_packet(&mut self, pixels: &[u8], counter: u8) -> ImageResult<()> {
+        // Set high bit = 0 and store counter - 1 (because 0 would be useless)
+        // The counter fills 7 bits max, so the high bit is set to 0 implicitly
+        let header = counter - 1;
+        self.writer.write_all(&[header])?;
+        self.writer.write_all(pixels)?;
+        Ok(())
+    }
+
     /// Writes a run-length encoded packet to the writer
     fn write_rle_encoded_packet(&mut self, pixel: &[u8], counter: u8) -> ImageResult<()> {
         // Set high bit = 1 and store counter - 1 (because 0 would be useless)
@@ -70,24 +86,66 @@ impl<W: Write> TgaEncoder<W> {
 
     /// Writes the run-length encoded buffer to the writer
     fn run_length_encode(&mut self, image: &[u8], color_type: ColorType) -> ImageResult<()> {
-        let mut counter: u8 = 0;
-        let mut previous_pixel: Option<&[u8]> = None;
+        use PacketType::*;
 
-        for current_pixel in image.chunks(usize::from(color_type.bytes_per_pixel())) {
-            let prev = previous_pixel.unwrap_or(current_pixel);
+        let bytes_per_pixel = color_type.bytes_per_pixel();
+        let capacity_in_bytes = usize::from(MAX_RUN_LENGTH) * usize::from(bytes_per_pixel);
 
-            if current_pixel == prev && counter < MAX_RUN_LENGTH {
-                counter += 1;
-            } else {
-                self.write_rle_encoded_packet(prev, counter)?;
-                counter = 1;
+        // Buffer to temporarily store
+        // pixels that cannot be run-length encoded
+        let mut buf = Vec::with_capacity(capacity_in_bytes);
+
+        let mut counter = 0;
+        let mut prev_pixel = None;
+        let mut packet_type = Rle;
+
+        for pixel in image.chunks(usize::from(bytes_per_pixel)) {
+            debug_assert!(buf.len() <= capacity_in_bytes);
+
+            if Some(pixel) == prev_pixel {
+                if packet_type == Raw {
+                    self.write_raw_packet(&buf, counter)?;
+                    counter = 0;
+                    buf.clear();
+                }
+
+                packet_type = Rle;
+            } else if packet_type == Rle && counter > 0 {
+                // Make sure, we are not at the first pixel
+                if let Some(prev) = prev_pixel {
+                    self.write_rle_encoded_packet(prev, counter)?;
+                    buf.clear();
+
+                    // Set counter to 1, not 0, because the current pixel is different
+                    // and thus not included in the packet
+                    counter = 0;
+                }
+
+                packet_type = Raw;
             }
 
-            previous_pixel = Some(current_pixel);
+            counter += 1;
+            buf.extend_from_slice(pixel);
+
+            if counter == MAX_RUN_LENGTH {
+                match packet_type {
+                    Rle => self.write_rle_encoded_packet(prev_pixel.unwrap(), counter),
+                    Raw => self.write_raw_packet(&buf, counter),
+                }?;
+
+                counter = 0;
+                buf.clear();
+                packet_type = Rle;
+            }
+
+            prev_pixel = Some(pixel);
         }
 
         if counter > 0 {
-            self.write_rle_encoded_packet(previous_pixel.unwrap(), counter)?;
+            match packet_type {
+                Rle => self.write_rle_encoded_packet(prev_pixel.unwrap(), counter),
+                Raw => self.write_raw_packet(&buf, counter),
+            }?;
         }
 
         Ok(())

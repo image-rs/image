@@ -103,7 +103,7 @@ impl<W: Write> TgaEncoder<W> {
             debug_assert!(buf.len() <= capacity_in_bytes);
 
             if Some(pixel) == prev_pixel {
-                if packet_type == Raw {
+                if packet_type == Raw && counter > 0 {
                     self.write_raw_packet(&buf, counter)?;
                     counter = 0;
                     buf.clear();
@@ -318,12 +318,21 @@ mod tests {
                     .encode(image, width, height, c)
                     .expect("could not encode image");
             }
-
             let decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
 
             let mut buf = vec![0; decoder.total_bytes() as usize];
             decoder.read_image(&mut buf).expect("failed to decode");
             buf
+        }
+
+        #[test]
+        fn mixed_packets() {
+            let image = [
+                255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            ];
+            let decoded = round_trip_image(&image, 5, 1, ColorType::Rgb8);
+            assert_eq!(decoded.len(), image.len());
+            assert_eq!(decoded.as_slice(), image);
         }
 
         #[test]
@@ -378,6 +387,14 @@ mod tests {
         fn round_trip_different_2() {
             let image = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 4];
             let decoded = round_trip_image(&image, 4, 1, ColorType::Rgb8);
+            assert_eq!(decoded.len(), image.len());
+            assert_eq!(decoded.as_slice(), image);
+        }
+
+        #[test]
+        fn round_trip_different_3() {
+            let image = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 4, 0, 1, 2];
+            let decoded = round_trip_image(&image, 5, 1, ColorType::Rgb8);
             assert_eq!(decoded.len(), image.len());
             assert_eq!(decoded.as_slice(), image);
         }

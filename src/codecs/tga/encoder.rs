@@ -102,26 +102,26 @@ impl<W: Write> TgaEncoder<W> {
         for pixel in image.chunks(usize::from(bytes_per_pixel)) {
             debug_assert!(buf.len() <= capacity_in_bytes);
 
-            if Some(pixel) == prev_pixel {
-                if packet_type == Raw && counter > 0 {
-                    self.write_raw_packet(&buf, counter)?;
-                    counter = 0;
-                    buf.clear();
-                }
+            // Make sure we are not at the first pixel
+            if let Some(prev) = prev_pixel {
+                if pixel == prev {
+                    if packet_type == Raw && counter > 0 {
+                        self.write_raw_packet(&buf, counter)?;
+                        counter = 0;
+                        buf.clear();
+                    }
 
-                packet_type = Rle;
-            } else if packet_type == Rle && counter > 0 {
-                // Make sure, we are not at the first pixel
-                if let Some(prev) = prev_pixel {
+                    packet_type = Rle;
+                } else if packet_type == Rle && counter > 0 {
                     self.write_rle_encoded_packet(prev, counter)?;
                     buf.clear();
 
                     // Set counter to 1, not 0, because the current pixel is different
                     // and thus not included in the packet
                     counter = 0;
-                }
 
-                packet_type = Raw;
+                    packet_type = Raw;
+                }
             }
 
             counter += 1;

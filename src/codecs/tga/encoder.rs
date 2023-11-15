@@ -114,13 +114,9 @@ impl<W: Write> TgaEncoder<W> {
                     packet_type = Rle;
                 } else if packet_type == Rle && counter > 0 {
                     self.write_rle_encoded_packet(prev, counter)?;
-                    buf.clear();
-
-                    // Set counter to 1, not 0, because the current pixel is different
-                    // and thus not included in the packet
                     counter = 0;
-
                     packet_type = Raw;
+                    buf.clear();
                 }
             }
 
@@ -134,8 +130,8 @@ impl<W: Write> TgaEncoder<W> {
                 }?;
 
                 counter = 0;
-                buf.clear();
                 packet_type = Rle;
+                buf.clear();
             }
 
             prev_pixel = Some(pixel);

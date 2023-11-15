@@ -39,7 +39,7 @@ pub struct TgaEncoder<W: Write> {
     writer: W,
 
     /// Run-length encoding
-    use_rel: bool,
+    use_rle: bool,
 }
 
 const MAX_RUN_LENGTH: u8 = 128;
@@ -49,13 +49,13 @@ impl<W: Write> TgaEncoder<W> {
     pub fn new(w: W) -> TgaEncoder<W> {
         TgaEncoder {
             writer: w,
-            use_rel: false,
+            use_rle: false,
         }
     }
 
     /// Enables run-length encoding
-    pub fn use_rel(mut self) -> TgaEncoder<W> {
-        self.use_rel = true;
+    pub fn use_rle(mut self) -> TgaEncoder<W> {
+        self.use_rle = true;
         self
     }
 
@@ -122,7 +122,7 @@ impl<W: Write> TgaEncoder<W> {
             .map_err(|_| ImageError::from(EncoderError::HeightInvalid(height)))?;
 
         // Write out TGA header.
-        let header = Header::from_pixel_info(color_type, width, height, self.use_rel)?;
+        let header = Header::from_pixel_info(color_type, width, height, self.use_rle)?;
         header.write_to(&mut self.writer)?;
 
         let image_type = ImageType::new(header.image_type);
@@ -255,7 +255,7 @@ mod tests {
         fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
             let mut encoded_data = Vec::new();
             {
-                let encoder = TgaEncoder::new(&mut encoded_data).use_rel();
+                let encoder = TgaEncoder::new(&mut encoded_data).use_rle();
                 encoder
                     .encode(image, width, height, c)
                     .expect("could not encode image");

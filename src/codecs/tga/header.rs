@@ -83,12 +83,12 @@ impl Header {
         color_type: ColorType,
         width: u16,
         height: u16,
-        use_rel: bool,
+        use_rle: bool,
     ) -> ImageResult<Self> {
         let mut header = Self::default();
 
         if width > 0 && height > 0 {
-            let (num_alpha_bits, other_channel_bits, image_type) = match (color_type, use_rel) {
+            let (num_alpha_bits, other_channel_bits, image_type) = match (color_type, use_rle) {
                 (ColorType::Rgba8, true) => (8, 24, ImageType::RunTrueColor),
                 (ColorType::Rgb8, true) => (0, 24, ImageType::RunTrueColor),
                 (ColorType::La8, true) => (8, 8, ImageType::RunGrayScale),

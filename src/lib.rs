@@ -185,6 +185,9 @@ pub mod buffer {
         ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
         Pixels, PixelsMut, Rows, RowsMut,
     };
+
+    #[cfg(feature = "rayon")]
+    pub use crate::buffer_par::*;
 }
 
 // Math utils
@@ -280,6 +283,8 @@ pub mod codecs {
 }
 
 mod animation;
+#[cfg(feature = "rayon")]
+mod buffer_par;
 #[path = "buffer.rs"]
 mod buffer_;
 mod color;

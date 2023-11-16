@@ -8,21 +8,6 @@ pub(super) struct ZlibStream {
     state: Box<fdeflate::Decompressor>,
     /// If there has been a call to decompress already.
     started: bool,
-    /// A buffer of compressed data.
-    /// We use this for a progress guarantee. The data in the input stream is chunked as given by
-    /// the underlying stream buffer. We will not read any more data until the current buffer has
-    /// been fully consumed. The zlib decompression can not fully consume all the data when it is
-    /// in the middle of the stream, it will treat full symbols and maybe the last bytes need to be
-    /// treated in a special way. The exact reason isn't as important but the interface does not
-    /// promise us this. Now, the complication is that the _current_ chunking information of PNG
-    /// alone is not enough to determine this as indeed the compressed stream is the concatenation
-    /// of all consecutive `IDAT`/`fdAT` chunks. We would need to inspect the next chunk header.
-    ///
-    /// Thus, there needs to be a buffer that allows fully clearing a chunk so that the next chunk
-    /// type can be inspected.
-    in_buffer: Vec<u8>,
-    /// The logical start of the `in_buffer`.
-    in_pos: usize,
     /// Remaining buffered decoded bytes.
     /// The decoder sometimes wants inspect some already finished bytes for further decoding. So we
     /// keep a total of 32KB of decoded data available as long as more data may be appended.
@@ -42,8 +27,6 @@ impl ZlibStream {
         ZlibStream {
             state: Box::new(Decompressor::new()),
             started: false,
-            in_buffer: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
-            in_pos: 0,
             out_buffer: vec![0; 2 * CHUNCK_BUFFER_SIZE],
             out_pos: 0,
             ignore_adler32: true,
@@ -52,8 +35,6 @@ impl ZlibStream {
 
     pub(crate) fn reset(&mut self) {
         self.started = false;
-        self.in_buffer.clear();
-        self.in_pos = 0;
         self.out_buffer.clear();
         self.out_pos = 0;
         *self.state = Decompressor::new();
@@ -93,33 +74,12 @@ impl ZlibStream {
             self.state.ignore_adler32();
         }
 
-        let in_data = if self.in_buffer.is_empty() {
-            data
-        } else {
-            &self.in_buffer[self.in_pos..]
-        };
-
-        let (mut in_consumed, out_consumed) = self
+        let (in_consumed, out_consumed) = self
             .state
-            .read(in_data, self.out_buffer.as_mut_slice(), self.out_pos, false)
+            .read(data, self.out_buffer.as_mut_slice(), self.out_pos, false)
             .map_err(|err| {
                 DecodingError::Format(FormatErrorInner::CorruptFlateStream { err }.into())
             })?;
-
-        if !self.in_buffer.is_empty() {
-            self.in_pos += in_consumed;
-            in_consumed = 0;
-        }
-
-        if self.in_buffer.len() == self.in_pos {
-            self.in_buffer.clear();
-            self.in_pos = 0;
-        }
-
-        if in_consumed == 0 {
-            self.in_buffer.extend_from_slice(data);
-            in_consumed = data.len();
-        }
 
         self.started = true;
         self.out_pos += out_consumed;
@@ -141,26 +101,16 @@ impl ZlibStream {
             return Ok(());
         }
 
-        let tail = self.in_buffer.split_off(0);
-        let tail = &tail[self.in_pos..];
-
-        let mut start = 0;
         loop {
             self.prepare_vec_for_appending();
 
             let (in_consumed, out_consumed) = self
                 .state
-                .read(
-                    &tail[start..],
-                    self.out_buffer.as_mut_slice(),
-                    self.out_pos,
-                    true,
-                )
+                .read(&[], self.out_buffer.as_mut_slice(), self.out_pos, true)
                 .map_err(|err| {
                     DecodingError::Format(FormatErrorInner::CorruptFlateStream { err }.into())
                 })?;
 
-            start += in_consumed;
             self.out_pos += out_consumed;
 
             if self.state.is_done() {

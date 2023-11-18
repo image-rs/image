@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::io::{self, Cursor, Error, Read};
+use std::io::{self, Cursor, Error, Read, Seek};
 use std::{error, fmt};
 
 use super::decoder::{
@@ -68,7 +68,8 @@ pub(crate) struct WebPExtendedInfo {
 #[derive(Debug)]
 enum ExtendedImageData {
     Animation {
-        frames: Vec<AnimatedFrame>,
+        frames: Vec<Vec<u8>>,
+        first_frame: AnimatedFrame,
         anim_info: WebPAnimatedInfo,
     },
     Static(WebPStatic),
@@ -95,7 +96,7 @@ impl ExtendedImage {
 
     pub(crate) fn color_type(&self) -> ColorType {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Animation { first_frame, .. } => &first_frame.image,
             ExtendedImageData::Static(image) => image,
         }
         .color_type()
@@ -112,19 +113,35 @@ impl ExtendedImage {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                if let ExtendedImageData::Animation { frames, anim_info } = &self.image.image {
-                    let frame = frames.get(self.index);
-                    match frame {
-                        Some(anim_image) => {
-                            self.index += 1;
-                            ExtendedImage::draw_subimage(
-                                &mut self.canvas,
-                                anim_image,
-                                anim_info.background_color,
-                            )
-                        }
-                        None => None,
-                    }
+                if let ExtendedImageData::Animation {
+                    frames,
+                    anim_info,
+                    first_frame,
+                } = &self.image.image
+                {
+                    let anim_frame_data = frames.get(self.index)?;
+                    let anim_frame;
+                    let frame;
+
+                    if self.index == 0 {
+                        // Use already decoded first frame
+                        anim_frame = first_frame;
+                    } else {
+                        frame = read_anim_frame(
+                            &mut Cursor::new(anim_frame_data),
+                            self.image.info.canvas_width,
+                            self.image.info.canvas_height,
+                        )
+                        .ok()?;
+                        anim_frame = &frame;
+                    };
+
+                    self.index += 1;
+                    ExtendedImage::draw_subimage(
+                        &mut self.canvas,
+                        anim_frame,
+                        anim_info.background_color,
+                    )
                 } else {
                     None
                 }
@@ -154,7 +171,8 @@ impl ExtendedImage {
         mut info: WebPExtendedInfo,
     ) -> ImageResult<ExtendedImage> {
         let mut anim_info: Option<WebPAnimatedInfo> = None;
-        let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
+        let mut anim_frames: Vec<Vec<u8>> = Vec::new();
+        let mut anim_first_frame: Option<AnimatedFrame> = None;
         let mut static_frame: Option<WebPStatic> = None;
         //go until end of file and while chunk headers are valid
         while let Some((mut cursor, chunk)) = read_extended_chunk(reader)? {
@@ -168,8 +186,21 @@ impl ExtendedImage {
                     }
                 }
                 WebPRiffChunk::ANMF => {
-                    let frame = read_anim_frame(cursor, info.canvas_width, info.canvas_height)?;
-                    anim_frames.push(frame);
+                    let mut frame_data = Vec::new();
+
+                    // Store first frame decoded to avoid decoding it for certain function calls
+                    if anim_first_frame.is_none() {
+                        anim_first_frame = Some(read_anim_frame(
+                            &mut cursor,
+                            info.canvas_width,
+                            info.canvas_height,
+                        )?);
+
+                        cursor.rewind().unwrap();
+                    }
+
+                    cursor.read_to_end(&mut frame_data)?;
+                    anim_frames.push(frame_data);
                 }
                 WebPRiffChunk::ALPH => {
                     if static_frame.is_none() {
@@ -210,15 +241,11 @@ impl ExtendedImage {
             }
         }
 
-        let image = if let Some(info) = anim_info {
-            if anim_frames.is_empty() {
-                return Err(ImageError::IoError(Error::from(
-                    io::ErrorKind::UnexpectedEof,
-                )));
-            }
+        let image = if let (Some(anim_info), Some(first_frame)) = (anim_info, anim_first_frame) {
             ExtendedImageData::Animation {
                 frames: anim_frames,
-                anim_info: info,
+                first_frame,
+                anim_info,
             }
         } else if let Some(frame) = static_frame {
             ExtendedImageData::Static(frame)
@@ -335,8 +362,11 @@ impl ExtendedImage {
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, anim_info } => {
-                let first_frame = &frames[0];
+            ExtendedImageData::Animation {
+                anim_info,
+                first_frame,
+                ..
+            } => {
                 let (canvas_width, canvas_height) = self.dimensions();
                 if canvas_width == first_frame.width && canvas_height == first_frame.height {
                     first_frame.image.fill_buf(buf);
@@ -361,7 +391,7 @@ impl ExtendedImage {
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Animation { first_frame, .. } => &first_frame.image,
             ExtendedImageData::Static(image) => image,
         }
         .get_buf_size()

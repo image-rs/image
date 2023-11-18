@@ -8,6 +8,7 @@ use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 /// Parallel iterator over pixel refs.
+#[derive(Clone)]
 pub struct PixelsPar<'a, P>
 where
     P: Pixel + Sync + 'a,
@@ -56,18 +57,6 @@ where
         self.chunks
             .map(|v| <P as Pixel>::from_slice(v))
             .with_producer(callback)
-    }
-}
-
-impl<P> Clone for PixelsPar<'_, P>
-where
-    P: Pixel + Sync,
-    P::Subpixel: Sync,
-{
-    fn clone(&self) -> Self {
-        PixelsPar {
-            chunks: self.chunks.clone(),
-        }
     }
 }
 
@@ -148,6 +137,7 @@ where
 }
 
 /// Parallel iterator over pixel refs and their coordinates.
+#[derive(Clone)]
 pub struct EnumeratePixelsPar<'a, P>
 where
     P: Pixel + Sync + 'a,
@@ -218,19 +208,6 @@ where
                 )
             })
             .with_producer(callback)
-    }
-}
-
-impl<P> Clone for EnumeratePixelsPar<'_, P>
-where
-    P: Pixel + Sync,
-    P::Subpixel: Sync,
-{
-    fn clone(&self) -> Self {
-        EnumeratePixelsPar {
-            pixels: self.pixels.clone(),
-            width: self.width,
-        }
     }
 }
 

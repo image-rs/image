@@ -283,10 +283,10 @@ pub mod codecs {
 }
 
 mod animation;
-#[cfg(feature = "rayon")]
-mod buffer_par;
 #[path = "buffer.rs"]
 mod buffer_;
+#[cfg(feature = "rayon")]
+mod buffer_par;
 mod color;
 mod dynimage;
 mod image;

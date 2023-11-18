@@ -423,8 +423,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use rayon::iter::{ParallelIterator, IndexedParallelIterator};
-    use crate::{RgbImage, Rgb};
+    use crate::{Rgb, RgbImage};
+    use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 
     fn test_width_height(width: u32, height: u32, len: usize) {
         let mut image = RgbImage::new(width, height);
@@ -481,7 +481,7 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use crate::{RgbImage, Rgb};
+    use crate::{Rgb, RgbImage};
 
     const S: u32 = 1024;
 
@@ -489,9 +489,7 @@ mod benchmarks {
     fn creation(b: &mut test::Bencher) {
         let mut bytes = 0;
         b.iter(|| {
-            let img = RgbImage::from_fn(S, S, |_, _| {
-                test::black_box(pixel_func())
-            });
+            let img = RgbImage::from_fn(S, S, |_, _| test::black_box(pixel_func()));
 
             bytes += img.as_raw().len() as u64;
         });
@@ -503,9 +501,7 @@ mod benchmarks {
     fn creation_par(b: &mut test::Bencher) {
         let mut bytes = 0;
         b.iter(|| {
-            let img = RgbImage::from_par_fn(S, S, |_, _| {
-                test::black_box(pixel_func())
-            });
+            let img = RgbImage::from_par_fn(S, S, |_, _| test::black_box(pixel_func()));
 
             bytes += img.as_raw().len() as u64;
         });

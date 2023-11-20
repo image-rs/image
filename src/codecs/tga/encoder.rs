@@ -91,8 +91,8 @@ impl<W: Write> TgaEncoder<W> {
         let bytes_per_pixel = color_type.bytes_per_pixel();
         let capacity_in_bytes = usize::from(MAX_RUN_LENGTH) * usize::from(bytes_per_pixel);
 
-        // Buffer to temporarily store
-        // pixels that cannot be run-length encoded
+        // Buffer to temporarily store pixels
+        // so we can choose whether to use RLE or not when we need to
         let mut buf = Vec::with_capacity(capacity_in_bytes);
 
         let mut counter = 0;

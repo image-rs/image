@@ -59,9 +59,9 @@ impl<W: Write> TgaEncoder<W> {
         }
     }
 
-    /// Enables run-length encoding
-    pub fn use_rle(mut self) -> TgaEncoder<W> {
-        self.use_rle = true;
+    /// Disables run-length encoding
+    pub fn disable_rle(mut self) -> TgaEncoder<W> {
+        self.use_rle = false;
         self
     }
 
@@ -309,7 +309,7 @@ mod tests {
         fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
             let mut encoded_data = Vec::new();
             {
-                let encoder = TgaEncoder::new(&mut encoded_data).use_rle();
+                let encoder = TgaEncoder::new(&mut encoded_data);
                 encoder
                     .encode(image, width, height, c)
                     .expect("could not encode image");
@@ -415,7 +415,7 @@ mod tests {
         fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
             let mut encoded_data = Vec::new();
             {
-                let encoder = TgaEncoder::new(&mut encoded_data);
+                let encoder = TgaEncoder::new(&mut encoded_data).disable_rle();
                 encoder
                     .encode(image, width, height, c)
                     .expect("could not encode image");

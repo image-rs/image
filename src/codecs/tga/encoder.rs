@@ -303,6 +303,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_compression_diff() {
+        let image = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2];
+
+        let uncompressed_bytes = {
+            let mut encoded_data = Vec::new();
+            let encoder = TgaEncoder::new(&mut encoded_data).disable_rle();
+            encoder
+                .encode(&image, 5, 1, ColorType::Rgb8)
+                .expect("could not encode image");
+
+            encoded_data
+        };
+
+        let compressed_bytes = {
+            let mut encoded_data = Vec::new();
+            let encoder = TgaEncoder::new(&mut encoded_data);
+            encoder
+                .encode(&image, 5, 1, ColorType::Rgb8)
+                .expect("could not encode image");
+
+            encoded_data
+        };
+
+        assert!(uncompressed_bytes.len() > compressed_bytes.len());
+    }
+
     mod compressed {
         use super::*;
 

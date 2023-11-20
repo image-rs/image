@@ -55,7 +55,7 @@ impl<W: Write> TgaEncoder<W> {
     pub fn new(w: W) -> TgaEncoder<W> {
         TgaEncoder {
             writer: w,
-            use_rle: false,
+            use_rle: true,
         }
     }
 

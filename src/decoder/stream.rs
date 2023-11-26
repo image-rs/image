@@ -385,6 +385,7 @@ pub struct DecodeOptions {
     ignore_adler32: bool,
     ignore_crc: bool,
     ignore_text_chunk: bool,
+    skip_ancillary_crc_failures: bool,
 }
 
 impl Default for DecodeOptions {
@@ -393,6 +394,7 @@ impl Default for DecodeOptions {
             ignore_adler32: true,
             ignore_crc: false,
             ignore_text_chunk: false,
+            skip_ancillary_crc_failures: true,
         }
     }
 }
@@ -424,6 +426,13 @@ impl DecodeOptions {
     /// Defaults to `false`.
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.ignore_text_chunk = ignore_text_chunk;
+    }
+
+    /// Ignore ancillary chunks if CRC fails
+    ///
+    /// Defaults to `true`
+    pub fn set_skip_ancillary_crc_failures(&mut self, skip_ancillary_crc_failures: bool) {
+        self.skip_ancillary_crc_failures = skip_ancillary_crc_failures;
     }
 }
 
@@ -528,6 +537,14 @@ impl StreamingDecoder {
     /// The decoder defaults to `false`.
     pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
         self.decode_options.set_ignore_crc(ignore_crc)
+    }
+
+    /// Ignore ancillary chunks if CRC fails
+    ///
+    /// Defaults to `true`
+    pub fn set_skip_ancillary_crc_failures(&mut self, skip_ancillary_crc_failures: bool) {
+        self.decode_options
+            .set_skip_ancillary_crc_failures(skip_ancillary_crc_failures)
     }
 
     /// Low level StreamingDecoder interface.
@@ -647,6 +664,12 @@ impl StreamingDecoder {
                             } else {
                                 Ok((1, Decoded::ChunkComplete(val, type_str)))
                             }
+                        } else if self.decode_options.skip_ancillary_crc_failures
+                            && !chunk::is_critical(type_str)
+                        {
+                            // Ignore ancillary chunk with invalid CRC
+                            self.state = Some(State::U32(U32ValueKind::Length));
+                            Ok((1, Decoded::Nothing))
                         } else {
                             Err(DecodingError::Format(
                                 FormatErrorInner::CrcMismatch {

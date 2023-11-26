@@ -83,15 +83,20 @@ impl Header {
         color_type: ColorType,
         width: u16,
         height: u16,
+        use_rle: bool,
     ) -> ImageResult<Self> {
         let mut header = Self::default();
 
         if width > 0 && height > 0 {
-            let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
-                ColorType::Rgba8 => (8, 24, ImageType::RawTrueColor),
-                ColorType::Rgb8 => (0, 24, ImageType::RawTrueColor),
-                ColorType::La8 => (8, 8, ImageType::RawGrayScale),
-                ColorType::L8 => (0, 8, ImageType::RawGrayScale),
+            let (num_alpha_bits, other_channel_bits, image_type) = match (color_type, use_rle) {
+                (ColorType::Rgba8, true) => (8, 24, ImageType::RunTrueColor),
+                (ColorType::Rgb8, true) => (0, 24, ImageType::RunTrueColor),
+                (ColorType::La8, true) => (8, 8, ImageType::RunGrayScale),
+                (ColorType::L8, true) => (0, 8, ImageType::RunGrayScale),
+                (ColorType::Rgba8, false) => (8, 24, ImageType::RawTrueColor),
+                (ColorType::Rgb8, false) => (0, 24, ImageType::RawTrueColor),
+                (ColorType::La8, false) => (8, 8, ImageType::RawGrayScale),
+                (ColorType::L8, false) => (0, 8, ImageType::RawGrayScale),
                 _ => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(

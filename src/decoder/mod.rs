@@ -732,7 +732,9 @@ impl<R: Read> Reader<R> {
 
             // Clear the current buffer before appending more data.
             if self.prev_start > 0 {
-                self.data_stream.drain(..self.prev_start).for_each(drop);
+                self.data_stream.copy_within(self.prev_start.., 0);
+                self.data_stream
+                    .truncate(self.data_stream.len() - self.prev_start);
                 self.current_start -= self.prev_start;
                 self.prev_start = 0;
             }

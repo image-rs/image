@@ -116,9 +116,12 @@
 #![deny(unreachable_pub)]
 #![deny(deprecated)]
 #![deny(missing_copy_implementations)]
-#![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
+
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
+
+#![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -187,6 +190,7 @@ pub mod buffer {
     };
 
     #[cfg(feature = "rayon")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
     pub use crate::buffer_par::*;
 }
 
@@ -286,6 +290,7 @@ mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
 #[cfg(feature = "rayon")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
 mod buffer_par;
 mod color;
 mod dynimage;

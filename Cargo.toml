@@ -90,6 +90,10 @@ avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
 # Requires rustc nightly for feature test.
 benchmarks = []
 
+[package.metadata.docs.rs]
+features = ["rayon"]
+rustdoc-args = ["--cfg", "doc_cfg"]
+
 [[bench]]
 path = "benches/decode.rs"
 name = "decode"

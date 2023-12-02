@@ -59,7 +59,7 @@ fn run_encode(
         _ => png::AdaptiveFilterType::NonAdaptive,
     });
     let mut encoder = encoder.write_header().unwrap();
-    encoder.write_image_data(&image).unwrap();
+    encoder.write_image_data(image).unwrap();
     encoder.finish().unwrap();
     reencoded
 }

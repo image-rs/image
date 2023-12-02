@@ -571,8 +571,8 @@ impl StreamingDecoder {
         Ok((len - buf.len(), Decoded::Nothing))
     }
 
-    fn next_state<'a>(
-        &'a mut self,
+    fn next_state(
+        &mut self,
         buf: &[u8],
         image_data: &mut Vec<u8>,
     ) -> Result<(usize, Decoded), DecodingError> {
@@ -1691,7 +1691,7 @@ mod tests {
         let mut data = Vec::new();
         data.write_u32::<byteorder::BigEndian>(sequence_number)
             .unwrap();
-        data.write_all(&image_data).unwrap();
+        data.write_all(image_data).unwrap();
         write_chunk(w, b"fdAT", &data);
     }
 

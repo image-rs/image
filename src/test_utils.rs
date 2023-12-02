@@ -80,13 +80,11 @@ pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
         let mut row = Vec::new();
         row.write_u8(0).unwrap(); // filter = no filter
 
-        let row_pixels = (0..width)
-            .map(|i| {
-                let color: u8 = (i * 255 / width) as u8;
-                let alpha: u8 = 0xff;
-                [color, 255 - color, color / 2, alpha]
-            })
-            .flatten();
+        let row_pixels = (0..width).flat_map(|i| {
+            let color: u8 = (i * 255 / width) as u8;
+            let alpha: u8 = 0xff;
+            [color, 255 - color, color / 2, alpha]
+        });
         row.extend(row_pixels);
 
         std::iter::repeat(row)

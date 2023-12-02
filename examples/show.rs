@@ -133,8 +133,8 @@ where
     let src_rect = Rect {
         left: 0,
         bottom: 0,
-        width: src_dim.0 as u32,
-        height: src_dim.1 as u32,
+        width: src_dim.0,
+        height: src_dim.1,
     };
     let target_dim = target.get_dimensions();
     let target_rect = BlitTarget {

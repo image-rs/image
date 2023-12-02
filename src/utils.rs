@@ -316,7 +316,7 @@ fn test_expand_adam7_bits() {
             expected(start, 8, 4)
         );
 
-        let start = (8 * line_no + 4) as usize * width as usize;
+        let start = (8 * line_no + 4) * width;
 
         assert_eq!(
             expand_adam7_bits(3, width, line_no, bits_pp).collect::<Vec<_>>(),

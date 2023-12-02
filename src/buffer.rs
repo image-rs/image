@@ -888,7 +888,7 @@ where
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     // TODO: choose name under which to expose.
-    fn inner_pixels_mut(&mut self) -> &mut [P::Subpixel] {
+    pub(crate) fn inner_pixels_mut(&mut self) -> &mut [P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &mut self.data[..len]
     }

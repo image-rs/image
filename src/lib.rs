@@ -111,17 +111,15 @@
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
+#![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
 #![deny(deprecated)]
 #![deny(missing_copy_implementations)]
-
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
-
-#![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
-#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;

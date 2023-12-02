@@ -169,6 +169,14 @@ impl<'a, W: Write> Encoder<'a, W> {
         }
     }
 
+    pub fn with_info(w: W, info: Info<'a>) -> Encoder<'a, W> {
+        Encoder {
+            w,
+            info,
+            options: Options::default(),
+        }
+    }
+
     /// Specify that the image is animated.
     ///
     /// `num_frames` controls how many frames the animation has, while

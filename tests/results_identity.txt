@@ -179,6 +179,7 @@ tests/bugfixes/acid2.png: 2051796287
 tests/bugfixes/invalid_palette_index.png: 64128641
 tests/bugfixes/gama-srgb-order-issue#304.png: 275287206
 tests/bugfixes/issue#1825.png: 3386502267
+tests/bugfixes/issue#430.png: 574381763
 tests/bugfixes/issue#403.png: 2499474695
 tests/bugfixes/issue#202.png: 29900969
 tests/bugfixes/large-text-chunks-issue#337.png: 3071936103

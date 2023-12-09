@@ -130,17 +130,20 @@ pub trait Lerp: Bounded + NumCast {
     }
 }
 
-impl Lerp for u8 {
-    type Ratio = f32;
+macro_rules! impl_lerp {
+    ($base:ty: $rt:ty) => {
+        impl Lerp for $base {
+            type Ratio = $rt;
+        }
+    };
+    ($($b:ty: $r:ty,)*) => {
+        $(
+            impl_lerp!($b: $r);
+        )*
+    }
 }
 
-impl Lerp for u16 {
-    type Ratio = f32;
-}
-
-impl Lerp for u32 {
-    type Ratio = f64;
-}
+impl_lerp!(u8: f32, u16: f32, u32: f64,);
 
 impl Lerp for f32 {
     type Ratio = f32;

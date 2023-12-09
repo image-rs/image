@@ -163,38 +163,30 @@ pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
     const COLOR_TYPE: ColorType;
 }
 
-impl PixelWithColorType for Rgb<u8> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb8;
-}
-impl PixelWithColorType for Rgb<u16> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb16;
-}
-impl PixelWithColorType for Rgb<f32> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb32F;
+macro_rules! impl_pixel_with_color_ty {
+    ($base:ty: $ct:expr) => {
+        impl PixelWithColorType for $base {
+            const COLOR_TYPE: ColorType = $ct;
+        }
+    };
+    (rgb; $($base:ty: $ct:expr,)*) => {
+        $(impl_pixel_with_color_ty!(Rgb<$base>: $ct);)*
+    };
+    (rgba; $($base:ty: $ct:expr,)*) => {
+        $(impl_pixel_with_color_ty!(Rgba<$base>: $ct);)*
+    };
+    (luma; $($base:ty: $ct:expr,)*) => {
+        $(impl_pixel_with_color_ty!(Luma<$base>: $ct);)*
+    };
+    (lumaA; $($base:ty: $ct:expr,)*) => {
+        $(impl_pixel_with_color_ty!(LumaA<$base>: $ct);)*
+    };
 }
 
-impl PixelWithColorType for Rgba<u8> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba8;
-}
-impl PixelWithColorType for Rgba<u16> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba16;
-}
-impl PixelWithColorType for Rgba<f32> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba32F;
-}
-
-impl PixelWithColorType for Luma<u8> {
-    const COLOR_TYPE: ColorType = ColorType::L8;
-}
-impl PixelWithColorType for Luma<u16> {
-    const COLOR_TYPE: ColorType = ColorType::L16;
-}
-impl PixelWithColorType for LumaA<u8> {
-    const COLOR_TYPE: ColorType = ColorType::La8;
-}
-impl PixelWithColorType for LumaA<u16> {
-    const COLOR_TYPE: ColorType = ColorType::La16;
-}
+impl_pixel_with_color_ty!(rgb; u8: ColorType::Rgb8, u16: ColorType::Rgb16, f32: ColorType::Rgb32F,);
+impl_pixel_with_color_ty!(rgba; u8: ColorType::Rgba8, u16: ColorType::Rgba16, f32: ColorType::Rgba32F,);
+impl_pixel_with_color_ty!(luma; u8: ColorType::L8, u16: ColorType::L16,);
+impl_pixel_with_color_ty!(lumaA; u8: ColorType::La8, u16: ColorType::La16,);
 
 /// Prevents down-stream users from implementing the `Primitive` trait
 mod private {

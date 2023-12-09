@@ -87,44 +87,28 @@ pub trait Enlargeable: Sized + Bounded + NumCast {
     }
 }
 
-impl Enlargeable for u8 {
-    type Larger = u32;
+macro_rules! impl_enlargeable {
+    ($base:ty: $larger:ty) => {
+        impl Enlargeable for $base {
+            type Larger = $larger;
+        }
+    };
+    ($($b:ty: $l:ty,)*) => {
+        $(
+            impl_enlargeable!($b: $l);
+        )*
+    }
 }
-impl Enlargeable for u16 {
-    type Larger = u32;
-}
-impl Enlargeable for u32 {
-    type Larger = u64;
-}
-impl Enlargeable for u64 {
-    type Larger = u128;
-}
-impl Enlargeable for usize {
-    // Note: On 32-bit architectures, u64 should be enough here.
-    type Larger = u128;
-}
-impl Enlargeable for i8 {
-    type Larger = i32;
-}
-impl Enlargeable for i16 {
-    type Larger = i32;
-}
-impl Enlargeable for i32 {
-    type Larger = i64;
-}
-impl Enlargeable for i64 {
-    type Larger = i128;
-}
-impl Enlargeable for isize {
-    // Note: On 32-bit architectures, i64 should be enough here.
-    type Larger = i128;
-}
-impl Enlargeable for f32 {
-    type Larger = f64;
-}
-impl Enlargeable for f64 {
-    type Larger = f64;
-}
+
+impl_enlargeable!(u8: u32, u16: u32, u32: u64, u64: u128,);
+// NOTE: On 32-bit architectures, u64 should be enough here.
+impl_enlargeable!(usize: u128);
+
+impl_enlargeable!(i8: i32, i16: i32, i32: i64, i64: i128,);
+// NOTE: On 32-bit architectures, i64 should be enough here.
+impl_enlargeable!(isize: i128);
+
+impl_enlargeable!(f32: f64, f64: f64,);
 
 /// Linear interpolation without involving floating numbers.
 pub trait Lerp: Bounded + NumCast {

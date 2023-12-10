@@ -119,6 +119,7 @@
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;

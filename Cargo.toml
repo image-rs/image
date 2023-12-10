@@ -55,6 +55,10 @@ criterion = "0.5.0"
 # feature when testing, so `cargo test` works correctly.
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, features = ["platform_independent"] }
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]

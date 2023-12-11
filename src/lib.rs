@@ -208,22 +208,23 @@ pub mod flat;
 ///
 /// <!--- NOTE: Make sure to keep this table in sync with the README -->
 ///
-/// | Format | Decoding | Encoding |
-/// | ------ | -------- | -------- |
-/// | AVIF   | Only 8-bit | Lossy |
-/// | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
-/// | DDS    | DXT1, DXT3, DXT5 | No |
-/// | Farbfeld | Yes | Yes |
-/// | GIF    | Yes | Yes |
-/// | ICO    | Yes | Yes |
-/// | JPEG   | Baseline and progressive | Baseline JPEG |
-/// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
-/// | PNG    | All supported color types | Same as decoding |
-/// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
-/// | QOI    | Yes | Yes |
-/// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
-/// | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
-/// | WebP   | Yes | Rgb8, Rgba8 |
+/// | Format   | Decoding                                  | Encoding                                |
+/// | -------- | ----------------------------------------- | --------------------------------------- |
+/// | AVIF     | Only 8-bit                                | Lossy                                   |
+/// | BMP      | Yes                                       | Rgb8, Rgba8, Gray8, GrayA8              |
+/// | DDS      | DXT1, DXT3, DXT5                          | No                                      |
+/// | Farbfeld | Yes                                       | Yes                                     |
+/// | GIF      | Yes                                       | Yes                                     |
+/// | HDR      | Yes                                       | Yes                                     |
+/// | ICO      | Yes                                       | Yes                                     |
+/// | JPEG     | Baseline and progressive                  | Baseline JPEG                           |
+/// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression)      | Rgb32F, Rgba32F (no dwa compression)    |
+/// | PNG      | All supported color types                 | Same as decoding                        |
+/// | PNM      | PBM, PGM, PPM, standard PAM               | Yes                                     |
+/// | QOI      | Yes                                       | Yes                                     |
+/// | TGA      | Yes                                       | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+/// | TIFF     | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8                      |
+/// | WebP     | Yes                                       | Rgb8, Rgba8                             |
 ///
 /// ## A note on format specific features
 ///

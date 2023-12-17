@@ -17,6 +17,7 @@ use crate::common::{
 };
 use crate::text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk};
 use crate::traits::ReadBytesExt;
+use crate::Limits;
 
 /// TODO check if these size are reasonable
 pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
@@ -473,6 +474,7 @@ pub struct StreamingDecoder {
     /// some chunk types can only appear before or after an IDAT chunk.)
     have_idat: bool,
     decode_options: DecodeOptions,
+    pub(crate) limits: Limits,
 }
 
 struct ChunkState {
@@ -510,6 +512,7 @@ impl StreamingDecoder {
             current_seq_no: None,
             have_idat: false,
             decode_options,
+            limits: Limits { bytes: usize::MAX },
         }
     }
 
@@ -850,12 +853,12 @@ impl StreamingDecoder {
     }
 
     fn reserve_current_chunk(&mut self) -> Result<(), DecodingError> {
-        // FIXME: use limits, also do so in iccp/zlib decompression.
-        const MAX: usize = 0x10_0000;
+        let max = self.limits.bytes;
         let buffer = &mut self.current_chunk.raw_bytes;
 
         // Double if necessary, but no more than until the limit is reached.
-        let reserve_size = MAX.saturating_sub(buffer.capacity()).min(buffer.len());
+        let reserve_size = max.saturating_sub(buffer.capacity()).min(buffer.len());
+        self.limits.reserve_bytes(reserve_size)?;
         buffer.reserve_exact(reserve_size);
 
         if buffer.capacity() == buffer.len() {
@@ -986,6 +989,8 @@ impl StreamingDecoder {
                 FormatErrorInner::DuplicateChunk { kind: chunk::PLTE }.into(),
             ))
         } else {
+            self.limits
+                .reserve_bytes(self.current_chunk.raw_bytes.len())?;
             info.palette = Some(Cow::Owned(self.current_chunk.raw_bytes.clone()));
             Ok(Decoded::Nothing)
         }
@@ -999,6 +1004,8 @@ impl StreamingDecoder {
             ));
         }
         let (color_type, bit_depth) = { (info.color_type, info.bit_depth as u8) };
+        self.limits
+            .reserve_bytes(self.current_chunk.raw_bytes.len())?;
         let mut vec = self.current_chunk.raw_bytes.clone();
         let len = vec.len();
         match color_type {
@@ -1226,13 +1233,13 @@ impl StreamingDecoder {
             let mut inflater = ZlibStream::new();
             while !buf.is_empty() {
                 let consumed_bytes = inflater.decompress(buf, &mut profile)?;
-                if profile.len() > 8000000 {
-                    // TODO: this should use Limits.bytes
+                if profile.len() > self.limits.bytes {
                     return Err(DecodingError::LimitsExceeded);
                 }
                 buf = &buf[consumed_bytes..];
             }
             inflater.finish_compressed_chunks(&mut profile)?;
+            self.limits.reserve_bytes(profile.len())?;
 
             info.icc_profile = Some(Cow::Owned(profile));
             Ok(Decoded::Nothing)
@@ -1335,6 +1342,7 @@ impl StreamingDecoder {
 
     fn parse_text(&mut self) -> Result<Decoded, DecodingError> {
         let buf = &self.current_chunk.raw_bytes[..];
+        self.limits.reserve_bytes(buf.len())?;
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
@@ -1349,6 +1357,7 @@ impl StreamingDecoder {
 
     fn parse_ztxt(&mut self) -> Result<Decoded, DecodingError> {
         let buf = &self.current_chunk.raw_bytes[..];
+        self.limits.reserve_bytes(buf.len())?;
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
@@ -1368,6 +1377,7 @@ impl StreamingDecoder {
 
     fn parse_itxt(&mut self) -> Result<Decoded, DecodingError> {
         let buf = &self.current_chunk.raw_bytes[..];
+        self.limits.reserve_bytes(buf.len())?;
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 

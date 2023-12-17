@@ -59,6 +59,17 @@ pub struct Limits {
     pub bytes: usize,
 }
 
+impl Limits {
+    pub(crate) fn reserve_bytes(&mut self, bytes: usize) -> Result<(), DecodingError> {
+        if self.bytes >= bytes {
+            self.bytes -= bytes;
+            Ok(())
+        } else {
+            Err(DecodingError::LimitsExceeded)
+        }
+    }
+}
+
 impl Default for Limits {
     fn default() -> Limits {
         Limits {
@@ -72,8 +83,6 @@ pub struct Decoder<R: Read> {
     read_decoder: ReadDecoder<R>,
     /// Output transformations
     transform: Transformations,
-    /// Limits on resources the Decoder is allowed to use
-    limits: Limits,
 }
 
 /// A row of data with interlace information attached.
@@ -132,27 +141,31 @@ impl<R: Read> Decoder<R> {
 
     /// Create a new decoder configuration with custom limits.
     pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
+        let mut decoder = StreamingDecoder::new();
+        decoder.limits = limits;
+
         Decoder {
             read_decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
-                decoder: StreamingDecoder::new(),
+                decoder,
                 at_eof: false,
             },
             transform: Transformations::IDENTITY,
-            limits,
         }
     }
 
     /// Create a new decoder configuration with custom `DecodeOptions`.
     pub fn new_with_options(r: R, decode_options: DecodeOptions) -> Decoder<R> {
+        let mut decoder = StreamingDecoder::new_with_options(decode_options);
+        decoder.limits = Limits::default();
+
         Decoder {
             read_decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
-                decoder: StreamingDecoder::new_with_options(decode_options),
+                decoder,
                 at_eof: false,
             },
             transform: Transformations::IDENTITY,
-            limits: Limits::default(),
         }
     }
 
@@ -180,7 +193,7 @@ impl<R: Read> Decoder<R> {
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_limits(&mut self, limits: Limits) {
-        self.limits = limits;
+        self.read_decoder.decoder.limits = limits;
     }
 
     /// Read the PNG header and return the information contained within.
@@ -215,7 +228,6 @@ impl<R: Read> Decoder<R> {
             current_start: 0,
             transform: self.transform,
             scratch_buffer: Vec::new(),
-            limits: self.limits,
         };
 
         // Check if the decoding buffer of a single raw line has a valid size.
@@ -359,8 +371,6 @@ pub struct Reader<R: Read> {
     /// to a byte slice. In a future version of this library, this buffer will be removed and
     /// `next_row` and `next_interlaced_row` will write directly into a user provided output buffer.
     scratch_buffer: Vec<u8>,
-    /// How resources we can spend (for example, on allocation).
-    limits: Limits,
 }
 
 /// The subframe specific information.
@@ -440,9 +450,7 @@ impl<R: Read> Reader<R> {
 
         // Allocate output buffer.
         let buflen = self.output_line_size(self.subframe.width);
-        if buflen > self.limits.bytes {
-            return Err(DecodingError::LimitsExceeded);
-        }
+        self.decoder.decoder.limits.reserve_bytes(buflen)?;
 
         self.prev_start = self.current_start;
 

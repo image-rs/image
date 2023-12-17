@@ -1,12 +1,15 @@
 use std::fs;
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{
+    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
+};
 use png::Decoder;
 
 #[path = "../src/test_utils.rs"]
 mod test_utils;
 
 fn load_all(c: &mut Criterion) {
+    let mut g = c.benchmark_group("decode");
     for entry in fs::read_dir("tests/benches/").unwrap().flatten() {
         match entry.path().extension() {
             Some(st) if st == "png" => {}
@@ -14,30 +17,44 @@ fn load_all(c: &mut Criterion) {
         }
 
         let data = fs::read(entry.path()).unwrap();
-        bench_file(c, data, entry.file_name().into_string().unwrap());
+        bench_file(&mut g, data, entry.file_name().into_string().unwrap());
     }
+    g.finish();
 
-    bench_noncompressed_png(c, 8);
-    bench_noncompressed_png(c, 128);
+    // Small IDATS
+    let mut g = c.benchmark_group("generated-noncompressed-4k-idat");
+    bench_noncompressed_png(&mut g, 8, 4096); // 256 B
+    bench_noncompressed_png(&mut g, 128, 4096); // 64 KB
+    bench_noncompressed_png(&mut g, 2048, 4096); // 16 MB
+    bench_noncompressed_png(&mut g, 12288, 4096); // 576 MB
+    g.finish();
+
+    // Normal IDATS
+    let mut g = c.benchmark_group("generated-noncompressed-64k-idat");
+    bench_noncompressed_png(&mut g, 128, 65536); // 64 KB
+    bench_noncompressed_png(&mut g, 2048, 65536); // 16 MB
+    bench_noncompressed_png(&mut g, 12288, 65536); // 576 MB
+    g.finish();
+
+    // Large IDATS
+    let mut g = c.benchmark_group("generated-noncompressed-2g-idat");
+    bench_noncompressed_png(&mut g, 2048, 0x7fffffff); // 16 MB
+    bench_noncompressed_png(&mut g, 12288, 0x7fffffff); // 576 MB
+    g.finish();
 }
 
-criterion_group!(benches, load_all);
+criterion_group! {benches, load_all}
 criterion_main!(benches);
 
-fn bench_noncompressed_png(c: &mut Criterion, width: u32) {
+fn bench_noncompressed_png(g: &mut BenchmarkGroup<WallTime>, size: u32, idat_bytes: usize) {
     let mut data = Vec::new();
-    test_utils::write_noncompressed_png(&mut data, width);
-    bench_file(
-        c,
-        data,
-        format!("generated-png:noncompressed-{width}x{width}.png"),
-    );
+    test_utils::write_noncompressed_png(&mut data, size, idat_bytes);
+    bench_file(g, data, format!("{size}x{size}.png"));
 }
 
-fn bench_file(c: &mut Criterion, data: Vec<u8>, name: String) {
-    let mut group = c.benchmark_group("decode");
-    if data.len() > 100000 {
-        group.sample_size(20);
+fn bench_file(g: &mut BenchmarkGroup<WallTime>, data: Vec<u8>, name: String) {
+    if data.len() > 1_000_000 {
+        g.sample_size(10);
     }
 
     let decoder = Decoder::new(&*data);
@@ -45,8 +62,8 @@ fn bench_file(c: &mut Criterion, data: Vec<u8>, name: String) {
     let mut image = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut image).unwrap();
 
-    group.throughput(Throughput::Bytes(info.buffer_size() as u64));
-    group.bench_with_input(name, &data, |b, data| {
+    g.throughput(Throughput::Bytes(info.buffer_size() as u64));
+    g.bench_with_input(name, &data, |b, data| {
         b.iter(|| {
             let decoder = Decoder::new(data.as_slice());
             let mut decoder = decoder.read_info().unwrap();

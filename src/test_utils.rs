@@ -27,10 +27,10 @@ use std::io::Write;
 /// discussion](https://github.com/image-rs/image-png/discussions/416#discussioncomment-7436871)
 /// for more details).
 #[allow(dead_code)] // Used from `benches/decoder.rs`
-pub fn write_noncompressed_png(w: &mut impl Write, width: u32) {
+pub fn write_noncompressed_png(w: &mut impl Write, size: u32, idat_bytes: usize) {
     write_png_sig(w);
-    write_rgba8_ihdr_with_width(w, width);
-    write_rgba8_idat_with_width(w, width);
+    write_rgba8_ihdr_with_width(w, size);
+    write_rgba8_idats(w, size, idat_bytes);
     write_iend(w);
 }
 
@@ -103,8 +103,12 @@ pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
 }
 
 /// Writes an IDAT chunk.
-pub fn write_rgba8_idat_with_width(w: &mut impl Write, width: u32) {
-    write_chunk(w, b"IDAT", &generate_rgba8_with_width(width));
+pub fn write_rgba8_idats(w: &mut impl Write, size: u32, idat_bytes: usize) {
+    let data = generate_rgba8_with_width(size);
+
+    for chunk in data.chunks(idat_bytes) {
+        write_chunk(w, b"IDAT", chunk);
+    }
 }
 
 /// Writes an IEND chunk.

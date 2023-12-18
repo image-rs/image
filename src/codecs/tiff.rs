@@ -28,6 +28,7 @@ where
 {
     dimensions: (u32, u32),
     color_type: ColorType,
+    original_color_type: ExtendedColorType,
 
     // We only use an Option here so we can call with_limits on the decoder without moving.
     inner: Option<tiff::decoder::Decoder<R>>,
@@ -42,7 +43,7 @@ where
         let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
-        let color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
+        let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
         match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
@@ -53,7 +54,7 @@ where
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         };
 
-        let color_type = match color_type {
+        let color_type = match tiff_color_type {
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -62,6 +63,7 @@ where
             tiff::ColorType::RGB(16) => ColorType::Rgb16,
             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
+            tiff::ColorType::CMYK(8) => ColorType::Rgb8,
 
             tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
                 return Err(err_unknown_color_type(n))
@@ -74,11 +76,29 @@ where
             }
         };
 
+        let original_color_type = match tiff_color_type {
+            tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
+            _ => color_type.into(),
+        };
+
         Ok(TiffDecoder {
             dimensions,
             color_type,
+            original_color_type,
             inner: Some(inner),
         })
+    }
+
+    // The buffer can be larger for CMYK than the RGB output
+    fn total_bytes_buffer(&self) -> u64 {
+        let dimensions = self.dimensions();
+        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
+        let bytes_per_pixel = if self.original_color_type == ExtendedColorType::Cmyk8 {
+            16
+        } else {
+            u64::from(self.color_type().bytes_per_pixel())
+        };
+        total_pixels.saturating_mul(bytes_per_pixel)
     }
 }
 
@@ -176,6 +196,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.color_type
     }
 
+    fn original_color_type(&self) -> ExtendedColorType {
+        self.original_color_type
+    }
+
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
         if let Some(decoder) = &mut self.inner {
             decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok()
@@ -191,7 +215,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         limits.check_dimensions(width, height)?;
 
         let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
-        let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes());
+        let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes_buffer());
 
         let mut tiff_limits: tiff::decoder::Limits = Default::default();
         tiff_limits.decoding_buffer_size =
@@ -234,6 +258,14 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
+            tiff::decoder::DecodingResult::U8(v)
+                if self.original_color_type == ExtendedColorType::Cmyk8 =>
+            {
+                let mut out_cur = Cursor::new(buf);
+                for cmyk in v.chunks_exact(4) {
+                    out_cur.write_all(&cmyk_to_rgb(cmyk))?;
+                }
+            }
             tiff::decoder::DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
             }
@@ -272,6 +304,18 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
+}
+
+fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
+    let c = cmyk[0] as f32;
+    let m = cmyk[1] as f32;
+    let y = cmyk[2] as f32;
+    let kf = 1. - cmyk[3] as f32 / 255.;
+    [
+        ((255. - c) * kf) as u8,
+        ((255. - m) * kf) as u8,
+        ((255. - y) * kf) as u8,
+    ]
 }
 
 // Utility to simplify and deduplicate error handling during 16-bit encoding.

@@ -991,9 +991,9 @@ where
                 let ic: i32 = NumCast::from(c).unwrap();
                 let id: i32 = NumCast::from(d).unwrap();
 
-                let diff = (ic - id).abs();
+                let diff = ic - id;
 
-                if diff > threshold {
+                if diff.abs() > threshold {
                     let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
 
                     NumCast::from(e).unwrap()

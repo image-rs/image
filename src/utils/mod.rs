@@ -92,6 +92,17 @@ where
     }
 }
 
+#[macro_export]
+macro_rules! read_le {
+    ($r:ident, $ty:ty, $buf:ident) => {{
+        if let Err(e) = $r.read_exact(&mut $buf) {
+            Err(e)
+        } else {
+            Ok(<$ty>::from_le_bytes($buf))
+        }
+    }};
+}
+
 #[cfg(test)]
 mod test {
     #[test]

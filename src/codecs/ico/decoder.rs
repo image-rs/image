@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ReadBytesExt};
+// use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
@@ -158,38 +158,64 @@ impl<R: Read + Seek> IcoDecoder<R> {
 }
 
 fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
-    let _reserved = r.read_u16::<LittleEndian>()?;
-    let _type = r.read_u16::<LittleEndian>()?;
-    let count = r.read_u16::<LittleEndian>()?;
+    let mut buf = [0; 2];
+    // Ignore the reserved bytes.
+    r.read_exact(&mut buf)?;
+    // Ignore the type bytes.
+    r.read_exact(&mut buf)?;
+
+    r.read_exact(&mut buf)?;
+    let count = u16::from_le_bytes(buf);
     (0..count).map(|_| read_entry(r)).collect()
 }
 
 fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+    const WIDTH: usize = 0;
+    const HEIGHT: usize = WIDTH + 1;
+    const COLOR_COUNT: usize = HEIGHT + 1;
+    const RESERVED: usize = COLOR_COUNT + 1;
+    let mut buf = [0; 4];
+    r.read_exact(&mut buf)?;
+    let width = buf[WIDTH];
+    let height = buf[HEIGHT];
+    let color_count = buf[COLOR_COUNT];
+    let reserved = buf[RESERVED];
+
+    let mut buf = [0; 2];
+
+    // This may be either the number of color planes (0 or 1), or the horizontal coordinate
+    // of the hotspot for CUR files.
+    r.read_exact(&mut buf)?;
+    let num_color_planes = u16::from_le_bytes(buf);
+    if num_color_planes > 256 {
+        return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
+    }
+
+    // This may be either the bit depth (may be 0 meaning unspecified),
+    // or the vertical coordinate of the hotspot for CUR files.
+    r.read_exact(&mut buf)?;
+    let bits_per_pixel = u16::from_le_bytes(buf);
+    if bits_per_pixel > 256 {
+        return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+    }
+
+    let mut buf = [0; 4];
+
     Ok(DirEntry {
-        width: r.read_u8()?,
-        height: r.read_u8()?,
-        color_count: r.read_u8()?,
-        reserved: r.read_u8()?,
-        num_color_planes: {
-            // This may be either the number of color planes (0 or 1), or the horizontal coordinate
-            // of the hotspot for CUR files.
-            let num = r.read_u16::<LittleEndian>()?;
-            if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
-            }
-            num
+        width,
+        height,
+        color_count,
+        reserved,
+        num_color_planes,
+        bits_per_pixel,
+        image_length: {
+            r.read_exact(&mut buf)?;
+            u32::from_le_bytes(buf)
         },
-        bits_per_pixel: {
-            // This may be either the bit depth (may be 0 meaning unspecified),
-            // or the vertical coordinate of the hotspot for CUR files.
-            let num = r.read_u16::<LittleEndian>()?;
-            if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
-            }
-            num
+        image_offset: {
+            r.read_exact(&mut buf)?;
+            u32::from_le_bytes(buf)
         },
-        image_length: r.read_u32::<LittleEndian>()?,
-        image_offset: r.read_u32::<LittleEndian>()?,
     })
 }
 
@@ -374,12 +400,14 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                 // the mask is not required. Unfortunately, Wikipedia does not have a citation
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
+                    let mut mask_buf = [0; 1];
                     // If there's an AND mask following the image, read and apply it.
                     for y in 0..height {
                         let mut x = 0;
                         for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
-                            let mask_byte = r.read_u8()?;
+                            r.read_exact(&mut mask_buf)?;
+                            let mask_byte = mask_buf[0];
                             for bit in (0..8).rev() {
                                 if x >= width {
                                     break;

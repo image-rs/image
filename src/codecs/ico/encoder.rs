@@ -1,4 +1,3 @@
-use byteorder::{LittleEndian, WriteBytesExt};
 use std::borrow::Cow;
 use std::io::{self, Write};
 
@@ -164,11 +163,11 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
 
 fn write_icondir<W: Write>(w: &mut W, num_images: u16) -> io::Result<()> {
     // Reserved field (must be zero):
-    w.write_u16::<LittleEndian>(0)?;
+    w.write_all(&0u16.to_le_bytes())?;
     // Image type (ICO or CUR):
-    w.write_u16::<LittleEndian>(ICO_IMAGE_TYPE)?;
+    w.write_all(&ICO_IMAGE_TYPE.to_le_bytes())?;
     // Number of images in the file:
-    w.write_u16::<LittleEndian>(num_images)?;
+    w.write_all(&num_images.to_le_bytes())?;
     Ok(())
 }
 
@@ -181,19 +180,20 @@ fn write_direntry<W: Write>(
     data_size: u32,
 ) -> io::Result<()> {
     // Image dimensions:
-    w.write_u8(width)?;
-    w.write_u8(height)?;
+    // w.write_u8(width)?;
+    // w.write_u8(height)?;
+    w.write_all(&[width, height])?;
     // Number of colors in palette (or zero for no palette):
-    w.write_u8(0)?;
+    w.write_all(&[0])?;
     // Reserved field (must be zero):
-    w.write_u8(0)?;
+    w.write_all(&[0])?;
     // Color planes:
-    w.write_u16::<LittleEndian>(0)?;
+    w.write_all(&0u16.to_le_bytes())?;
     // Bits per pixel:
-    w.write_u16::<LittleEndian>(color.bits_per_pixel())?;
+    w.write_all(&color.bits_per_pixel().to_le_bytes())?;
     // Image data size, in bytes:
-    w.write_u32::<LittleEndian>(data_size)?;
+    w.write_all(&data_size.to_le_bytes())?;
     // Image data offset, in bytes:
-    w.write_u32::<LittleEndian>(data_start)?;
+    w.write_all(&data_start.to_le_bytes())?;
     Ok(())
 }

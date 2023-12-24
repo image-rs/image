@@ -8,8 +8,6 @@
 use std::io::Read;
 use std::{error, fmt};
 
-use byteorder::{LittleEndian, ReadBytesExt};
-
 #[allow(deprecated)]
 use crate::codecs::dxt::{DxtDecoder, DxtReader, DxtVariant};
 use crate::color::ColorType;
@@ -17,6 +15,7 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
+use crate::read_le;
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -116,54 +115,56 @@ struct PixelFormat {
 
 impl PixelFormat {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let size = r.read_u32::<LittleEndian>()?;
+        let mut buf = [0; 4];
+
+        let size = read_le!(r, u32, buf)?;
         if size != 32 {
             return Err(DecoderError::PixelFormatSizeInvalid(size).into());
         }
 
         Ok(Self {
-            flags: r.read_u32::<LittleEndian>()?,
+            flags: read_le!(r, u32, buf)?,
             fourcc: {
-                let mut v = [0; 4];
-                r.read_exact(&mut v)?;
-                v
+                r.read_exact(&mut buf)?;
+                buf.clone()
             },
-            _rgb_bit_count: r.read_u32::<LittleEndian>()?,
-            _r_bit_mask: r.read_u32::<LittleEndian>()?,
-            _g_bit_mask: r.read_u32::<LittleEndian>()?,
-            _b_bit_mask: r.read_u32::<LittleEndian>()?,
-            _a_bit_mask: r.read_u32::<LittleEndian>()?,
+            _rgb_bit_count: read_le!(r, u32, buf)?,
+            _r_bit_mask: read_le!(r, u32, buf)?,
+            _g_bit_mask: read_le!(r, u32, buf)?,
+            _b_bit_mask: read_le!(r, u32, buf)?,
+            _a_bit_mask: read_le!(r, u32, buf)?,
         })
     }
 }
 
 impl Header {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let size = r.read_u32::<LittleEndian>()?;
+        let mut buf = [0; 4];
+        let size = read_le!(r, u32, buf)?;
         if size != 124 {
             return Err(DecoderError::HeaderSizeInvalid(size).into());
         }
 
         const REQUIRED_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x1000;
         const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x800000;
-        let flags = r.read_u32::<LittleEndian>()?;
+        let flags = read_le!(r, u32, buf)?;
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
             return Err(DecoderError::HeaderFlagsInvalid(flags).into());
         }
 
-        let height = r.read_u32::<LittleEndian>()?;
-        let width = r.read_u32::<LittleEndian>()?;
-        let pitch_or_linear_size = r.read_u32::<LittleEndian>()?;
-        let depth = r.read_u32::<LittleEndian>()?;
-        let mipmap_count = r.read_u32::<LittleEndian>()?;
+        let height = read_le!(r, u32, buf)?;
+        let width = read_le!(r, u32, buf)?;
+        let pitch_or_linear_size = read_le!(r, u32, buf)?;
+        let depth = read_le!(r, u32, buf)?;
+        let mipmap_count = read_le!(r, u32, buf)?;
         // Skip `dwReserved1`
         {
             let mut skipped = [0; 4 * 11];
             r.read_exact(&mut skipped)?;
         }
         let pixel_format = PixelFormat::from_reader(r)?;
-        let caps = r.read_u32::<LittleEndian>()?;
-        let caps2 = r.read_u32::<LittleEndian>()?;
+        let caps = read_le!(r, u32, buf)?;
+        let caps2 = read_le!(r, u32, buf)?;
         // Skip `dwCaps3`, `dwCaps4`, `dwReserved2` (unused)
         {
             let mut skipped = [0; 4 + 4 + 4];
@@ -186,11 +187,12 @@ impl Header {
 
 impl DX10Header {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let dxgi_format = r.read_u32::<LittleEndian>()?;
-        let resource_dimension = r.read_u32::<LittleEndian>()?;
-        let misc_flag = r.read_u32::<LittleEndian>()?;
-        let array_size = r.read_u32::<LittleEndian>()?;
-        let misc_flags_2 = r.read_u32::<LittleEndian>()?;
+        let mut buf = [0; 4];
+        let dxgi_format = read_le!(r, u32, buf)?;
+        let resource_dimension = read_le!(r, u32, buf)?;
+        let misc_flag = read_le!(r, u32, buf)?;
+        let array_size = read_le!(r, u32, buf)?;
+        let misc_flags_2 = read_le!(r, u32, buf)?;
 
         let dx10_header = Self {
             dxgi_format,

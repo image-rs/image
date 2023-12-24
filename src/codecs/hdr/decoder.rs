@@ -998,21 +998,28 @@ fn read_line_u8_test() {
 
 /// Helper function for reading raw 3-channel f32 images
 pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>> {
-    use byteorder::{LittleEndian as LE, ReadBytesExt};
     use std::fs::File;
     use std::io::BufReader;
 
     let mut r = BufReader::new(File::open(path)?);
-    let w = r.read_u32::<LE>()? as usize;
-    let h = r.read_u32::<LE>()? as usize;
-    let c = r.read_u32::<LE>()? as usize;
+    let mut buf = [0; 4];
+    r.read_exact(&mut buf)?;
+    let w = u32::from_le_bytes(buf);
+    r.read_exact(&mut buf)?;
+    let h = u32::from_le_bytes(buf);
+    r.read_exact(&mut buf)?;
+    let c = u32::from_le_bytes(buf);
     assert_eq!(c, 3);
     let cnt = w * h;
-    let mut ret = Vec::with_capacity(cnt);
+    let mut ret = Vec::with_capacity(cnt as usize);
+    let mut buf = [0; 4];
     for _ in 0..cnt {
-        let cr = r.read_f32::<LE>()?;
-        let cg = r.read_f32::<LE>()?;
-        let cb = r.read_f32::<LE>()?;
+        r.read_exact(&mut buf)?;
+        let cr = f32::from_le_bytes(buf);
+        r.read_exact(&mut buf)?;
+        let cg = f32::from_le_bytes(buf);
+        r.read_exact(&mut buf)?;
+        let cb = f32::from_le_bytes(buf);
         ret.push(Rgb([cr, cg, cb]));
     }
     Ok(ret)

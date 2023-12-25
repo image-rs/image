@@ -169,12 +169,22 @@ impl<'a, W: Write> Encoder<'a, W> {
         }
     }
 
-    pub fn with_info(w: W, info: Info<'a>) -> Encoder<'a, W> {
-        Encoder {
+    pub fn with_info(w: W, info: Info<'a>) -> Result<Encoder<'a, W>> {
+        if info.animation_control.is_some() != info.frame_control.is_some() {
+            return Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()));
+        }
+
+        if let Some(actl) = info.animation_control {
+            if actl.num_frames == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroFrames.into()));
+            }
+        }
+
+        Ok(Encoder {
             w,
             info,
             options: Options::default(),
-        }
+        })
     }
 
     /// Specify that the image is animated.

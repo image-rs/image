@@ -69,10 +69,16 @@ impl<R: Read> GifDecoder<R> {
         let mut decoder = gif::DecodeOptions::new();
         decoder.set_color_output(ColorOutput::RGBA);
 
-        Ok(GifDecoder {
+        let mut img_decoder = GifDecoder {
             reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits,
-        })
+            limits: Limits::default(),
+        };
+
+        // call `.set_limits()` instead of just setting the field directly
+        // so that we raise an error in case they are exceeded
+        img_decoder.set_limits(limits)?;
+
+        Ok(img_decoder)
     }
 }
 

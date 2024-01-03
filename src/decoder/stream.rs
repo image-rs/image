@@ -1313,6 +1313,16 @@ impl StreamingDecoder {
             }
         };
 
+        if let Some(mut raw_row_len) = color_type.checked_raw_row_length(bit_depth, width) {
+            if interlaced {
+                // This overshoots, but overestimating should be fine.
+                // TODO: Calculate **exact** IDAT size for interlaced images.
+                raw_row_len = raw_row_len.saturating_mul(2);
+            }
+            self.inflater
+                .set_max_total_output((height as usize).saturating_mul(raw_row_len));
+        }
+
         self.info = Some(Info {
             width,
             height,
@@ -1841,7 +1851,7 @@ mod tests {
         let png = {
             let mut png = Vec::new();
             write_fdat_prefix(&mut png, 2, 8);
-            let image_data = generate_rgba8_with_width(8);
+            let image_data = generate_rgba8_with_width_and_height(8, 8);
             write_fdat(&mut png, 2, &image_data[..30]);
             write_fdat(&mut png, 3, &image_data[30..]);
             write_iend(&mut png);
@@ -1891,5 +1901,34 @@ mod tests {
         }
 
         assert_eq!(first_frame, second_frame);
+    }
+
+    #[test]
+    fn test_idat_bigger_than_image_size_from_ihdr() {
+        let png = {
+            let mut png = Vec::new();
+            write_png_sig(&mut png);
+            write_rgba8_ihdr_with_width(&mut png, 8);
+
+            // Here we want to test an invalid image where the `IDAT` chunk contains more data
+            // (data for 8x256 image) than declared in the `IHDR` chunk (which only describes an
+            // 8x8 image).
+            write_chunk(
+                &mut png,
+                b"IDAT",
+                &generate_rgba8_with_width_and_height(8, 256),
+            );
+
+            write_iend(&mut png);
+            png
+        };
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+
+        // TODO: Should this return an error instead?  For now let's just have test assertions for
+        // the current behavior.
+        reader.next_frame(&mut buf).unwrap();
+        assert_eq!(3093270825, crc32fast::hash(&buf));
     }
 }

@@ -73,8 +73,8 @@ pub fn write_rgba8_ihdr_with_width(w: &mut impl Write, width: u32) {
     write_chunk(w, b"IHDR", &data);
 }
 
-/// Generates RGBA8 `width` x `width` image and wraps it in a store-only zlib container.
-pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
+/// Generates RGBA8 `width` x `height` image and wraps it in a store-only zlib container.
+pub fn generate_rgba8_with_width_and_height(width: u32, height: u32) -> Vec<u8> {
     // Generate arbitrary test pixels.
     let image_pixels = {
         let mut row = Vec::new();
@@ -88,7 +88,7 @@ pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
         row.extend(row_pixels);
 
         std::iter::repeat(row)
-            .take(width as usize)
+            .take(height as usize)
             .flatten()
             .collect::<Vec<_>>()
     };
@@ -104,7 +104,7 @@ pub fn generate_rgba8_with_width(width: u32) -> Vec<u8> {
 
 /// Writes an IDAT chunk.
 pub fn write_rgba8_idats(w: &mut impl Write, size: u32, idat_bytes: usize) {
-    let data = generate_rgba8_with_width(size);
+    let data = generate_rgba8_with_width_and_height(size, size);
 
     for chunk in data.chunks(idat_bytes) {
         write_chunk(w, b"IDAT", chunk);

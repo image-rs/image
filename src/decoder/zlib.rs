@@ -14,6 +14,10 @@ pub(super) struct ZlibStream {
     out_buffer: Vec<u8>,
     /// The cursor position in the output stream as a buffer index.
     out_pos: usize,
+    /// Limit on how many bytes can be decompressed in total.  This field is mostly used for
+    /// performance optimizations (e.g. to avoid allocating and zeroing out large buffers when only
+    /// a small image is being decoded).
+    max_total_output: usize,
     /// Ignore and do not calculate the Adler-32 checksum. Defaults to `true`.
     ///
     /// This flag overrides `TINFL_FLAG_COMPUTE_ADLER32`.
@@ -27,8 +31,9 @@ impl ZlibStream {
         ZlibStream {
             state: Box::new(Decompressor::new()),
             started: false,
-            out_buffer: vec![0; 2 * CHUNCK_BUFFER_SIZE],
+            out_buffer: Vec::new(),
             out_pos: 0,
+            max_total_output: usize::MAX,
             ignore_adler32: true,
         }
     }
@@ -37,7 +42,12 @@ impl ZlibStream {
         self.started = false;
         self.out_buffer.clear();
         self.out_pos = 0;
+        self.max_total_output = usize::MAX;
         *self.state = Decompressor::new();
+    }
+
+    pub(crate) fn set_max_total_output(&mut self, n: usize) {
+        self.max_total_output = n;
     }
 
     /// Set the `ignore_adler32` flag and return `true` if the flag was
@@ -101,10 +111,9 @@ impl ZlibStream {
             return Ok(());
         }
 
-        loop {
+        while !self.state.is_done() {
             self.prepare_vec_for_appending();
-
-            let (in_consumed, out_consumed) = self
+            let (_in_consumed, out_consumed) = self
                 .state
                 .read(&[], self.out_buffer.as_mut_slice(), self.out_pos, true)
                 .map_err(|err| {
@@ -113,23 +122,38 @@ impl ZlibStream {
 
             self.out_pos += out_consumed;
 
-            if self.state.is_done() {
-                self.out_buffer.truncate(self.out_pos);
-                image_data.append(&mut self.out_buffer);
-                return Ok(());
-            } else {
+            if !self.state.is_done() {
                 let transferred = self.transfer_finished_data(image_data);
                 assert!(
-                    transferred > 0 || in_consumed > 0 || out_consumed > 0,
+                    transferred > 0 || out_consumed > 0,
                     "No more forward progress made in stream decoding."
                 );
             }
         }
+
+        self.out_buffer.truncate(self.out_pos);
+        image_data.append(&mut self.out_buffer);
+        Ok(())
     }
 
     /// Resize the vector to allow allocation of more data.
     fn prepare_vec_for_appending(&mut self) {
-        if self.out_buffer.len().saturating_sub(self.out_pos) >= CHUNCK_BUFFER_SIZE {
+        // The `debug_assert` below explains why we can use `>=` instead of `>` in the condition
+        // that compares `self.out_post >= self.max_total_output` in the next `if` statement.
+        debug_assert!(!self.state.is_done());
+        if self.out_pos >= self.max_total_output {
+            // This can happen when the `max_total_output` was miscalculated (e.g.
+            // because the `IHDR` chunk was malformed and didn't match the `IDAT` chunk).  In
+            // this case, let's reset `self.max_total_output` before further calculations.
+            self.max_total_output = usize::MAX;
+        }
+
+        let current_len = self.out_buffer.len();
+        let desired_len = self
+            .out_pos
+            .saturating_add(CHUNCK_BUFFER_SIZE)
+            .min(self.max_total_output);
+        if current_len >= desired_len {
             return;
         }
 
@@ -150,6 +174,8 @@ impl ZlibStream {
             // Ensure the allocation request is valid.
             // TODO: maximum allocation limits?
             .min(isize::max_value() as usize)
+            // Don't unnecessarily allocate more than `max_total_output`.
+            .min(self.max_total_output)
     }
 
     fn transfer_finished_data(&mut self, image_data: &mut Vec<u8>) -> usize {

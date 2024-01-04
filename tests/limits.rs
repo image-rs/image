@@ -114,6 +114,7 @@ fn png() {
     assert!(decoder.set_limits(width_height_limits()).is_err());
     // let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
     // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // The proper fix is known to require an API break: https://github.com/image-rs/image/issues/2084
 
     // Custom constructor on PngDecoder
     assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());

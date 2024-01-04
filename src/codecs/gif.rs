@@ -65,14 +65,13 @@ impl<R: Read> GifDecoder<R> {
     }
 
     /// Creates a new decoder that decodes the input steam `r`, using limits `limits`
+    #[deprecated(since = "0.24.8", note = "Use `new` followed by `set_limits` instead")]
     pub fn with_limits(r: R, limits: Limits) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = gif::DecodeOptions::new();
-        decoder.set_color_output(ColorOutput::RGBA);
-
-        Ok(GifDecoder {
-            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits,
-        })
+        let mut decoder = Self::new(r)?;
+        // call `.set_limits()` instead of just setting the field directly
+        // so that we raise an error in case they are exceeded
+        decoder.set_limits(limits)?;
+        Ok(decoder)
     }
 }
 

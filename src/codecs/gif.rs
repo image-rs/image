@@ -66,19 +66,11 @@ impl<R: Read> GifDecoder<R> {
 
     /// Creates a new decoder that decodes the input steam `r`, using limits `limits`
     pub fn with_limits(r: R, limits: Limits) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = gif::DecodeOptions::new();
-        decoder.set_color_output(ColorOutput::RGBA);
-
-        let mut img_decoder = GifDecoder {
-            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits: Limits::default(),
-        };
-
+        let mut decoder = Self::new(r)?;
         // call `.set_limits()` instead of just setting the field directly
         // so that we raise an error in case they are exceeded
-        img_decoder.set_limits(limits)?;
-
-        Ok(img_decoder)
+        decoder.set_limits(limits)?;
+        Ok(decoder)
     }
 }
 

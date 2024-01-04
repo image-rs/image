@@ -134,3 +134,23 @@ fn jpeg() {
     // let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
     // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
 }
+
+#[test]
+#[cfg(feature = "webp")]
+fn webp() {
+    use image::codecs::webp::WebPDecoder;
+
+    let image = test_image(ImageOutputFormat::WebP);
+    // sanity check that our image loads successfully without limits
+    assert!(load_from_memory_with_format(&image, ImageFormat::WebP).is_ok());
+    // check that the limits implementation is not overly restrictive
+    assert!(load_through_reader(&image, ImageFormat::WebP, permissive_limits()).is_ok());
+    // image::io::Reader
+    assert!(load_through_reader(&image, ImageFormat::WebP, width_height_limits()).is_err());
+    assert!(load_through_reader(&image, ImageFormat::WebP, allocation_limits()).is_err());
+    // WebPDecoder
+    let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
+    assert!(decoder.set_limits(width_height_limits()).is_err());
+    // let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
+    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+}

@@ -10,6 +10,8 @@
 //! It is possible that a maliciously crafted file coud bypass these checks
 //! and cause a large allocation inside the decoder despite these limits.
 //! These tests cannot catch that, but fuzzing can.
+//!
+//! These tests also don't cover animation (yet). Adding tests for that would be very welcome too.
 
 use std::io::Cursor;
 

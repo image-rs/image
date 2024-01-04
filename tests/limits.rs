@@ -7,7 +7,9 @@
 //! There are several such buggy APIs in the crate. The tests for them are written but commented out.
 //! Pull requests fixing these APIs are very welcome.
 //!
-//! These tests do not yet cover animated images.
+//! It is possible that a maliciously crafted file coud bypass these checks
+//! and cause a large allocation inside the decoder despite these limits.
+//! These tests cannot catch that, but fuzzing can.
 
 use std::io::Cursor;
 

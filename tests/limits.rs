@@ -65,8 +65,11 @@ fn gif() {
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err());
     // GifDecoder
-    assert!(GifDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    assert!(GifDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err());
+    #[allow(deprecated)]
+    {
+        assert!(GifDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
+        assert!(GifDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err());
+    }
     let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
     let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();

@@ -72,3 +72,23 @@ fn gif() {
     //let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
     //assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
 }
+
+#[test]
+#[cfg(feature = "png")]
+fn png() {
+    use image::codecs::png::PngDecoder;
+
+    let image = test_image(ImageOutputFormat::Png);
+    // sanity check that our image loads successfully without limits
+    assert!(load_from_memory_with_format(&image, ImageFormat::Png).is_ok());
+    // image::io::Reader
+    assert!(load_through_reader(&image, ImageFormat::Png, width_height_limits()).is_err());
+    assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
+    // PngDecoder
+    assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
+    //assert!(PngDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err()); // BROKEN!
+    let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
+    assert!(decoder.set_limits(width_height_limits()).is_err());
+    // let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
+    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+}

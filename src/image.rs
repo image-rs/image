@@ -9,7 +9,7 @@ use std::usize;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
-    self, ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
+    ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind,
 };
 use crate::math::Rect;
@@ -889,8 +889,8 @@ pub trait ImageDecoder<'a>: Sized {
 
         if let Some(alloc_limit) = limits.max_alloc {
             if self.total_bytes() > alloc_limit {
-                return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory,
+                return Err(ImageError::Limits(LimitError::from_kind(
+                    LimitErrorKind::InsufficientMemory,
                 )));
             }
         }

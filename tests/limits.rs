@@ -30,17 +30,18 @@ fn test_image(format: ImageOutputFormat) -> Vec<u8> {
     bytes
 }
 
-// Returns `Limits` with width/height smaller than the test image
+/// Returns `Limits` with width/height smaller than the test image
 fn width_height_limits() -> Limits {
     let mut limits = Limits::no_limits();
-    limits.max_image_width = Some(128);
-    limits.max_image_height = Some(128);
+    limits.max_image_width = Some(WIDTH / 2);
+    limits.max_image_height = Some(HEIGHT / 2);
     limits
 }
 
+/// Returns `Limits` with allocation limit smaller than the test image
 fn allocation_limits() -> Limits {
     let mut limits = Limits::no_limits();
-    limits.max_alloc = Some(128 * 128 * 3); // matches dimension limits for RGB images
+    limits.max_alloc = Some(WIDTH as u64 / 2 * HEIGHT as u64 / 2 * 3); // matches dimension limits for RGB images
     limits
 }
 

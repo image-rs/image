@@ -108,6 +108,7 @@ fn png() {
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::Png, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
+
     // PngDecoder
     let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
@@ -132,6 +133,7 @@ fn jpeg() {
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::Jpeg, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Jpeg, allocation_limits()).is_err());
+
     // JpegDecoder
     let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
@@ -152,6 +154,7 @@ fn webp() {
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::WebP, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::WebP, allocation_limits()).is_err());
+
     // WebPDecoder
     let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());

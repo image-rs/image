@@ -162,3 +162,24 @@ fn webp() {
     // let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
     // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
 }
+
+#[test]
+#[cfg(feature = "tiff")]
+fn tiff() {
+    use image::codecs::tiff::TiffDecoder;
+
+    let image = test_image(ImageOutputFormat::Tiff);
+    // sanity check that our image loads successfully without limits
+    assert!(load_from_memory_with_format(&image, ImageFormat::Tiff).is_ok());
+    // check that the limits implementation is not overly restrictive
+    //load_through_reader(&image, ImageFormat::Tiff, permissive_limits()).unwrap(); // BROKEN!
+    // image::io::Reader
+    assert!(load_through_reader(&image, ImageFormat::Tiff, width_height_limits()).is_err());
+    assert!(load_through_reader(&image, ImageFormat::Tiff, allocation_limits()).is_err());
+
+    // TiffDecoder
+    let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
+    assert!(decoder.set_limits(width_height_limits()).is_err());
+    // let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
+    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+}

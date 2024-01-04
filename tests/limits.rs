@@ -6,6 +6,8 @@
 //!
 //! There are several such buggy APIs in the crate. The tests for them are written but commented out.
 //! Pull requests fixing these APIs are very welcome.
+//!
+//! These tests do not yet cover animated images.
 
 use std::io::Cursor;
 

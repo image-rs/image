@@ -205,3 +205,24 @@ fn avif() {
     // let mut decoder = AvifDecoder::new(Cursor::new(&image)).unwrap();
     // assert!(decoder.set_limits(allocation_limits()).is_err());
 }
+
+#[test]
+#[cfg(feature = "bmp")]
+fn bmp() {
+    use image::codecs::bmp::BmpDecoder;
+
+    let image = test_image(ImageOutputFormat::Bmp);
+    // sanity check that our image loads successfully without limits
+    assert!(load_from_memory_with_format(&image, ImageFormat::Bmp).is_ok());
+    // check that the limits implementation is not overly restrictive
+    assert!(load_through_reader(&image, ImageFormat::Bmp, permissive_limits()).is_ok());
+    // image::io::Reader
+    assert!(load_through_reader(&image, ImageFormat::Bmp, width_height_limits()).is_err());
+    assert!(load_through_reader(&image, ImageFormat::Bmp, allocation_limits()).is_err());
+
+    // BmpDecoder
+    let mut decoder = BmpDecoder::new(Cursor::new(&image)).unwrap();
+    assert!(decoder.set_limits(width_height_limits()).is_err());
+    // let mut decoder = BmpDecoder::new(Cursor::new(&image)).unwrap();
+    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+}

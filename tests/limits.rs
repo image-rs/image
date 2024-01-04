@@ -45,6 +45,15 @@ fn allocation_limits() -> Limits {
     limits
 }
 
+/// Returns `Limits` that allow decoding this image without issues
+fn permissive_limits() -> Limits {
+    let mut limits = Limits::no_limits();
+    limits.max_image_width = Some(WIDTH);
+    limits.max_image_height = Some(HEIGHT);
+    limits.max_alloc = Some(WIDTH as u64 * HEIGHT as u64 * 5); // `* 3`` would be an exact fit for RGB; `* 5`` allows some slack space
+    limits
+}
+
 fn load_through_reader(
     input: &[u8],
     format: ImageFormat,
@@ -64,6 +73,8 @@ fn gif() {
     let image = test_image(ImageOutputFormat::Gif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());
+    // check that the limits implementation is not overly restrictive
+    assert!(load_through_reader(&image, ImageFormat::Gif, permissive_limits()).is_ok());
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err());
@@ -87,6 +98,8 @@ fn png() {
     let image = test_image(ImageOutputFormat::Png);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Png).is_ok());
+    // check that the limits implementation is not overly restrictive
+    assert!(load_through_reader(&image, ImageFormat::Png, permissive_limits()).is_ok());
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::Png, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());

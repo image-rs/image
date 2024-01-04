@@ -118,7 +118,9 @@ fn png() {
 
     // Custom constructor on PngDecoder
     assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    //assert!(PngDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err()); // BROKEN!
+    // This may not be broken and actually be expected behavior, even if it's inconsistent with the rest of the code:
+    // https://github.com/image-rs/image/pull/2085#discussion_r1442304527
+    //assert!(PngDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err());
 }
 
 #[test]

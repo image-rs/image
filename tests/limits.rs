@@ -43,7 +43,7 @@ fn width_height_limits() -> Limits {
 /// Returns `Limits` with allocation limit smaller than the test image
 fn allocation_limits() -> Limits {
     let mut limits = Limits::no_limits();
-    limits.max_alloc = Some(WIDTH as u64 / 2 * HEIGHT as u64 / 2 * 3); // matches dimension limits for RGB images
+    limits.max_alloc = Some(((WIDTH / 2) * (HEIGHT / 2) * 3).into()); // matches dimension limits for RGB images
     limits
 }
 
@@ -52,7 +52,7 @@ fn permissive_limits() -> Limits {
     let mut limits = Limits::no_limits();
     limits.max_image_width = Some(WIDTH);
     limits.max_image_height = Some(HEIGHT);
-    limits.max_alloc = Some(WIDTH as u64 * HEIGHT as u64 * 5); // `* 3`` would be an exact fit for RGB; `* 5`` allows some slack space
+    limits.max_alloc = Some((WIDTH * HEIGHT * 5).into()); // `* 3`` would be an exact fit for RGB; `* 5`` allows some slack space
     limits
 }
 

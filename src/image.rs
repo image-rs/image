@@ -887,14 +887,6 @@ pub trait ImageDecoder<'a>: Sized {
         let (width, height) = self.dimensions();
         limits.check_dimensions(width, height)?;
 
-        if let Some(alloc_limit) = limits.max_alloc {
-            if self.total_bytes() > alloc_limit {
-                return Err(ImageError::Limits(LimitError::from_kind(
-                    LimitErrorKind::InsufficientMemory,
-                )));
-            }
-        }
-
         Ok(())
     }
 }

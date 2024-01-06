@@ -215,6 +215,8 @@ pub(crate) enum FormatErrorInner {
         bit_depth: BitDepth,
     },
     ColorWithBadTrns(ColorType),
+    /// The image width or height is zero.
+    InvalidDimensions,
     InvalidBitDepth(u8),
     InvalidColorType(u8),
     InvalidDisposeOp(u8),
@@ -299,6 +301,7 @@ impl fmt::Display for FormatError {
                 expected, len
             ),
             PaletteRequired => write!(fmt, "Missing palette of indexed image."),
+            InvalidDimensions => write!(fmt, "Invalid image dimensions"),
             InvalidColorBitDepth {
                 color_type,
                 bit_depth,
@@ -1255,6 +1258,11 @@ impl StreamingDecoder {
         let mut buf = &self.current_chunk.raw_bytes[..];
         let width = buf.read_be()?;
         let height = buf.read_be()?;
+        if width == 0 || height == 0 {
+            return Err(DecodingError::Format(
+                FormatErrorInner::InvalidDimensions.into(),
+            ));
+        }
         let bit_depth = buf.read_be()?;
         let bit_depth = match BitDepth::from_u8(bit_depth) {
             Some(bits) => bits,

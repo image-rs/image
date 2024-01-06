@@ -37,7 +37,7 @@ tiff = { version = "0.9.0", optional = true }
 ravif = { version = "0.11.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
-dav1d = { version = "0.10.1", optional = true }
+dav1d = { version = "0.10.2", optional = true }
 dcv-color-primitives = { version = "0.6.1", optional = true }
 color_quant = "1.1"
 exr = { version = "1.5.0", optional = true }
@@ -54,10 +54,6 @@ criterion = "0.5.0"
 # Keep this in sync with the jpeg dependency above. This is used to enable the platform_independent
 # feature when testing, so `cargo test` works correctly.
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, features = ["platform_independent"] }
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0

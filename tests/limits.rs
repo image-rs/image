@@ -84,14 +84,13 @@ fn gif() {
     // GifDecoder
     let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
 
     // Custom constructor on GifDecoder
     #[allow(deprecated)]
     {
         assert!(GifDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-        //assert!(GifDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err()); // BROKEN!
+        // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
     }
 }
 
@@ -112,15 +111,14 @@ fn png() {
     // PngDecoder
     let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
+    // Unlike many others, the `png` crate does natively support memory limits for auxiliary buffers,
+    // but they are not passed down from `set_limits` - only from the `with_limits` constructor.
     // The proper fix is known to require an API break: https://github.com/image-rs/image/issues/2084
 
     // Custom constructor on PngDecoder
     assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    // This may not be broken and actually be expected behavior, even if it's inconsistent with the rest of the code:
-    // https://github.com/image-rs/image/pull/2085#discussion_r1442304527
-    //assert!(PngDecoder::with_limits(Cursor::new(&image), allocation_limits()).is_err());
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -140,8 +138,7 @@ fn jpeg() {
     // JpegDecoder
     let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -161,8 +158,7 @@ fn webp() {
     // WebPDecoder
     let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -173,8 +169,15 @@ fn tiff() {
     let image = test_image(ImageOutputFormat::Tiff);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Tiff).is_ok());
+
     // check that the limits implementation is not overly restrictive
-    //load_through_reader(&image, ImageFormat::Tiff, permissive_limits()).unwrap(); // BROKEN!
+    // The TIFF decoder is special - the `image` crate API does not play well with `tiff` crate API,
+    // so there is a copy from the buffer allocated by `tiff` to a buffer allocated by `image`.
+    // This results in memory usage overhead the size of the output buffer.
+    let mut tiff_permissive_limits = permissive_limits();
+    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 8).into()); // `* 6` would be exactly two output buffers, `* 8`` has some slack space
+    load_through_reader(&image, ImageFormat::Tiff, tiff_permissive_limits).unwrap();
+
     // image::io::Reader
     assert!(load_through_reader(&image, ImageFormat::Tiff, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Tiff, allocation_limits()).is_err());
@@ -182,8 +185,7 @@ fn tiff() {
     // TiffDecoder
     let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -203,9 +205,7 @@ fn avif() {
     // AvifDecoder
     let mut decoder = AvifDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // Not clear if this works or fails, I don't have a recent enough dav1d to run this
-    // let mut decoder = AvifDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err());
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -225,6 +225,5 @@ fn bmp() {
     // BmpDecoder
     let mut decoder = BmpDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
-    // let mut decoder = BmpDecoder::new(Cursor::new(&image)).unwrap();
-    // assert!(decoder.set_limits(allocation_limits()).is_err()); // BROKEN!
+    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

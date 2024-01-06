@@ -14,6 +14,7 @@ use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat, Im
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
+use crate::DynamicImage;
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -1426,6 +1427,60 @@ pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
 pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
+
+impl From<DynamicImage> for RgbImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgb8()
+    }
+}
+
+impl From<DynamicImage> for RgbaImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgba8()
+    }
+}
+
+impl From<DynamicImage> for GrayImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma8()
+    }
+}
+
+impl From<DynamicImage> for GrayAlphaImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma_alpha8()
+    }
+}
+
+impl From<DynamicImage> for Rgb16Image {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgb16()
+    }
+}
+
+impl From<DynamicImage> for Rgba16Image {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgba16()
+    }
+}
+
+impl From<DynamicImage> for Gray16Image {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma16()
+    }
+}
+
+impl From<DynamicImage> for GrayAlpha16Image {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma_alpha16()
+    }
+}
+
+impl From<DynamicImage> for Rgba32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgba32f()
+    }
+}
 
 #[cfg(test)]
 mod test {

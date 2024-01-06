@@ -378,6 +378,9 @@ pub fn interpolate_bilinear<P: Pixel>(
     x: f32,
     y: f32,
 ) -> Option<P> {
+    // assumption needed for correctness of pixel creation
+    assert!(P::CHANNEL_COUNT <= 4);
+
     let (w, h) = img.dimensions();
     if w == 0 || h == 0 {
         return None;
@@ -389,34 +392,41 @@ pub fn interpolate_bilinear<P: Pixel>(
         return None;
     }
 
-    let uf = x.floor();
-    let vf = y.floor();
-    let uc = (x + 1.).min((w - 1) as f32);
-    let vc = (y + 1.).min((h - 1) as f32);
+    // keep these as integers, for fewer FLOPs
+    let uf = x.floor() as u32;
+    let vf = y.floor() as u32;
+    let uc = (uf + 1).min(w - 1);
+    let vc = (vf + 1).min(h - 1);
 
     // clamp coords to the range of the image
-    let coords = [[uf, vf], [uf, vc], [uc, vf], [uc, vc]];
+    let mut sxx = [[0.; 4]; 4];
 
-    assert!(coords
-        .iter()
-        .all(|&[u, v]| { img.in_bounds(u as u32, v as u32) }));
-    let samples = coords.map(|[u, v]| img.get_pixel(u as u32, v as u32));
-    assert!(P::CHANNEL_COUNT <= 4);
+    // do not use Array::map, as it can be slow with high stack usage,
+    // for [[f32; 4]; 4].
 
     // convert samples to f32
     // currently rgba is the largest one,
     // so just store as many items as necessary,
     // because there's not a simple way to be generic over all of them.
-    let [sff, sfc, scf, scc] = samples.map(|s| {
-        let mut out = [0.; 4];
-        for (i, c) in s.channels().iter().enumerate() {
-            out[i] = c.to_f32().unwrap();
+    let mut compute = |u: u32, v: u32, i| {
+        let s = img.get_pixel(u, v);
+        for (j, c) in s.channels().iter().enumerate() {
+            sxx[j][i] = c.to_f32().unwrap();
         }
-        out
-    });
-    // weights
-    let [ufw, vfw] = [x - uf, y - vf];
-    let [ucw, vcw] = [1. - ufw, 1. - vfw];
+        s
+    };
+
+    // hacky reuse since cannot construct a generic Pixel
+    let mut out: P = compute(uf, vf, 0);
+    compute(uf, vc, 1);
+    compute(uc, vf, 2);
+    compute(uc, vc, 3);
+
+    // weights, the later two are independent from the first 2 for better vectorization.
+    let ufw = x - uf as f32;
+    let vfw = y - vf as f32;
+    let ucw = (uf + 1) as f32 - x;
+    let vcw = (vf + 1) as f32 - y;
 
     // https://en.wikipedia.org/wiki/Bilinear_interpolation#Weighted_mean
     // the distance between pixels is 1 so there is no denominator
@@ -424,14 +434,14 @@ pub fn interpolate_bilinear<P: Pixel>(
     let wfc = ucw * vfw;
     let wcf = ufw * vcw;
     let wcc = ufw * vfw;
-    assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
+    // was originally assert, but is actually not a cheap computation
+    debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
-    // hack to get around not being able to construct a generic Pixel
-    let mut out = samples[0];
     // hack to see if primitive is an integer or a float
     let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
+
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
-        let v = wff * sff[i] + wfc * sfc[i] + wcf * scf[i] + wcc * scc[i];
+        let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
         // this rounding may introduce quantization errors,
         // Specifically what is meant is that many samples may deviate
         // from the mean value of the originals, but it's not possible to fix that.
@@ -443,6 +453,7 @@ pub fn interpolate_bilinear<P: Pixel>(
             }
         });
     }
+
     Some(out)
 }
 
@@ -991,9 +1002,9 @@ where
                 let ic: i32 = NumCast::from(c).unwrap();
                 let id: i32 = NumCast::from(d).unwrap();
 
-                let diff = (ic - id).abs();
+                let diff = ic - id;
 
-                if diff > threshold {
+                if diff.abs() > threshold {
                     let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
 
                     NumCast::from(e).unwrap()
@@ -1106,6 +1117,21 @@ mod tests {
             sample_bilinear(&img, 1.0, 0.5),
             Some(Rgba([0, 0, 128, 128]))
         );
+    }
+    #[bench]
+    #[cfg(feature = "benchmarks")]
+    fn bench_sample_bilinear(b: &mut test::Bencher) {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+        b.iter(|| {
+            sample_bilinear(&img, test::black_box(0.5), test::black_box(0.5));
+        });
     }
     #[test]
     fn test_sample_nearest_correctness() {

@@ -18,6 +18,10 @@ repository = "https://github.com/image-rs/image"
 homepage = "https://github.com/image-rs/image"
 categories = ["multimedia::images", "multimedia::encoding", "encoding"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 include = [
     "/LICENSE",
     "/README.md",

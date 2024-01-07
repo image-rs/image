@@ -1232,19 +1232,21 @@ impl StreamingDecoder {
                 }
             }
 
-            let mut profile = Vec::new();
-            let mut inflater = ZlibStream::new();
-            while !buf.is_empty() {
-                let consumed_bytes = inflater.decompress(buf, &mut profile)?;
-                if profile.len() > self.limits.bytes {
+            match fdeflate::decompress_to_vec_bounded(buf, self.limits.bytes) {
+                Ok(profile) => {
+                    self.limits.reserve_bytes(profile.len())?;
+                    info.icc_profile = Some(Cow::Owned(profile));
+                }
+                Err(fdeflate::BoundedDecompressionError::DecompressionError { inner: err }) => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::CorruptFlateStream { err }.into(),
+                    ))
+                }
+                Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
                     return Err(DecodingError::LimitsExceeded);
                 }
-                buf = &buf[consumed_bytes..];
             }
-            inflater.finish_compressed_chunks(&mut profile)?;
-            self.limits.reserve_bytes(profile.len())?;
 
-            info.icc_profile = Some(Cow::Owned(profile));
             Ok(Decoded::Nothing)
         }
     }

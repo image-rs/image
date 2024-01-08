@@ -2,24 +2,22 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
   pull_request:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
+  schedule:
+    - cron: '5 16 * * 6'
 
 jobs:
-  build:
-    name: Run tests and doctests on ubuntu
+  test_features:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        rust: ["1.61.0", stable, beta, nightly]
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder]
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: Cache Cargo Dependencies
       uses: Swatinem/rust-cache@v2
       with:
@@ -29,23 +27,46 @@ jobs:
       env:
         FEATURES: ${{ matrix.features }}
     - name: test
-      if: ${{ matrix.rust == 'stable' || matrix.rust == 'beta' || matrix.rust == 'nightly' }}
       run: >
         cargo test -v --no-default-features --features "$FEATURES" &&
         cargo doc -v --no-default-features --features "$FEATURES"
       env:
         FEATURES: ${{ matrix.features }}
 
-  build_big_endian:
-    name: Run tests on big endian architecture
+  test_toolchains:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: ["1.61.0", nightly, beta]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+    - name: Install MSRV Cargo.lock
+      if: ${{ matrix.rust == '1.61.0' }}
+      run: mv Cargo.lock.msrv Cargo.lock
+    - name: build
+      run: cargo build -v --features webp,webp-encoder
+    - name: test
+      if: ${{ matrix.rust != '1.61.0' }}
+      run: >
+        cargo test -v --features webp,webp-encoder &&
+        cargo doc -v --features webp,webp-encoder
 
+  test_big_endian:
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        features: ['', default, webp, webp-encoder]
 
     # we are using the cross project for cross compilation to mips:
     # https://github.com/cross-rs/cross
@@ -65,75 +86,52 @@ jobs:
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
 
-      - name: Cross-Compile project to mips-unknown-linux-gnu
+      - name: Cross-Compile project to powerpc-unknown-linux-gnu
         run: |
-          cross build --target=mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+          cross build --target=powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
 
       # https://github.com/cross-rs/cross#supported-targets
-      - name: Cross-Run Tests in mips-unknown-linux-gnu using Qemu
+      - name: Cross-Run Tests in powerpc-unknown-linux-gnu using Qemu
         continue-on-error: true
         run: |
-          cross test --target mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+          cross test --target powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
 
-  test_defaults:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    - name: build
-      run: cargo build -v --release
-    - name: test
-      run: cargo test -v --release
-
   test_avif:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif"
 
   test_avif_decoding:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif-decoder"
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
   clippy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@nightly
       with:
-        toolchain: stable
-        override: true
         components: clippy
-    - uses: actions-rs/cargo@v1
-      with:
-        args: clippy --all-features -- -D warnings
+    - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
@@ -142,15 +140,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: install-deps
       run: sudo apt-get -y install clang llvm
     - name: build
       run: |
-        cargo install afl
+        cargo install cargo-afl
         cd fuzz-afl
         cargo check --bin reproduce_webp
         cargo check --bin reproduce_pnm
@@ -164,10 +159,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
         cargo install cargo-fuzz
@@ -179,14 +171,10 @@ jobs:
         done
 
   public_private_dependencies:
-    name: "Public private dependencies"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
         mv ./Cargo.toml.public-private-dependencies ./Cargo.toml
@@ -198,10 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: cargo build -v --benches --features=benchmarks
 
@@ -209,33 +194,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        override: true
         components: rustfmt
     - name: Run rustfmt check
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
+      run: cargo fmt -- --check
 
   cargo-deny:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   verify_msrv:
-    name: Verify Minimum Supported Rust Version in Cargo.toml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
       - name: Install or use cached `cargo-msrv`
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-msrv
-
+      - name: Install MSRV Cargo.lock
+        run: mv Cargo.lock.msrv Cargo.lock
       - name: Verify Minimum Rust Version
         run: cargo-msrv verify

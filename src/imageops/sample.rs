@@ -304,6 +304,159 @@ where
     out
 }
 
+/// Linearly sample from an image using coordinates in [0, 1].
+pub fn sample_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+
+    let ui = w as f32 * u - 0.5;
+    let vi = h as f32 * v - 0.5;
+    interpolate_bilinear(
+        img,
+        ui.max(0.).min((w - 1) as f32),
+        vi.max(0.).min((h - 1) as f32),
+    )
+}
+
+/// Sample from an image using coordinates in [0, 1], taking the nearest coordinate.
+pub fn sample_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    let ui = w as f32 * u - 0.5;
+    let ui = ui.max(0.).min((w.saturating_sub(1)) as f32);
+
+    let vi = h as f32 * v - 0.5;
+    let vi = vi.max(0.).min((h.saturating_sub(1)) as f32);
+    interpolate_nearest(img, ui, vi)
+}
+
+/// Sample from an image using coordinates in [0, w-1] and [0, h-1], taking the
+/// nearest pixel.
+///
+/// Coordinates outside the image bounds will return `None`, however the
+/// behavior for points within half a pixel of the image bounds may change in
+/// the future.
+pub fn interpolate_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    Some(img.get_pixel(x.round() as u32, y.round() as u32))
+}
+
+/// Linearly sample from an image using coordinates in [0, w-1] and [0, h-1].
+pub fn interpolate_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    // assumption needed for correctness of pixel creation
+    assert!(P::CHANNEL_COUNT <= 4);
+
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    // keep these as integers, for fewer FLOPs
+    let uf = x.floor() as u32;
+    let vf = y.floor() as u32;
+    let uc = (uf + 1).min(w - 1);
+    let vc = (vf + 1).min(h - 1);
+
+    // clamp coords to the range of the image
+    let mut sxx = [[0.; 4]; 4];
+
+    // do not use Array::map, as it can be slow with high stack usage,
+    // for [[f32; 4]; 4].
+
+    // convert samples to f32
+    // currently rgba is the largest one,
+    // so just store as many items as necessary,
+    // because there's not a simple way to be generic over all of them.
+    let mut compute = |u: u32, v: u32, i| {
+        let s = img.get_pixel(u, v);
+        for (j, c) in s.channels().iter().enumerate() {
+            sxx[j][i] = c.to_f32().unwrap();
+        }
+        s
+    };
+
+    // hacky reuse since cannot construct a generic Pixel
+    let mut out: P = compute(uf, vf, 0);
+    compute(uf, vc, 1);
+    compute(uc, vf, 2);
+    compute(uc, vc, 3);
+
+    // weights, the later two are independent from the first 2 for better vectorization.
+    let ufw = x - uf as f32;
+    let vfw = y - vf as f32;
+    let ucw = (uf + 1) as f32 - x;
+    let vcw = (vf + 1) as f32 - y;
+
+    // https://en.wikipedia.org/wiki/Bilinear_interpolation#Weighted_mean
+    // the distance between pixels is 1 so there is no denominator
+    let wff = ucw * vcw;
+    let wfc = ucw * vfw;
+    let wcf = ufw * vcw;
+    let wcc = ufw * vfw;
+    // was originally assert, but is actually not a cheap computation
+    debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
+
+    // hack to see if primitive is an integer or a float
+    let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
+
+    for (i, c) in out.channels_mut().iter_mut().enumerate() {
+        let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
+        // this rounding may introduce quantization errors,
+        // Specifically what is meant is that many samples may deviate
+        // from the mean value of the originals, but it's not possible to fix that.
+        *c = <P::Subpixel as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
+            if v < 0.0 {
+                P::Subpixel::DEFAULT_MIN_VALUE
+            } else {
+                P::Subpixel::DEFAULT_MAX_VALUE
+            }
+        });
+    }
+
+    Some(out)
+}
+
 // Sample the columns of the supplied image using the provided filter.
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
@@ -429,6 +582,9 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
+    if height == 0 || width == 0 {
+        return out;
+    }
 
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;
@@ -846,9 +1002,9 @@ where
                 let ic: i32 = NumCast::from(c).unwrap();
                 let id: i32 = NumCast::from(d).unwrap();
 
-                let diff = (ic - id).abs();
+                let diff = ic - id;
 
-                if diff > threshold {
+                if diff.abs() > threshold {
                     let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
 
                     NumCast::from(e).unwrap()
@@ -866,7 +1022,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, FilterType};
+    use super::{resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
@@ -875,7 +1031,7 @@ mod tests {
     #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {
             test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });
@@ -886,9 +1042,118 @@ mod tests {
     #[cfg(feature = "png")]
     fn test_resize_same_size() {
         use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resize.pixels()))
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_bilinear() {
+        use std::path::Path;
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_bilinear(&img, 0., 0.).is_some());
+        assert!(sample_bilinear(&img, 1., 0.).is_some());
+        assert!(sample_bilinear(&img, 0., 1.).is_some());
+        assert!(sample_bilinear(&img, 1., 1.).is_some());
+        assert!(sample_bilinear(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_bilinear(&img, 1.2, 0.5).is_none());
+        assert!(sample_bilinear(&img, 0.5, 1.2).is_none());
+        assert!(sample_bilinear(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_bilinear(&img, -0.1, 0.2).is_none());
+        assert!(sample_bilinear(&img, 0.2, -0.1).is_none());
+        assert!(sample_bilinear(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_nearest() {
+        use std::path::Path;
+        let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_nearest(&img, 0., 0.).is_some());
+        assert!(sample_nearest(&img, 1., 0.).is_some());
+        assert!(sample_nearest(&img, 0., 1.).is_some());
+        assert!(sample_nearest(&img, 1., 1.).is_some());
+        assert!(sample_nearest(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_nearest(&img, 1.2, 0.5).is_none());
+        assert!(sample_nearest(&img, 0.5, 1.2).is_none());
+        assert!(sample_nearest(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_nearest(&img, -0.1, 0.2).is_none());
+        assert!(sample_nearest(&img, 0.2, -0.1).is_none());
+        assert!(sample_nearest(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
+    fn test_sample_bilinear_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+        assert_eq!(sample_bilinear(&img, 0.5, 0.5), Some(Rgba([64; 4])));
+        assert_eq!(sample_bilinear(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 0.0),
+            Some(Rgba([128, 0, 128, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.0, 0.5),
+            Some(Rgba([128, 128, 0, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 1.0),
+            Some(Rgba([0, 128, 0, 128]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 1.0, 0.5),
+            Some(Rgba([0, 0, 128, 128]))
+        );
+    }
+    #[bench]
+    #[cfg(feature = "benchmarks")]
+    fn bench_sample_bilinear(b: &mut test::Bencher) {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+        b.iter(|| {
+            sample_bilinear(&img, test::black_box(0.5), test::black_box(0.5));
+        });
+    }
+    #[test]
+    fn test_sample_nearest_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+
+        assert_eq!(sample_nearest(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(sample_nearest(&img, 0.5, 0.5), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 0.5, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 0.5), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.5, 1.0), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.5), Some(Rgba([0, 0, 0, 255])));
     }
 
     #[bench]

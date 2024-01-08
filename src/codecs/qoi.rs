@@ -77,6 +77,11 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
             )));
         }
 
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
+
         // Encode data in QOI
         let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;
 

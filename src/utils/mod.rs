@@ -26,7 +26,7 @@ where
     for ((shift, i), j_inv) in i.zip(j_inv) {
         let j = buf_len - j_inv;
         let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j as usize..(j + channels) as usize])
+        func(pixel, &mut buf[j..(j + channels)])
     }
 }
 

@@ -34,9 +34,8 @@ use std::mem;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
-use num_rational::Ratio;
 
-use crate::animation;
+use crate::animation::{self, Ratio};
 use crate::color::{ColorType, Rgba};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind,
@@ -66,14 +65,13 @@ impl<R: Read> GifDecoder<R> {
     }
 
     /// Creates a new decoder that decodes the input steam `r`, using limits `limits`
+    #[deprecated(since = "0.24.8", note = "Use `new` followed by `set_limits` instead")]
     pub fn with_limits(r: R, limits: Limits) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = gif::DecodeOptions::new();
-        decoder.set_color_output(ColorOutput::RGBA);
-
-        Ok(GifDecoder {
-            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits,
-        })
+        let mut decoder = Self::new(r)?;
+        // call `.set_limits()` instead of just setting the field directly
+        // so that we raise an error in case they are exceeded
+        decoder.set_limits(limits)?;
+        Ok(decoder)
     }
 }
 
@@ -230,9 +228,6 @@ struct GifFrameIterator<R: Read> {
 impl<R: Read> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
-
-        // TODO: Avoid this cast
-        let (width, height) = (width as u32, height as u32);
 
         // intentionally ignore the background color for web compatibility
 
@@ -426,7 +421,7 @@ impl<W: Write> GifEncoder<W> {
     /// for more information.
     pub fn new_with_speed(w: W, speed: i32) -> GifEncoder<W> {
         assert!(
-            speed >= 1 && speed <= 30,
+            (1..=30).contains(&speed),
             "speed needs to be in the range [1, 30]"
         );
         GifEncoder {
@@ -513,7 +508,7 @@ impl<W: Write> GifEncoder<W> {
         let (width, height) = self.gif_dimensions(rbga_frame.width(), rbga_frame.height())?;
 
         // Create the gif::Frame from the animation::Frame
-        let mut frame = Frame::from_rgba_speed(width, height, &mut *rbga_frame, self.speed);
+        let mut frame = Frame::from_rgba_speed(width, height, &mut rbga_frame, self.speed);
         // Saturate the conversion to u16::MAX instead of returning an error as that
         // would require a new special cased variant in ParameterErrorKind which most
         // likely couldn't be reused for other cases. This isn't a bad trade-off given

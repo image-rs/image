@@ -16,11 +16,9 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::i64;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-
-use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
 use crate::error::{
@@ -45,7 +43,7 @@ impl<R: Read> FarbfeldReader<R> {
             from.read_exact(&mut buf).map_err(|err| {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Farbfeld.into(), err))
             })?;
-            Ok(BigEndian::read_u32(&buf))
+            Ok(u32::from_be_bytes(buf))
         }
 
         let mut magic = [0u8; 8];
@@ -169,10 +167,11 @@ impl<R: Read + Seek> Seek for FarbfeldReader<R> {
     }
 }
 
-fn consume_channel<R: Read>(from: &mut R, to: &mut [u8]) -> io::Result<()> {
+fn consume_channel<R: Read>(from: &mut R, mut to: &mut [u8]) -> io::Result<()> {
     let mut ibuf = [0u8; 2];
     from.read_exact(&mut ibuf)?;
-    NativeEndian::write_u16(to, BigEndian::read_u16(&ibuf));
+    to.write_all(&u16::from_be_bytes(ibuf).to_ne_bytes())?;
+
     Ok(())
 }
 
@@ -229,7 +228,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for FarbfeldDecoder<R> {
     ) -> ImageResult<()> {
         // A "scanline" (defined as "shortest non-caching read" in the doc) is just one channel in this case
 
-        let start = self.reader.seek(SeekFrom::Current(0))?;
+        let start = self.reader.stream_position()?;
         image::load_rect(
             x,
             y,
@@ -257,9 +256,16 @@ impl<W: Write> FarbfeldEncoder<W> {
         FarbfeldEncoder { w: buffered_writer }
     }
 
-    /// Encodes the image ```data``` (native endian)
-    /// that has dimensions ```width``` and ```height```
+    /// Encodes the image `data` (native endian) that has dimensions `width` and `height`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `width * height * 8 != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(8),
+            data.len() as u64
+        );
         self.encode_impl(data, width, height)?;
         Ok(())
     }
@@ -267,16 +273,12 @@ impl<W: Write> FarbfeldEncoder<W> {
     fn encode_impl(mut self, data: &[u8], width: u32, height: u32) -> io::Result<()> {
         self.w.write_all(b"farbfeld")?;
 
-        let mut buf = [0u8; 4];
-        BigEndian::write_u32(&mut buf, width);
-        self.w.write_all(&buf)?;
-
-        BigEndian::write_u32(&mut buf, height);
-        self.w.write_all(&buf)?;
+        self.w.write_all(&width.to_be_bytes())?;
+        self.w.write_all(&height.to_be_bytes())?;
 
         for channel in data.chunks_exact(2) {
-            BigEndian::write_u16(&mut buf, NativeEndian::read_u16(channel));
-            self.w.write_all(&buf[..2])?;
+            self.w
+                .write_all(&u16::from_ne_bytes(channel.try_into().unwrap()).to_be_bytes())?;
         }
 
         Ok(())

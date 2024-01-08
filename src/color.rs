@@ -142,6 +142,9 @@ pub enum ExtendedColorType {
     /// Pixel is 32-bit float RGBA
     Rgba32F,
 
+    /// Pixel is 8-bit CMYK
+    Cmyk8,
+
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
@@ -180,7 +183,8 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Rgba16
             | ExtendedColorType::Rgba32F
-            | ExtendedColorType::Bgra8 => 4,
+            | ExtendedColorType::Bgra8
+            | ExtendedColorType::Cmyk8 => 4,
         }
     }
 }
@@ -879,26 +883,26 @@ mod tests {
 
     #[test]
     fn test_blend_luma_alpha() {
-        let ref mut a = LumaA([255 as u8, 255]);
-        let b = LumaA([255 as u8, 255]);
+        let a = &mut LumaA([255_u8, 255]);
+        let b = LumaA([255_u8, 255]);
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let ref mut a = LumaA([255 as u8, 0]);
-        let b = LumaA([255 as u8, 255]);
+        let a = &mut LumaA([255_u8, 0]);
+        let b = LumaA([255_u8, 255]);
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let ref mut a = LumaA([255 as u8, 255]);
-        let b = LumaA([255 as u8, 0]);
+        let a = &mut LumaA([255_u8, 255]);
+        let b = LumaA([255_u8, 0]);
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let ref mut a = LumaA([255 as u8, 0]);
-        let b = LumaA([255 as u8, 0]);
+        let a = &mut LumaA([255_u8, 0]);
+        let b = LumaA([255_u8, 0]);
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 0);
@@ -906,23 +910,23 @@ mod tests {
 
     #[test]
     fn test_blend_rgba() {
-        let ref mut a = Rgba([255 as u8, 255, 255, 255]);
-        let b = Rgba([255 as u8, 255, 255, 255]);
+        let a = &mut Rgba([255_u8, 255, 255, 255]);
+        let b = Rgba([255_u8, 255, 255, 255]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba([255 as u8, 255, 255, 0]);
-        let b = Rgba([255 as u8, 255, 255, 255]);
+        let a = &mut Rgba([255_u8, 255, 255, 0]);
+        let b = Rgba([255_u8, 255, 255, 255]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba([255 as u8, 255, 255, 255]);
-        let b = Rgba([255 as u8, 255, 255, 0]);
+        let a = &mut Rgba([255_u8, 255, 255, 255]);
+        let b = Rgba([255_u8, 255, 255, 0]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba([255 as u8, 255, 255, 0]);
-        let b = Rgba([255 as u8, 255, 255, 0]);
+        let a = &mut Rgba([255_u8, 255, 255, 0]);
+        let b = Rgba([255_u8, 255, 255, 0]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
     }

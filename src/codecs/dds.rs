@@ -267,9 +267,9 @@ impl<R: Read> DdsDecoder<R> {
                     // The enum integer values were taken from https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
                     // DXT1 represents the different BC1 variants, DTX3 represents the different BC2 variants and DTX5 represents the different BC3 variants
                     match dx10_header.dxgi_format {
-                        70 | 71 | 72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
-                        73 | 74 | 75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
-                        76 | 77 | 78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
+                        70..=72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
+                        73..=75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
+                        76..=78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
                         _ => {
                             return Err(ImageError::Unsupported(
                                 UnsupportedError::from_format_and_kind(
@@ -340,10 +340,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
+        #[allow(deprecated)]
         self.inner.scanline_bytes()
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        #[allow(deprecated)]
         self.inner.into_reader()
     }
 
@@ -359,7 +361,7 @@ mod test {
     #[test]
     fn dimension_overflow() {
         // A DXT1 header set to 0xFFFF_FFFC width and height (the highest u32%4 == 0)
-        let header = vec![
+        let header = [
             0x44, 0x44, 0x53, 0x20, 0x7C, 0x0, 0x0, 0x0, 0x7, 0x10, 0x8, 0x0, 0xFC, 0xFF, 0xFF,
             0xFF, 0xFC, 0xFF, 0xFF, 0xFF, 0x0, 0xC0, 0x12, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
             0x0, 0x49, 0x4D, 0x41, 0x47, 0x45, 0x4D, 0x41, 0x47, 0x49, 0x43, 0x4B, 0x0, 0x0, 0x0,

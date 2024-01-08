@@ -9,7 +9,7 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::error::DecodingError;
+use crate::error::{DecodingError, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
@@ -34,23 +34,28 @@ impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
         let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
-        let mut primary_decoder = dav1d::Decoder::new();
-        let coded = ctx.primary_item_coded_data();
+        let coded = ctx.primary_item_coded_data().unwrap_or_default();
+
+        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
         primary_decoder
-            .send_data(coded, None, None, None)
+            .send_data(coded.to_vec(), None, None, None)
             .map_err(error_map)?;
-        let picture = primary_decoder.get_picture().map_err(error_map)?;
-        let alpha_item = ctx.alpha_item_coded_data();
+        let picture = read_until_ready(&mut primary_decoder)?;
+        let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
         let alpha_picture = if !alpha_item.is_empty() {
-            let mut alpha_decoder = dav1d::Decoder::new();
+            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
             alpha_decoder
-                .send_data(alpha_item, None, None, None)
+                .send_data(alpha_item.to_vec(), None, None, None)
                 .map_err(error_map)?;
-            Some(alpha_decoder.get_picture().map_err(error_map)?)
+            Some(read_until_ready(&mut alpha_decoder)?)
         } else {
             None
         };
-        let icc_profile = ctx.icc_colour_information().ok().map(|x| x.to_vec());
+        let icc_profile = ctx
+            .icc_colour_information()
+            .map(|x| x.ok().unwrap_or_default())
+            .map(|x| x.to_vec());
+
         assert_eq!(picture.bit_depth(), 8);
         Ok(AvifDecoder {
             inner: PhantomData,
@@ -63,6 +68,7 @@ impl<R: Read> AvifDecoder<R> {
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct AvifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+
 impl<R> Read for AvifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -103,15 +109,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        dcp::initialize();
-
         if self.picture.pixel_layout() != PixelLayout::I400 {
             let pixel_format = match self.picture.pixel_layout() {
                 PixelLayout::I400 => todo!(),
                 PixelLayout::I420 => dcp::PixelFormat::I420,
                 PixelLayout::I422 => dcp::PixelFormat::I422,
                 PixelLayout::I444 => dcp::PixelFormat::I444,
-                PixelLayout::Unknown => panic!("Unknown pixel layout"),
             };
             let src_format = dcp::ImageFormat {
                 pixel_format,
@@ -120,7 +123,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
             };
             let dst_format = dcp::ImageFormat {
                 pixel_format: dcp::PixelFormat::Rgba,
-                color_space: dcp::ColorSpace::Lrgb,
+                color_space: dcp::ColorSpace::Rgb,
                 num_planes: 1,
             };
             let (width, height) = self.dimensions();
@@ -153,7 +156,17 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         }
 
         if let Some(picture) = self.alpha_picture {
-            assert_eq!(picture.pixel_layout(), PixelLayout::I400);
+            if picture.pixel_layout() != PixelLayout::I400 {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Alpha must be PixelLayout::I400 but was: {:?}",
+                            picture.pixel_layout() // PixelLayout does not implement display
+                        )),
+                    ),
+                ));
+            }
             let stride = picture.stride(PlanarImageComponent::Y) as usize;
             let plane = picture.plane(PlanarImageComponent::Y);
             let width = picture.width();
@@ -168,5 +181,21 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         }
 
         Ok(())
+    }
+}
+
+/// `get_picture` and `send_pending_data` yield `Again` as a non-fatal error requesting more data is sent to the decoder
+/// This ensures that in the case of `Again` all pending data is submitted
+/// This should be called after `send_data` (which does not yield `Again` when called the first time)
+fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture> {
+    loop {
+        match decoder.get_picture() {
+            Err(dav1d::Error::Again) => match decoder.send_pending_data() {
+                Ok(_) => {}
+                Err(dav1d::Error::Again) => {}
+                Err(e) => return Err(error_map(e)),
+            },
+            r => return r.map_err(error_map),
+        }
     }
 }

@@ -1,8 +1,10 @@
 use std::convert::TryInto;
-use std::io::{self, Cursor, Error, Read};
+use std::io::{self, Cursor, Error, Read, Seek};
 use std::{error, fmt};
 
-use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
+use super::decoder::{
+    read_chunk, read_fourcc, read_len_cursor, DecoderError::ChunkHeaderInvalid, WebPRiffChunk,
+};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::{DecodingError, ParameterError, ParameterErrorKind};
@@ -66,7 +68,8 @@ pub(crate) struct WebPExtendedInfo {
 #[derive(Debug)]
 enum ExtendedImageData {
     Animation {
-        frames: Vec<AnimatedFrame>,
+        frames: Vec<Vec<u8>>,
+        first_frame: AnimatedFrame,
         anim_info: WebPAnimatedInfo,
     },
     Static(WebPStatic),
@@ -93,7 +96,7 @@ impl ExtendedImage {
 
     pub(crate) fn color_type(&self) -> ColorType {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Animation { first_frame, .. } => &first_frame.image,
             ExtendedImageData::Static(image) => image,
         }
         .color_type()
@@ -110,19 +113,35 @@ impl ExtendedImage {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                if let ExtendedImageData::Animation { frames, anim_info } = &self.image.image {
-                    let frame = frames.get(self.index);
-                    match frame {
-                        Some(anim_image) => {
-                            self.index += 1;
-                            ExtendedImage::draw_subimage(
-                                &mut self.canvas,
-                                anim_image,
-                                anim_info.background_color,
-                            )
-                        }
-                        None => None,
-                    }
+                if let ExtendedImageData::Animation {
+                    frames,
+                    anim_info,
+                    first_frame,
+                } = &self.image.image
+                {
+                    let anim_frame_data = frames.get(self.index)?;
+                    let anim_frame;
+                    let frame;
+
+                    if self.index == 0 {
+                        // Use already decoded first frame
+                        anim_frame = first_frame;
+                    } else {
+                        frame = read_anim_frame(
+                            &mut Cursor::new(anim_frame_data),
+                            self.image.info.canvas_width,
+                            self.image.info.canvas_height,
+                        )
+                        .ok()?;
+                        anim_frame = &frame;
+                    };
+
+                    self.index += 1;
+                    ExtendedImage::draw_subimage(
+                        &mut self.canvas,
+                        anim_frame,
+                        anim_info.background_color,
+                    )
                 } else {
                     None
                 }
@@ -152,10 +171,11 @@ impl ExtendedImage {
         mut info: WebPExtendedInfo,
     ) -> ImageResult<ExtendedImage> {
         let mut anim_info: Option<WebPAnimatedInfo> = None;
-        let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
+        let mut anim_frames: Vec<Vec<u8>> = Vec::new();
+        let mut anim_first_frame: Option<AnimatedFrame> = None;
         let mut static_frame: Option<WebPStatic> = None;
         //go until end of file and while chunk headers are valid
-        while let Some((mut cursor, chunk)) = read_chunk(reader)? {
+        while let Some((mut cursor, chunk)) = read_extended_chunk(reader)? {
             match chunk {
                 WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
@@ -166,8 +186,21 @@ impl ExtendedImage {
                     }
                 }
                 WebPRiffChunk::ANMF => {
-                    let frame = read_anim_frame(cursor, info.canvas_width, info.canvas_height)?;
-                    anim_frames.push(frame);
+                    let mut frame_data = Vec::new();
+
+                    // Store first frame decoded to avoid decoding it for certain function calls
+                    if anim_first_frame.is_none() {
+                        anim_first_frame = Some(read_anim_frame(
+                            &mut cursor,
+                            info.canvas_width,
+                            info.canvas_height,
+                        )?);
+
+                        cursor.rewind().unwrap();
+                    }
+
+                    cursor.read_to_end(&mut frame_data)?;
+                    anim_frames.push(frame_data);
                 }
                 WebPRiffChunk::ALPH => {
                     if static_frame.is_none() {
@@ -208,15 +241,11 @@ impl ExtendedImage {
             }
         }
 
-        let image = if let Some(info) = anim_info {
-            if anim_frames.len() == 0 {
-                return Err(ImageError::IoError(Error::from(
-                    io::ErrorKind::UnexpectedEof,
-                )));
-            }
+        let image = if let (Some(anim_info), Some(first_frame)) = (anim_info, anim_first_frame) {
             ExtendedImageData::Animation {
                 frames: anim_frames,
-                anim_info: info,
+                first_frame,
+                anim_info,
             }
         } else if let Some(frame) = static_frame {
             ExtendedImageData::Static(frame)
@@ -259,9 +288,18 @@ impl ExtendedImage {
         let has_alpha = anim_image.image.has_alpha();
         let pixel_len: u32 = anim_image.image.color_type().bytes_per_pixel().into();
 
-        for x in 0..anim_image.width {
+        'x: for x in 0..anim_image.width {
             for y in 0..anim_image.height {
                 let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
+                // Negative offsets are not possible due to unsigned ints
+                // If we go out of bounds by height, still continue by x
+                if canvas_index.1 >= canvas.height() {
+                    continue 'x;
+                }
+                // If we go out of bounds by width, it doesn't make sense to continue at all
+                if canvas_index.0 >= canvas.width() {
+                    break 'x;
+                }
                 let index: usize = ((y * anim_image.width + x) * pixel_len).try_into().unwrap();
                 canvas[canvas_index] = if anim_image.use_alpha_blending && has_alpha {
                     let buffer: [u8; 4] = buffer[index..][..4].try_into().unwrap();
@@ -324,16 +362,36 @@ impl ExtendedImage {
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
-            ExtendedImageData::Static(image) => image,
+            ExtendedImageData::Animation {
+                anim_info,
+                first_frame,
+                ..
+            } => {
+                let (canvas_width, canvas_height) = self.dimensions();
+                if canvas_width == first_frame.width && canvas_height == first_frame.height {
+                    first_frame.image.fill_buf(buf);
+                } else {
+                    let bg_color = match &self.info._alpha {
+                        true => Rgba::from([0, 0, 0, 0]),
+                        false => anim_info.background_color,
+                    };
+                    let mut canvas = RgbaImage::from_pixel(canvas_width, canvas_height, bg_color);
+                    let _ = ExtendedImage::draw_subimage(&mut canvas, first_frame, bg_color)
+                        .unwrap()
+                        .unwrap();
+                    buf.copy_from_slice(canvas.into_raw().as_slice());
+                }
+            }
+            ExtendedImageData::Static(image) => {
+                image.fill_buf(buf);
+            }
         }
-        .fill_buf(buf);
     }
 
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Animation { first_frame, .. } => &first_frame.image,
             ExtendedImageData::Static(image) => image,
         }
         .get_buf_size()
@@ -534,6 +592,24 @@ struct AnimatedFrame {
     use_alpha_blending: bool,
     dispose: bool,
     image: WebPStatic,
+}
+
+/// Reads a chunk, but silently ignores unknown chunks at the end of a file
+fn read_extended_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
+where
+    R: Read,
+{
+    let mut unknown_chunk = Ok(());
+
+    while let Some(chunk) = read_fourcc(r)? {
+        let cursor = read_len_cursor(r)?;
+        match chunk {
+            Ok(chunk) => return unknown_chunk.and(Ok(Some((cursor, chunk)))),
+            Err(err) => unknown_chunk = unknown_chunk.and(Err(err)),
+        }
+    }
+
+    Ok(None)
 }
 
 pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPExtendedInfo> {

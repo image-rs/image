@@ -1,7 +1,6 @@
+use std::cmp::Ordering;
 use std::iter::Iterator;
 use std::time::Duration;
-
-use num_rational::Ratio;
 
 use crate::error::ImageResult;
 use crate::RgbaImage;
@@ -49,14 +48,14 @@ pub struct Frame {
 /// The delay of a frame relative to the previous one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub struct Delay {
-    ratio: Ratio<u32>,
+    ratio: Ratio,
 }
 
 impl Frame {
     /// Constructs a new frame without any delay.
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
-            delay: Delay::from_ratio(Ratio::from_integer(0)),
+            delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
             left: 0,
             top: 0,
             buffer,
@@ -115,7 +114,7 @@ impl Delay {
     /// ```
     pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {
         Delay {
-            ratio: Ratio::new_raw(numerator, denominator),
+            ratio: Ratio::new(numerator, denominator),
         }
     }
 
@@ -163,14 +162,14 @@ impl Delay {
     /// This is guaranteed to be an exact conversion if the `Delay` was previously created with the
     /// `from_numer_denom_ms` constructor.
     pub fn numer_denom_ms(self) -> (u32, u32) {
-        (*self.ratio.numer(), *self.ratio.denom())
+        (self.ratio.numer, self.ratio.denom)
     }
 
-    pub(crate) fn from_ratio(ratio: Ratio<u32>) -> Self {
+    pub(crate) fn from_ratio(ratio: Ratio) -> Self {
         Delay { ratio }
     }
 
-    pub(crate) fn into_ratio(self) -> Ratio<u32> {
+    pub(crate) fn into_ratio(self) -> Ratio {
         self.ratio
     }
 
@@ -179,7 +178,7 @@ impl Delay {
     /// Note that `denom_bound` bounds nominator and denominator of all intermediate
     /// approximations and the end result.
     fn closest_bounded_fraction(denom_bound: u32, nom: u32, denom: u32) -> (u32, u32) {
-        use std::cmp::Ordering::{self, *};
+        use std::cmp::Ordering::*;
         assert!(0 < denom);
         assert!(0 < denom_bound);
         assert!(nom < denom);
@@ -271,9 +270,66 @@ impl From<Delay> for Duration {
     fn from(delay: Delay) -> Self {
         let ratio = delay.into_ratio();
         let ms = ratio.to_integer();
-        let rest = ratio.numer() % ratio.denom();
-        let nanos = (u64::from(rest) * 1_000_000) / u64::from(*ratio.denom());
+        let rest = ratio.numer % ratio.denom;
+        let nanos = (u64::from(rest) * 1_000_000) / u64::from(ratio.denom);
         Duration::from_millis(ms.into()) + Duration::from_nanos(nanos)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Ratio {
+    numer: u32,
+    denom: u32,
+}
+
+impl Ratio {
+    #[inline]
+    pub(crate) fn new(numerator: u32, denominator: u32) -> Self {
+        assert_ne!(denominator, 0);
+        Self {
+            numer: numerator,
+            denom: denominator,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn to_integer(&self) -> u32 {
+        self.numer / self.denom
+    }
+}
+
+impl PartialEq for Ratio {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Ratio {}
+
+impl PartialOrd for Ratio {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ratio {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // The following comparison can be simplified:
+        // a / b <cmp> c / d
+        // We multiply both sides by `b`:
+        // a <cmp> c * b / d
+        // We multiply both sides by `d`:
+        // a * d <cmp> c * b
+
+        let a: u32 = self.numer;
+        let b: u32 = self.denom;
+        let c: u32 = other.numer;
+        let d: u32 = other.denom;
+
+        // We cast the types from `u32` to `u64` in order
+        // to not overflow the multiplications.
+
+        (a as u64 * d as u64).cmp(&(c as u64 * b as u64))
     }
 }
 

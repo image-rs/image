@@ -17,7 +17,7 @@ fn main() {
 
     // Use the open function to load an image from a Path.
     // ```open``` returns a dynamic image.
-    let im = image::open(&Path::new(&from)).unwrap();
+    let im = image::open(Path::new(&from)).unwrap();
     // Write the contents of this image using extension guessing.
-    im.save(&Path::new(&into)).unwrap();
+    im.save(Path::new(&into)).unwrap();
 }

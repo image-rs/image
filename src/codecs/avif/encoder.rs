@@ -81,6 +81,13 @@ impl<W: Write> AvifEncoder<W> {
             .with_internal_color_space(color_space.to_ravif());
         self
     }
+
+    /// Configures `rayon` thread pool size.
+    /// The default `None` is to use all threads in the default `rayon` thread pool.
+    pub fn with_num_threads(mut self, num_threads: Option<usize>) -> Self {
+        self.encoder = self.encoder.with_num_threads(num_threads);
+        self
+    }
 }
 
 impl<W: Write> ImageEncoder for AvifEncoder<W> {
@@ -96,6 +103,11 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         height: u32,
         color: ColorType,
     ) -> ImageResult<()> {
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
+            data.len() as u64
+        );
+
         self.set_color(color);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.

@@ -10,10 +10,9 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, Read, Write};
 
-use num_rational::Ratio;
 use png::{BlendOp, DisposeOp};
 
-use crate::animation::{Delay, Frame, Frames};
+use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
@@ -79,7 +78,7 @@ impl<R: Read> Read for PngReader<R> {
                     let readed = buf.write(row.data()).unwrap();
                     bytes += readed;
 
-                    self.buffer = (&row.data()[readed..]).to_owned();
+                    self.buffer = row.data()[readed..].to_owned();
                     self.index = 0;
                 }
                 None => return Ok(bytes),
@@ -127,6 +126,7 @@ impl<R: Read> PngDecoder<R> {
 
         let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
         let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
+        decoder.set_ignore_text_chunk(true);
 
         let info = decoder.read_header_info().map_err(ImageError::from_png)?;
         limits.check_dimensions(info.width, info.height)?;
@@ -192,6 +192,22 @@ impl<R: Read> PngDecoder<R> {
         };
 
         Ok(PngDecoder { color_type, reader })
+    }
+
+    /// Returns the gamma value of the image or None if no gamma value is indicated.
+    ///
+    /// If an sRGB chunk is present this method returns a gamma value of 0.45455 and ignores the
+    /// value in the gAMA chunk. This is the recommended behavior according to the PNG standard:
+    ///
+    /// > When the sRGB chunk is present, [...] decoders that recognize the sRGB chunk but are not
+    /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
+    /// > the values given above as if they had appeared in gAMA and cHRM chunks.
+    pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
+        Ok(self
+            .reader
+            .info()
+            .source_gamma
+            .map(|x| x.into_scaled() as f64 / 100000.0))
     }
 
     /// Turn this into an iterator over the animation frames.
@@ -543,7 +559,7 @@ impl<W: Write> PngEncoder<W> {
     /// option for encoding a particular image. That is, using options that map directly to a PNG
     /// image parameter will use this parameter where possible. But variants that have no direct
     /// mapping may be interpreted differently in minor versions. The exact output is expressly
-    /// __not__ part the SemVer stability guarantee.
+    /// __not__ part of the SemVer stability guarantee.
     ///
     /// Note that it is not optimal to use a single filter type, so an adaptive
     /// filter type is selected as the default. The filter which best minimizes
@@ -640,6 +656,11 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     ) -> ImageResult<()> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
         use ColorType::*;
+
+        assert_eq!(
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
+            buf.len() as u64
+        );
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
@@ -741,6 +762,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
+        #[allow(deprecated)]
         let correct_bytes = dec
             .into_reader()
             .expect("Unable to read file")

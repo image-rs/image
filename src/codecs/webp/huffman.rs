@@ -69,7 +69,7 @@ impl HuffmanTree {
             return Err(DecoderError::HuffmanError.into());
         }
 
-        let mut code_length_hist = vec![0; MAX_ALLOWED_CODE_LENGTH + 1];
+        let mut code_length_hist = [0; MAX_ALLOWED_CODE_LENGTH + 1];
 
         for &length in code_lengths.iter() {
             code_length_hist[usize::from(length)] += 1;
@@ -78,7 +78,7 @@ impl HuffmanTree {
         code_length_hist[0] = 0;
 
         let mut curr_code = 0;
-        let mut next_codes = vec![None; MAX_ALLOWED_CODE_LENGTH + 1];
+        let mut next_codes = [None; MAX_ALLOWED_CODE_LENGTH + 1];
 
         for code_len in 1..=usize::from(max_code_length) {
             curr_code = (curr_code + code_length_hist[code_len - 1]) << 1;
@@ -142,8 +142,8 @@ impl HuffmanTree {
         let mut num_symbols = 0;
         let mut root_symbol = 0;
 
-        for symbol in 0..code_lengths.len() {
-            if code_lengths[symbol] > 0 {
+        for (symbol, length) in code_lengths.iter().enumerate() {
+            if *length > 0 {
                 num_symbols += 1;
                 root_symbol = symbol.try_into().unwrap();
             }

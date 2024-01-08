@@ -11,7 +11,7 @@ struct BenchDef {
 }
 
 fn load_all(c: &mut Criterion) {
-    const BENCH_DEFS: &'static [BenchDef] = &[
+    const BENCH_DEFS: &[BenchDef] = &[
         BenchDef {
             dir: &["bmp", "images"],
             files: &[
@@ -71,13 +71,8 @@ fn load_all(c: &mut Criterion) {
             format: ImageFormat::Tiff,
         },
         BenchDef {
-            dir: &["webp", "images"],
-            files: &[
-                "simple-gray.webp",
-                "simple-rgb.webp",
-                "vp8x-gray.webp",
-                "vp8x-rgb.webp",
-            ],
+            dir: &["webp", "lossy_images"],
+            files: &["simple-gray.webp", "simple-rgb.webp"],
             format: ImageFormat::WebP,
         },
     ];
@@ -106,4 +101,4 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     }
 }
 
-const IMAGE_DIR: [&'static str; 3] = [".", "tests", "images"];
+const IMAGE_DIR: [&str; 3] = [".", "tests", "images"];

@@ -3,7 +3,7 @@ static CONST2: i64 = 35468;
 
 pub(crate) fn idct4x4(block: &mut [i32]) {
     // The intermediate results may overflow the types, so we stretch the type.
-    fn fetch(block: &mut [i32], idx: usize) -> i64 {
+    fn fetch(block: &[i32], idx: usize) -> i64 {
         i64::from(block[idx])
     }
 

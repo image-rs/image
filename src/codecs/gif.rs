@@ -247,17 +247,20 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     type Item = ImageResult<animation::Frame>;
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
+        fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
+            limits.check_dimensions(width, height)?;
+            let in_memory_size = width as u64 * height as u64; // cannot overflow, 2^32 * 2^32 = 2^64
+            limits.reserve(in_memory_size)?;
+            Ok(())
+        }
+
         // Allocate the buffer for the previous frame.
         // This is done here and not in the constructor because
         // the constructor cannot return an error when the allocation limit is exceeded.
         if self.non_disposed_frame.is_none() {
             // Check limits
-            if let Err(e) = self.limits.check_dimensions(self.width, self.height) {
-                return Some(Err(e.into()));
-            }
-            let in_memory_size = self.width as u64 * self.height as u64; // cannot overflow, 2^32 * 2^32 = 2^64
-            if let Err(e) = self.limits.reserve(in_memory_size) {
-                return Some(Err(e.into()));
+            if let Err(e) = limits_reserve_buffer(&mut self.limits, self.width, self.height) {
+                return Some(Err(e));
             }
             self.non_disposed_frame = Some(ImageBuffer::from_pixel(
                 self.width,
@@ -282,6 +285,17 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             Err(err) => return Some(Err(ImageError::from_decoding(err))),
         };
 
+        // All allocations we do from now on will be freed at the end of this function.
+        // Therefore, do not count them towards the persistent limits.
+        // Instead, create a local instance of `Limits` for this function alone
+        // which will be dropped along with all the buffers when they go out of scope.
+        let mut local_limits = self.limits.clone();
+
+        // Check the allocation we're about to perform against the limits
+        if let Err(e) = limits_reserve_buffer(&mut local_limits, frame.width, frame.height) {
+            return Some(Err(e));
+        }
+        // Allocate the buffer now that the limits allowed it
         let mut vec = vec![0; self.reader.buffer_size()];
         if let Err(err) = self.reader.read_into_buffer(&mut vec) {
             return Some(Err(ImageError::from_decoding(err)));

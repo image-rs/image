@@ -6,8 +6,8 @@ fn gif_decode(data: &[u8], limits: Limits) -> ImageResult<()> {
     let mut decoder = GifDecoder::new(data).unwrap();
     decoder.set_limits(limits)?;
     {
-        let mut frames = decoder.into_frames();
-        while let Some(result) = frames.next() {
+        let frames = decoder.into_frames();
+        for result in frames {
             result?;
         }
     }

@@ -64,5 +64,32 @@ fn animated_full_frame_discard() {
 #[test]
 #[cfg(feature = "gif")]
 fn animated_frame_combine() {
-    // TODO
+    let data = std::fs::read("tests/images/gif/anim/large-gif-anim-combine.gif").unwrap();
+
+    let mut limits_dimensions_too_small = Limits::default();
+    limits_dimensions_too_small.max_image_width = Some(500);
+    limits_dimensions_too_small.max_image_height = Some(500);
+    assert_limit_error(gif_decode(&data, limits_dimensions_too_small));
+
+    let mut limits_memory_way_too_small = Limits::default();
+    // Start with a ridiculously low memory allocation cap
+    limits_memory_way_too_small.max_alloc = Some(5);
+    assert_limit_error(gif_decode(&data, limits_memory_way_too_small));
+
+    let mut limits_memory_too_small = Limits::default();
+    // 1000 * 1000 * 4 * would be the exact size of two buffers for an RGBA frame.
+    // In this mode the decoder uses 2 full frames (accumulated result and the output frame)
+    // plus the smaller frame size from the GIF format decoder that it composites onto the output frame.
+    // So two full frames are not actually enough for decoding here.
+    // Verify that this is caught.
+    limits_memory_too_small.max_alloc = Some(1000 * 1000 * 4 * 2); // 4 for RGBA, 2 for 2 buffers kept in memory simultaneously
+    assert_limit_error(gif_decode(&data, limits_memory_too_small));
+
+    let mut limits_enough = Limits::default();
+    limits_enough.max_image_height = Some(1000);
+    limits_enough.max_image_width = Some(1000);
+    limits_enough.max_alloc = Some(1000 * 1000 * 4 * 3); // 4 for RGBA, 2 for 2 buffers kept in memory simultaneously
+
+    gif_decode(&data, limits_enough)
+        .expect("With these limits it should have decoded successfully");
 }

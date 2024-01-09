@@ -249,9 +249,8 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
         fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
             limits.check_dimensions(width, height)?;
-            let in_memory_size = width as u64 * height as u64; // cannot overflow, 2^32 * 2^32 = 2^64
-            limits.reserve(in_memory_size)?;
-            Ok(())
+            let in_memory_size = width as u64 * height as u64 * 4; // * 4 for RGBA output. TODO: overflow checks
+            limits.reserve(in_memory_size)
         }
 
         // Allocate the buffer for the previous frame.

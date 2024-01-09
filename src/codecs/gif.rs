@@ -258,7 +258,6 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // This is done here and not in the constructor because
         // the constructor cannot return an error when the allocation limit is exceeded.
         if self.non_disposed_frame.is_none() {
-            // Check limits
             if let Err(e) = limits_reserve_buffer(&mut self.limits, self.width, self.height) {
                 return Some(Err(e));
             }

@@ -222,23 +222,23 @@ struct GifFrameIterator<R: Read> {
     width: u32,
     height: u32,
 
-    non_disposed_frame: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    non_disposed_frame: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
+    limits: Limits,
 }
 
 impl<R: Read> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
+        let limits = decoder.limits.clone();
 
         // intentionally ignore the background color for web compatibility
-
-        // create the first non disposed frame
-        let non_disposed_frame = ImageBuffer::from_pixel(width, height, Rgba([0, 0, 0, 0]));
 
         GifFrameIterator {
             reader: decoder.reader,
             width,
             height,
-            non_disposed_frame,
+            non_disposed_frame: None,
+            limits,
         }
     }
 }
@@ -247,6 +247,27 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     type Item = ImageResult<animation::Frame>;
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
+        // Allocate the buffer for the previous frame.
+        // This is done here and not in the constructor because
+        // the constructor cannot return an error when the allocation limit is exceeded.
+        if self.non_disposed_frame.is_none() {
+            // Check limits
+            if let Err(e) = self.limits.check_dimensions(self.width, self.height) {
+                return Some(Err(e.into()));
+            }
+            let in_memory_size = self.width as u64 * self.height as u64; // cannot overflow, 2^32 * 2^32 = 2^64
+            if let Err(e) = self.limits.reserve(in_memory_size) {
+                return Some(Err(e.into()));
+            }
+            self.non_disposed_frame = Some(ImageBuffer::from_pixel(
+                self.width,
+                self.height,
+                Rgba([0, 0, 0, 0]),
+            ));
+        }
+        // Bind to a variable to avoid repeated `.unwrap()` calls
+        let non_disposed_frame = self.non_disposed_frame.as_mut().unwrap();
+
         // begin looping over each frame
 
         let frame = match self.reader.next_frame_info() {
@@ -325,7 +346,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             && (self.width, self.height) == frame_buffer.dimensions()
         {
             for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
                 blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
             }
             frame_buffer
@@ -333,7 +354,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             ImageBuffer::from_fn(self.width, self.height, |x, y| {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);
-                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
 
                 if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
                     let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);

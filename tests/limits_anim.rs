@@ -1,7 +1,11 @@
 //! Test enforcement of size and memory limits for animation decoding APIs.
 
-use image::{codecs::gif::GifDecoder, io::Limits, AnimationDecoder, ImageDecoder, ImageResult};
+use image::{io::Limits, AnimationDecoder, ImageDecoder, ImageResult};
 
+#[cfg(feature = "gif")]
+use image::codecs::gif::GifDecoder;
+
+#[cfg(feature = "gif")]
 fn gif_decode(data: &[u8], limits: Limits) -> ImageResult<()> {
     let mut decoder = GifDecoder::new(data).unwrap();
     decoder.set_limits(limits)?;

@@ -260,7 +260,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
         fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
             limits.check_dimensions(width, height)?;
-            let in_memory_size = width as u64 * height as u64 * 4; // * 4 for RGBA output. TODO: overflow checks
+            // cannot overflow because width/height are u16 in the actual GIF format,
+            // so this cannot exceed 64GB which easily fits into a u64
+            let in_memory_size = width as u64 * height as u64 * 4;
             limits.reserve(in_memory_size)
         }
 

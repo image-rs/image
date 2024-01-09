@@ -66,7 +66,7 @@ impl<R: Read> GifDecoder<R> {
 
         Ok(GifDecoder {
             reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits: Limits::default(),
+            limits,
         })
     }
 

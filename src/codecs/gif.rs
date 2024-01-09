@@ -365,6 +365,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             }
             frame_buffer
         } else {
+            // Check limits before allocating the buffer
+            if let Err(e) = limits_reserve_buffer(&mut local_limits, self.width, self.height) {
+                return Some(Err(e));
+            }
             ImageBuffer::from_fn(self.width, self.height, |x, y| {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);

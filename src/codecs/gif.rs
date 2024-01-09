@@ -58,6 +58,12 @@ impl<R: Read> GifDecoder<R> {
         let mut decoder = gif::DecodeOptions::new();
         decoder.set_color_output(ColorOutput::RGBA);
 
+        // We previously used `Limits::default()`, but they weren't actually enforced.
+        // Suddenly enabling enforcement while keeping default limits would break existing users.
+        // Therefore, set no limit at least until the next semver break, 0.25.x
+        let mut limits = Limits::default();
+        limits.max_alloc = None;
+
         Ok(GifDecoder {
             reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
             limits: Limits::default(),

@@ -465,8 +465,8 @@ impl Error for DecodingError {
 impl fmt::Display for LimitError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self.kind {
-            LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
-            LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
+            LimitErrorKind::InsufficientMemory => write!(fmt, "Memory limit exceeded"),
+            LimitErrorKind::DimensionError => write!(fmt, "Image size exceeds limit"),
             LimitErrorKind::Unsupported { .. } => {
                 write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
                 Ok(())

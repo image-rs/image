@@ -642,13 +642,8 @@ impl<R: Read> Reader<R> {
             || self.transform.contains(Transformations::ALPHA);
         let strip16 = bit_depth == 16 && self.transform.contains(Transformations::STRIP_16);
         let info = self.decoder.info().unwrap();
-        let trns = if trns {
-            Some(info.trns.as_deref())
-        } else {
-            None
-        };
-        match (color_type, trns) {
-            (ColorType::Indexed, _) if expand => {
+        match color_type {
+            ColorType::Indexed if expand => {
                 if info.palette.is_none() {
                     return Err(DecodingError::Format(
                         FormatErrorInner::PaletteRequired.into(),
@@ -663,27 +658,33 @@ impl<R: Read> Reader<R> {
                         .into(),
                     ));
                 } else {
-                    expand_paletted(row, output_buffer, info, trns);
+                    if trns {
+                        expand_paletted_into_rgba8(row, output_buffer, info);
+                    } else {
+                        expand_paletted_into_rgb8(row, output_buffer, info);
+                    }
                 }
             }
-            (ColorType::Grayscale | ColorType::GrayscaleAlpha, _) if bit_depth < 8 && expand => {
-                expand_gray_u8(row, output_buffer, info, trns)
+            ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {
+                if trns {
+                    expand_gray_u8_with_trns(row, output_buffer, info)
+                } else {
+                    expand_gray_u8(row, output_buffer, info)
+                }
             }
-            (ColorType::Grayscale | ColorType::Rgb, Some(trns)) if expand => {
-                let channels = color_type.samples();
+            ColorType::Grayscale | ColorType::Rgb if expand && trns => {
                 if bit_depth == 8 {
-                    expand_trns_line(row, output_buffer, trns, channels);
+                    expand_trns_line(row, output_buffer, info);
                 } else if strip16 {
-                    expand_trns_and_strip_line16(row, output_buffer, trns, channels);
+                    expand_trns_and_strip_line16(row, output_buffer, info);
                 } else {
                     assert_eq!(bit_depth, 16);
-                    expand_trns_line16(row, output_buffer, trns, channels);
+                    expand_trns_line16(row, output_buffer, info);
                 }
             }
-            (
-                ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba,
-                _,
-            ) if strip16 => {
+            ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba
+                if strip16 =>
+            {
                 for i in 0..row.len() / 2 {
                     output_buffer[i] = row[2 * i];
                 }

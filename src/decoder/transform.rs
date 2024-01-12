@@ -50,7 +50,9 @@ where
     }
 }
 
-pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, channels: usize) {
+pub fn expand_trns_line(input: &[u8], output: &mut [u8], info: &Info) {
+    let channels = info.color_type.samples();
+    let trns = info.trns.as_deref();
     for (input, output) in input
         .chunks_exact(channels)
         .zip(output.chunks_exact_mut(channels + 1))
@@ -60,7 +62,9 @@ pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, ch
     }
 }
 
-pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, channels: usize) {
+pub fn expand_trns_line16(input: &[u8], output: &mut [u8], info: &Info) {
+    let channels = info.color_type.samples();
+    let trns = info.trns.as_deref();
     for (input, output) in input
         .chunks_exact(channels * 2)
         .zip(output.chunks_exact_mut(channels * 2 + 2))
@@ -76,12 +80,9 @@ pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, 
     }
 }
 
-pub fn expand_trns_and_strip_line16(
-    input: &[u8],
-    output: &mut [u8],
-    trns: Option<&[u8]>,
-    channels: usize,
-) {
+pub fn expand_trns_and_strip_line16(input: &[u8], output: &mut [u8], info: &Info) {
+    let channels = info.color_type.samples();
+    let trns = info.trns.as_deref();
     for (input, output) in input
         .chunks_exact(channels * 2)
         .zip(output.chunks_exact_mut(channels + 1))
@@ -93,71 +94,72 @@ pub fn expand_trns_and_strip_line16(
     }
 }
 
-pub fn expand_paletted(row: &[u8], buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
+pub fn expand_paletted_into_rgb8(row: &[u8], buffer: &mut [u8], info: &Info) {
     let palette = info.palette.as_deref().expect("Caller should verify");
     let black = [0, 0, 0];
-    if let Some(trns) = trns {
-        let trns = trns.unwrap_or(&[]);
-        // > The tRNS chunk shall not contain more alpha values than there are palette
-        // entries, but a tRNS chunk may contain fewer values than there are palette
-        // entries. In this case, the alpha value for all remaining palette entries is
-        // assumed to be 255.
-        //
-        // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
-        // completely empty / all pixels are non-transparent.
-        let trns = if trns.len() <= palette.len() / 3 {
-            trns
-        } else {
-            &[]
-        };
 
-        unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
-            let (rgb, a) = (
-                palette
-                    .get(3 * i as usize..3 * i as usize + 3)
-                    .unwrap_or(&black),
-                *trns.get(i as usize).unwrap_or(&0xFF),
-            );
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-            chunk[3] = a;
-        });
-    } else {
-        unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
-            let rgb = palette
-                .get(3 * i as usize..3 * i as usize + 3)
-                .unwrap_or(&black);
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-        })
-    }
+    unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
+        let rgb = palette
+            .get(3 * i as usize..3 * i as usize + 3)
+            .unwrap_or(&black);
+        chunk[0] = rgb[0];
+        chunk[1] = rgb[1];
+        chunk[2] = rgb[2];
+    })
 }
 
-pub fn expand_gray_u8(row: &[u8], buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
-    let rescale = true;
-    let scaling_factor = if rescale {
-        (255) / ((1u16 << info.bit_depth as u8) - 1) as u8
+pub fn expand_paletted_into_rgba8(row: &[u8], buffer: &mut [u8], info: &Info) {
+    let palette = info.palette.as_deref().expect("Caller should verify");
+    let trns = info.trns.as_deref().unwrap_or(&[]);
+    let black = [0, 0, 0];
+
+    // > The tRNS chunk shall not contain more alpha values than there are palette
+    // entries, but a tRNS chunk may contain fewer values than there are palette
+    // entries. In this case, the alpha value for all remaining palette entries is
+    // assumed to be 255.
+    //
+    // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
+    // completely empty / all pixels are non-transparent.
+    let trns = if trns.len() <= palette.len() / 3 {
+        trns
     } else {
-        1
+        &[]
     };
-    if let Some(trns) = trns {
-        unpack_bits(row, buffer, 2, info.bit_depth as u8, |pixel, chunk| {
-            chunk[1] = if let Some(trns) = trns {
-                if pixel == trns[0] {
-                    0
-                } else {
-                    0xFF
-                }
+
+    unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
+        let (rgb, a) = (
+            palette
+                .get(3 * i as usize..3 * i as usize + 3)
+                .unwrap_or(&black),
+            *trns.get(i as usize).unwrap_or(&0xFF),
+        );
+        chunk[0] = rgb[0];
+        chunk[1] = rgb[1];
+        chunk[2] = rgb[2];
+        chunk[3] = a;
+    });
+}
+
+pub fn expand_gray_u8(row: &[u8], buffer: &mut [u8], info: &Info) {
+    let scaling_factor = (255) / ((1u16 << info.bit_depth as u8) - 1) as u8;
+    unpack_bits(row, buffer, 1, info.bit_depth as u8, |val, chunk| {
+        chunk[0] = val * scaling_factor
+    });
+}
+
+pub fn expand_gray_u8_with_trns(row: &[u8], buffer: &mut [u8], info: &Info) {
+    let scaling_factor = (255) / ((1u16 << info.bit_depth as u8) - 1) as u8;
+    let trns = info.trns.as_deref();
+    unpack_bits(row, buffer, 2, info.bit_depth as u8, |pixel, chunk| {
+        chunk[1] = if let Some(trns) = trns {
+            if pixel == trns[0] {
+                0
             } else {
                 0xFF
-            };
-            chunk[0] = pixel * scaling_factor
-        })
-    } else {
-        unpack_bits(row, buffer, 1, info.bit_depth as u8, |val, chunk| {
-            chunk[0] = val * scaling_factor
-        })
-    }
+            }
+        } else {
+            0xFF
+        };
+        chunk[0] = pixel * scaling_factor
+    });
 }

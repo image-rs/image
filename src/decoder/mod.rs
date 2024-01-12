@@ -4,7 +4,7 @@ mod zlib;
 
 pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
 use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
-use self::transform::*;
+use self::transform::{create_transform_fn, TransformFn};
 
 use std::io::{BufRead, BufReader, Read};
 use std::mem;
@@ -229,6 +229,7 @@ impl<R: Read> Decoder<R> {
             prev_start: 0,
             current_start: 0,
             transform: self.transform,
+            transform_fn: None,
             scratch_buffer: Vec::new(),
         };
 
@@ -369,6 +370,9 @@ pub struct Reader<R: Read> {
     current_start: usize,
     /// Output transformations
     transform: Transformations,
+    /// Function that can transform decompressed, unfiltered rows into final output.
+    /// See the `transform.rs` module for more details.
+    transform_fn: Option<TransformFn>,
     /// This buffer is only used so that `next_row` and `next_interlaced_row` can return reference
     /// to a byte slice. In a future version of this library, this buffer will be removed and
     /// `next_row` and `next_interlaced_row` will write directly into a user provided output buffer.
@@ -630,67 +634,13 @@ impl<R: Read> Reader<R> {
         let row = &self.data_stream[self.prev_start..self.current_start];
 
         // Apply transformations and write resulting data to buffer.
-        let (color_type, bit_depth, trns) = {
-            let info = self.info();
-            (
-                info.color_type,
-                info.bit_depth as u8,
-                info.trns.is_some() || self.transform.contains(Transformations::ALPHA),
-            )
+        let transform_fn = {
+            if self.transform_fn.is_none() {
+                self.transform_fn = Some(create_transform_fn(self.info(), self.transform)?);
+            }
+            self.transform_fn.unwrap()
         };
-        let expand = self.transform.contains(Transformations::EXPAND)
-            || self.transform.contains(Transformations::ALPHA);
-        let strip16 = bit_depth == 16 && self.transform.contains(Transformations::STRIP_16);
-        let info = self.decoder.info().unwrap();
-        match color_type {
-            ColorType::Indexed if expand => {
-                if info.palette.is_none() {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::PaletteRequired.into(),
-                    ));
-                } else if let BitDepth::Sixteen = info.bit_depth {
-                    // This should have been caught earlier but let's check again. Can't hurt.
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::InvalidColorBitDepth {
-                            color_type: ColorType::Indexed,
-                            bit_depth: BitDepth::Sixteen,
-                        }
-                        .into(),
-                    ));
-                } else {
-                    if trns {
-                        expand_paletted_into_rgba8(row, output_buffer, info);
-                    } else {
-                        expand_paletted_into_rgb8(row, output_buffer, info);
-                    }
-                }
-            }
-            ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {
-                if trns {
-                    expand_gray_u8_with_trns(row, output_buffer, info)
-                } else {
-                    expand_gray_u8(row, output_buffer, info)
-                }
-            }
-            ColorType::Grayscale | ColorType::Rgb if expand && trns => {
-                if bit_depth == 8 {
-                    expand_trns_line(row, output_buffer, info);
-                } else if strip16 {
-                    expand_trns_and_strip_line16(row, output_buffer, info);
-                } else {
-                    assert_eq!(bit_depth, 16);
-                    expand_trns_line16(row, output_buffer, info);
-                }
-            }
-            ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba
-                if strip16 =>
-            {
-                for i in 0..row.len() / 2 {
-                    output_buffer[i] = row[2 * i];
-                }
-            }
-            _ => output_buffer.copy_from_slice(row),
-        }
+        transform_fn(row, output_buffer, self.info());
 
         Ok(())
     }

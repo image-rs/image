@@ -1,6 +1,88 @@
 //! Transforming a decompressed, unfiltered row into the final output.
 
-use crate::Info;
+use crate::{BitDepth, ColorType, DecodingError, Info, Transformations};
+
+use super::stream::FormatErrorInner;
+
+/// Type of a function that can transform a decompressed, unfiltered row (the
+/// 1st argument) into the final pixels (the 2nd argument), optionally using
+/// image metadata (e.g. PLTE data can be accessed using the 3rd argument).
+///
+/// TODO: If some precomputed state is needed (e.g. to make `expand_paletted...`
+/// faster) then consider changing this into `Box<dyn Fn(...)>`.
+pub type TransformFn = fn(&[u8], &mut [u8], &Info);
+
+/// Returns a transformation function that should be applied to image rows based
+/// on 1) decoded image metadata (`info`) and 2) the transformations requested
+/// by the crate client (`transform`).
+pub fn create_transform_fn(
+    info: &Info,
+    transform: Transformations,
+) -> Result<TransformFn, DecodingError> {
+    let color_type = info.color_type;
+    let bit_depth = info.bit_depth as u8;
+    let trns = info.trns.is_some() || transform.contains(Transformations::ALPHA);
+    let expand =
+        transform.contains(Transformations::EXPAND) || transform.contains(Transformations::ALPHA);
+    let strip16 = bit_depth == 16 && transform.contains(Transformations::STRIP_16);
+    match color_type {
+        ColorType::Indexed if expand => {
+            if info.palette.is_none() {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::PaletteRequired.into(),
+                ));
+            } else if let BitDepth::Sixteen = info.bit_depth {
+                // This should have been caught earlier but let's check again. Can't hurt.
+                return Err(DecodingError::Format(
+                    FormatErrorInner::InvalidColorBitDepth {
+                        color_type: ColorType::Indexed,
+                        bit_depth: BitDepth::Sixteen,
+                    }
+                    .into(),
+                ));
+            } else {
+                if trns {
+                    Ok(expand_paletted_into_rgba8)
+                } else {
+                    Ok(expand_paletted_into_rgb8)
+                }
+            }
+        }
+        ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {
+            if trns {
+                Ok(expand_gray_u8_with_trns)
+            } else {
+                Ok(expand_gray_u8)
+            }
+        }
+        ColorType::Grayscale | ColorType::Rgb if expand && trns => {
+            if bit_depth == 8 {
+                Ok(expand_trns_line)
+            } else if strip16 {
+                Ok(expand_trns_and_strip_line16)
+            } else {
+                assert_eq!(bit_depth, 16);
+                Ok(expand_trns_line16)
+            }
+        }
+        ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba
+            if strip16 =>
+        {
+            Ok(transform_row_strip16)
+        }
+        _ => Ok(copy_row),
+    }
+}
+
+fn copy_row(row: &[u8], output_buffer: &mut [u8], _: &Info) {
+    output_buffer.copy_from_slice(row);
+}
+
+fn transform_row_strip16(row: &[u8], output_buffer: &mut [u8], _: &Info) {
+    for i in 0..row.len() / 2 {
+        output_buffer[i] = row[2 * i];
+    }
+}
 
 #[inline(always)]
 fn unpack_bits<F>(input: &[u8], output: &mut [u8], channels: usize, bit_depth: u8, func: F)

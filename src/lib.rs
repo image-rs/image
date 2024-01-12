@@ -64,6 +64,7 @@
 #[macro_use]
 extern crate bitflags;
 
+mod adam7;
 pub mod chunk;
 mod common;
 mod decoder;
@@ -72,7 +73,6 @@ mod filter;
 mod srgb;
 pub mod text_metadata;
 mod traits;
-mod utils;
 
 pub use crate::common::*;
 pub use crate::decoder::{

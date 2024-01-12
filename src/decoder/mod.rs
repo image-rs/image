@@ -1,19 +1,21 @@
 mod stream;
+mod transform;
 mod zlib;
 
 pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
 use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
+use self::transform::*;
 
 use std::io::{BufRead, BufReader, Read};
 use std::mem;
 use std::ops::Range;
 
+use crate::adam7;
 use crate::chunk;
 use crate::common::{
     BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
 };
 use crate::filter::{unfilter, FilterType};
-use crate::utils;
 
 /*
 pub enum InterlaceHandling {
@@ -390,7 +392,7 @@ struct SubframeInfo {
 #[derive(Clone)]
 enum InterlaceIter {
     None(Range<u32>),
-    Adam7(utils::Adam7Iterator),
+    Adam7(adam7::Adam7Iterator),
 }
 
 /// Denote a frame as given by sequence numbers.
@@ -527,7 +529,7 @@ impl<R: Read> Reader<R> {
                     InterlaceInfo::Null => unreachable!("expected interlace information"),
                 };
                 let samples = color_type.samples() as u8;
-                utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
+                adam7::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
             }
         } else {
             for row in buf
@@ -655,12 +657,12 @@ impl<R: Read> Reader<R> {
             (ColorType::Grayscale | ColorType::Rgb, Some(trns)) if expand => {
                 let channels = color_type.samples();
                 if bit_depth == 8 {
-                    utils::expand_trns_line(row, output_buffer, trns, channels);
+                    expand_trns_line(row, output_buffer, trns, channels);
                 } else if strip16 {
-                    utils::expand_trns_and_strip_line16(row, output_buffer, trns, channels);
+                    expand_trns_and_strip_line16(row, output_buffer, trns, channels);
                 } else {
                     assert_eq!(bit_depth, 16);
-                    utils::expand_trns_line16(row, output_buffer, trns, channels);
+                    expand_trns_line16(row, output_buffer, trns, channels);
                 }
             }
             (
@@ -827,7 +829,7 @@ impl SubframeInfo {
         };
 
         let interlace = if info.interlaced {
-            InterlaceIter::Adam7(utils::Adam7Iterator::new(width, height))
+            InterlaceIter::Adam7(adam7::Adam7Iterator::new(width, height))
         } else {
             InterlaceIter::None(0..height)
         };
@@ -839,96 +841,5 @@ impl SubframeInfo {
             interlace,
             consumed_and_flushed: false,
         }
-    }
-}
-
-fn expand_paletted(
-    row: &[u8],
-    buffer: &mut [u8],
-    info: &Info,
-    trns: Option<Option<&[u8]>>,
-) -> Result<(), DecodingError> {
-    if let Some(palette) = info.palette.as_ref() {
-        if let BitDepth::Sixteen = info.bit_depth {
-            // This should have been caught earlier but let's check again. Can't hurt.
-            Err(DecodingError::Format(
-                FormatErrorInner::InvalidColorBitDepth {
-                    color_type: ColorType::Indexed,
-                    bit_depth: BitDepth::Sixteen,
-                }
-                .into(),
-            ))
-        } else {
-            let black = [0, 0, 0];
-            if let Some(trns) = trns {
-                let trns = trns.unwrap_or(&[]);
-                // > The tRNS chunk shall not contain more alpha values than there are palette
-                // entries, but a tRNS chunk may contain fewer values than there are palette
-                // entries. In this case, the alpha value for all remaining palette entries is
-                // assumed to be 255.
-                //
-                // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
-                // completely empty / all pixels are non-transparent.
-                let trns = if trns.len() <= palette.len() / 3 {
-                    trns
-                } else {
-                    &[]
-                };
-
-                utils::unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
-                    let (rgb, a) = (
-                        palette
-                            .get(3 * i as usize..3 * i as usize + 3)
-                            .unwrap_or(&black),
-                        *trns.get(i as usize).unwrap_or(&0xFF),
-                    );
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                    chunk[3] = a;
-                });
-            } else {
-                utils::unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
-                    let rgb = palette
-                        .get(3 * i as usize..3 * i as usize + 3)
-                        .unwrap_or(&black);
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                })
-            }
-            Ok(())
-        }
-    } else {
-        Err(DecodingError::Format(
-            FormatErrorInner::PaletteRequired.into(),
-        ))
-    }
-}
-
-fn expand_gray_u8(row: &[u8], buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
-    let rescale = true;
-    let scaling_factor = if rescale {
-        (255) / ((1u16 << info.bit_depth as u8) - 1) as u8
-    } else {
-        1
-    };
-    if let Some(trns) = trns {
-        utils::unpack_bits(row, buffer, 2, info.bit_depth as u8, |pixel, chunk| {
-            chunk[1] = if let Some(trns) = trns {
-                if pixel == trns[0] {
-                    0
-                } else {
-                    0xFF
-                }
-            } else {
-                0xFF
-            };
-            chunk[0] = pixel * scaling_factor
-        })
-    } else {
-        utils::unpack_bits(row, buffer, 1, info.bit_depth as u8, |val, chunk| {
-            chunk[0] = val * scaling_factor
-        })
     }
 }

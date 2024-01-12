@@ -649,7 +649,22 @@ impl<R: Read> Reader<R> {
         };
         match (color_type, trns) {
             (ColorType::Indexed, _) if expand => {
-                expand_paletted(row, output_buffer, info, trns)?;
+                if info.palette.is_none() {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::PaletteRequired.into(),
+                    ));
+                } else if let BitDepth::Sixteen = info.bit_depth {
+                    // This should have been caught earlier but let's check again. Can't hurt.
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::InvalidColorBitDepth {
+                            color_type: ColorType::Indexed,
+                            bit_depth: BitDepth::Sixteen,
+                        }
+                        .into(),
+                    ));
+                } else {
+                    expand_paletted(row, output_buffer, info, trns);
+                }
             }
             (ColorType::Grayscale | ColorType::GrayscaleAlpha, _) if bit_depth < 8 && expand => {
                 expand_gray_u8(row, output_buffer, info, trns)

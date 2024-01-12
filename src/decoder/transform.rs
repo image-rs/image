@@ -1,8 +1,6 @@
 //! Transforming a decompressed, unfiltered row into the final output.
 
-use crate::{BitDepth, ColorType, DecodingError, Info};
-
-use super::stream::FormatErrorInner;
+use crate::Info;
 
 #[inline(always)]
 fn unpack_bits<F>(input: &[u8], output: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -95,67 +93,45 @@ pub fn expand_trns_and_strip_line16(
     }
 }
 
-pub fn expand_paletted(
-    row: &[u8],
-    buffer: &mut [u8],
-    info: &Info,
-    trns: Option<Option<&[u8]>>,
-) -> Result<(), DecodingError> {
-    if let Some(palette) = info.palette.as_ref() {
-        if let BitDepth::Sixteen = info.bit_depth {
-            // This should have been caught earlier but let's check again. Can't hurt.
-            Err(DecodingError::Format(
-                FormatErrorInner::InvalidColorBitDepth {
-                    color_type: ColorType::Indexed,
-                    bit_depth: BitDepth::Sixteen,
-                }
-                .into(),
-            ))
+pub fn expand_paletted(row: &[u8], buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
+    let palette = info.palette.as_deref().expect("Caller should verify");
+    let black = [0, 0, 0];
+    if let Some(trns) = trns {
+        let trns = trns.unwrap_or(&[]);
+        // > The tRNS chunk shall not contain more alpha values than there are palette
+        // entries, but a tRNS chunk may contain fewer values than there are palette
+        // entries. In this case, the alpha value for all remaining palette entries is
+        // assumed to be 255.
+        //
+        // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
+        // completely empty / all pixels are non-transparent.
+        let trns = if trns.len() <= palette.len() / 3 {
+            trns
         } else {
-            let black = [0, 0, 0];
-            if let Some(trns) = trns {
-                let trns = trns.unwrap_or(&[]);
-                // > The tRNS chunk shall not contain more alpha values than there are palette
-                // entries, but a tRNS chunk may contain fewer values than there are palette
-                // entries. In this case, the alpha value for all remaining palette entries is
-                // assumed to be 255.
-                //
-                // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
-                // completely empty / all pixels are non-transparent.
-                let trns = if trns.len() <= palette.len() / 3 {
-                    trns
-                } else {
-                    &[]
-                };
+            &[]
+        };
 
-                unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
-                    let (rgb, a) = (
-                        palette
-                            .get(3 * i as usize..3 * i as usize + 3)
-                            .unwrap_or(&black),
-                        *trns.get(i as usize).unwrap_or(&0xFF),
-                    );
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                    chunk[3] = a;
-                });
-            } else {
-                unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
-                    let rgb = palette
-                        .get(3 * i as usize..3 * i as usize + 3)
-                        .unwrap_or(&black);
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                })
-            }
-            Ok(())
-        }
+        unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
+            let (rgb, a) = (
+                palette
+                    .get(3 * i as usize..3 * i as usize + 3)
+                    .unwrap_or(&black),
+                *trns.get(i as usize).unwrap_or(&0xFF),
+            );
+            chunk[0] = rgb[0];
+            chunk[1] = rgb[1];
+            chunk[2] = rgb[2];
+            chunk[3] = a;
+        });
     } else {
-        Err(DecodingError::Format(
-            FormatErrorInner::PaletteRequired.into(),
-        ))
+        unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
+            let rgb = palette
+                .get(3 * i as usize..3 * i as usize + 3)
+                .unwrap_or(&black);
+            chunk[0] = rgb[0];
+            chunk[1] = rgb[1];
+            chunk[2] = rgb[2];
+        })
     }
 }
 

@@ -84,6 +84,13 @@ impl ZlibStream {
         data: &[u8],
         image_data: &mut Vec<u8>,
     ) -> Result<usize, DecodingError> {
+        // There may be more data past the adler32 checksum at the end of the deflate stream. We
+        // match libpng's default behavior and ignore any trailing data. In the future we may want
+        // to add a flag to control this behavior.
+        if self.state.is_done() {
+            return Ok(data.len());
+        }
+
         self.prepare_vec_for_appending();
 
         if !self.started && self.ignore_adler32 {

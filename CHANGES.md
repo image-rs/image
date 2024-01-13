@@ -17,6 +17,26 @@
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
 
+### Version 0.24.8
+
+New features:
+- Added pure-Rust lossless WebP encoding.
+- Added `DynamicImage::new` method.
+- Added `PngDecoder::gamma_value` method.
+- Added `ImageFormat::{reading_enabled, writing_enabled, all}`.
+- TGA encoder now supports RLE encoding.
+- Add rayon parallel iterators behind an optional `rayon` feature.
+- Support CMYK TIFF images.
+- Implement From<DynamicImage> for all image types.
+
+Bug fixes:
+- Fix decoding pngs with invalid text chunks.
+- Handle non-fatal error dav1d::Error::Again.
+- Do not round floats in interpolate.
+- PNM decoder now scales samples according to specified maximum.
+- Fix wrong implementation of unsharpen filter.
+- Fix `GifDecoder::with_limits` to raise an error when limits are exceeded.
+
 ### Version 0.24.7
 
 New features:

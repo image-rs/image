@@ -1,5 +1,15 @@
 ## Unreleased
 
+## 0.17.11
+
+* Ignore subsequent iCCP chunks to match libpng behavior.
+* Added an option to ignore ancillary chunks with invalid CRC.
+* Added `new_with_info` constructor for encoder.
+* Removed hard-coded memory limits.
+* No longer allow zero sized images.
+* Added `Reader::finish` to read all the auxillary chunks that comes after the
+  image.
+
 ## 0.17.10
 
 * Added Transformations::ALPHA

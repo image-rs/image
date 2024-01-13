@@ -1,12 +1,12 @@
 [package]
 name = "png"
-version = "0.17.10"
+version = "0.17.11"
 license = "MIT OR Apache-2.0"
 
 description = "PNG decoding and encoding library in pure Rust"
 categories = ["multimedia::images"]
 authors = ["The image-rs Developers"]
-repository = "https://github.com/image-rs/image-png.git"
+repository = "https://github.com/image-rs/image-png"
 
 edition = "2018"
 rust-version = "1.57"

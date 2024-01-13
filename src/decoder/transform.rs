@@ -245,3 +245,146 @@ pub fn expand_gray_u8_with_trns(row: &[u8], buffer: &mut [u8], info: &Info) {
         chunk[0] = pixel * scaling_factor
     });
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{BitDepth, ColorType, Info, Transformations};
+
+    fn expand_paletted(
+        src: &[u8],
+        src_bit_depth: u8,
+        palette: &[u8],
+        trns: Option<&[u8]>,
+    ) -> Vec<u8> {
+        let info = Info {
+            color_type: ColorType::Indexed,
+            bit_depth: BitDepth::from_u8(src_bit_depth).unwrap(),
+            palette: Some(palette.into()),
+            trns: trns.map(Into::into),
+            ..Info::default()
+        };
+        let output_bytes_per_input_sample = match trns {
+            None => 3,
+            Some(_) => 4,
+        };
+        let samples_count_per_byte = (8 / src_bit_depth) as usize;
+        let samples_count = src.len() * samples_count_per_byte;
+        let mut dst = vec![0; samples_count * output_bytes_per_input_sample];
+        let transform_fn = super::create_transform_fn(&info, Transformations::EXPAND).unwrap();
+        transform_fn(src, dst.as_mut_slice(), &info);
+        dst
+    }
+
+    #[test]
+    fn test_expand_paletted_rgba_8bit() {
+        let actual = expand_paletted(
+            &[0, 1, 2, 3], // src
+            8,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //    entry #0
+                4, 5, 6, //    entry #1
+                8, 9, 10, //   entry #2
+                12, 13, 14, // entry #3
+            ],
+            Some(&[3, 7, 11, 15]), // trns
+        );
+        assert_eq!(actual, (0..16).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn test_expand_paletted_rgb_8bit() {
+        let actual = expand_paletted(
+            &[0, 1, 2, 3], // src
+            8,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //   entry #0
+                3, 4, 5, //   entry #1
+                6, 7, 8, //   entry #2
+                9, 10, 11, // entry #3
+            ],
+            None, // trns
+        );
+        assert_eq!(actual, (0..12).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn test_expand_paletted_rgba_4bit() {
+        let actual = expand_paletted(
+            &[0x01, 0x23], // src
+            4,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //    entry #0
+                4, 5, 6, //    entry #1
+                8, 9, 10, //   entry #2
+                12, 13, 14, // entry #3
+            ],
+            Some(&[3, 7, 11, 15]), // trns
+        );
+        assert_eq!(actual, (0..16).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn test_expand_paletted_rgb_4bit() {
+        let actual = expand_paletted(
+            &[0x01, 0x23], // src
+            4,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //   entry #0
+                3, 4, 5, //   entry #1
+                6, 7, 8, //   entry #2
+                9, 10, 11, // entry #3
+            ],
+            None, // trns
+        );
+        assert_eq!(actual, (0..12).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn test_expand_paletted_rgba_8bit_more_trns_entries_than_palette_entries() {
+        let actual = expand_paletted(
+            &[0, 1, 2, 3], // src
+            8,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //    entry #0
+                4, 5, 6, //    entry #1
+                8, 9, 10, //   entry #2
+                12, 13, 14, // entry #3
+            ],
+            Some(&[123; 5]), // trns
+        );
+
+        // Invalid (too-long) `trns` means that we'll use 0xFF / opaque alpha everywhere.
+        assert_eq!(
+            actual,
+            vec![0, 1, 2, 0xFF, 4, 5, 6, 0xFF, 8, 9, 10, 0xFF, 12, 13, 14, 0xFF],
+        );
+    }
+
+    #[test]
+    fn test_expand_paletted_rgba_8bit_less_trns_entries_than_palette_entries() {
+        let actual = expand_paletted(
+            &[0, 1, 2, 3], // src
+            8,             // src_bit_depth
+            &[
+                // palette
+                0, 1, 2, //    entry #0
+                4, 5, 6, //    entry #1
+                8, 9, 10, //   entry #2
+                12, 13, 14, // entry #3
+            ],
+            Some(&[3, 7]), // trns
+        );
+
+        // Too-short `trns` is treated differently from too-long - only missing entries are
+        // replaced with 0XFF / opaque.
+        assert_eq!(
+            actual,
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xFF, 12, 13, 14, 0xFF],
+        );
+    }
+}

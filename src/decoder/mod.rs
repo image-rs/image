@@ -1,5 +1,5 @@
 mod stream;
-mod transform;
+pub(crate) mod transform;
 mod zlib;
 
 pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};

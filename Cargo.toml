@@ -51,3 +51,9 @@ path = "benches/unfilter.rs"
 name = "unfilter"
 harness = false
 required-features = ["benchmarks"]
+
+[[bench]]
+path = "benches/expand_paletted.rs"
+name = "expand_paletted"
+harness = false
+required-features = ["benchmarks"]

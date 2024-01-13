@@ -750,6 +750,11 @@ impl StreamingDecoder {
             }
             U32ValueKind::Type { length } => {
                 let type_str = ChunkType(bytes);
+                if self.info.is_none() && type_str != IHDR {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::ChunkBeforeIhdr { kind: type_str }.into(),
+                    ));
+                }
                 if type_str != self.current_chunk.type_
                     && (self.current_chunk.type_ == IDAT || self.current_chunk.type_ == chunk::fdAT)
                 {
@@ -873,12 +878,7 @@ impl StreamingDecoder {
 
     fn parse_chunk(&mut self, type_str: ChunkType) -> Result<Decoded, DecodingError> {
         self.state = Some(State::new_u32(U32ValueKind::Crc(type_str)));
-        if self.info.is_none() && type_str != IHDR {
-            return Err(DecodingError::Format(
-                FormatErrorInner::ChunkBeforeIhdr { kind: type_str }.into(),
-            ));
-        }
-        match match type_str {
+        let parse_result = match type_str {
             IHDR => self.parse_ihdr(),
             chunk::PLTE => self.parse_plte(),
             chunk::tRNS => self.parse_trns(),
@@ -893,14 +893,12 @@ impl StreamingDecoder {
             chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
             chunk::iTXt if !self.decode_options.ignore_text_chunk => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
-        } {
-            Err(err) => {
-                // Borrow of self ends here, because Decoding error does not borrow self.
-                self.state = None;
-                Err(err)
-            }
-            ok => ok,
+        };
+
+        if parse_result.is_err() {
+            self.state = None;
         }
+        parse_result
     }
 
     fn parse_fctl(&mut self) -> Result<Decoded, DecodingError> {

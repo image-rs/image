@@ -66,6 +66,7 @@ jobs:
     # big endian locally.
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
         features: [default, webp-encoder]

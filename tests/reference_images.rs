@@ -275,7 +275,7 @@ fn check_references() {
                 DynamicImage::ImageLuma8(_)
                 | DynamicImage::ImageLumaA8(_)
                 | DynamicImage::ImageRgb8(_)
-                | DynamicImage::ImageRgba8(_) => hasher.update(&test_img.as_bytes()),
+                | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
                 DynamicImage::ImageLuma16(_)
                 | DynamicImage::ImageLumaA16(_)
                 | DynamicImage::ImageRgb16(_)

@@ -129,6 +129,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@nightly
+    - name: cache Cargo dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
     - name: install-deps
       run: sudo apt-get -y install clang llvm
     - name: build
@@ -148,6 +152,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@nightly
+    - name: cache Cargo dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
     - name: build
       run: |
         cargo install cargo-fuzz

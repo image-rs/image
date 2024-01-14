@@ -1,4 +1,5 @@
 //! Compares the decoding results with reference renderings.
+use std::convert::TryInto;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -270,14 +271,35 @@ fn check_references() {
 
         let test_crc_actual = {
             let mut hasher = Crc32::new();
-            hasher.update(test_img.as_bytes());
+            match test_img {
+                DynamicImage::ImageLuma8(_)
+                | DynamicImage::ImageLumaA8(_)
+                | DynamicImage::ImageRgb8(_)
+                | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
+                DynamicImage::ImageLuma16(_)
+                | DynamicImage::ImageLumaA16(_)
+                | DynamicImage::ImageRgb16(_)
+                | DynamicImage::ImageRgba16(_) => {
+                    for v in test_img.as_bytes().chunks(2) {
+                        hasher.update(&u16::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_) => {
+                    for v in test_img.as_bytes().chunks(4) {
+                        hasher.update(&f32::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                _ => panic!("Unsupported image format"),
+            }
             hasher.finalize()
         };
 
         if test_crc_actual != case.crc {
             panic!(
-                "The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
-                case.crc, test_crc_actual
+                "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
+                img_path.display(),
+                case.crc,
+                test_crc_actual
             );
         }
 

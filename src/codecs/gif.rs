@@ -37,6 +37,8 @@ use gif::{DisposalMethod, Frame};
 
 use crate::animation::{self, Ratio};
 use crate::color::{ColorType, Rgba};
+use crate::error::LimitError;
+use crate::error::LimitErrorKind;
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
@@ -177,12 +179,15 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
         } else {
             // If the frame does not match the logical screen, read into an extra buffer
             // and 'insert' the frame from left/top to logical screen width/height.
-            let buffer_size = self.reader.buffer_size();
+            let buffer_size = (frame.width as usize)
+                .checked_mul(frame.height as usize)
+                .and_then(|s| s.checked_mul(4))
+                .ok_or(ImageError::Limits(LimitError::from_kind(
+                    LimitErrorKind::InsufficientMemory,
+                )))?;
 
             self.limits.reserve_usize(buffer_size)?;
-
             let mut frame_buffer = vec![0; buffer_size];
-
             self.limits.free_usize(buffer_size);
 
             self.reader

@@ -106,7 +106,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@stable
     - name: build
-      run: cargo build -v --no-default-features --features="avif-decoder"
+      run: cargo build -v --no-default-features --features="avif,avif-decoder"
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 

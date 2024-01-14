@@ -69,7 +69,8 @@ impl<W: Write> AvifEncoder<W> {
         let encoder = Encoder::new()
             .with_quality(f32::from(quality))
             .with_alpha_quality(f32::from(quality))
-            .with_speed(speed);
+            .with_speed(speed)
+            .with_depth(Some(8));
 
         AvifEncoder { inner: w, encoder }
     }

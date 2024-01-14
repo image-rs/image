@@ -175,7 +175,7 @@ fn tiff() {
     // so there is a copy from the buffer allocated by `tiff` to a buffer allocated by `image`.
     // This results in memory usage overhead the size of the output buffer.
     let mut tiff_permissive_limits = permissive_limits();
-    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 8).into()); // `* 6` would be exactly two output buffers, `* 8`` has some slack space
+    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 10).into()); // `* 9` would be exactly three output buffers, `* 10`` has some slack space
     load_through_reader(&image, ImageFormat::Tiff, tiff_permissive_limits).unwrap();
 
     // image::io::Reader

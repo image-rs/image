@@ -59,44 +59,32 @@ jobs:
         cargo test -v --features webp,webp-encoder &&
         cargo doc -v --features webp,webp-encoder
 
-  test_big_endian:
-    # github actions does not support big endian systems directly, but it does support QEMU.
-    # so we install qemu, then build and run the tests in an emulated mips system.
-    # note: you can also use this approach to test for big endian locally.
+  test_other_archs:
+    # github actions does not support 32-bit or big endian systems directly, but
+    # it does support QEMU. so we install qemu, then build and run the tests in
+    # an emulated mips system. NOTE: you can also use this approach to test for
+    # big endian locally.
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        features: ['', default, webp, webp-encoder]
-
-    # we are using the cross project for cross compilation to mips:
-    # https://github.com/cross-rs/cross
+        arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
+        features: [default, webp-encoder]
     steps:
       - uses: actions/checkout@v2
-
       - name: Install or use cached cross-rs/cross
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cross
-
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
-
-      - name: Cross-Compile project to powerpc-unknown-linux-gnu
+      - name: Cross-Run Tests using QEMU
         run: |
-          cross build --target=powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
-        env:
-          FEATURES: ${{ matrix.features }}
-
-      # https://github.com/cross-rs/cross#supported-targets
-      - name: Cross-Run Tests in powerpc-unknown-linux-gnu using Qemu
-        continue-on-error: true
-        run: |
-          cross test --target powerpc-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+          cross test --target ${{ matrix.arch }} --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
 

@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
-        features: ['', default, webp, webp-encoder]
+        features: [default, webp-encoder]
     steps:
       - uses: actions/checkout@v2
       - name: Install or use cached cross-rs/cross

@@ -402,16 +402,16 @@ impl<R: Read> ApngDecoder<R> {
         // Dispose of the previous frame.
         match self.dispose {
             DisposeOp::None => {
-                previous.clone_from(&current);
+                previous.clone_from(current);
             }
             DisposeOp::Background => {
-                previous.clone_from(&current);
+                previous.clone_from(current);
                 current
                     .pixels_mut()
                     .for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
             }
             DisposeOp::Previous => {
-                current.clone_from(&previous);
+                current.clone_from(previous);
             }
         }
 
@@ -494,7 +494,7 @@ impl<R: Read> ApngDecoder<R> {
         // Ok, we can proceed with actually remaining images.
         self.remaining = remaining;
         // Return composited output buffer.
-        Ok(Some(&self.current.as_ref().unwrap()))
+        Ok(Some(self.current.as_ref().unwrap()))
     }
 
     fn animatable_color_type(&self) -> Result<(), ImageError> {

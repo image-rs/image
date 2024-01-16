@@ -263,19 +263,17 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     type Item = ImageResult<animation::Frame>;
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
-        fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
-            limits.check_dimensions(width, height)?;
-            // cannot overflow because width/height are u16 in the actual GIF format,
-            // so this cannot exceed 64GB which easily fits into a u64
-            let in_memory_size = width as u64 * height as u64 * 4;
-            limits.reserve(in_memory_size)
-        }
+        // The iterator always produces RGBA8 images
+        const COLOR_TYPE: ColorType = ColorType::Rgba8;
 
         // Allocate the buffer for the previous frame.
         // This is done here and not in the constructor because
         // the constructor cannot return an error when the allocation limit is exceeded.
         if self.non_disposed_frame.is_none() {
-            if let Err(e) = limits_reserve_buffer(&mut self.limits, self.width, self.height) {
+            if let Err(e) = self
+                .limits
+                .reserve_buffer(self.width, self.height, COLOR_TYPE)
+            {
                 return Some(Err(e));
             }
             self.non_disposed_frame = Some(ImageBuffer::from_pixel(
@@ -308,7 +306,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         let mut local_limits = self.limits.clone();
 
         // Check the allocation we're about to perform against the limits
-        if let Err(e) = limits_reserve_buffer(&mut local_limits, frame.width, frame.height) {
+        if let Err(e) = local_limits.reserve_buffer(frame.width, frame.height, COLOR_TYPE) {
             return Some(Err(e));
         }
         // Allocate the buffer now that the limits allowed it
@@ -382,7 +380,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             frame_buffer
         } else {
             // Check limits before allocating the buffer
-            if let Err(e) = limits_reserve_buffer(&mut local_limits, self.width, self.height) {
+            if let Err(e) = local_limits.reserve_buffer(self.width, self.height, COLOR_TYPE) {
                 return Some(Err(e));
             }
             ImageBuffer::from_fn(self.width, self.height, |x, y| {

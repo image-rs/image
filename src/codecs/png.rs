@@ -351,28 +351,20 @@ impl<R: Read> ApngDecoder<R> {
 
     /// Decode one subframe and overlay it on the canvas.
     fn mix_next_frame(&mut self) -> Result<Option<&RgbaImage>, ImageError> {
-        // TODO: put it on the `Limits` struct? RGBA feels too specific.
-        // Would be cool to use the same interface as `Buffer::from_pixel`
-        // but I'm too stupid to comprehend the `Pixel` trait
-        fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
-            limits.check_dimensions(width, height)?;
-            // cannot overflow because width/height are u16 in the actual GIF format,
-            // so this cannot exceed 64GB which easily fits into a u64
-            let in_memory_size = width as u64 * height as u64 * 4;
-            limits.reserve(in_memory_size)
-        }
+        // The iterator always produces RGBA8 images
+        const COLOR_TYPE: ColorType = ColorType::Rgba8;
 
         // Allocate the buffers, honoring the memory limits
         let (width, height) = self.inner.dimensions();
         {
             let limits = &mut self.inner.limits;
             if self.previous.is_none() {
-                limits_reserve_buffer(limits, width, height)?;
+                limits.reserve_buffer(width, height, COLOR_TYPE)?;
                 self.previous = Some(RgbaImage::new(width, height));
             }
 
             if self.current.is_none() {
-                limits_reserve_buffer(limits, width, height)?;
+                limits.reserve_buffer(width, height, COLOR_TYPE)?;
                 self.current = Some(RgbaImage::new(width, height));
             }
         }

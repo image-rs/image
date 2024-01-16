@@ -118,7 +118,7 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
-        Self::with_limits(r, Limits::default())
+        Self::with_limits(r, Limits::no_limits())
     }
 
     /// Creates a new decoder that decodes from the stream ```r``` with the given limits.

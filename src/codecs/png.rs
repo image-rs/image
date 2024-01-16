@@ -338,9 +338,8 @@ impl<R: Read> ApngDecoder<R> {
         let has_thumbnail = info.frame_control.is_none();
         ApngDecoder {
             inner,
-            // TODO: should we delay this allocation? At least if we support limits we should.
-            current: None,  //  RgbaImage::new(width, height),
-            previous: None, // RgbaImage::new(width, height),
+            current: None,
+            previous: None,
             dispose: DisposeOp::Background,
             remaining,
             has_thumbnail,

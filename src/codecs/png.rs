@@ -391,7 +391,7 @@ impl<R: Read> ApngDecoder<R> {
         if self.has_thumbnail {
             // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
             let mut limits = self.inner.limits.clone();
-            limits_reserve_buffer(&mut limits, width, height)?;
+            limits.reserve_usize(self.inner.reader.output_buffer_size())?;
             let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
             self.inner
                 .reader

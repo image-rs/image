@@ -402,7 +402,7 @@ impl<R: Read> ApngDecoder<R> {
 
         self.animatable_color_type()?;
 
-        // We've initialized them earlier
+        // We've initialized them earlier in this function
         let previous = self.previous.as_mut().unwrap();
         let current = self.current.as_mut().unwrap();
 

@@ -314,9 +314,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
 pub struct ApngDecoder<R: Read> {
     inner: PngDecoder<R>,
     /// The current output buffer.
-    current: RgbaImage,
+    current: Option<RgbaImage>,
     /// The previous output buffer, used for dispose op previous.
-    previous: RgbaImage,
+    previous: Option<RgbaImage>,
     /// The dispose op of the current frame.
     dispose: DisposeOp,
     /// The number of image still expected to be able to load.
@@ -340,8 +340,8 @@ impl<R: Read> ApngDecoder<R> {
         ApngDecoder {
             inner,
             // TODO: should we delay this allocation? At least if we support limits we should.
-            current: RgbaImage::new(width, height),
-            previous: RgbaImage::new(width, height),
+            current: None,  //  RgbaImage::new(width, height),
+            previous: None, // RgbaImage::new(width, height),
             dispose: DisposeOp::Background,
             remaining,
             has_thumbnail,
@@ -352,6 +352,32 @@ impl<R: Read> ApngDecoder<R> {
 
     /// Decode one subframe and overlay it on the canvas.
     fn mix_next_frame(&mut self) -> Result<Option<&RgbaImage>, ImageError> {
+        // TODO: put it on the `Limits` struct? RGBA feels too specific.
+        // Would be cool to use the same interface as `Buffer::from_pixel`
+        // but I'm too stupid to comprehend the `Pixel` trait
+        fn limits_reserve_buffer(limits: &mut Limits, width: u32, height: u32) -> ImageResult<()> {
+            limits.check_dimensions(width, height)?;
+            // cannot overflow because width/height are u16 in the actual GIF format,
+            // so this cannot exceed 64GB which easily fits into a u64
+            let in_memory_size = width as u64 * height as u64 * 4;
+            limits.reserve(in_memory_size)
+        }
+
+        // Allocate the buffers, honoring the memory limits
+        let (width, height) = self.inner.dimensions();
+        {
+            let limits = &mut self.inner.limits;
+            if self.previous.is_none() {
+                limits_reserve_buffer(limits, width, height)?;
+                self.previous = Some(RgbaImage::new(width, height));
+            }
+
+            if self.current.is_none() {
+                limits_reserve_buffer(limits, width, height)?;
+                self.current = Some(RgbaImage::new(width, height));
+            }
+        }
+
         // Remove this image from remaining.
         self.remaining = match self.remaining.checked_sub(1) {
             None => return Ok(None),
@@ -364,29 +390,36 @@ impl<R: Read> ApngDecoder<R> {
 
         // Skip the thumbnail that is not part of the animation.
         if self.has_thumbnail {
-            self.has_thumbnail = false;
+            // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
+            let mut limits = self.inner.limits.clone();
+            limits_reserve_buffer(&mut limits, width, height)?;
             let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
             self.inner
                 .reader
                 .next_frame(&mut buffer)
                 .map_err(ImageError::from_png)?;
+            self.has_thumbnail = false;
         }
 
         self.animatable_color_type()?;
 
+        // We've initialized them earlier
+        let previous = self.previous.as_mut().unwrap();
+        let current = self.current.as_mut().unwrap();
+
         // Dispose of the previous frame.
         match self.dispose {
             DisposeOp::None => {
-                self.previous.clone_from(&self.current);
+                previous.clone_from(&current);
             }
             DisposeOp::Background => {
-                self.previous.clone_from(&self.current);
-                self.current
+                previous.clone_from(&current);
+                current
                     .pixels_mut()
                     .for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
             }
             DisposeOp::Previous => {
-                self.current.clone_from(&self.previous);
+                current.clone_from(&previous);
             }
         }
 
@@ -442,14 +475,14 @@ impl<R: Read> ApngDecoder<R> {
 
         match blend {
             BlendOp::Source => {
-                self.current
+                current
                     .copy_from(&source, px, py)
                     .expect("Invalid png image not detected in png");
             }
             BlendOp::Over => {
                 // TODO: investigate speed, speed-ups, and bounds-checks.
                 for (x, y, p) in source.enumerate_pixels() {
-                    self.current.get_pixel_mut(x + px, y + py).blend(p);
+                    current.get_pixel_mut(x + px, y + py).blend(p);
                 }
             }
         }
@@ -457,7 +490,7 @@ impl<R: Read> ApngDecoder<R> {
         // Ok, we can proceed with actually remaining images.
         self.remaining = remaining;
         // Return composited output buffer.
-        Ok(Some(&self.current))
+        Ok(Some(&self.current.as_ref().unwrap()))
     }
 
     fn animatable_color_type(&self) -> Result<(), ImageError> {

@@ -422,8 +422,9 @@ impl<R: Read> ApngDecoder<R> {
         let mut limits = self.inner.limits.clone();
 
         // Read next frame data.
-        limits.reserve_usize(self.inner.reader.output_buffer_size())?;
-        let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+        let raw_frame_size = self.inner.reader.output_buffer_size();
+        limits.reserve_usize(raw_frame_size)?;
+        let mut buffer = vec![0; raw_frame_size];
         // TODO: add `png::Reader::change_limits()` and call it here
         // to also constrain the internal buffer allocations in the PNG crate
         self.inner
@@ -453,6 +454,7 @@ impl<R: Read> ApngDecoder<R> {
         };
 
         // Turn the data into an rgba image proper.
+        limits.reserve_buffer(width, height, COLOR_TYPE)?;
         let source = match self.inner.color_type {
             ColorType::L8 => {
                 let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
@@ -473,6 +475,8 @@ impl<R: Read> ApngDecoder<R> {
             }
             _ => unreachable!("Invalid png color"),
         };
+        // We've converted the raw frame to RGBA8 and disposed of the original allocation
+        limits.free_usize(raw_frame_size);
 
         match blend {
             BlendOp::Source => {

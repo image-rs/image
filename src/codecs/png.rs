@@ -112,6 +112,7 @@ impl<R: Read> Read for PngReader<R> {
 pub struct PngDecoder<R: Read> {
     color_type: ColorType,
     reader: png::Reader<R>,
+    limits: Limits,
 }
 
 impl<R: Read> PngDecoder<R> {
@@ -191,7 +192,11 @@ impl<R: Read> PngDecoder<R> {
             }
         };
 
-        Ok(PngDecoder { color_type, reader })
+        Ok(PngDecoder {
+            color_type,
+            reader,
+            limits,
+        })
     }
 
     /// Returns the gamma value of the image or None if no gamma value is indicated.

@@ -292,6 +292,16 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         let width = self.reader.info().width;
         self.reader.output_line_size(width) as u64
     }
+
+    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+        let info = self.reader.info();
+        limits.check_dimensions(info.width, info.height)?;
+        self.limits = limits;
+        // TODO: add `png::Reader::change_limits()` and call it here
+        // to also constrain the internal buffer allocations in the PNG crate
+        Ok(())
+    }
 }
 
 /// An [`AnimationDecoder`] adapter of [`PngDecoder`].

@@ -274,7 +274,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
 
         match bpc {
             1 => (), // No reodering necessary for u8
-            2 => buf.chunks_mut(2).for_each(|c| {
+            2 => buf.chunks_exact_mut(2).for_each(|c| {
                 let v = BigEndian::read_u16(c);
                 NativeEndian::write_u16(c, v)
             }),
@@ -676,8 +676,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
                 let mut reordered = vec![0; buf.len()];
-                buf.chunks(2)
-                    .zip(reordered.chunks_mut(2))
+                buf.chunks_exact(2)
+                    .zip(reordered.chunks_exact_mut(2))
                     .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
                 self.encode_inner(&reordered, width, height, color_type)
             }

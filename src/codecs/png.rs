@@ -393,6 +393,8 @@ impl<R: Read> ApngDecoder<R> {
             let mut limits = self.inner.limits.clone();
             limits.reserve_usize(self.inner.reader.output_buffer_size())?;
             let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+            // TODO: add `png::Reader::change_limits()` and call it here
+            // to also constrain the internal buffer allocations in the PNG crate
             self.inner
                 .reader
                 .next_frame(&mut buffer)
@@ -422,8 +424,16 @@ impl<R: Read> ApngDecoder<R> {
             }
         }
 
+        // The allocations from now on are not going to persist,
+        // and will be destroyed at the end of the scope.
+        // Clone the limits so that any changes to them die with the allocations.
+        let mut limits = self.inner.limits.clone();
+
         // Read next frame data.
+        limits.reserve_usize(self.inner.reader.output_buffer_size())?;
         let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+        // TODO: add `png::Reader::change_limits()` and call it here
+        // to also constrain the internal buffer allocations in the PNG crate
         self.inner
             .reader
             .next_frame(&mut buffer)

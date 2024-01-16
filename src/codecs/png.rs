@@ -327,7 +327,6 @@ pub struct ApngDecoder<R: Read> {
 
 impl<R: Read> ApngDecoder<R> {
     fn new(inner: PngDecoder<R>) -> Self {
-        let (width, height) = inner.dimensions();
         let info = inner.reader.info();
         let remaining = match info.animation_control() {
             // The expected number of fcTL in the remaining image.

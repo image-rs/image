@@ -3,7 +3,7 @@ use std::fs;
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
 };
-use png::Decoder;
+use png::{Decoder, Reader, Transformations};
 
 #[path = "../src/test_utils.rs"]
 mod test_utils;
@@ -57,17 +57,25 @@ fn bench_file(g: &mut BenchmarkGroup<WallTime>, data: Vec<u8>, name: String) {
         g.sample_size(10);
     }
 
-    let decoder = Decoder::new(&*data);
-    let mut reader = decoder.read_info().unwrap();
+    fn create_reader(data: &[u8]) -> Reader<&[u8]> {
+        let mut decoder = Decoder::new(data);
+
+        // Cover default transformations used by the `image` crate when constructing
+        // `image::codecs::png::PngDecoder`.
+        decoder.set_transformations(Transformations::EXPAND);
+
+        decoder.read_info().unwrap()
+    }
+
+    let mut reader = create_reader(data.as_slice());
     let mut image = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut image).unwrap();
 
     g.throughput(Throughput::Bytes(info.buffer_size() as u64));
     g.bench_with_input(name, &data, |b, data| {
         b.iter(|| {
-            let decoder = Decoder::new(data.as_slice());
-            let mut decoder = decoder.read_info().unwrap();
-            decoder.next_frame(&mut image).unwrap();
+            let mut reader = create_reader(data.as_slice());
+            reader.next_frame(&mut image).unwrap();
         })
     });
 }

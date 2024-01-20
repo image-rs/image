@@ -1444,6 +1444,12 @@ impl StreamingDecoder {
 
 impl Info<'_> {
     fn validate(&self, fc: &FrameControl) -> Result<(), DecodingError> {
+        if fc.width == 0 || fc.height == 0 {
+            return Err(DecodingError::Format(
+                FormatErrorInner::InvalidDimensions.into(),
+            ));
+        }
+
         // Validate mathematically: fc.width + fc.x_offset <= self.width
         let in_x_bounds = Some(fc.width) <= self.width.checked_sub(fc.x_offset);
         // Validate mathematically: fc.height + fc.y_offset <= self.height

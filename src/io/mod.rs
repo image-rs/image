@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use crate::{error, ImageError, ImageResult};
+use crate::{error, ColorType, ImageError, ImageResult};
 
 pub(crate) mod free_functions;
 mod reader;
@@ -139,6 +139,22 @@ impl Limits {
                 Ok(())
             }
         }
+    }
+
+    /// This function acts identically to [`reserve`], but accepts the width, height and color type
+    /// used to create an [`ImageBuffer`] and does all the math for you.
+    pub fn reserve_buffer(
+        &mut self,
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.check_dimensions(width, height)?;
+        let in_memory_size = (width as u64)
+            .saturating_mul(height as u64)
+            .saturating_mul(color_type.bytes_per_pixel().into());
+        self.reserve(in_memory_size)?;
+        Ok(())
     }
 
     /// This function increases the `max_alloc` limit with amount. Should only be used

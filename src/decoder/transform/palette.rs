@@ -56,14 +56,35 @@ fn create_rgba_palette(info: &Info) -> [[u8; 4]; 256] {
     // Default to black, opaque entries.
     let mut rgba_palette = [[0, 0, 0, 0xFF]; 256];
 
-    // Replace missing `trns` entry with 100%-opaque alpha.
-    let trns = trns.iter().copied().chain(std::iter::repeat(0xFF));
+    // Copy `palette` (RGB) entries into `rgba_palette`.  This may clobber alpha
+    // values in `rgba_palette` - we need to fix this later.
+    {
+        let mut palette_iter = palette;
+        let mut rgba_iter = &mut rgba_palette[..];
+        while palette_iter.len() >= 4 {
+            // Copying 4 bytes at a time is more efficient than copying 3.
+            // OTOH, this clobbers the alpha value in `rgba_iter[0][3]` - we
+            // need to fix this later.
+            rgba_iter[0].copy_from_slice(&palette_iter[0..4]);
 
-    // Combine `palette` and `trns` into a single lookup table: `rgba_palette`.
-    let rgba_and_alpha_iter = palette.chunks_exact(3).zip(trns);
-    for (rgba, (rgb, alpha)) in rgba_palette.iter_mut().zip(rgba_and_alpha_iter) {
-        rgba[0..3].copy_from_slice(rgb);
+            palette_iter = &palette_iter[3..];
+            rgba_iter = &mut rgba_iter[1..];
+        }
+        if palette_iter.len() > 0 {
+            rgba_iter[0][0..3].copy_from_slice(&palette_iter[0..3]);
+        }
+    }
+
+    // Copy `trns` (alpha) entries into `rgba_palette`.  `trns.len()` may be
+    // smaller than `palette.len()` and therefore this is not sufficient to fix
+    // all the clobbered alpha values.
+    for (alpha, rgba) in trns.iter().copied().zip(rgba_palette.iter_mut()) {
         rgba[3] = alpha;
+    }
+
+    // Unclobber the remaining alpha values.
+    for rgba in rgba_palette[trns.len()..(palette.len() / 3)].iter_mut() {
+        rgba[3] = 0xFF;
     }
 
     rgba_palette

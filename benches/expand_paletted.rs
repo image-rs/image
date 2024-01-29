@@ -114,10 +114,10 @@ fn create_expand_palette_fn(info: &Info) -> TransformFn {
 
 fn bench_create_fn(c: &mut Criterion, plte_size: usize, trns_size: usize) {
     let mut group = c.benchmark_group("expand_paletted(ctor)");
-    group.sample_size(10000);
+    group.sample_size(1000);
 
     let mut rng = rand::thread_rng();
-    let plte = get_random_bytes(&mut rng, plte_size as usize);
+    let plte = get_random_bytes(&mut rng, 3 * plte_size as usize);
     let trns = get_random_bytes(&mut rng, trns_size as usize);
     let info = create_info_from_plte_trns_bitdepth(&plte, Some(&trns), 8);
     group.bench_with_input(

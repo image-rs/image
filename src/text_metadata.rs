@@ -105,7 +105,6 @@
 use crate::{chunk, encoder, DecodingError, EncodingError};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use miniz_oxide::inflate::{decompress_to_vec_zlib, decompress_to_vec_zlib_with_limit};
 use std::{convert::TryFrom, io::Write};
 
 /// Default decompression limit for compressed text chunks.
@@ -287,9 +286,9 @@ impl ZTXtChunk {
     pub fn decompress_text_with_limit(&mut self, limit: usize) -> Result<(), DecodingError> {
         match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
+                let uncompressed_raw = match fdeflate::decompress_to_vec_bounded(&v[..], limit) {
                     Ok(s) => s,
-                    Err(err) if err.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
+                    Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));
@@ -310,7 +309,7 @@ impl ZTXtChunk {
     pub fn get_text(&self) -> Result<String, DecodingError> {
         match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
+                let uncompressed_raw = fdeflate::decompress_to_vec(v)
                     .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
                 Ok(decode_iso_8859_1(&uncompressed_raw))
             }
@@ -457,9 +456,9 @@ impl ITXtChunk {
     pub fn decompress_text_with_limit(&mut self, limit: usize) -> Result<(), DecodingError> {
         match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
+                let uncompressed_raw = match fdeflate::decompress_to_vec_bounded(v, limit) {
                     Ok(s) => s,
-                    Err(err) if err.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
+                    Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));
@@ -483,7 +482,7 @@ impl ITXtChunk {
     pub fn get_text(&self) -> Result<String, DecodingError> {
         match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
+                let uncompressed_raw = fdeflate::decompress_to_vec(v)
                     .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
                 String::from_utf8(uncompressed_raw)
                     .map_err(|_| TextDecodingError::Unrepresentable.into())
@@ -571,7 +570,7 @@ impl EncodableTextChunk for ITXtChunk {
         } else {
             match &self.text {
                 OptCompressed::Compressed(v) => {
-                    let uncompressed_raw = decompress_to_vec_zlib(&v[..])
+                    let uncompressed_raw = fdeflate::decompress_to_vec(v)
                         .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
                     data.extend_from_slice(&uncompressed_raw[..]);
                 }

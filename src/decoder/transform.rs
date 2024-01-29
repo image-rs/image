@@ -12,7 +12,7 @@ use super::stream::FormatErrorInner;
 ///
 /// TODO: If some precomputed state is needed (e.g. to make `expand_paletted...`
 /// faster) then consider changing this into `Box<dyn Fn(...)>`.
-pub type TransformFn = fn(&[u8], &mut [u8], &Info);
+pub type TransformFn = Box<dyn Fn(&[u8], &mut [u8], &Info)>;
 
 /// Returns a transformation function that should be applied to image rows based
 /// on 1) decoded image metadata (`info`) and 2) the transformations requested
@@ -43,36 +43,36 @@ pub fn create_transform_fn(
                     .into(),
                 ));
             } else {
-                if trns {
-                    Ok(palette::expand_paletted_into_rgba8)
+                Ok(Box::new(if trns {
+                    palette::expand_paletted_into_rgba8
                 } else {
-                    Ok(palette::expand_paletted_into_rgb8)
-                }
+                    palette::expand_paletted_into_rgb8
+                }))
             }
         }
         ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {
-            if trns {
-                Ok(expand_gray_u8_with_trns)
+            Ok(Box::new(if trns {
+                expand_gray_u8_with_trns
             } else {
-                Ok(expand_gray_u8)
-            }
+                expand_gray_u8
+            }))
         }
         ColorType::Grayscale | ColorType::Rgb if expand && trns => {
-            if bit_depth == 8 {
-                Ok(expand_trns_line)
+            Ok(Box::new(if bit_depth == 8 {
+                expand_trns_line
             } else if strip16 {
-                Ok(expand_trns_and_strip_line16)
+                expand_trns_and_strip_line16
             } else {
                 assert_eq!(bit_depth, 16);
-                Ok(expand_trns_line16)
-            }
+                expand_trns_line16
+            }))
         }
         ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba
             if strip16 =>
         {
-            Ok(transform_row_strip16)
+            Ok(Box::new(transform_row_strip16))
         }
-        _ => Ok(copy_row),
+        _ => Ok(Box::new(copy_row)),
     }
 }
 

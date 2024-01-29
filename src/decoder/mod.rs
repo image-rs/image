@@ -638,7 +638,7 @@ impl<R: Read> Reader<R> {
             if self.transform_fn.is_none() {
                 self.transform_fn = Some(create_transform_fn(self.info(), self.transform)?);
             }
-            self.transform_fn.unwrap()
+            self.transform_fn.as_deref().unwrap()
         };
         transform_fn(row, output_buffer, self.info());
 

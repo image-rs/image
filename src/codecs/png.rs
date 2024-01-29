@@ -709,10 +709,14 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
         use ColorType::*;
 
-        assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
-        );
+        let expected_bufffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        if expected_bufffer_len != buf.len() as u64 {
+            panic!(
+                "length missmatch writing PNG buffer: expected a buffer of len {} (got {}) for image with dimensions ({}, {})",
+                expected_bufffer_len, buf.len(), width, height
+            );
+        }
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the

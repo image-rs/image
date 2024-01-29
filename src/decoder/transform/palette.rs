@@ -17,13 +17,16 @@
 //! that memoization is a net benefit for images bigger than around 13x13 pixels.
 
 use super::{unpack_bits, TransformFn};
-use crate::Info;
+use crate::{BitDepth, Info};
 
 pub fn create_expansion_into_rgb8(info: &Info) -> TransformFn {
     let rgba_palette = create_rgba_palette(info);
-    Box::new(move |input, output, info| {
-        expand_paletted_into_rgb8(input, output, info, &rgba_palette)
-    })
+
+    if info.bit_depth == BitDepth::Eight {
+        Box::new(move |input, output, _info| expand_8bit_into_rgb8(input, output, &rgba_palette))
+    } else {
+        Box::new(move |input, output, info| expand_into_rgb8(input, output, info, &rgba_palette))
+    }
 }
 
 pub fn create_expansion_into_rgba8(info: &Info) -> TransformFn {
@@ -66,12 +69,22 @@ fn create_rgba_palette(info: &Info) -> [[u8; 4]; 256] {
     rgba_palette
 }
 
-fn expand_paletted_into_rgb8(
-    row: &[u8],
-    buffer: &mut [u8],
-    info: &Info,
-    rgba_palette: &[[u8; 4]; 256],
-) {
+fn expand_8bit_into_rgb8(mut input: &[u8], mut output: &mut [u8], rgba_palette: &[[u8; 4]; 256]) {
+    while output.len() >= 4 {
+        // Copying 4 bytes at a time is more efficient than 3.
+        let rgba = &rgba_palette[input[0] as usize];
+        output[0..4].copy_from_slice(rgba);
+
+        input = &input[1..];
+        output = &mut output[3..];
+    }
+    if output.len() > 0 {
+        let rgba = &rgba_palette[input[0] as usize];
+        output[0..3].copy_from_slice(&rgba[0..3]);
+    }
+}
+
+fn expand_into_rgb8(row: &[u8], buffer: &mut [u8], info: &Info, rgba_palette: &[[u8; 4]; 256]) {
     unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
         let rgba = &rgba_palette[i as usize];
         chunk[0] = rgba[0];

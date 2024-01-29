@@ -23,7 +23,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 include = [
-    "/LICENSE",
+    "/LICENSE-APACHE",
+    "/LICENSE-MIT",
     "/README.md",
     "/CHANGES.md",
     "/src/",

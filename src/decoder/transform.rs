@@ -43,11 +43,11 @@ pub fn create_transform_fn(
                     .into(),
                 ));
             } else {
-                Ok(Box::new(if trns {
-                    palette::expand_paletted_into_rgba8
+                Ok(if trns {
+                    palette::create_expansion_into_rgba8(info)
                 } else {
-                    palette::expand_paletted_into_rgb8
-                }))
+                    palette::create_expansion_into_rgb8(info)
+                })
             }
         }
         ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {

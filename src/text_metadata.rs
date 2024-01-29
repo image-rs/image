@@ -103,6 +103,7 @@
 #![warn(missing_docs)]
 
 use crate::{chunk, encoder, DecodingError, EncodingError};
+use fdeflate::BoundedDecompressionError;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::{convert::TryFrom, io::Write};
@@ -288,7 +289,7 @@ impl ZTXtChunk {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = match fdeflate::decompress_to_vec_bounded(&v[..], limit) {
                     Ok(s) => s,
-                    Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
+                    Err(BoundedDecompressionError::OutputTooLarge { .. }) => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));
@@ -458,7 +459,7 @@ impl ITXtChunk {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = match fdeflate::decompress_to_vec_bounded(v, limit) {
                     Ok(s) => s,
-                    Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
+                    Err(BoundedDecompressionError::OutputTooLarge { .. }) => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));

@@ -64,7 +64,7 @@ fn bad_bmps() {
 fn bad_gif_oom() {
     let data = [
         71, 73, 70, 56, 55, 97, 0, 0, 0, 0, 0, 0, 0, 44, 255, 255, 219, 255, 172, 199, 199, 255,
-        216, 255, 255, 0, 0, 48, 230, 0, 195, 195, 195, 195, 255, 239, 0,
+        216, 255, 255, 0, 0, 48, 230, 2, 195, 195, 195, 195, 255, 239, 0,
     ];
 
     // The original code made a vec![0; very_large_number] which due to overcommit *does not* OOM.

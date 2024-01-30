@@ -16,7 +16,7 @@ jobs:
       matrix:
         features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - name: Cache Cargo Dependencies
       uses: Swatinem/rust-cache@v2
@@ -40,7 +40,7 @@ jobs:
       matrix:
         rust: ["1.61.0", nightly, beta]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
@@ -71,7 +71,7 @@ jobs:
         arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
         features: [default, webp-encoder]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross
         uses: baptiste0928/cargo-install@v1
         with:
@@ -93,7 +93,7 @@ jobs:
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install nasm
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif"
@@ -103,7 +103,7 @@ jobs:
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif,avif-decoder"
@@ -115,7 +115,7 @@ jobs:
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: clippy
@@ -127,7 +127,7 @@ jobs:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: install-deps
       run: sudo apt-get -y install clang llvm
@@ -146,7 +146,7 @@ jobs:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
@@ -161,7 +161,7 @@ jobs:
   public_private_dependencies:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
@@ -173,7 +173,7 @@ jobs:
   build_benchmarks:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: cargo build -v --benches --features=benchmarks
@@ -181,7 +181,7 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt
@@ -191,13 +191,13 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   verify_msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install or use cached `cargo-msrv`
         uses: baptiste0928/cargo-install@v1
         with:

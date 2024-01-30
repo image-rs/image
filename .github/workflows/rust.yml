@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross
-        uses: baptiste0928/cargo-install@v1
+        uses: baptiste0928/cargo-install@v2
         with:
           crate: cross
       - name: Cache Cargo Dependencies
@@ -199,7 +199,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached `cargo-msrv`
-        uses: baptiste0928/cargo-install@v1
+        uses: baptiste0928/cargo-install@v2
         with:
           crate: cargo-msrv
       - name: Install MSRV Cargo.lock

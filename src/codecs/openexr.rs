@@ -359,9 +359,16 @@ where
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
+            expected_buffer_len,
+            buf.len(),
+            width,
+            height,
         );
 
         write_buffer(self.0, buf, width, height, color_type)

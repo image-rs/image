@@ -61,9 +61,16 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             )));
         }
 
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64),
-            image.len() as u64
+            expected_buffer_len,
+            image.len() as u64,
+            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
+            expected_buffer_len,
+            image.len(),
+            width,
+            height,
         );
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;

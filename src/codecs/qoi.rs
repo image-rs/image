@@ -77,9 +77,16 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
             )));
         }
 
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
+            expected_buffer_len,
+            buf.len(),
+            width,
+            height,
         );
 
         // Encode data in QOI

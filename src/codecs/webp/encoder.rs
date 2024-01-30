@@ -705,9 +705,16 @@ impl<W: Write> WebPEncoder<W> {
     ///
     /// Panics if `width * height * color.bytes_per_pixel() != data.len()`.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
-            data.len() as u64
+            expected_buffer_len,
+            data.len() as u64,
+            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
+            expected_buffer_len,
+            data.len(),
+            width,
+            height,
         );
 
         if let WebPQuality(Quality::Lossless) = self.quality {

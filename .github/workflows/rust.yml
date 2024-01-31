@@ -41,6 +41,13 @@ jobs:
         rust: ["1.61.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
+
+    - uses: dtolnay/rust-toolchain@nightly
+      if: ${{ matrix.rust == '1.61.0' }}
+    - name: Generate Cargo.lock with minimal-version dependencies
+      if: ${{ matrix.rust == '1.61.0' }}
+      run: cargo -Zminimal-versions generate-lockfile
+
     - uses: dtolnay/rust-toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
@@ -48,9 +55,6 @@ jobs:
       uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
-    - name: Install MSRV Cargo.lock
-      if: ${{ matrix.rust == '1.61.0' }}
-      run: mv Cargo.lock.msrv Cargo.lock
     - name: build
       run: cargo build -v --features webp,webp-encoder
     - name: test
@@ -202,7 +206,10 @@ jobs:
         uses: baptiste0928/cargo-install@v2
         with:
           crate: cargo-msrv
-      - name: Install MSRV Cargo.lock
-        run: mv Cargo.lock.msrv Cargo.lock
-      - name: Verify Minimum Rust Version
+
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Generate Cargo.lock with minimal-version dependencies
+        run: cargo -Zminimal-versions generate-lockfile
+
+      - name: Verify Minimum Rust Version against `-Zminimal-versions` dependencies
         run: cargo-msrv verify

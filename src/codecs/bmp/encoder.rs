@@ -27,6 +27,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// # Panics
     ///
     /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    #[track_caller]
     pub fn encode(
         &mut self,
         image: &[u8],
@@ -43,6 +44,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// # Panics
     ///
     /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    #[track_caller]
     pub fn encode_with_palette(
         &mut self,
         image: &[u8],
@@ -269,6 +271,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 }
 
 impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

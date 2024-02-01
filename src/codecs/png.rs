@@ -699,6 +699,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
     /// native endian. PngEncoder will automatically convert to big endian as required by the
     /// underlying PNG format.
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

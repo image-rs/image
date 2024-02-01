@@ -156,6 +156,7 @@ impl<W: Write> TgaEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
+    #[track_caller]
     pub fn encode(
         mut self,
         buf: &[u8],
@@ -233,6 +234,7 @@ impl<W: Write> TgaEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for TgaEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

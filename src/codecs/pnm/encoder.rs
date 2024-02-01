@@ -289,6 +289,7 @@ impl<W: Write> PnmEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PnmEncoder<W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

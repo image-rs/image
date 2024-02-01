@@ -98,6 +98,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
+    #[track_caller]
     fn write_image(
         mut self,
         data: &[u8],

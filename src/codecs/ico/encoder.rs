@@ -145,6 +145,7 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
     /// native endian.
     ///
     /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian.
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

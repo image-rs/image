@@ -63,6 +63,7 @@ impl<W: Write> QoiEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for QoiEncoder<W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

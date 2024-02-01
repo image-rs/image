@@ -345,6 +345,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
+    #[track_caller]
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let expected_buffer_len =
             (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
@@ -401,6 +402,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
 }
 
 impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

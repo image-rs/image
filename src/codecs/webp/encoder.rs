@@ -704,6 +704,7 @@ impl<W: Write> WebPEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * color.bytes_per_pixel() != data.len()`.
+    #[track_caller]
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let expected_buffer_len =
             (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
@@ -729,6 +730,7 @@ impl<W: Write> WebPEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for WebPEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

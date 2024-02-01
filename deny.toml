@@ -1,0 +1,38 @@
+# https://embarkstudios.github.io/cargo-deny/
+
+targets = [
+    { triple = "aarch64-apple-darwin" },
+    { triple = "aarch64-linux-android" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+]
+
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "deny"
+ignore = []
+
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
+deny = []
+skip = [
+    { name = "num-derive" } # ravif transatively depends on 0.3 and 0.4.
+]
+skip-tree = [
+    { name = "criterion" },  # dev-dependency
+    { name = "quickcheck" }, # dev-dependency
+    { name = "dav1d" }, # TODO: needs upgrade
+    { name = "clap" },
+]
+
+
+[licenses]
+unlicensed = "allow"
+allow-osi-fsf-free = "either"
+copyleft = "allow"

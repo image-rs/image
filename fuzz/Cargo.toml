@@ -1,0 +1,66 @@
+
+[package]
+name = "image-fuzz"
+version = "0.0.1"
+authors = ["Automatically generated"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.image]
+path = ".."
+[dependencies.libfuzzer-sys]
+version = "0.3"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzzer_script_guess"
+path = "fuzzers/fuzzer_script_guess.rs"
+
+[[bin]]
+name = "fuzzer_script_png"
+path = "fuzzers/fuzzer_script_png.rs"
+
+[[bin]]
+name = "fuzzer_script_jpeg"
+path = "fuzzers/fuzzer_script_jpeg.rs"
+
+[[bin]]
+name = "fuzzer_script_gif"
+path = "fuzzers/fuzzer_script_gif.rs"
+
+[[bin]]
+name = "fuzzer_script_webp"
+path = "fuzzers/fuzzer_script_webp.rs"
+
+[[bin]]
+name = "fuzzer_script_pnm"
+path = "fuzzers/fuzzer_script_pnm.rs"
+
+[[bin]]
+name = "fuzzer_script_tiff"
+path = "fuzzers/fuzzer_script_tiff.rs"
+
+[[bin]]
+name = "fuzzer_script_tga"
+path = "fuzzers/fuzzer_script_tga.rs"
+
+[[bin]]
+name = "fuzzer_script_bmp"
+path = "fuzzers/fuzzer_script_bmp.rs"
+
+[[bin]]
+name = "fuzzer_script_ico"
+path = "fuzzers/fuzzer_script_ico.rs"
+
+[[bin]]
+name = "fuzzer_script_hdr"
+path = "fuzzers/fuzzer_script_hdr.rs"
+
+[[bin]]
+name = "fuzzer_script_exr"
+path = "fuzzers/fuzzer_script_exr.rs"

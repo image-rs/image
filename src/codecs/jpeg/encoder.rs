@@ -440,6 +440,7 @@ impl<W: Write> JpegEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
+    #[track_caller]
     pub fn encode(
         &mut self,
         image: &[u8],
@@ -447,9 +448,13 @@ impl<W: Write> JpegEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            image.len() as u64
+            expected_buffer_len,
+            image.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            image.len(),
         );
 
         match color_type {
@@ -663,6 +668,7 @@ impl<W: Write> JpegEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

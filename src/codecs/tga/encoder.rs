@@ -156,6 +156,7 @@ impl<W: Write> TgaEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
+    #[track_caller]
     pub fn encode(
         mut self,
         buf: &[u8],
@@ -163,9 +164,13 @@ impl<W: Write> TgaEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            buf.len(),
         );
 
         // Validate dimensions.
@@ -226,6 +231,7 @@ impl<W: Write> TgaEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for TgaEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

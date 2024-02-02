@@ -699,6 +699,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
     /// native endian. PngEncoder will automatically convert to big endian as required by the
     /// underlying PNG format.
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],
@@ -709,9 +710,13 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
         use ColorType::*;
 
+        let expected_bufffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
+            expected_bufffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {expected_bufffer_len} got {} for {width}x{height} image",
+            buf.len(),
         );
 
         // PNG images are big endian. For 16 bit per channel and larger types,

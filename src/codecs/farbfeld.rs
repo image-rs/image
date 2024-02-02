@@ -261,10 +261,14 @@ impl<W: Write> FarbfeldEncoder<W> {
     /// # Panics
     ///
     /// Panics if `width * height * 8 != data.len()`.
+    #[track_caller]
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
+        let expected_buffer_len = (width as u64 * height as u64).saturating_mul(8);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(8),
-            data.len() as u64
+            expected_buffer_len,
+            data.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            data.len(),
         );
         self.encode_impl(data, width, height)?;
         Ok(())
@@ -286,6 +290,7 @@ impl<W: Write> FarbfeldEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],

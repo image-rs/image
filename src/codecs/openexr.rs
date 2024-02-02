@@ -352,6 +352,7 @@ where
     ///
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
     /// for best performance.
+    #[track_caller]
     fn write_image(
         self,
         buf: &[u8],
@@ -359,9 +360,13 @@ where
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64),
-            buf.len() as u64
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            buf.len(),
         );
 
         write_buffer(self.0, buf, width, height, color_type)

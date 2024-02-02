@@ -27,6 +27,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// # Panics
     ///
     /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    #[track_caller]
     pub fn encode(
         &mut self,
         image: &[u8],
@@ -43,6 +44,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// # Panics
     ///
     /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    #[track_caller]
     pub fn encode_with_palette(
         &mut self,
         image: &[u8],
@@ -61,9 +63,13 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             )));
         }
 
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64),
-            image.len() as u64
+            expected_buffer_len,
+            image.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            image.len(),
         );
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
@@ -262,6 +268,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 }
 
 impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

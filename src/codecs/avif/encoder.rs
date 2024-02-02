@@ -98,6 +98,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
+    #[track_caller]
     fn write_image(
         mut self,
         data: &[u8],
@@ -105,9 +106,13 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         height: u32,
         color: ColorType,
     ) -> ImageResult<()> {
+        let expected_buffer_len =
+            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
         assert_eq!(
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64),
-            data.len() as u64
+            expected_buffer_len,
+            data.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            data.len(),
         );
 
         self.set_color(color);

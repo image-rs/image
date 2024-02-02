@@ -83,11 +83,8 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,
-            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
-            expected_buffer_len,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
             buf.len(),
-            width,
-            height,
         );
 
         // Encode data in QOI

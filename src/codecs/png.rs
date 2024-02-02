@@ -715,11 +715,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         assert_eq!(
             expected_bufffer_len,
             buf.len() as u64,
-            "Invalid buffer length: expected {} got {} for image dimensions ({}, {})",
-            expected_bufffer_len,
+            "Invalid buffer length: expected {expected_bufffer_len} got {} for {width}x{height} image",
             buf.len(),
-            width,
-            height,
         );
 
         // PNG images are big endian. For 16 bit per channel and larger types,

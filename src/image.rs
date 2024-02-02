@@ -1025,6 +1025,11 @@ pub trait GenericImageView {
         h
     }
 
+    /// The offsets of this image view relative to the underlying image buffer.
+    fn offsets(&self) -> (u32, u32) {
+        (0, 0)
+    }
+
     /// The bounding rectangle of this image.
     #[deprecated = "This method has inconsistent behavior between implementations (#1829). Use `dimensions` instead"]
     fn bounds(&self) -> (u32, u32, u32, u32);
@@ -1417,6 +1422,10 @@ where
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
+    }
+
+    fn offsets(&self) -> (u32, u32) {
+        (self.xoffset, self.yoffset)
     }
 
     fn bounds(&self) -> (u32, u32, u32, u32) {

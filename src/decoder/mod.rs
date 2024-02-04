@@ -202,7 +202,7 @@ impl<R: Read> Decoder<R> {
     ///
     /// Most image metadata will not be read until `read_info` is called, so those fields will be
     /// None or empty.
-    pub fn read_header_info(&mut self) -> Result<&Info, DecodingError> {
+    pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {
         let mut buf = Vec::new();
         while self.read_decoder.info().is_none() {
             buf.clear();
@@ -345,7 +345,7 @@ impl<R: Read> ReadDecoder<R> {
         ))
     }
 
-    fn info(&self) -> Option<&Info> {
+    fn info(&self) -> Option<&Info<'static>> {
         self.decoder.info.as_ref()
     }
 }
@@ -466,7 +466,7 @@ impl<R: Read> Reader<R> {
     /// Get information on the image.
     ///
     /// The structure will change as new frames of an animated image are decoded.
-    pub fn info(&self) -> &Info {
+    pub fn info(&self) -> &Info<'static> {
         self.decoder.info().unwrap()
     }
 

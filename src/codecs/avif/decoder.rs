@@ -149,8 +149,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 src_buffers[0].resize(len + strides[0], 0u8);
             }
 
-            let mut tmp_buf: Vec<u8> = Vec::new();
-            tmp_buf.resize(rounded_width as usize * rounded_height as usize * 4, 0u8);
+            let mut tmp_buf = vec![0u8; rounded_width as usize * rounded_height as usize * 4];
             let mut tmp_buf_wrapper = [tmp_buf.as_mut_slice()];
 
             let src_buffers = src_buffers.iter().map(AsRef::as_ref).collect::<Vec<_>>();

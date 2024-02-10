@@ -113,7 +113,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
             let pixel_format = match self.picture.pixel_layout() {
                 PixelLayout::I400 => todo!(),
                 PixelLayout::I420 => dcp::PixelFormat::I420,
-                PixelLayout::I422 => dcp::PixelFormat::I422,
+                PixelLayout::I422 => todo!(),
                 PixelLayout::I444 => dcp::PixelFormat::I444,
             };
             let src_format = dcp::ImageFormat {
@@ -127,29 +127,53 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 num_planes: 1,
             };
             let (width, height) = self.dimensions();
+
+            // Round up to the nearest multiple of 2
+            let (rounded_width, rounded_height) =
+                (((width + 2 - 1) / 2) * 2, ((height + 2 - 1) / 2) * 2);
+
             let planes = &[
                 self.picture.plane(PlanarImageComponent::Y),
                 self.picture.plane(PlanarImageComponent::U),
                 self.picture.plane(PlanarImageComponent::V),
             ];
-            let src_buffers = planes.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+            let mut src_buffers = planes.iter().map(|p| p.to_vec()).collect::<Vec<_>>();
             let strides = &[
                 self.picture.stride(PlanarImageComponent::Y) as usize,
                 self.picture.stride(PlanarImageComponent::U) as usize,
                 self.picture.stride(PlanarImageComponent::V) as usize,
             ];
-            let dst_buffers = &mut [&mut buf[..]];
+
+            if rounded_height != height {
+                let len = src_buffers[0].len();
+                src_buffers[0].resize(len + strides[0], 0u8);
+            }
+
+            let mut tmp_buf: Vec<u8> = Vec::new();
+            tmp_buf.resize(rounded_width as usize * rounded_height as usize * 4, 0u8);
+            let mut tmp_buf_wrapper = [tmp_buf.as_mut_slice()];
+
+            let src_buffers = src_buffers.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+
             dcp::convert_image(
-                width,
-                height,
+                rounded_width,
+                rounded_height,
                 &src_format,
                 Some(strides),
                 &src_buffers,
                 &dst_format,
                 None,
-                dst_buffers,
+                &mut tmp_buf_wrapper,
             )
             .map_err(error_map)?;
+
+            for l in 0..height as usize {
+                let src = l * rounded_width as usize * 4
+                    ..l * rounded_width as usize * 4 + width as usize * 4;
+                let dst = l * width as usize * 4..l * width as usize * 4 + width as usize * 4;
+
+                buf[dst].clone_from_slice(&tmp_buf[src]);
+            }
         } else {
             let plane = self.picture.plane(PlanarImageComponent::Y);
             buf.copy_from_slice(plane.as_ref());

@@ -15,12 +15,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
+
+    - uses: dtolnay/rust-toolchain@nightly
+      if: ${{ matrix.rust == '1.57.0' }}
+    - name: Generate Cargo.lock with minimal-version dependencies
+      if: ${{ matrix.rust == '1.57.0' }}
+      run: cargo -Zminimal-versions generate-lockfile
+
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
         override: true
-    - if: ${{ matrix.rust == '1.57.0' }}
-      run: mv Cargo.lock.msrv Cargo.lock
     - name: build
       run: |
         cargo build --verbose

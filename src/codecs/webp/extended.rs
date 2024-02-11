@@ -388,15 +388,6 @@ impl ExtendedImage {
         }
     }
 
-    pub(crate) fn get_buf_size(&self) -> usize {
-        match &self.image {
-            // will always have at least one frame
-            ExtendedImageData::Animation { first_frame, .. } => &first_frame.image,
-            ExtendedImageData::Static(image) => image,
-        }
-        .get_buf_size()
-    }
-
     pub(crate) fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
         match &mut self.image {
             ExtendedImageData::Animation { anim_info, .. } => {

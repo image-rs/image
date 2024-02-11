@@ -1519,7 +1519,7 @@ mod tests {
             fn color_type(&self) -> ColorType {
                 ColorType::L8
             }
-            fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()
             }
             fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
@@ -1644,7 +1644,7 @@ mod tests {
             fn color_type(&self) -> ColorType {
                 ColorType::L8
             }
-            fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()
             }
             fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
@@ -1886,7 +1886,7 @@ mod tests {
             fn dimensions(&self) -> (u32, u32) {
                 (0xffffffff, 0xffffffff)
             }
-            fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()
             }
             fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {

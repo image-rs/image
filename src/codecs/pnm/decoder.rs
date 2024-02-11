@@ -421,13 +421,6 @@ trait HeaderReader: BufRead {
         Ok(string)
     }
 
-    /// Read the next line
-    fn read_next_line(&mut self) -> ImageResult<String> {
-        let mut buffer = String::new();
-        self.read_line(&mut buffer)?;
-        Ok(buffer)
-    }
-
     fn read_next_u32(&mut self) -> ImageResult<u32> {
         let s = self.read_next_string()?;
         s.parse::<u32>()

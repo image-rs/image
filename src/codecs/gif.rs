@@ -105,6 +105,17 @@ impl<R: Read> ImageDecoder for GifDecoder<R> {
         ColorType::Rgba8
     }
 
+    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
+
+        self.limits = limits;
+
+        Ok(())
+    }
+
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 

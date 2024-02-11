@@ -1385,6 +1385,8 @@ impl<R: Read + Seek> ImageDecoderRect for BmpDecoder<R> {
 
 #[cfg(test)]
 mod test {
+    use std::io::Cursor;
+
     use super::*;
 
     #[test]

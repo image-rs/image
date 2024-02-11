@@ -613,7 +613,7 @@ where
                         .min(end - position);
 
                     output
-                        .write(&tmp[offset as usize..][..len as usize])
+                        .write_all(&tmp[offset as usize..][..len as usize])
                         .unwrap();
                     start += len;
 
@@ -644,7 +644,7 @@ where
                             .min(end - position);
 
                         output
-                            .write(&tmp[offset as usize..][..len as usize])
+                            .write_all(&tmp[offset as usize..][..len as usize])
                             .unwrap();
                     }
 

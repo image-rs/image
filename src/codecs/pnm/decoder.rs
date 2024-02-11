@@ -429,8 +429,8 @@ trait HeaderReader: Read {
             buffer.push(byte[0]);
         }
 
-        Ok(String::from_utf8(buffer)
-            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e)))?)
+        String::from_utf8(buffer)
+            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e)))
     }
 
     fn read_next_u32(&mut self) -> ImageResult<u32> {

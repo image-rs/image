@@ -321,6 +321,14 @@ impl<R: Read> ImageDecoder for WebPDecoder<R> {
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
     }
+
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        if let WebPImage::Extended(extended) = &self.image {
+            Ok(extended.icc_profile())
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl<'a, R: 'a + Read> AnimationDecoder<'a> for WebPDecoder<R> {

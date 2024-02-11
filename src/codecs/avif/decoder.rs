@@ -5,9 +5,8 @@
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::convert::TryFrom;
 use std::error::Error;
-use std::io::{Read};
+use std::io::Read;
 use std::marker::PhantomData;
-
 
 use crate::error::{DecodingError, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};

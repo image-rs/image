@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, main, next ]
+    branches: [ master, main, next-version-0.25 ]
   pull_request:
-    branches: [ master, main, next ]
+    branches: [ master, main, next-version-0.25 ]
   schedule:
     - cron: '5 16 * * 6'
 

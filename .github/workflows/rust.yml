@@ -38,14 +38,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.61.0", nightly, beta]
+        rust: ["1.63.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.61.0' }}
+      if: ${{ matrix.rust == '1.63.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.61.0' }}
+      if: ${{ matrix.rust == '1.63.0' }}
       run: cargo -Zminimal-versions generate-lockfile
 
     - uses: dtolnay/rust-toolchain@v1
@@ -58,7 +58,7 @@ jobs:
     - name: build
       run: cargo build -v --features webp,webp-encoder
     - name: test
-      if: ${{ matrix.rust != '1.61.0' }}
+      if: ${{ matrix.rust != '1.63.0' }}
       run: >
         cargo test -v --features webp,webp-encoder &&
         cargo doc -v --features webp,webp-encoder

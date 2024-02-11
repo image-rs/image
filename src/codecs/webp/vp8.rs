@@ -50,9 +50,10 @@ const B_HU_PRED: i8 = 9;
 
 // Prediction mode enum
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum LumaMode {
     /// Predict DC using row above and column to the left.
+    #[default]
     DC = DC_PRED,
 
     /// Predict rows using row above.
@@ -69,9 +70,10 @@ enum LumaMode {
 }
 
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum ChromaMode {
     /// Predict DC using row above and column to the left.
+    #[default]
     DC = DC_PRED,
 
     /// Predict rows using row above.
@@ -85,8 +87,9 @@ enum ChromaMode {
 }
 
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum IntraMode {
+    #[default]
     DC = B_DC_PRED,
     TM = B_TM_PRED,
     VE = B_VE_PRED,
@@ -2126,12 +2129,6 @@ impl LumaMode {
     }
 }
 
-impl Default for LumaMode {
-    fn default() -> Self {
-        LumaMode::DC
-    }
-}
-
 impl ChromaMode {
     fn from_i8(val: i8) -> Option<Self> {
         Some(match val {
@@ -2141,12 +2138,6 @@ impl ChromaMode {
             TM_PRED => ChromaMode::TM,
             _ => return None,
         })
-    }
-}
-
-impl Default for ChromaMode {
-    fn default() -> Self {
-        ChromaMode::DC
     }
 }
 
@@ -2165,12 +2156,6 @@ impl IntraMode {
             B_HU_PRED => IntraMode::HU,
             _ => return None,
         })
-    }
-}
-
-impl Default for IntraMode {
-    fn default() -> Self {
-        IntraMode::DC
     }
 }
 

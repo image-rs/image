@@ -32,6 +32,7 @@ pub struct WebPQuality(Quality);
 #[derive(Debug, Copy, Clone)]
 enum Quality {
     Lossless,
+    #[allow(unused)]
     #[deprecated = "Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
     Lossy(u8),
 }

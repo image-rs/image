@@ -178,7 +178,6 @@ impl<R: Read> ImageDecoder for PngDecoder<R> {
         Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }
 
-
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
 

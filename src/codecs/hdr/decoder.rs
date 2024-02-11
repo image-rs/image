@@ -969,7 +969,7 @@ fn read_line_u8<R: Read>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
     loop {
         let mut byte = [0];
-        if r.read(&mut byte)? == 0 || byte[0] == b'\n'{
+        if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
             if ret.is_empty() && byte[0] != b'\n' {
                 return Ok(None);
             } else {

@@ -132,10 +132,7 @@ impl<R: Read + Seek> ImageDecoder for OpenExrDecoder<R> {
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image(
-        self,
-        unaligned_bytes: &mut [u8],
-    ) -> ImageResult<()> {
+    fn read_image(self, unaligned_bytes: &mut [u8]) -> ImageResult<()> {
         let _blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
 
@@ -362,7 +359,7 @@ fn to_image_err(exr_error: Error) -> ImageError {
 mod test {
     use super::*;
 
-    use std::io::{Cursor, BufReader};
+    use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};

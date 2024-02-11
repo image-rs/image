@@ -196,7 +196,7 @@ impl<R: Read> FarbfeldDecoder<R> {
     }
 }
 
-impl<R:  Read> ImageDecoder for FarbfeldDecoder<R> {
+impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.reader.width, self.reader.height)
     }

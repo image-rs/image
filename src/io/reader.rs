@@ -187,7 +187,8 @@ impl<'a, R: 'a + Read + Seek> Reader<R> {
 
     /// Convert the reader into a decoder.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
-        let mut decoder = Self::make_decoder(self.require_format()?, self.inner, self.limits.clone())?;
+        let mut decoder =
+            Self::make_decoder(self.require_format()?, self.inner, self.limits.clone())?;
         decoder.set_limits(self.limits)?;
         Ok(decoder)
     }

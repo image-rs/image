@@ -551,10 +551,12 @@ pub struct PngEncoder<W: Write> {
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum CompressionType {
     /// Default compression level
     Default,
     /// Fast, minimal compression
+    #[default]
     Fast,
     /// High compression level
     Best,
@@ -571,6 +573,7 @@ pub enum CompressionType {
 /// The default filter is `Adaptive`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum FilterType {
     /// No processing done, best used for low bit depth grayscale or data with a
     /// low color count
@@ -585,6 +588,7 @@ pub enum FilterType {
     Paeth,
     /// Uses a heuristic to select one of the preceding filters for each
     /// scanline rather than one filter for the entire image
+    #[default]
     Adaptive,
 }
 
@@ -766,18 +770,6 @@ impl ImageError {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             }
         }
-    }
-}
-
-impl Default for CompressionType {
-    fn default() -> Self {
-        CompressionType::Fast
-    }
-}
-
-impl Default for FilterType {
-    fn default() -> Self {
-        FilterType::Adaptive
     }
 }
 

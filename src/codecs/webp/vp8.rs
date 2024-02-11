@@ -50,8 +50,7 @@ const B_HU_PRED: i8 = 9;
 
 // Prediction mode enum
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum LumaMode {
     /// Predict DC using row above and column to the left.
     #[default]
@@ -71,8 +70,7 @@ enum LumaMode {
 }
 
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum ChromaMode {
     /// Predict DC using row above and column to the left.
     #[default]
@@ -89,8 +87,7 @@ enum ChromaMode {
 }
 
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum IntraMode {
     #[default]
     DC = B_DC_PRED,
@@ -2161,7 +2158,6 @@ impl IntraMode {
         })
     }
 }
-
 
 fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
     let mb_width = (width + 15) / 16;

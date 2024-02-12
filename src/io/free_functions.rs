@@ -7,14 +7,12 @@ use crate::codecs::*;
 
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
-use crate::image;
 use crate::image::ImageFormat;
 #[allow(unused_imports)] // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
 use crate::{
     color,
     error::{UnsupportedError, UnsupportedErrorKind},
-    ImageOutputFormat,
 };
 
 /// Create a new image from a Reader.
@@ -55,31 +53,6 @@ pub(crate) fn save_buffer_with_format_impl(
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-
-    let format = match format {
-        #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => {
-            let ext = path
-                .extension()
-                .and_then(|s| s.to_str())
-                .map_or("".to_string(), |s| s.to_ascii_lowercase());
-            ImageOutputFormat::Pnm(match &*ext {
-                "pbm" => pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary),
-                "pgm" => pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary),
-                "ppm" => pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary),
-                "pam" => pnm::PnmSubtype::ArbitraryMap,
-                _ => {
-                    return Err(ImageError::Unsupported(
-                        ImageFormatHint::Exact(format).into(),
-                    ))
-                } // Unsupported Pnm subtype.
-            })
-        }
-        // #[cfg(feature = "hdr")]
-        // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
-        format => format.into(),
-    };
-
     write_buffer_impl(buffered_file_write, buf, width, height, color, format)
 }
 
@@ -91,67 +64,63 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     width: u32,
     height: u32,
     color: color::ColorType,
-    format: ImageOutputFormat,
+    format: ImageFormat,
 ) -> ImageResult<()> {
     match format {
         #[cfg(feature = "png")]
-        ImageOutputFormat::Png => {
+        ImageFormat::Png => {
             png::PngEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "jpeg")]
-        ImageOutputFormat::Jpeg(quality) => {
-            jpeg::JpegEncoder::new_with_quality(buffered_write, quality)
-                .write_image(buf, width, height, color)
+        ImageFormat::Jpeg => {
+            jpeg::JpegEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "pnm")]
-        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(buffered_write)
-            .with_subtype(subtype)
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "gif")]
-        ImageOutputFormat::Gif => {
-            gif::GifEncoder::new(buffered_write).encode(buf, width, height, color)
+        ImageFormat::Pnm => {
+            pnm::PnmEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
+        #[cfg(feature = "gif")]
+        ImageFormat::Gif => gif::GifEncoder::new(buffered_write).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        ImageOutputFormat::Ico => {
+        ImageFormat::Ico => {
             ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "bmp")]
-        ImageOutputFormat::Bmp => {
+        ImageFormat::Bmp => {
             bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "ff")]
-        ImageOutputFormat::Farbfeld => {
+        ImageFormat::Farbfeld => {
             farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "tga")]
-        ImageOutputFormat::Tga => {
+        ImageFormat::Tga => {
             tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "exr")]
-        ImageOutputFormat::OpenExr => {
+        ImageFormat::OpenExr => {
             openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "tiff")]
-        ImageOutputFormat::Tiff => {
+        ImageFormat::Tiff => {
             tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "avif")]
-        ImageOutputFormat::Avif => {
+        ImageFormat::Avif => {
             avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "qoi")]
-        ImageOutputFormat::Qoi => {
+        ImageFormat::Qoi => {
             qoi::QoiEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
         #[cfg(feature = "webp")]
-        ImageOutputFormat::WebP => {
+        ImageFormat::WebP => {
             webp::WebPEncoder::new_lossless(buffered_write).write_image(buf, width, height, color)
         }
-
-        image::ImageOutputFormat::Unsupported(msg) => Err(ImageError::Unsupported(
+        _ => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)),
+                UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{:?}", format))),
             ),
         )),
     }

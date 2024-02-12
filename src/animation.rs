@@ -293,7 +293,7 @@ impl Ratio {
     }
 
     #[inline]
-    pub(crate) fn to_integer(&self) -> u32 {
+    pub(crate) fn to_integer(self) -> u32 {
         self.numer / self.denom
     }
 }

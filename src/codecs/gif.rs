@@ -432,9 +432,9 @@ pub enum Repeat {
 }
 
 impl Repeat {
-    pub(crate) fn to_gif_enum(&self) -> gif::Repeat {
+    pub(crate) fn to_gif_enum(self) -> gif::Repeat {
         match self {
-            Repeat::Finite(n) => gif::Repeat::Finite(*n),
+            Repeat::Finite(n) => gif::Repeat::Finite(n),
             Repeat::Infinite => gif::Repeat::Infinite,
         }
     }

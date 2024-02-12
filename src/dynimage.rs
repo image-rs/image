@@ -13,16 +13,13 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color::{self, IntoColor};
+use crate::color::{self};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
-};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat};
 use crate::imageops;
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
-use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
 
@@ -632,14 +629,19 @@ impl DynamicImage {
         }
     }
 
-    /// Returns the width of the underlying image
+    /// Returns the width of the underlying image.
     pub fn width(&self) -> u32 {
         dynamic_map!(*self, ref p, { p.width() })
     }
 
-    /// Returns the height of the underlying image
+    /// Returns the height of the underlying image.
     pub fn height(&self) -> u32 {
         dynamic_map!(*self, ref p, { p.height() })
+    }
+
+    /// Returns the width and height of the image.
+    pub fn dimensions(&self) -> (u32, u32) {
+        dynamic_map!(*self, ref p, p.dimensions())
     }
 
     /// Return a grayscale version of this image.

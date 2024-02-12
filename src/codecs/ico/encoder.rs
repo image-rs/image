@@ -2,7 +2,6 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::borrow::Cow;
 use std::io::{self, Write};
 
-
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageEncoder;
 
@@ -73,7 +72,12 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` by encoding `buf` as a PNG
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive)
-    pub fn as_png(buf: &[u8], width: u32, height: u32, color_type: ExtendedColorType) -> ImageResult<Self> {
+    pub fn as_png(
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<Self> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 

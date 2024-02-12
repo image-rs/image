@@ -325,7 +325,13 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(self, buf: &[u8], width: u32, height: u32, color_type: ExtendedColorType) -> ImageResult<()> {
+    pub fn encode(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
         let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,

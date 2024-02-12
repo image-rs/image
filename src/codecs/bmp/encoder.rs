@@ -287,7 +287,10 @@ fn get_unsupported_error_message(c: ExtendedColorType) -> String {
 }
 
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).
-fn get_pixel_info(c: ExtendedColorType, palette: Option<&[[u8; 3]]>) -> io::Result<(u32, u32, u32)> {
+fn get_pixel_info(
+    c: ExtendedColorType,
+    palette: Option<&[[u8; 3]]>,
+) -> io::Result<(u32, u32, u32)> {
     let sizes = match c {
         ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
         ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
@@ -316,7 +319,7 @@ fn get_pixel_info(c: ExtendedColorType, palette: Option<&[[u8; 3]]>) -> io::Resu
 mod tests {
     use super::super::BmpDecoder;
     use super::BmpEncoder;
-    
+
     use crate::image::ImageDecoder;
     use crate::ExtendedColorType;
     use std::io::Cursor;

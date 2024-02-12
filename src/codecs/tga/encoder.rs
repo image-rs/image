@@ -1,6 +1,7 @@
 use super::header::Header;
 use crate::{
-    codecs::tga::header::ImageType, error::EncodingError, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult
+    codecs::tga::header::ImageType, error::EncodingError, ExtendedColorType, ImageEncoder,
+    ImageError, ImageFormat, ImageResult,
 };
 use std::{convert::TryFrom, error, fmt, io::Write};
 
@@ -84,7 +85,11 @@ impl<W: Write> TgaEncoder<W> {
     }
 
     /// Writes the run-length encoded buffer to the writer
-    fn run_length_encode(&mut self, image: &[u8], color_type: ExtendedColorType) -> ImageResult<()> {
+    fn run_length_encode(
+        &mut self,
+        image: &[u8],
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
         use PacketType::*;
 
         let bytes_per_pixel = color_type.bits_per_pixel() / 8;
@@ -193,7 +198,8 @@ impl<W: Write> TgaEncoder<W> {
                     ExtendedColorType::Rgb8 | ExtendedColorType::Rgba8 => {
                         let mut image = Vec::from(buf);
 
-                        for pixel in image.chunks_mut(usize::from(color_type.bits_per_pixel() / 8)) {
+                        for pixel in image.chunks_mut(usize::from(color_type.bits_per_pixel() / 8))
+                        {
                             pixel.swap(0, 2);
                         }
 
@@ -211,7 +217,8 @@ impl<W: Write> TgaEncoder<W> {
                     ExtendedColorType::Rgb8 | ExtendedColorType::Rgba8 => {
                         let mut image = Vec::from(buf);
 
-                        for pixel in image.chunks_mut(usize::from(color_type.bits_per_pixel() / 8)) {
+                        for pixel in image.chunks_mut(usize::from(color_type.bits_per_pixel() / 8))
+                        {
                             pixel.swap(0, 2);
                         }
 
@@ -337,7 +344,12 @@ mod tests {
     mod compressed {
         use super::*;
 
-        fn round_trip_image(image: &[u8], width: u32, height: u32, c: ExtendedColorType) -> Vec<u8> {
+        fn round_trip_image(
+            image: &[u8],
+            width: u32,
+            height: u32,
+            c: ExtendedColorType,
+        ) -> Vec<u8> {
             let mut encoded_data = Vec::new();
             {
                 let encoder = TgaEncoder::new(&mut encoded_data);
@@ -443,7 +455,12 @@ mod tests {
     mod uncompressed {
         use super::*;
 
-        fn round_trip_image(image: &[u8], width: u32, height: u32, c: ExtendedColorType) -> Vec<u8> {
+        fn round_trip_image(
+            image: &[u8],
+            width: u32,
+            height: u32,
+            c: ExtendedColorType,
+        ) -> Vec<u8> {
             let mut encoded_data = Vec::new();
             {
                 let encoder = TgaEncoder::new(&mut encoded_data).disable_rle();

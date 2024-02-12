@@ -15,11 +15,11 @@ use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::{imageops, ExtendedColorType};
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
+use crate::{imageops, ExtendedColorType};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image

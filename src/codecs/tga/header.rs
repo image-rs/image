@@ -1,5 +1,6 @@
 use crate::{
-    error::{UnsupportedError, UnsupportedErrorKind}, ExtendedColorType, ImageError, ImageFormat, ImageResult
+    error::{UnsupportedError, UnsupportedErrorKind},
+    ExtendedColorType, ImageError, ImageFormat, ImageResult,
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};

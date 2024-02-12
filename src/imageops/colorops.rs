@@ -3,7 +3,7 @@
 use num_traits::NumCast;
 use std::f64::consts::PI;
 
-use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
+use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
@@ -435,11 +435,12 @@ impl ColorMap for BiLevel {
     }
 }
 
+#[cfg(feature = "color_quant")]
 impl ColorMap for color_quant::NeuQuant {
-    type Color = Rgba<u8>;
+    type Color = crate::color::Rgba<u8>;
 
     #[inline(always)]
-    fn index_of(&self, color: &Rgba<u8>) -> usize {
+    fn index_of(&self, color: &Self::Color) -> usize {
         self.index_of(color.channels())
     }
 
@@ -454,7 +455,7 @@ impl ColorMap for color_quant::NeuQuant {
     }
 
     #[inline(always)]
-    fn map_color(&self, color: &mut Rgba<u8>) {
+    fn map_color(&self, color: &mut Self::Color) {
         self.map_pixel(color.channels_mut())
     }
 }

@@ -44,7 +44,7 @@ rgb = { version = "0.8.25", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 dav1d = { version = "0.10.2", optional = true }
 dcv-color-primitives = { version = "0.6.1", optional = true }
-color_quant = "1.1"
+color_quant = { version = "1.1", optional = true }
 exr = { version = "1.5.0", optional = true }
 qoi = { version = "0.4", optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
@@ -73,6 +73,7 @@ dds = []
 farbfeld = []
 openexr = ["exr"]
 qoi = ["dep:qoi"]
+gif = ["dep:gif", "dep:color_quant"]
 
 # Enables WebP decoder support.
 webp = []

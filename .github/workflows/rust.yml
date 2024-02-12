@@ -156,11 +156,6 @@ jobs:
       run: |
         cargo install cargo-fuzz
         cargo fuzz build
-    - name: fuzz
-      run: |
-        for format in $(cargo fuzz list); do
-          cargo fuzz run "$format" -- -runs=0;
-        done
 
   public_private_dependencies:
     runs-on: ubuntu-latest

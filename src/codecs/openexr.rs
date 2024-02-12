@@ -23,12 +23,11 @@
 use exr::prelude::*;
 
 use crate::error::{DecodingError, EncodingError, ImageFormatHint};
-use crate::image::decoder_to_vec;
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
-    Progress,
 };
-use std::io::{Cursor, Read, Seek, Write};
+
+use std::io::{Read, Seek, Write};
 
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
@@ -105,9 +104,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
-    type Reader = Cursor<Vec<u8>>;
-
+impl<R: Read + Seek> ImageDecoder for OpenExrDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         let size = self
             .selected_exr_header()
@@ -134,27 +131,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
         }
     }
 
-    /// Use `read_image` instead if possible,
-    /// as this method creates a whole new buffer just to contain the entire image.
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?))
-    }
-
-    fn scanline_bytes(&self) -> u64 {
-        // we cannot always read individual scan lines for every file,
-        // as the tiles or lines in the file could be in random or reversed order.
-        // therefore we currently read all lines at once
-        // Todo: optimize for specific exr.line_order?
-        self.total_bytes()
-    }
-
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image_with_progress<F: Fn(Progress)>(
-        self,
-        unaligned_bytes: &mut [u8],
-        progress_callback: F,
-    ) -> ImageResult<()> {
-        let blocks_in_header = self.selected_exr_header().chunk_count as u64;
+    fn read_image(self, unaligned_bytes: &mut [u8]) -> ImageResult<()> {
+        let _blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
 
         let display_window = self.selected_exr_header().shared_attributes.display_window;
@@ -212,14 +191,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
             )
             .first_valid_layer() // TODO select exact layer by self.header_index?
             .all_attributes()
-            .on_progress(|progress| {
-                progress_callback(
-                    Progress::new(
-                        (progress * blocks_in_header as f64) as u64,
-                        blocks_in_header,
-                    ), // TODO precision errors?
-                );
-            })
             .from_chunks(self.exr_reader)
             .map_err(to_image_err)?;
 
@@ -231,6 +202,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
             result.layer_data.channel_data.pixels.as_slice(),
         ));
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 
@@ -384,7 +359,7 @@ fn to_image_err(exr_error: Error) -> ImageError {
 mod test {
     use super::*;
 
-    use std::io::BufReader;
+    use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
@@ -433,7 +408,7 @@ mod test {
     fn read_as_rgb_image(read: impl Read + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -447,7 +422,7 @@ mod test {
     fn read_as_rgba_image(read: impl Read + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,

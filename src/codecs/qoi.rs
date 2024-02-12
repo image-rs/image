@@ -4,7 +4,7 @@ use crate::{
     error::{DecodingError, EncodingError},
     ColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 
 /// QOI decoder
 pub struct QoiDecoder<R> {
@@ -22,9 +22,7 @@ where
     }
 }
 
-impl<'a, R: Read + 'a> ImageDecoder<'a> for QoiDecoder<R> {
-    type Reader = Cursor<Vec<u8>>;
-
+impl<R: Read> ImageDecoder for QoiDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.decoder.header().width, self.decoder.header().height)
     }
@@ -36,9 +34,13 @@ impl<'a, R: Read + 'a> ImageDecoder<'a> for QoiDecoder<R> {
         }
     }
 
-    fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let buffer = self.decoder.decode_to_vec().map_err(decoding_error)?;
-        Ok(Cursor::new(buffer))
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        self.decoder.decode_to_buf(buf).map_err(decoding_error)?;
+        Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

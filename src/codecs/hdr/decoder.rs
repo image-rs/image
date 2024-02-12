@@ -15,7 +15,7 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageFormat, Progress};
+use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageFormat};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,7 +131,7 @@ pub struct HdrAdapter<R: Read> {
     meta: HdrMetadata,
 }
 
-impl<R: BufRead> HdrAdapter<R> {
+impl<R: Read> HdrAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HdrAdapter<R>> {
         let decoder = HdrDecoder::new(r)?;
@@ -187,9 +187,7 @@ impl<R> Read for HdrReader<R> {
     }
 }
 
-impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
-    type Reader = HdrReader<R>;
-
+impl<R: Read> ImageDecoder for HdrAdapter<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.meta.width, self.meta.height)
     }
@@ -198,27 +196,24 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
         ColorType::Rgb8
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(HdrReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
-    }
-
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_data(buf)
     }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
-impl<'a, R: 'a + BufRead + Seek> ImageDecoderRect<'a> for HdrAdapter<R> {
-    fn read_rect_with_progress<F: Fn(Progress)>(
+impl<R: BufRead + Seek> ImageDecoderRect for HdrAdapter<R> {
+    fn read_rect(
         &mut self,
         x: u32,
         y: u32,
         width: u32,
         height: u32,
         buf: &mut [u8],
-        progress_callback: F,
+        row_pitch: usize,
     ) -> ImageResult<()> {
         image::load_rect(
             x,
@@ -226,8 +221,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderRect<'a> for HdrAdapter<R> {
             width,
             height,
             buf,
-            progress_callback,
+            row_pitch,
             self,
+            self.total_bytes() as usize,
             |_, _| unreachable!(),
             |s, buf| s.read_image_data(buf),
         )
@@ -327,8 +323,8 @@ impl Rgbe8Pixel {
     }
 }
 
-impl<R: BufRead> HdrDecoder<R> {
-    /// Reads Radiance HDR image header from stream `r`
+impl<R: Read> HdrDecoder<R> {
+    /// Reads Radiance HDR image header from stream ```r```
     /// if the header is valid, creates HdrDecoder
     /// strict mode is enabled
     pub fn new(reader: R) -> ImageResult<HdrDecoder<R>> {
@@ -969,17 +965,18 @@ fn split_at_first_test() {
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: BufRead>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
+fn read_line_u8<R: Read>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
-    match r.read_until(b'\n', &mut ret) {
-        Ok(0) => Ok(None),
-        Ok(_) => {
-            if let Some(&b'\n') = ret[..].last() {
-                let _ = ret.pop();
+    loop {
+        let mut byte = [0];
+        if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
+            if ret.is_empty() && byte[0] != b'\n' {
+                return Ok(None);
+            } else {
+                return Ok(Some(ret));
             }
-            Ok(Some(ret))
         }
-        Err(err) => Err(err),
+        ret.push(byte[0]);
     }
 }
 

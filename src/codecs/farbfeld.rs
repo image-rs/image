@@ -24,7 +24,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat, Progress};
+use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 
 /// farbfeld Reader
 pub struct FarbfeldReader<R: Read> {
@@ -196,9 +196,7 @@ impl<R: Read> FarbfeldDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
-    type Reader = FarbfeldReader<R>;
-
+impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.reader.width, self.reader.height)
     }
@@ -207,24 +205,26 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
         ColorType::Rgba16
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(self.reader)
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        self.reader.read_exact(buf)?;
+        Ok(())
     }
 
-    fn scanline_bytes(&self) -> u64 {
-        2
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for FarbfeldDecoder<R> {
-    fn read_rect_with_progress<F: Fn(Progress)>(
+impl<R: Read + Seek> ImageDecoderRect for FarbfeldDecoder<R> {
+    fn read_rect(
         &mut self,
         x: u32,
         y: u32,
         width: u32,
         height: u32,
         buf: &mut [u8],
-        progress_callback: F,
+        row_pitch: usize,
     ) -> ImageResult<()> {
         // A "scanline" (defined as "shortest non-caching read" in the doc) is just one channel in this case
 
@@ -235,8 +235,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for FarbfeldDecoder<R> {
             width,
             height,
             buf,
-            progress_callback,
+            row_pitch,
             self,
+            2,
             |s, scanline| s.reader.seek(SeekFrom::Start(scanline * 2)).map(|_| ()),
             |s, buf| s.reader.read_exact(buf),
         )?;
@@ -376,7 +377,7 @@ mod tests {
         let mut out_buf = [0u8; 64];
         FarbfeldDecoder::new(input_cur)
             .unwrap()
-            .read_rect(0, 2, 1, 1, &mut out_buf)
+            .read_rect(0, 2, 1, 1, &mut out_buf, 8)
             .unwrap();
         let exp = degenerate_pixels(RECTANGLE_OUT);
         assert_eq!(&out_buf[..exp.len()], &exp[..]);
@@ -393,7 +394,7 @@ mod tests {
         let mut out_buf = [0u8; 64];
         FarbfeldDecoder::new(Cursor::new(RECTANGLE_IN))
             .unwrap()
-            .read_rect(x, y, width, height, &mut out_buf)
+            .read_rect(x, y, width, height, &mut out_buf, width as usize * 8)
             .unwrap();
         let exp = degenerate_pixels(exp_wide);
         assert_eq!(&out_buf[..exp.len()], &exp[..]);

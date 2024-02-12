@@ -5,9 +5,8 @@
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::convert::TryFrom;
 use std::error::Error;
-use std::io::{self, Cursor, Read};
+use std::io::Read;
 use std::marker::PhantomData;
-use std::mem;
 
 use crate::error::{DecodingError, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
@@ -66,26 +65,7 @@ impl<R: Read> AvifDecoder<R> {
     }
 }
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct AvifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-
-impl<R> Read for AvifReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
-    type Reader = AvifReader<R>;
-
+impl<R: Read> ImageDecoder for AvifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.picture.width(), self.picture.height())
     }
@@ -94,16 +74,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         ColorType::Rgba8
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        self.icc_profile.clone()
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        let plane = self.picture.plane(PlanarImageComponent::Y);
-        Ok(AvifReader(
-            Cursor::new(plane.as_ref().to_vec()),
-            PhantomData,
-        ))
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.icc_profile.clone())
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
@@ -181,6 +153,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
         }
 
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

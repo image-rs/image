@@ -189,7 +189,7 @@ fn tiff() {
 }
 
 #[test]
-#[cfg(all(feature = "avif", feature = "avif-decoder"))]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
 fn avif() {
     use image::codecs::avif::AvifDecoder;
 

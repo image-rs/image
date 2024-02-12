@@ -147,7 +147,7 @@ impl<'a, R: 'a + Read + Seek> Reader<R> {
         #[allow(unreachable_patterns)]
         // Default is unreachable if all features are supported.
         Ok(match format {
-            #[cfg(feature = "avif-decoder")]
+            #[cfg(feature = "avif-native")]
             ImageFormat::Avif => Box::new(avif::AvifDecoder::new(reader)?),
             #[cfg(feature = "png")]
             ImageFormat::Png => Box::new(png::PngDecoder::with_limits(reader, limits_for_png)?),
@@ -173,7 +173,7 @@ impl<'a, R: 'a + Read + Seek> Reader<R> {
             ImageFormat::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
             #[cfg(feature = "pnm")]
             ImageFormat::Pnm => Box::new(pnm::PnmDecoder::new(reader)?),
-            #[cfg(feature = "farbfeld")]
+            #[cfg(feature = "ff")]
             ImageFormat::Farbfeld => Box::new(farbfeld::FarbfeldDecoder::new(reader)?),
             #[cfg(feature = "qoi")]
             ImageFormat::Qoi => Box::new(qoi::QoiDecoder::new(reader)?),

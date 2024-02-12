@@ -226,7 +226,7 @@ impl ImageFormat {
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             ImageFormat::Qoi => "image/x-qoi",
-            // farbfield's MIME type taken from https://www.wikidata.org/wiki/Q28206109
+            // farbfeld's MIME type taken from https://www.wikidata.org/wiki/Q28206109
             ImageFormat::Farbfeld => "application/octet-stream",
         }
     }
@@ -403,7 +403,7 @@ pub enum ImageOutputFormat {
     /// An Image in BMP Format
     Bmp,
 
-    #[cfg(feature = "farbfeld")]
+    #[cfg(feature = "ff")]
     /// An Image in farbfeld Format
     Farbfeld,
 
@@ -419,7 +419,7 @@ pub enum ImageOutputFormat {
     /// An Image in TIFF Format
     Tiff,
 
-    #[cfg(feature = "avif-encoder")]
+    #[cfg(feature = "avif")]
     /// An image in AVIF Format
     Avif,
 
@@ -452,7 +452,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Ico => ImageOutputFormat::Ico,
             #[cfg(feature = "bmp")]
             ImageFormat::Bmp => ImageOutputFormat::Bmp,
-            #[cfg(feature = "farbfeld")]
+            #[cfg(feature = "ff")]
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
@@ -461,7 +461,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "tiff")]
             ImageFormat::Tiff => ImageOutputFormat::Tiff,
 
-            #[cfg(feature = "avif-encoder")]
+            #[cfg(feature = "avif")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
             #[cfg(feature = "webp")]
             ImageFormat::WebP => ImageOutputFormat::WebP,

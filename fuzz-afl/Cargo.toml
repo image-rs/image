@@ -1,7 +1,7 @@
 [package]
 name = "image-fuzz-afl"
 version = "0.0.1"
-authors = ["HeroicKatora"]
+edition = "2021"
 publish = false
 
 [dependencies.image]

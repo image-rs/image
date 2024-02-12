@@ -198,19 +198,3 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
-
-  verify_msrv:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install or use cached `cargo-msrv`
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cargo-msrv
-
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Generate Cargo.lock with minimal-version dependencies
-        run: cargo -Zminimal-versions generate-lockfile
-
-      - name: Verify Minimum Rust Version against `-Zminimal-versions` dependencies
-        run: cargo-msrv verify

@@ -19,7 +19,8 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
-use crate::utils;
+use crate::{Progress, utils};
+use crate::io::track_progress::TrackProgressReader;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -224,6 +225,15 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         };
 
         Ok(TiffReader(Cursor::new(buf), PhantomData))
+    }
+
+    fn read_image_with_progress<F: FnMut(Progress)>(self, buf: &mut [u8], progress_callback: F) -> ImageResult<()> {
+        self.inner = TrackProgressReader::estimate(
+            self.inner, progress_callback, self.color_type,
+            self.dimensions().0, self.dimensions().1
+        );
+
+        self.read_image(buf)
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

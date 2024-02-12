@@ -1,6 +1,5 @@
-use std::io::{Read};
+use std::io::Read;
 use std::marker::PhantomData;
-
 
 use crate::color::ColorType;
 use crate::error::{

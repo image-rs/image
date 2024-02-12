@@ -444,6 +444,7 @@ impl FromPrimitive<u8> for u16 {
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
+    #[allow(clippy::wrong_self_convention)]
     fn from_color(&mut self, _: &Other);
 }
 
@@ -452,6 +453,7 @@ pub trait FromColor<Other> {
 // rather than assuming sRGB.
 pub(crate) trait IntoColor<Other> {
     /// Constructs a pixel of the target type and converts this pixel into it.
+    #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> Other;
 }
 
@@ -459,6 +461,7 @@ impl<O, S> IntoColor<O> for S
 where
     O: Pixel + FromColor<S>,
 {
+    #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.

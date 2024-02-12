@@ -14,6 +14,7 @@ use super::extended::{read_extended_header, ExtendedImage};
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum DecoderError {
     /// RIFF's "RIFF" signature not found or invalid
     RiffSignatureInvalid([u8; 4]),
@@ -96,7 +97,7 @@ impl WebPRiffChunk {
         }
     }
 
-    pub(crate) fn to_fourcc(&self) -> [u8; 4] {
+    pub(crate) fn to_fourcc(self) -> [u8; 4] {
         match self {
             Self::RIFF => *b"RIFF",
             Self::WEBP => *b"WEBP",

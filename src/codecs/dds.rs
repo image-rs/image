@@ -20,6 +20,7 @@ use crate::image::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::enum_variant_names)]
 enum DecoderError {
     /// Wrong DDS channel width
     PixelFormatSizeInvalid(u32),

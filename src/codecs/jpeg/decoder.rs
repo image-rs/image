@@ -28,14 +28,16 @@ impl<R: Read> JpegDecoder<R> {
         let mut input = Vec::new();
         let mut r = r;
         r.read_to_end(&mut input)?;
-        let mut decoder = zune_jpeg::JpegDecoder::new(&input);
+        let mut decoder = zune_jpeg::JpegDecoder::new(input.as_slice());
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
         let (width, height) = decoder.dimensions().unwrap();
+        // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
+        let width: u16 = width.try_into().unwrap();
+        let height: u16 = height.try_into().unwrap();
         let orig_color_space = decoder.get_output_colorspace().unwrap();
-        // Limits are disabled by default for backwards compatibility with jpeg_decoder
-        // which did not support limits, so enabling them would break crate users
+        // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
         Ok(JpegDecoder {
             input,
@@ -126,7 +128,7 @@ fn new_zune_decoder(
     input: &[u8],
     orig_color_space: ZuneColorSpace,
     limits: Limits,
-) -> zune_jpeg::JpegDecoder {
+) -> zune_jpeg::JpegDecoder<&[u8]> {
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options =
         zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
@@ -138,7 +140,7 @@ fn new_zune_decoder(
         Some(max_height) => max_height as usize, // u32 to usize never truncates
         None => usize::MAX,
     });
-    zune_jpeg::JpegDecoder::new_with_options(options, input)
+    zune_jpeg::JpegDecoder::new_with_options(input, options)
 }
 
 impl ImageError {

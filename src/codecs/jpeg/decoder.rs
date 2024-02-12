@@ -46,20 +46,6 @@ impl<R: Read> JpegDecoder<R> {
             phantom: PhantomData,
         })
     }
-
-    /// Some decoders support scaling the image during decoding,
-    /// but the current backend, `zune-jpeg`, doesn't,
-    /// so this function currently does nothing
-    /// and always returns the original dimensions.
-    pub fn scale(
-        &mut self,
-        _requested_width: u16,
-        _requested_height: u16,
-    ) -> ImageResult<(u16, u16)> {
-        // zune-jpeg doesn't support this yet:
-        // https://github.com/etemesi254/zune-image/issues/103
-        Ok((self.width, self.height))
-    }
 }
 
 impl<R: Read> ImageDecoder for JpegDecoder<R> {

@@ -33,6 +33,9 @@ impl<R: Read> JpegDecoder<R> {
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
         let (width, height) = decoder.dimensions().unwrap();
+        // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
+        let width: u16 = width.try_into().unwrap();
+        let height: u16 = height.try_into().unwrap();
         let orig_color_space = decoder.get_output_colorspace().unwrap();
         // Limits are disabled by default for backwards compatibility with jpeg_decoder
         // which did not support limits, so enabling them would break crate users

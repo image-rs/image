@@ -941,15 +941,10 @@ pub trait GenericImageView {
         h
     }
 
-    /// The bounding rectangle of this image.
-    #[deprecated = "This method has inconsistent behavior between implementations (#1829). Use `dimensions` instead"]
-    fn bounds(&self) -> (u32, u32, u32, u32);
-
     /// Returns true if this x, y coordinate is contained inside the image.
     fn in_bounds(&self, x: u32, y: u32) -> bool {
-        #[allow(deprecated)]
-        let (ix, iy, iw, ih) = self.bounds();
-        x >= ix && x < ix + iw && y >= iy && y < iy + ih
+        let (width, height) = self.dimensions();
+        x < width && y < height
     }
 
     /// Returns the pixel located at (x, y). Indexed from top left.
@@ -1333,10 +1328,6 @@ where
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
-    }
-
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        (self.xoffset, self.yoffset, self.xstride, self.ystride)
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {

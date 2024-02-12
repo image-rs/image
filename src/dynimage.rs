@@ -606,16 +606,6 @@ impl DynamicImage {
         })
     }
 
-    /// Return a copy of this image's pixels as a byte vector.
-    /// Deprecated, because it does nothing but hide an expensive clone operation.
-    #[deprecated(
-        since = "0.24.0",
-        note = "use `image.into_bytes()` or `image.as_bytes().to_vec()` instead"
-    )]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
-    }
-
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
@@ -975,10 +965,6 @@ impl GenericImageView for DynamicImage {
 
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, ref p, p.dimensions())
-    }
-
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        dynamic_map!(*self, ref p, p.bounds())
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {

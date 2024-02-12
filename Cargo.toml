@@ -46,7 +46,6 @@ dcv-color-primitives = { version = "0.6.1", optional = true }
 exr = { version = "1.5.0", optional = true }
 gif = { version = "0.13", optional = true }
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
-libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.6", optional = true }
 qoi = { version = "0.4", optional = true }
@@ -88,7 +87,6 @@ webp = []
 
 # Other features
 rayon = ["dep:rayon", "jpeg?/rayon"] # Enables multi-threading
-webp-native = ["dep:libwebp"] # Enable native dependency libwebp.
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d (requires rustc 1.64.0)
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 

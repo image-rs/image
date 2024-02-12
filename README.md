@@ -22,7 +22,7 @@ All image processing functions provided operate on types that implement the `Gen
 
 | Format   | Decoding                                  | Encoding                                |
 | -------- | ----------------------------------------- | --------------------------------------- |
-| AVIF     | Only 8-bit \*\*                           | Lossy                                   |
+| AVIF     | Only 8-bit \*                             | Lossy                                   |
 | BMP      | Yes                                       | Rgb8, Rgba8, Gray8, GrayA8              |
 | DDS      | DXT1, DXT3, DXT5                          | No                                      |
 | Farbfeld | Yes                                       | Yes                                     |
@@ -36,10 +36,9 @@ All image processing functions provided operate on types that implement the `Gen
 | QOI      | Yes                                       | Yes                                     |
 | TGA      | Yes                                       | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
 | TIFF     | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8                      |
-| WebP     | Yes                                       | Rgb8, Rgba8 \*                          |
+| WebP     | Yes                                       | Yes                                     |
 
-- \* Requires the `webp-native` feature, uses the libwebp C library.
-- \*\* Requires the `avif-native` feature, uses the libdav1d C library.
+- \* Requires the `avif-native` feature, uses the libdav1d C library.
 
 ### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
 

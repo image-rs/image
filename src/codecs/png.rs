@@ -471,12 +471,6 @@ pub enum CompressionType {
     Fast,
     /// High compression level
     Best,
-    /// Huffman coding compression
-    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
-    Huffman,
-    /// Run-length encoding compression
-    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
-    Rle,
 }
 
 /// Filter algorithms used to process image data to improve compression.
@@ -541,14 +535,6 @@ impl<W: Write> PngEncoder<W> {
             compression,
             filter,
         }
-    }
-
-    /// Encodes the image `data` that has dimensions `width` and `height` and `ColorType` `c`.
-    ///
-    /// Expects data in big endian.
-    #[deprecated = "Use `PngEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        self.encode_inner(data, width, height, color)
     }
 
     fn encode_inner(

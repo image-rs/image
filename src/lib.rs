@@ -224,7 +224,7 @@ pub mod flat;
 /// | QOI      | Yes                                       | Yes                                     |
 /// | TGA      | Yes                                       | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
 /// | TIFF     | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8                      |
-/// | WebP     | Yes                                       | Rgb8, Rgba8                             |
+/// | WebP     | Yes                                       | Yes                                     |
 ///
 /// ## A note on format specific features
 ///

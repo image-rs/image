@@ -56,12 +56,10 @@ jobs:
       with:
         cache-on-failure: true
     - name: build
-      run: cargo build -v --features webp-native
+      run: cargo build -v
     - name: test
       if: ${{ matrix.rust != '1.63.0' }}
-      run: >
-        cargo test -v --features webp-native &&
-        cargo doc -v --features webp-native
+      run: cargo test -v && cargo doc -v
 
   test_other_archs:
     # github actions does not support 32-bit or big endian systems directly, but
@@ -73,7 +71,6 @@ jobs:
       fail-fast: false
       matrix:
         arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
-        features: [default, webp-native]
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross
@@ -87,10 +84,7 @@ jobs:
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
       - name: Cross-Run Tests using QEMU
-        run: |
-          cross test --target ${{ matrix.arch }} --verbose -v --no-default-features --features "$FEATURES"
-        env:
-          FEATURES: ${{ matrix.features }}
+        run: cross test --target ${{ matrix.arch }} --verbose -v
 
   test_avif_decoding:
     runs-on: ubuntu-latest

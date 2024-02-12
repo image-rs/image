@@ -11,6 +11,7 @@ pub use self::reader::Reader;
 
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[allow(missing_copy_implementations)]
 #[non_exhaustive]
 pub struct LimitSupport {}
 
@@ -36,6 +37,7 @@ pub struct LimitSupport {}
 /// [`LimitSupport`]: ./struct.LimitSupport.html
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[allow(missing_copy_implementations)]
 #[non_exhaustive]
 pub struct Limits {
     /// The maximum allowed image width. This limit is strict. The default is no limit.

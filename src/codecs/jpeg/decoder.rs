@@ -37,8 +37,7 @@ impl<R: Read> JpegDecoder<R> {
         let width: u16 = width.try_into().unwrap();
         let height: u16 = height.try_into().unwrap();
         let orig_color_space = decoder.get_output_colorspace().unwrap();
-        // Limits are disabled by default for backwards compatibility with jpeg_decoder
-        // which did not support limits, so enabling them would break crate users
+        // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
         Ok(JpegDecoder {
             input,

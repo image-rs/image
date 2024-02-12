@@ -126,7 +126,7 @@ fn new_zune_decoder(
     input: &[u8],
     orig_color_space: ZuneColorSpace,
     limits: Limits,
-) -> zune_jpeg::JpegDecoder {
+) -> zune_jpeg::JpegDecoder<&[u8]> {
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options =
         zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
@@ -138,7 +138,7 @@ fn new_zune_decoder(
         Some(max_height) => max_height as usize, // u32 to usize never truncates
         None => usize::MAX,
     });
-    zune_jpeg::JpegDecoder::new_with_options(options, input)
+    zune_jpeg::JpegDecoder::new_with_options( input, options)
 }
 
 impl ImageError {

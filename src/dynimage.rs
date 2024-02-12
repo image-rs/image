@@ -820,7 +820,6 @@ impl DynamicImage {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
         let color = self.color();
-        let format = format.into();
 
         // TODO do not repeat this match statement across the crate
 
@@ -1170,7 +1169,7 @@ where
     W: Write + Seek,
 {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format.into())
+    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format)
 }
 
 /// Create a new image from a byte slice

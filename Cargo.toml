@@ -45,7 +45,6 @@ dav1d = { version = "0.10.2", optional = true }
 dcv-color-primitives = { version = "0.6.1", optional = true }
 exr = { version = "1.5.0", optional = true }
 gif = { version = "0.13", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.6", optional = true }
 qoi = { version = "0.4", optional = true }
@@ -53,6 +52,8 @@ ravif = { version = "0.11.2", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 tiff = { version = "0.9.0", optional = true }
+zune-core = { version = "0.2.1", default-features = false, optional = true }
+zune-jpeg = { version = "0.3.14", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -77,7 +78,7 @@ ff = []
 gif = ["dep:gif", "dep:color_quant"]
 hdr = []
 ico = ["bmp", "png"]
-jpeg = ["dep:jpeg"]
+jpeg = ["dep:zune-core", "dep:zune-jpeg"]
 png = ["dep:png"]
 pnm = []
 qoi = ["dep:qoi"]
@@ -86,7 +87,7 @@ tiff = ["dep:tiff"]
 webp = []
 
 # Other features
-rayon = ["dep:rayon", "jpeg?/rayon"] # Enables multi-threading
+rayon = ["dep:rayon"] # Enables multi-threading
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d (requires rustc 1.64.0)
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 

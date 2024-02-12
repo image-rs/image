@@ -15,10 +15,7 @@
 
 use std::io::Cursor;
 
-use image::{
-    io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat,
-    RgbImage,
-};
+use image::{io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, RgbImage};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;

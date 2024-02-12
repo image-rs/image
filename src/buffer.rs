@@ -1482,8 +1482,8 @@ mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::GenericImage as _;
-    use crate::{color, Rgb};
     use crate::ImageFormat;
+    use crate::{color, Rgb};
 
     #[test]
     /// Tests if image buffers from slices work

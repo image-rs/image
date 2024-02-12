@@ -10,7 +10,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
-use crate::{ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
+use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
@@ -446,10 +446,9 @@ impl<W: Write> JpegEncoder<W> {
         image: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             image.len() as u64,
@@ -458,22 +457,22 @@ impl<W: Write> JpegEncoder<W> {
         );
 
         match color_type {
-            ColorType::L8 => {
+            ExtendedColorType::L8 => {
                 let image: ImageBuffer<Luma<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
-            ColorType::La8 => {
+            ExtendedColorType::La8 => {
                 let image: ImageBuffer<LumaA<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
-            ColorType::Rgb8 => {
+            ExtendedColorType::Rgb8 => {
                 let image: ImageBuffer<Rgb<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
-            ColorType::Rgba8 => {
+            ExtendedColorType::Rgba8 => {
                 let image: ImageBuffer<Rgba<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
@@ -481,7 +480,7 @@ impl<W: Write> JpegEncoder<W> {
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Jpeg.into(),
-                    UnsupportedErrorKind::Color(color_type.into()),
+                    UnsupportedErrorKind::Color(color_type),
                 ),
             )),
         }
@@ -579,7 +578,7 @@ impl<W: Write> JpegEncoder<W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, &buf)?;
 
-        if color_type.has_color() {
+        if let ExtendedColorType::Rgb8 = color_type {
             self.encode_rgb(image)
         } else {
             self.encode_gray(image)
@@ -674,7 +673,7 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
@@ -856,10 +855,9 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::Bencher;
 
-    use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
-    use crate::{ImageEncoder, ImageError};
+    use crate::{ExtendedColorType, ImageEncoder, ImageError};
 
     use super::super::JpegDecoder;
     use super::{
@@ -888,7 +886,7 @@ mod tests {
         {
             let encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .write_image(&img, 1, 1, ColorType::Rgb8)
+                .write_image(&img, 1, 1, ExtendedColorType::Rgb8)
                 .expect("Could not encode image");
         }
 
@@ -914,7 +912,7 @@ mod tests {
         {
             let encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .write_image(&img[..], 2, 2, ColorType::L8)
+                .write_image(&img[..], 2, 2, ExtendedColorType::L8)
                 .expect("Could not encode image");
         }
 
@@ -964,7 +962,7 @@ mod tests {
         // Try to encode an image that is too large
         let mut encoded = Vec::new();
         let encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
-        let result = encoder.write_image(&img, 65_536, 1, ColorType::L8);
+        let result = encoder.write_image(&img, 65_536, 1, ExtendedColorType::L8);
         match result {
             Err(ImageError::Parameter(err)) => {
                 assert_eq!(err.kind(), DimensionMismatch)

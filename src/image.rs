@@ -770,7 +770,7 @@ pub trait ImageEncoder {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()>;
 }
 

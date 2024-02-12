@@ -5,7 +5,7 @@ use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
 };
 use crate::image::ImageEncoder;
-use crate::{color, ImageFormat};
+use crate::{ExtendedColorType, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -22,7 +22,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         BmpEncoder { writer: w }
     }
 
-    /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
+    /// Encodes the image `image` that has dimensions `width` and `height` and `ExtendedColorType` `c`.
     ///
     /// # Panics
     ///
@@ -33,7 +33,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         image: &[u8],
         width: u32,
         height: u32,
-        c: color::ColorType,
+        c: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode_with_palette(image, width, height, c, None)
     }
@@ -50,10 +50,10 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         image: &[u8],
         width: u32,
         height: u32,
-        c: color::ColorType,
+        c: ExtendedColorType,
         palette: Option<&[[u8; 3]]>,
     ) -> ImageResult<()> {
-        if palette.is_some() && c != color::ColorType::L8 && c != color::ColorType::La8 {
+        if palette.is_some() && c != ExtendedColorType::L8 && c != ExtendedColorType::La8 {
             return Err(ImageError::IoError(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
@@ -63,8 +63,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             )));
         }
 
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(c.bytes_per_pixel() as u64);
+        let expected_buffer_len = c.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             image.len() as u64,
@@ -141,12 +140,12 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
-            color::ColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
-            color::ColorType::L8 => {
+            ExtendedColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
+            ExtendedColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
+            ExtendedColorType::L8 => {
                 self.encode_gray(image, width, height, row_pad_size, 1, palette)?
             }
-            color::ColorType::La8 => {
+            ExtendedColorType::La8 => {
                 self.encode_gray(image, width, height, row_pad_size, 2, palette)?
             }
             _ => {
@@ -274,13 +273,13 @@ impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: color::ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
 }
 
-fn get_unsupported_error_message(c: color::ColorType) -> String {
+fn get_unsupported_error_message(c: ExtendedColorType) -> String {
     format!(
         "Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).",
         c
@@ -288,16 +287,16 @@ fn get_unsupported_error_message(c: color::ColorType) -> String {
 }
 
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).
-fn get_pixel_info(c: color::ColorType, palette: Option<&[[u8; 3]]>) -> io::Result<(u32, u32, u32)> {
+fn get_pixel_info(c: ExtendedColorType, palette: Option<&[[u8; 3]]>) -> io::Result<(u32, u32, u32)> {
     let sizes = match c {
-        color::ColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
-        color::ColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
-        color::ColorType::L8 => (
+        ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
+        ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
+        ExtendedColorType::L8 => (
             BITMAPINFOHEADER_SIZE,
             1,
             palette.map(|p| p.len()).unwrap_or(256) as u32,
         ),
-        color::ColorType::La8 => (
+        ExtendedColorType::La8 => (
             BITMAPINFOHEADER_SIZE,
             1,
             palette.map(|p| p.len()).unwrap_or(256) as u32,
@@ -317,11 +316,12 @@ fn get_pixel_info(c: color::ColorType, palette: Option<&[[u8; 3]]>) -> io::Resul
 mod tests {
     use super::super::BmpDecoder;
     use super::BmpEncoder;
-    use crate::color::ColorType;
+    
     use crate::image::ImageDecoder;
+    use crate::ExtendedColorType;
     use std::io::Cursor;
 
-    fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
+    fn round_trip_image(image: &[u8], width: u32, height: u32, c: ExtendedColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
             let mut encoder = BmpEncoder::new(&mut encoded_data);
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn round_trip_single_pixel_rgb() {
         let image = [255u8, 0, 0]; // single red pixel
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgb8);
+        let decoded = round_trip_image(&image, 1, 1, ExtendedColorType::Rgb8);
         assert_eq!(3, decoded.len());
         assert_eq!(255, decoded[0]);
         assert_eq!(0, decoded[1]);
@@ -353,27 +353,27 @@ mod tests {
         let mut encoded_data = Vec::new();
         let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap
         let mut encoder = BmpEncoder::new(&mut encoded_data);
-        let result = encoder.encode(&image, 40_000, 40_000, ColorType::Rgb8);
+        let result = encoder.encode(&image, 40_000, 40_000, ExtendedColorType::Rgb8);
         assert!(result.is_err());
     }
 
     #[test]
     fn round_trip_single_pixel_rgba() {
         let image = [1, 2, 3, 4];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgba8);
+        let decoded = round_trip_image(&image, 1, 1, ExtendedColorType::Rgba8);
         assert_eq!(&decoded[..], &image[..]);
     }
 
     #[test]
     fn round_trip_3px_rgb() {
         let image = [0u8; 3 * 3 * 3]; // 3x3 pixels, 3 bytes per pixel
-        let _decoded = round_trip_image(&image, 3, 3, ColorType::Rgb8);
+        let _decoded = round_trip_image(&image, 3, 3, ExtendedColorType::Rgb8);
     }
 
     #[test]
     fn round_trip_gray() {
         let image = [0u8, 1, 2]; // 3 pixels
-        let decoded = round_trip_image(&image, 3, 1, ColorType::L8);
+        let decoded = round_trip_image(&image, 3, 1, ExtendedColorType::L8);
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn round_trip_graya() {
         let image = [0u8, 0, 1, 0, 2, 0]; // 3 pixels, each with an alpha channel
-        let decoded = round_trip_image(&image, 1, 3, ColorType::La8);
+        let decoded = round_trip_image(&image, 1, 3, ExtendedColorType::La8);
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);

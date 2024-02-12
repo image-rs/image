@@ -1,6 +1,5 @@
 use crate::{
-    error::{UnsupportedError, UnsupportedErrorKind},
-    ColorType, ImageError, ImageFormat, ImageResult,
+    error::{UnsupportedError, UnsupportedErrorKind}, ExtendedColorType, ImageError, ImageFormat, ImageResult
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
@@ -80,7 +79,7 @@ pub(crate) struct Header {
 impl Header {
     /// Load the header with values from pixel information.
     pub(crate) fn from_pixel_info(
-        color_type: ColorType,
+        color_type: ExtendedColorType,
         width: u16,
         height: u16,
         use_rle: bool,
@@ -89,19 +88,19 @@ impl Header {
 
         if width > 0 && height > 0 {
             let (num_alpha_bits, other_channel_bits, image_type) = match (color_type, use_rle) {
-                (ColorType::Rgba8, true) => (8, 24, ImageType::RunTrueColor),
-                (ColorType::Rgb8, true) => (0, 24, ImageType::RunTrueColor),
-                (ColorType::La8, true) => (8, 8, ImageType::RunGrayScale),
-                (ColorType::L8, true) => (0, 8, ImageType::RunGrayScale),
-                (ColorType::Rgba8, false) => (8, 24, ImageType::RawTrueColor),
-                (ColorType::Rgb8, false) => (0, 24, ImageType::RawTrueColor),
-                (ColorType::La8, false) => (8, 8, ImageType::RawGrayScale),
-                (ColorType::L8, false) => (0, 8, ImageType::RawGrayScale),
+                (ExtendedColorType::Rgba8, true) => (8, 24, ImageType::RunTrueColor),
+                (ExtendedColorType::Rgb8, true) => (0, 24, ImageType::RunTrueColor),
+                (ExtendedColorType::La8, true) => (8, 8, ImageType::RunGrayScale),
+                (ExtendedColorType::L8, true) => (0, 8, ImageType::RunGrayScale),
+                (ExtendedColorType::Rgba8, false) => (8, 24, ImageType::RawTrueColor),
+                (ExtendedColorType::Rgb8, false) => (0, 24, ImageType::RawTrueColor),
+                (ExtendedColorType::La8, false) => (8, 8, ImageType::RawGrayScale),
+                (ExtendedColorType::L8, false) => (0, 8, ImageType::RawGrayScale),
                 _ => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Tga.into(),
-                            UnsupportedErrorKind::Color(color_type.into()),
+                            UnsupportedErrorKind::Color(color_type),
                         ),
                     ))
                 }

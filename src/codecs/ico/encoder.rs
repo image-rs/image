@@ -2,11 +2,12 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::borrow::Cow;
 use std::io::{self, Write};
 
-use crate::color::ColorType;
+
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageEncoder;
 
 use crate::codecs::png::PngEncoder;
+use crate::ExtendedColorType;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -28,7 +29,7 @@ pub struct IcoFrame<'a> {
     width: u8,
     // Stored as `0 => 256, n => n`
     height: u8,
-    color_type: ColorType,
+    color_type: ExtendedColorType,
 }
 
 impl<'a> IcoFrame<'a> {
@@ -39,7 +40,7 @@ impl<'a> IcoFrame<'a> {
         encoded_image: impl Into<Cow<'a, [u8]>>,
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<Self> {
         let encoded_image = encoded_image.into();
 
@@ -72,7 +73,7 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` by encoding `buf` as a PNG
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive)
-    pub fn as_png(buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<Self> {
+    pub fn as_png(buf: &[u8], width: u32, height: u32, color_type: ExtendedColorType) -> ImageResult<Self> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
@@ -136,10 +137,9 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,
@@ -166,7 +166,7 @@ fn write_direntry<W: Write>(
     w: &mut W,
     width: u8,
     height: u8,
-    color: ColorType,
+    color: ExtendedColorType,
     data_start: u32,
     data_size: u32,
 ) -> io::Result<()> {

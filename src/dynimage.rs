@@ -15,7 +15,7 @@ use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::imageops;
+use crate::{imageops, ExtendedColorType};
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
@@ -819,7 +819,7 @@ impl DynamicImage {
     pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
-        let color = self.color();
+        let color = self.color().into();
 
         // TODO do not repeat this match statement across the crate
 
@@ -1113,7 +1113,7 @@ pub fn save_buffer<P>(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
 ) -> ImageResult<()>
 where
     P: AsRef<Path>,
@@ -1135,7 +1135,7 @@ pub fn save_buffer_with_format<P>(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
     format: ImageFormat,
 ) -> ImageResult<()>
 where
@@ -1162,7 +1162,7 @@ pub fn write_buffer_with_format<W>(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
     format: ImageFormat,
 ) -> ImageResult<()>
 where

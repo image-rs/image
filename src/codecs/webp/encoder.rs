@@ -4,7 +4,7 @@ use std::io::Write;
 
 use crate::{
     error::{EncodingError, UnsupportedError, UnsupportedErrorKind},
-    ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult,
+    ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
 
 /// WebP Encoder.
@@ -30,33 +30,32 @@ impl<W: Write> WebPEncoder<W> {
     ///
     /// Panics if `width * height * color.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
+    pub fn encode(self, buf: &[u8], width: u32, height: u32, color_type: ExtendedColorType) -> ImageResult<()> {
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
-            data.len() as u64,
+            buf.len() as u64,
             "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            data.len(),
+            buf.len(),
         );
 
-        let color = match color {
-            ColorType::L8 => image_webp::ColorType::L8,
-            ColorType::La8 => image_webp::ColorType::La8,
-            ColorType::Rgb8 => image_webp::ColorType::Rgb8,
-            ColorType::Rgba8 => image_webp::ColorType::Rgba8,
+        let color_type = match color_type {
+            ExtendedColorType::L8 => image_webp::ColorType::L8,
+            ExtendedColorType::La8 => image_webp::ColorType::La8,
+            ExtendedColorType::Rgb8 => image_webp::ColorType::Rgb8,
+            ExtendedColorType::Rgba8 => image_webp::ColorType::Rgba8,
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::WebP.into(),
-                        UnsupportedErrorKind::Color(color.into()),
+                        UnsupportedErrorKind::Color(color_type.into()),
                     ),
                 ))
             }
         };
 
         self.inner
-            .encode(data, width, height, color)
+            .encode(buf, width, height, color_type)
             .map_err(ImageError::from_webp_encode)
     }
 }
@@ -68,7 +67,7 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
@@ -97,7 +96,7 @@ mod tests {
                 img.inner_pixels(),
                 img.width(),
                 img.height(),
-                crate::ColorType::Rgba8,
+                crate::ExtendedColorType::Rgba8,
             )
             .unwrap();
 

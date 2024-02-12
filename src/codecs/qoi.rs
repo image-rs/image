@@ -1,8 +1,7 @@
 //! Decoding and encoding of QOI images
 
 use crate::{
-    error::{DecodingError, EncodingError},
-    ColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
+    error::{DecodingError, EncodingError}, ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult
 };
 use std::io::{Read, Write};
 
@@ -71,17 +70,16 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        if !matches!(color_type, ColorType::Rgba8 | ColorType::Rgb8) {
+        if !matches!(color_type, ExtendedColorType::Rgba8 | ExtendedColorType::Rgb8) {
             return Err(ImageError::Encoding(EncodingError::new(
                 ImageFormat::Qoi.into(),
                 format!("unsupported color type {color_type:?}. Supported are Rgba8 and Rgb8."),
             )));
         }
 
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,

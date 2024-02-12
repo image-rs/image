@@ -10,7 +10,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat, ImageOutputFormat};
+use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
@@ -1049,10 +1049,9 @@ where
     ///
     /// See [`ImageOutputFormat`](enum.ImageOutputFormat.html) for
     /// supported types.
-    pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
+    pub fn write_to<W>(&self, writer: &mut W, format: ImageFormat) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,
-        F: Into<ImageOutputFormat>,
         P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
@@ -1480,10 +1479,11 @@ impl From<DynamicImage> for Rgba32FImage {
 
 #[cfg(test)]
 mod test {
-    use super::{GrayImage, ImageBuffer, ImageOutputFormat, RgbImage};
+    use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::{color, Rgb};
+    use crate::ImageFormat;
 
     #[test]
     /// Tests if image buffers from slices work
@@ -1672,9 +1672,10 @@ mod test {
     #[cfg(feature = "png")]
     fn write_to_with_large_buffer() {
         // A buffer of 1 pixel, padded to 4 bytes as would be common in, e.g. BMP.
+
         let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
         let mut buffer = std::io::Cursor::new(vec![]);
-        assert!(img.write_to(&mut buffer, ImageOutputFormat::Png).is_ok());
+        assert!(img.write_to(&mut buffer, ImageFormat::Png).is_ok());
     }
 
     #[test]

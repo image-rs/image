@@ -31,7 +31,7 @@
 //!
 //! ```rust,no_run
 //! # use std::io::{Write, Cursor};
-//! # use image::{DynamicImage, ImageOutputFormat};
+//! # use image::{DynamicImage, ImageFormat};
 //! # #[cfg(feature = "png")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let img: DynamicImage = unimplemented!();
@@ -39,7 +39,7 @@
 //! img.save("empty.jpg")?;
 //!
 //! let mut bytes: Vec<u8> = Vec::new();
-//! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
+//! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
@@ -142,7 +142,6 @@ pub use crate::image::{
     ImageDecoderRect,
     ImageEncoder,
     ImageFormat,
-    ImageOutputFormat,
     // Iterators
     Pixels,
     SubImage,

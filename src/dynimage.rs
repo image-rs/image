@@ -6,8 +6,6 @@ use std::u32;
 use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
-#[cfg(feature = "pnm")]
-use crate::codecs::pnm;
 
 use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
@@ -16,9 +14,7 @@ use crate::buffer_::{
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
-};
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::imageops;
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
@@ -820,11 +816,7 @@ impl DynamicImage {
     ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
-        &self,
-        w: &mut W,
-        format: F,
-    ) -> ImageResult<()> {
+    pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -835,21 +827,14 @@ impl DynamicImage {
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png")]
-            image::ImageOutputFormat::Png => {
+            ImageFormat::Png => {
                 let p = png::PngEncoder::new(w);
                 p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
-            #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::Pnm(subtype) => {
-                let p = pnm::PnmEncoder::new(w).with_subtype(subtype);
-                p.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
             #[cfg(feature = "gif")]
-            image::ImageOutputFormat::Gif => {
+            ImageFormat::Gif => {
                 let mut g = gif::GifEncoder::new(w);
                 g.encode_frame(crate::animation::Frame::new(self.to_rgba8()))?;
                 Ok(())
@@ -1173,17 +1158,16 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-pub fn write_buffer_with_format<W, F>(
+pub fn write_buffer_with_format<W>(
     buffered_writer: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
     color: color::ColorType,
-    format: F,
+    format: ImageFormat,
 ) -> ImageResult<()>
 where
     W: Write + Seek,
-    F: Into<ImageOutputFormat>,
 {
     // thin wrapper function to strip generics
     free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format.into())

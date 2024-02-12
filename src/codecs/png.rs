@@ -688,7 +688,7 @@ impl std::error::Error for BadPngRepresentation {}
 mod tests {
     use super::*;
     use crate::image::ImageDecoder;
-    use crate::ImageOutputFormat;
+    use crate::ImageFormat;
 
     use std::io::{Cursor, Read};
 
@@ -739,6 +739,6 @@ mod tests {
         // regression test for issue #1663
         let image = DynamicImage::new_rgb32f(1, 1);
         let mut target = Cursor::new(vec![]);
-        let _ = image.write_to(&mut target, ImageOutputFormat::Png);
+        let _ = image.write_to(&mut target, ImageFormat::Png);
     }
 }

@@ -17,9 +17,6 @@ use crate::ImageBuffer;
 
 use crate::animation::Frames;
 
-#[cfg(feature = "pnm")]
-use crate::codecs::pnm::PnmSubtype;
-
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -372,105 +369,6 @@ impl ImageFormat {
         ]
         .iter()
         .copied()
-    }
-}
-
-/// An enumeration of supported image formats for encoding.
-#[derive(Clone, PartialEq, Eq, Debug)]
-#[non_exhaustive]
-pub enum ImageOutputFormat {
-    #[cfg(feature = "png")]
-    /// An Image in PNG Format
-    Png,
-
-    #[cfg(feature = "jpeg")]
-    /// An Image in JPEG Format with specified quality, up to 100
-    Jpeg(u8),
-
-    #[cfg(feature = "pnm")]
-    /// An Image in one of the PNM Formats
-    Pnm(PnmSubtype),
-
-    #[cfg(feature = "gif")]
-    /// An Image in GIF Format
-    Gif,
-
-    #[cfg(feature = "ico")]
-    /// An Image in ICO Format
-    Ico,
-
-    #[cfg(feature = "bmp")]
-    /// An Image in BMP Format
-    Bmp,
-
-    #[cfg(feature = "ff")]
-    /// An Image in farbfeld Format
-    Farbfeld,
-
-    #[cfg(feature = "tga")]
-    /// An Image in TGA Format
-    Tga,
-
-    #[cfg(feature = "exr")]
-    /// An Image in OpenEXR Format
-    OpenExr,
-
-    #[cfg(feature = "tiff")]
-    /// An Image in TIFF Format
-    Tiff,
-
-    #[cfg(feature = "avif")]
-    /// An image in AVIF Format
-    Avif,
-
-    #[cfg(feature = "qoi")]
-    /// An image in QOI Format
-    Qoi,
-
-    #[cfg(feature = "webp")]
-    /// An image in WebP Format.
-    WebP,
-
-    /// A value for signalling an error: An unsupported format was requested
-    // Note: When TryFrom is stabilized, this value should not be needed, and
-    // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
-    Unsupported(String),
-}
-
-impl From<ImageFormat> for ImageOutputFormat {
-    fn from(fmt: ImageFormat) -> Self {
-        match fmt {
-            #[cfg(feature = "png")]
-            ImageFormat::Png => ImageOutputFormat::Png,
-            #[cfg(feature = "jpeg")]
-            ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
-            #[cfg(feature = "pnm")]
-            ImageFormat::Pnm => ImageOutputFormat::Pnm(PnmSubtype::ArbitraryMap),
-            #[cfg(feature = "gif")]
-            ImageFormat::Gif => ImageOutputFormat::Gif,
-            #[cfg(feature = "ico")]
-            ImageFormat::Ico => ImageOutputFormat::Ico,
-            #[cfg(feature = "bmp")]
-            ImageFormat::Bmp => ImageOutputFormat::Bmp,
-            #[cfg(feature = "ff")]
-            ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
-            #[cfg(feature = "tga")]
-            ImageFormat::Tga => ImageOutputFormat::Tga,
-            #[cfg(feature = "exr")]
-            ImageFormat::OpenExr => ImageOutputFormat::OpenExr,
-            #[cfg(feature = "tiff")]
-            ImageFormat::Tiff => ImageOutputFormat::Tiff,
-
-            #[cfg(feature = "avif")]
-            ImageFormat::Avif => ImageOutputFormat::Avif,
-            #[cfg(feature = "webp")]
-            ImageFormat::WebP => ImageOutputFormat::WebP,
-
-            #[cfg(feature = "qoi")]
-            ImageFormat::Qoi => ImageOutputFormat::Qoi,
-
-            f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
-        }
     }
 }
 

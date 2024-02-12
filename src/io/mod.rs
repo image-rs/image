@@ -10,21 +10,9 @@ mod reader;
 pub use self::reader::Reader;
 
 /// Set of supported strict limits for a decoder.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-#[allow(missing_copy_implementations)]
-#[allow(clippy::manual_non_exhaustive)]
-pub struct LimitSupport {
-    _non_exhaustive: (),
-}
-
-#[allow(clippy::derivable_impls)]
-impl Default for LimitSupport {
-    fn default() -> LimitSupport {
-        LimitSupport {
-            _non_exhaustive: (),
-        }
-    }
-}
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub struct LimitSupport {}
 
 /// Resource limits for decoding.
 ///
@@ -48,8 +36,7 @@ impl Default for LimitSupport {
 /// [`LimitSupport`]: ./struct.LimitSupport.html
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-#[allow(missing_copy_implementations)]
-#[allow(clippy::manual_non_exhaustive)]
+#[non_exhaustive]
 pub struct Limits {
     /// The maximum allowed image width. This limit is strict. The default is no limit.
     pub max_image_width: Option<u32>,
@@ -60,7 +47,6 @@ pub struct Limits {
     /// The bytes required to store the output image count towards this value. The default is
     /// 512MiB.
     pub max_alloc: Option<u64>,
-    _non_exhaustive: (),
 }
 
 impl Default for Limits {
@@ -69,7 +55,6 @@ impl Default for Limits {
             max_image_width: None,
             max_image_height: None,
             max_alloc: Some(512 * 1024 * 1024),
-            _non_exhaustive: (),
         }
     }
 }
@@ -81,7 +66,6 @@ impl Limits {
             max_image_width: None,
             max_image_height: None,
             max_alloc: None,
-            _non_exhaustive: (),
         }
     }
 

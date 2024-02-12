@@ -92,16 +92,6 @@ jobs:
         env:
           FEATURES: ${{ matrix.features }}
 
-  test_avif:
-    runs-on: ubuntu-latest
-    steps:
-    - name: install-dependencies
-      run: sudo apt update && sudo apt install nasm
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - name: build
-      run: cargo build -v --no-default-features --features="avif"
-
   test_avif_decoding:
     runs-on: ubuntu-latest
     steps:
@@ -110,7 +100,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - name: build
-      run: cargo build -v --no-default-features --features="avif-native"
+      run: cargo build -v --no-default-features --features="avif,avif-native"
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 

@@ -969,69 +969,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
-impl GenericImageView for DynamicImage {
-    type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
-
-    fn dimensions(&self) -> (u32, u32) {
-        dynamic_map!(*self, ref p, p.dimensions())
-    }
-
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        dynamic_map!(*self, ref p, p.bounds())
-    }
-
-    fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
-        dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
-    }
-}
-
-#[allow(deprecated)]
-impl GenericImage for DynamicImage {
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
-        match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => {
-                p.put_pixel(x, y, pixel.to_luma_alpha().into_color())
-            }
-            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-        }
-    }
-
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
-        match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma().into_color())
-            }
-            DynamicImage::ImageLumaA16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
-            }
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_rgb().into_color())
-            }
-            DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-        }
-    }
-
-    /// Do not use is function: It is unimplemented!
-    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
-        unimplemented!()
-    }
-}
-
 impl Default for DynamicImage {
     fn default() -> Self {
         Self::ImageRgba8(Default::default())

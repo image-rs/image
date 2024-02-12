@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dds, ff, exr, parallel, webp-native, avif-native]
+        features: ['', default, rayon, avif, bmp, dds, exr, ff, gif, hdr, ico, jpeg, png, pnm, qoi, tga, tiff, webp]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable

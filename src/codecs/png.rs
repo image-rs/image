@@ -537,14 +537,6 @@ impl<W: Write> PngEncoder<W> {
         }
     }
 
-    /// Encodes the image `data` that has dimensions `width` and `height` and `ColorType` `c`.
-    ///
-    /// Expects data in big endian.
-    #[deprecated = "Use `PngEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        self.encode_inner(data, width, height, color)
-    }
-
     fn encode_inner(
         self,
         data: &[u8],

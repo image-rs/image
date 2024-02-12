@@ -87,21 +87,6 @@ impl<W: Write> IcoEncoder<W> {
         IcoEncoder { w }
     }
 
-    /// Encodes the image ```image``` that has dimensions ```width``` and
-    /// ```height``` and ```ColorType``` ```c```.  The dimensions of the image
-    /// must be between 1 and 256 (inclusive) or an error will be returned.
-    ///
-    /// Expects data to be big endian.
-    #[deprecated = "Use `IcoEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let mut image_data: Vec<u8> = Vec::new();
-        #[allow(deprecated)]
-        PngEncoder::new(&mut image_data).encode(data, width, height, color)?;
-
-        let image = IcoFrame::with_encoded(&image_data, width, height, color)?;
-        self.encode_images(&[image])
-    }
-
     /// Takes some [`IcoFrame`]s and encodes them into an ICO.
     ///
     /// `images` is a list of images, usually ordered by dimension, which

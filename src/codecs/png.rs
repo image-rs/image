@@ -471,12 +471,6 @@ pub enum CompressionType {
     Fast,
     /// High compression level
     Best,
-    /// Huffman coding compression
-    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
-    Huffman,
-    /// Run-length encoding compression
-    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
-    Rle,
 }
 
 /// Filter algorithms used to process image data to improve compression.

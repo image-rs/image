@@ -1174,10 +1174,6 @@ where
         self.dimensions()
     }
 
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        (0, 0, self.width, self.height)
-    }
-
     fn get_pixel(&self, x: u32, y: u32) -> P {
         *self.get_pixel(x, y)
     }

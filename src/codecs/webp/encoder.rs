@@ -8,9 +8,6 @@ use std::io::{self, Write};
 use std::iter::FromIterator;
 use std::slice::ChunksExact;
 
-#[cfg(feature = "webp-native")]
-use libwebp::{Encoder, PixelLayout, WebPMemory};
-
 use crate::error::{ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::SampleLayout;
 use crate::{ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
@@ -18,86 +15,19 @@ use crate::{ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 /// WebP Encoder.
 pub struct WebPEncoder<W> {
     writer: W,
-    quality: WebPQuality,
 
     chunk_buffer: Vec<u8>,
     buffer: u64,
     nbits: u8,
 }
 
-/// WebP encoder quality.
-#[derive(Debug, Copy, Clone)]
-pub struct WebPQuality(Quality);
-
-#[derive(Debug, Copy, Clone)]
-enum Quality {
-    Lossless,
-    #[allow(unused)]
-    #[deprecated = "Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    Lossy(u8),
-}
-
-impl WebPQuality {
-    /// Minimum lossy quality value (0).
-    pub const MIN: u8 = 0;
-    /// Maximum lossy quality value (100).
-    pub const MAX: u8 = 100;
-    /// Default lossy quality (80), providing a balance of quality and file size.
-    pub const DEFAULT: u8 = 80;
-
-    /// Lossless encoding.
-    pub fn lossless() -> Self {
-        Self(Quality::Lossless)
-    }
-
-    /// Lossy encoding. 0 = low quality, small size; 100 = high quality, large size.
-    ///
-    /// Values are clamped from 0 to 100.
-    #[deprecated = "Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    pub fn lossy(quality: u8) -> Self {
-        #[allow(deprecated)]
-        Self(Quality::Lossy(quality.clamp(Self::MIN, Self::MAX)))
-    }
-}
-
-impl Default for WebPQuality {
-    fn default() -> Self {
-        #[allow(deprecated)]
-        Self::lossy(WebPQuality::DEFAULT)
-    }
-}
-
 impl<W: Write> WebPEncoder<W> {
-    /// Create a new encoder that writes its output to `w`.
-    ///
-    /// Defaults to lossy encoding, see [`WebPQuality::DEFAULT`].
-    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    #[cfg(feature = "webp-native")]
-    pub fn new(w: W) -> Self {
-        #[allow(deprecated)]
-        WebPEncoder::new_with_quality(w, WebPQuality::default())
-    }
-
-    /// Create a new encoder with the specified quality, that writes its output to `w`.
-    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    #[cfg(feature = "webp-native")]
-    pub fn new_with_quality(w: W, quality: WebPQuality) -> Self {
-        Self {
-            writer: w,
-            quality,
-            chunk_buffer: Vec::new(),
-            buffer: 0,
-            nbits: 0,
-        }
-    }
-
     /// Create a new encoder that writes its output to `w`.
     ///
     /// Uses "VP8L" lossless encoding.
     pub fn new_lossless(w: W) -> Self {
         Self {
             writer: w,
-            quality: WebPQuality::lossless(),
             chunk_buffer: Vec::new(),
             buffer: 0,
             nbits: 0,
@@ -645,59 +575,6 @@ impl<W: Write> WebPEncoder<W> {
         Ok(())
     }
 
-    #[cfg(feature = "webp-native")]
-    fn encode_lossy(
-        mut self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-        color: ColorType,
-    ) -> ImageResult<()> {
-        // TODO: convert color types internally?
-        let layout = match color {
-            ColorType::Rgb8 => PixelLayout::Rgb,
-            ColorType::Rgba8 => PixelLayout::Rgba,
-            _ => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::WebP.into(),
-                        UnsupportedErrorKind::Color(color.into()),
-                    ),
-                ))
-            }
-        };
-
-        // Validate dimensions upfront to avoid panics.
-        if width == 0
-            || height == 0
-            || !SampleLayout::row_major_packed(color.channel_count(), width, height)
-                .fits(data.len())
-        {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
-        }
-
-        // Call the native libwebp library to encode the image.
-        let encoder = Encoder::new(data, layout, width, height);
-        let encoded: WebPMemory = match self.quality.0 {
-            Quality::Lossless => encoder.encode_lossless(),
-            #[allow(deprecated)]
-            Quality::Lossy(quality) => encoder.encode(quality as f32),
-        };
-
-        // The simple encoding API in libwebp does not return errors.
-        if encoded.is_empty() {
-            return Err(ImageError::Encoding(crate::error::EncodingError::new(
-                ImageFormat::WebP.into(),
-                "encoding failed, output empty",
-            )));
-        }
-
-        self.writer.write_all(&encoded)?;
-        Ok(())
-    }
-
     /// Encode image data with the indicated color type.
     ///
     /// The encoder requires image data be Rgb8 or Rgba8.
@@ -716,14 +593,7 @@ impl<W: Write> WebPEncoder<W> {
             data.len(),
         );
 
-        if let WebPQuality(Quality::Lossless) = self.quality {
-            self.encode_lossless(data, width, height, color)
-        } else {
-            #[cfg(feature = "webp-native")]
-            return self.encode_lossy(data, width, height, color);
-            #[cfg(not(feature = "webp-native"))]
-            unreachable!()
-        }
+        self.encode_lossless(data, width, height, color)
     }
 }
 
@@ -763,83 +633,5 @@ mod tests {
             .to_rgba8();
 
         assert_eq!(img, img2);
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "webp-native")]
-mod native_tests {
-    use crate::codecs::webp::{WebPEncoder, WebPQuality};
-    use crate::{ColorType, ImageEncoder};
-
-    #[derive(Debug, Clone)]
-    struct MockImage {
-        width: u32,
-        height: u32,
-        color: ColorType,
-        data: Vec<u8>,
-    }
-
-    impl quickcheck::Arbitrary for MockImage {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            // Limit to small, non-empty images <= 512x512.
-            let width = u32::arbitrary(g) % 512 + 1;
-            let height = u32::arbitrary(g) % 512 + 1;
-            let (color, stride) = if bool::arbitrary(g) {
-                (ColorType::Rgb8, 3)
-            } else {
-                (ColorType::Rgba8, 4)
-            };
-            let size = width * height * stride;
-            let data: Vec<u8> = (0..size).map(|_| u8::arbitrary(g)).collect();
-            MockImage {
-                width,
-                height,
-                color,
-                data,
-            }
-        }
-    }
-
-    quickcheck! {
-        fn fuzz_webp_valid_image(image: MockImage, quality: u8) -> bool {
-            // Check valid images do not panic.
-            let mut buffer = Vec::<u8>::new();
-            for webp_quality in [WebPQuality::lossless(), #[allow(deprecated)] WebPQuality::lossy(quality)] {
-                buffer.clear();
-                #[allow(deprecated)]
-                let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
-                if encoder
-                    .write_image(&image.data, image.width, image.height, image.color).is_err() {
-                    return false;
-                }
-            }
-            true
-        }
-
-        fn fuzz_webp_no_panic(data: Vec<u8>, width: u8, height: u8, quality: u8) -> bool {
-            // Check random (usually invalid) parameters do not panic.
-
-            if data.len() < width as usize * height as usize * 4 {
-                return true;
-            }
-
-            let mut buffer = Vec::<u8>::new();
-            for color in [ColorType::Rgb8, ColorType::Rgba8] {
-                for webp_quality in [WebPQuality::lossless(), #[allow(deprecated)] WebPQuality::lossy(quality)] {
-                    buffer.clear();
-                    #[allow(deprecated)]
-                    let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
-                    // Ignore errors.
-                    let _ = encoder.write_image(
-                        &data[..width as usize * height as usize * color.bytes_per_pixel() as usize],
-                        width as u32,
-                        height as u32,
-                        color,
-                    );
-                }
-            }
-            true
-        }
     }
 }

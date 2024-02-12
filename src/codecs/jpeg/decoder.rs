@@ -1,5 +1,4 @@
 use std::io::Read;
-use std::marker::PhantomData;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -11,20 +10,17 @@ use crate::io::Limits;
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
 /// JPEG decoder
-pub struct JpegDecoder<R> {
+pub struct JpegDecoder {
     input: Vec<u8>,
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
     limits: Limits,
-    // For API compatibility with the previous jpeg_decoder wrapper.
-    // Can be removed later, which would be an API break.
-    phantom: PhantomData<R>,
 }
 
-impl<R: Read> JpegDecoder<R> {
+impl JpegDecoder {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
+    pub fn new<R: Read>(r: R) -> ImageResult<JpegDecoder> {
         let mut input = Vec::new();
         let mut r = r;
         r.read_to_end(&mut input)?;
@@ -45,12 +41,11 @@ impl<R: Read> JpegDecoder<R> {
             width,
             height,
             limits,
-            phantom: PhantomData,
         })
     }
 }
 
-impl<R: Read> ImageDecoder for JpegDecoder<R> {
+impl ImageDecoder for JpegDecoder {
     fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.width), u32::from(self.height))
     }

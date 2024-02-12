@@ -138,7 +138,7 @@ fn new_zune_decoder(
         Some(max_height) => max_height as usize, // u32 to usize never truncates
         None => usize::MAX,
     });
-    zune_jpeg::JpegDecoder::new_with_options(options, &input)
+    zune_jpeg::JpegDecoder::new_with_options(options, input)
 }
 
 impl ImageError {

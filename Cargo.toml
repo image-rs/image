@@ -52,8 +52,8 @@ ravif = { version = "0.11.2", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 tiff = { version = "0.9.0", optional = true }
-zune-core = { version = "0.2.1", default-features = false, optional = true }
-zune-jpeg = { version = "0.3.14", optional = true }
+zune-core = { version = "0.4.11", default-features = false, optional = true }
+zune-jpeg = { version = "0.4.11", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"

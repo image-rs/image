@@ -99,6 +99,9 @@ impl<R: Read> ImageDecoder for JpegDecoder<R> {
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
         self.limits = limits;
         Ok(())
     }

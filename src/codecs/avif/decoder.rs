@@ -9,7 +9,7 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::error::{DecodingError, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{DecodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
@@ -56,7 +56,29 @@ impl<R: Read> AvifDecoder<R> {
             .map(|x| x.ok().unwrap_or_default())
             .map(|x| x.to_vec());
 
-        assert_eq!(picture.bit_depth(), 8);
+        match picture.bit_depth() {
+            8 => (),
+            10 | 12 => {
+                return ImageResult::Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormatHint::Exact(ImageFormat::Avif),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Only 8 bit depth is supported but was {}",
+                            picture.bit_depth()
+                        )),
+                    ),
+                ))
+            }
+            _ => {
+                return ImageResult::Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormatHint::Exact(ImageFormat::Avif),
+                    format!(
+                        "Avif format does not support {} bit depth",
+                        picture.bit_depth()
+                    ),
+                )))
+            }
+        };
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,

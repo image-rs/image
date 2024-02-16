@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.17.12
+
+* Reject zero-sized frames.
+* Optimized decoding of paletted images.
+* Removed remaining uses of miniz_oxide for decoding.
+* Correct lifetime used for `Info` struct.
+* Fix build issue with `-Z minimal-versions`.
+
 ## 0.17.11
 
 * Ignore subsequent iCCP chunks to match libpng behavior.

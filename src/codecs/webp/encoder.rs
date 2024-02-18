@@ -3,7 +3,8 @@
 use std::io::Write;
 
 use crate::{
-    error::{EncodingError, UnsupportedError, UnsupportedErrorKind}, ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult,
+    error::{EncodingError, UnsupportedError, UnsupportedErrorKind},
+    ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
 
 /// WebP Encoder.
@@ -54,7 +55,9 @@ impl<W: Write> WebPEncoder<W> {
             }
         };
 
-        Ok(self.inner.encode(data, width, height, color)?)
+        self.inner
+            .encode(data, width, height, color)
+            .map_err(ImageError::from_webp_encode)
     }
 }
 
@@ -71,9 +74,12 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
     }
 }
 
-impl From<image_webp::EncodingError> for ImageError {
-    fn from(e: image_webp::EncodingError) -> ImageError {
-        ImageError::Encoding(EncodingError::new(ImageFormat::WebP.into(), e))
+impl ImageError {
+    fn from_webp_encode(e: image_webp::EncodingError) -> Self {
+        match e {
+            image_webp::EncodingError::IoError(e) => ImageError::IoError(e),
+            _ => ImageError::Encoding(EncodingError::new(ImageFormat::WebP.into(), e)),
+        }
     }
 }
 

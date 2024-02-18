@@ -6,12 +6,6 @@ use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
 use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
 
-impl From<image_webp::DecodingError> for ImageError {
-    fn from(e: image_webp::DecodingError) -> ImageError {
-        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
-    }
-}
-
 /// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
 pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
@@ -22,7 +16,7 @@ impl<R: Read + Seek> WebPDecoder<R> {
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> ImageResult<Self> {
         Ok(Self {
-            inner: image_webp::WebPDecoder::new(r)?,
+            inner: image_webp::WebPDecoder::new(r).map_err(ImageError::from_webp_decode)?,
         })
     }
 
@@ -33,7 +27,9 @@ impl<R: Read + Seek> WebPDecoder<R> {
 
     /// Sets the background color if the image is an extended and animated webp.
     pub fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
-        Ok(self.inner.set_background_color(color.0)?)
+        self.inner
+            .set_background_color(color.0)
+            .map_err(ImageError::from_webp_decode)
     }
 }
 
@@ -53,7 +49,9 @@ impl<R: Read + Seek> ImageDecoder for WebPDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        Ok(self.inner.read_image(buf)?)
+        self.inner
+            .read_image(buf)
+            .map_err(ImageError::from_webp_decode)
     }
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
@@ -61,7 +59,9 @@ impl<R: Read + Seek> ImageDecoder for WebPDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        Ok(self.inner.icc_profile()?)
+        self.inner
+            .icc_profile()
+            .map_err(ImageError::from_webp_decode)
     }
 }
 
@@ -80,13 +80,13 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
                     let mut img = RgbaImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut *img) {
                         Ok(delay) => (img, delay),
-                        Err(e) => return Some(Err(e.into())),
+                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
                     }
                 } else {
                     let mut img = RgbImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut *img) {
                         Ok(delay) => (img.convert(), delay),
-                        Err(e) => return Some(Err(e.into())),
+                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
                     }
                 };
 
@@ -100,6 +100,15 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
         }
 
         Frames::new(Box::new(FramesInner { decoder: self }))
+    }
+}
+
+impl ImageError {
+    fn from_webp_decode(e: image_webp::DecodingError) -> Self {
+        match e {
+            image_webp::DecodingError::IoError(e) => ImageError::IoError(e),
+            _ => ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e)),
+        }
     }
 }
 

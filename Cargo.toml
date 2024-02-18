@@ -54,6 +54,7 @@ rgb = { version = "0.8.25", optional = true }
 tiff = { version = "0.9.0", optional = true }
 zune-core = { version = "0.4.11", default-features = false, optional = true }
 zune-jpeg = { version = "0.4.11", optional = true }
+image-webp = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -84,7 +85,7 @@ pnm = []
 qoi = ["dep:qoi"]
 tga = []
 tiff = ["dep:tiff"]
-webp = []
+webp = ["dep:image-webp"]
 
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading

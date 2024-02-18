@@ -12,7 +12,7 @@ use super::stream::FormatErrorInner;
 ///
 /// TODO: If some precomputed state is needed (e.g. to make `expand_paletted...`
 /// faster) then consider changing this into `Box<dyn Fn(...)>`.
-pub type TransformFn = Box<dyn Fn(&[u8], &mut [u8], &Info)>;
+pub type TransformFn = Box<dyn Fn(&[u8], &mut [u8], &Info) + Send + Sync>;
 
 /// Returns a transformation function that should be applied to image rows based
 /// on 1) decoded image metadata (`info`) and 2) the transformations requested

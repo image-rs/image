@@ -8,7 +8,6 @@
 
 extern crate tiff;
 
-use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
@@ -325,48 +324,53 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
+    pub fn encode(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
-            data.len() as u64,
+            buf.len() as u64,
             "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            data.len(),
+            buf.len(),
         );
 
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
-        match color {
-            ColorType::L8 => {
-                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)
+        match color_type {
+            ExtendedColorType::L8 => {
+                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, buf)
             }
-            ColorType::Rgb8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)
+            ExtendedColorType::Rgb8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, buf)
             }
-            ColorType::Rgba8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)
+            ExtendedColorType::Rgba8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, buf)
             }
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
+            ExtendedColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
+            ExtendedColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
+            ExtendedColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Tiff.into(),
-                        UnsupportedErrorKind::Color(color.into()),
+                        UnsupportedErrorKind::Color(color_type),
                     ),
                 ))
             }
@@ -384,7 +388,7 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }

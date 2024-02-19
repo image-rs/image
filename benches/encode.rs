@@ -1,15 +1,16 @@
 extern crate criterion;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use image::ExtendedColorType;
 use image::{codecs::bmp::BmpEncoder, codecs::jpeg::JpegEncoder, ColorType};
 
 use std::fs::File;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
 
 trait Encoder {
-    fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ColorType);
-    fn encode_bufvec(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ColorType);
-    fn encode_file(&self, file: &File, im: &[u8], dims: u32, color: ColorType);
+    fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ExtendedColorType);
+    fn encode_bufvec(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ExtendedColorType);
+    fn encode_file(&self, file: &File, im: &[u8], dims: u32, color: ExtendedColorType);
 }
 
 #[derive(Clone, Copy)]
@@ -50,9 +51,8 @@ type BenchGroup<'a> = criterion::BenchmarkGroup<'a, criterion::measurement::Wall
 ///
 /// For compressed formats this is surely not representative of encoding a normal image but it's a
 /// start for benchmarking.
-fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: ColorType) {
-    let bytes = size as usize * usize::from(color.bytes_per_pixel());
-    let im = vec![0; bytes * bytes];
+fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: ExtendedColorType) {
+    let im = vec![0; (color.bits_per_pixel() as usize * size as usize + 7) / 8 * size as usize];
 
     group.bench_with_input(
         BenchmarkId::new(format!("zero-{:?}-rawvec", color), size),
@@ -87,7 +87,7 @@ fn encode_definition(criterion: &mut Criterion, def: &BenchDef) {
 
     for &color in def.colors {
         for &size in def.sizes {
-            encode_zeroed(&mut group, def.with, size, color);
+            encode_zeroed(&mut group, def.with, size, color.into());
         }
     }
 }
@@ -97,22 +97,22 @@ struct Bmp;
 struct Jpeg;
 
 trait EncoderBase {
-    fn encode(&self, into: impl Write, im: &[u8], dims: u32, color: ColorType);
+    fn encode(&self, into: impl Write, im: &[u8], dims: u32, color: ExtendedColorType);
 }
 
 impl<T: EncoderBase> Encoder for T {
-    fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ColorType) {
+    fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ExtendedColorType) {
         into.clear();
         self.encode(into, im, dims, color);
     }
 
-    fn encode_bufvec(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ColorType) {
+    fn encode_bufvec(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ExtendedColorType) {
         into.clear();
         let buf = BufWriter::new(into);
         self.encode(buf, im, dims, color);
     }
 
-    fn encode_file(&self, mut file: &File, im: &[u8], dims: u32, color: ColorType) {
+    fn encode_file(&self, mut file: &File, im: &[u8], dims: u32, color: ExtendedColorType) {
         file.seek(SeekFrom::Start(0)).unwrap();
         let buf = BufWriter::new(file);
         self.encode(buf, im, dims, color);
@@ -120,14 +120,14 @@ impl<T: EncoderBase> Encoder for T {
 }
 
 impl EncoderBase for Bmp {
-    fn encode(&self, mut into: impl Write, im: &[u8], size: u32, color: ColorType) {
+    fn encode(&self, mut into: impl Write, im: &[u8], size: u32, color: ExtendedColorType) {
         let mut x = BmpEncoder::new(&mut into);
         x.encode(im, size, size, color).unwrap();
     }
 }
 
 impl EncoderBase for Jpeg {
-    fn encode(&self, mut into: impl Write, im: &[u8], size: u32, color: ColorType) {
+    fn encode(&self, mut into: impl Write, im: &[u8], size: u32, color: ExtendedColorType) {
         let mut x = JpegEncoder::new(&mut into);
         x.encode(im, size, size, color).unwrap();
     }

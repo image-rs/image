@@ -220,36 +220,14 @@ fn write_buffer(
     unaligned_bytes: &[u8],
     width: u32,
     height: u32,
-    color_type: ColorType,
+    color_type: ExtendedColorType,
 ) -> ImageResult<()> {
     let width = width as usize;
     let height = height as usize;
-
-    {
-        // check whether the buffer is large enough for the specified dimensions
-        let expected_byte_count = width
-            .checked_mul(height)
-            .and_then(|size| size.checked_mul(color_type.bytes_per_pixel() as usize));
-
-        // if the width and height does not match the length of the bytes, the arguments are invalid
-        let has_invalid_size_or_overflowed = expected_byte_count
-            .map(|expected_byte_count| unaligned_bytes.len() < expected_byte_count)
-            // otherwise, size calculation overflowed, is bigger than memory,
-            // therefore data is too small, so it is invalid.
-            .unwrap_or(true);
-
-        if has_invalid_size_or_overflowed {
-            return Err(ImageError::Encoding(EncodingError::new(
-                ImageFormatHint::Exact(ImageFormat::OpenExr),
-                "byte buffer not large enough for the specified dimensions and f32 pixels",
-            )));
-        }
-    }
-
-    let bytes_per_pixel = color_type.bytes_per_pixel() as usize;
+    let bytes_per_pixel = color_type.bits_per_pixel() as usize / 8;
 
     match color_type {
-        ColorType::Rgb32F => {
+        ExtendedColorType::Rgb32F => {
             exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
@@ -270,7 +248,7 @@ fn write_buffer(
             .map_err(to_image_err)?;
         }
 
-        ColorType::Rgba32F => {
+        ExtendedColorType::Rgba32F => {
             exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
@@ -333,10 +311,9 @@ where
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,
@@ -377,7 +354,7 @@ mod test {
             bytemuck::cast_slice(image.as_raw().as_slice()),
             image.width(),
             image.height(),
-            ColorType::Rgb32F,
+            ExtendedColorType::Rgb32F,
         )
     }
 
@@ -390,7 +367,7 @@ mod test {
             bytemuck::cast_slice(image.as_raw().as_slice()),
             image.width(),
             image.height(),
-            ColorType::Rgba32F,
+            ExtendedColorType::Rgba32F,
         )
     }
 

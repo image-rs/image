@@ -26,8 +26,6 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
@@ -46,6 +44,7 @@ use crate::error::{
 use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::io::Limits;
 use crate::traits::Pixel;
+use crate::ExtendedColorType;
 use crate::ImageBuffer;
 
 /// GIF decoder
@@ -487,18 +486,18 @@ impl<W: Write> GifEncoder<W> {
         data: &[u8],
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
         let (width, height) = self.gif_dimensions(width, height)?;
         match color {
-            ColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
-            ColorType::Rgba8 => {
+            ExtendedColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
+            ExtendedColorType::Rgba8 => {
                 self.encode_gif(Frame::from_rgba(width, height, &mut data.to_owned()))
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Gif.into(),
-                    UnsupportedErrorKind::Color(color.into()),
+                    UnsupportedErrorKind::Color(color),
                 ),
             )),
         }

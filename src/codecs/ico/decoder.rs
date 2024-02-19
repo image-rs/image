@@ -1,5 +1,4 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::convert::TryFrom;
 use std::io::{Read, Seek, SeekFrom};
 use std::{error, fmt};
 

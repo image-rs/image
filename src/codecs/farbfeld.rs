@@ -16,15 +16,15 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
-use std::convert::{TryFrom, TryInto};
 use std::i64;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
-use crate::color::ColorType;
+use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
+use crate::ColorType;
 
 /// farbfeld Reader
 pub struct FarbfeldReader<R: Read> {
@@ -68,8 +68,8 @@ impl<R: Read> FarbfeldReader<R> {
         if crate::utils::check_dimension_overflow(
             reader.width,
             reader.height,
-            // ColorType is always rgba16
-            ColorType::Rgba16.bytes_per_pixel(),
+            // ExtendedColorType is always rgba16
+            8,
         ) {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -297,13 +297,13 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        if color_type != ColorType::Rgba16 {
+        if color_type != ExtendedColorType::Rgba16 {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Farbfeld.into(),
-                    UnsupportedErrorKind::Color(color_type.into()),
+                    UnsupportedErrorKind::Color(color_type),
                 ),
             ));
         }

@@ -5,7 +5,7 @@ extern crate image;
 
 use image::codecs::openexr::*;
 use image::io::Limits;
-use image::ColorType;
+use image::ExtendedColorType;
 use image::ImageDecoder;
 use image::ImageEncoder;
 use image::ImageResult;
@@ -45,7 +45,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
         write: impl Write + Seek,
         (width, height, data): &(u32, u32, Vec<u8>),
     ) -> ImageResult<()> {
-        OpenExrEncoder::new(write).write_image(data.as_slice(), *width, *height, ColorType::Rgba32F)
+        OpenExrEncoder::new(write).write_image(data.as_slice(), *width, *height, ExtendedColorType::Rgba32F)
     }
 
     let decoded_image = read_as_rgba_byte_image(Cursor::new(bytes))?;

@@ -2,9 +2,7 @@ use crate::Primitive;
 use num_traits::identities::Zero;
 #[cfg(test)]
 use std::borrow::Cow;
-use std::convert::TryFrom;
 use std::io::{self, BufRead, Cursor, Read, Seek};
-use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
@@ -1018,7 +1016,6 @@ pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::io::Cursor;
 
     #[test]
     fn dimension_overflow() {

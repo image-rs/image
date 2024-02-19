@@ -546,7 +546,7 @@ where
 mod test {
 
     use super::*;
-    use crate::{GrayImage, ImageBuffer};
+    use crate::GrayImage;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

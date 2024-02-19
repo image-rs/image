@@ -1,5 +1,4 @@
 #![allow(clippy::too_many_arguments)]
-use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
@@ -770,7 +769,7 @@ pub trait ImageEncoder {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()>;
 }
 

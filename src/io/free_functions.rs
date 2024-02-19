@@ -3,17 +3,14 @@ use std::io::{BufRead, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
 
-use crate::codecs::*;
+use crate::{codecs::*, ExtendedColorType};
 
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
+use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
 #[allow(unused_imports)] // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
-use crate::{
-    color,
-    error::{UnsupportedError, UnsupportedErrorKind},
-};
 
 /// Create a new image from a Reader.
 ///
@@ -36,7 +33,7 @@ pub(crate) fn save_buffer_impl(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
 ) -> ImageResult<()> {
     let format = ImageFormat::from_path(path)?;
     save_buffer_with_format_impl(path, buf, width, height, color, format)
@@ -49,7 +46,7 @@ pub(crate) fn save_buffer_with_format_impl(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
@@ -63,7 +60,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: ExtendedColorType,
     format: ImageFormat,
 ) -> ImageResult<()> {
     match format {

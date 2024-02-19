@@ -7,10 +7,7 @@ use crate::{
     image::{ImageDecoder, ImageFormat},
 };
 use byteorder::ReadBytesExt;
-use std::{
-    convert::TryFrom,
-    io::{self, Read, Seek},
-};
+use std::io::{self, Read, Seek};
 
 struct ColorMap {
     /// sizes in bytes

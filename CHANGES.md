@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.17.13
+
+* Fix `Send` bound on `Reader`.
+
 ## 0.17.12
 
 * Reject zero-sized frames.

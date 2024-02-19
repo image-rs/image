@@ -168,7 +168,7 @@ impl<'a, R: 'a + Read + Seek> Reader<R> {
             #[cfg(feature = "ico")]
             ImageFormat::Ico => Box::new(ico::IcoDecoder::new(reader)?),
             #[cfg(feature = "hdr")]
-            ImageFormat::Hdr => Box::new(hdr::HdrAdapter::new(reader)?),
+            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
             #[cfg(feature = "exr")]
             ImageFormat::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
             #[cfg(feature = "pnm")]

@@ -1,5 +1,5 @@
 use std::cmp::{self, Ordering};
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, Seek, SeekFrom};
 use std::iter::{repeat, Rev};
 use std::slice::ChunksMut;
 use std::{error, fmt};
@@ -502,7 +502,7 @@ enum RLEInsn {
     PixelRun(u8, u8),
 }
 
-impl<R: Read + Seek> BmpDecoder<R> {
+impl<R: BufRead + Seek> BmpDecoder<R> {
     fn new_decoder(reader: R) -> BmpDecoder<R> {
         BmpDecoder {
             reader,
@@ -1329,7 +1329,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for BmpDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -1354,7 +1354,7 @@ impl<R: Read + Seek> ImageDecoder for BmpDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoderRect for BmpDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
     fn read_rect(
         &mut self,
         x: u32,
@@ -1384,7 +1384,7 @@ impl<R: Read + Seek> ImageDecoderRect for BmpDecoder<R> {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
+    use std::io::{BufReader, Cursor};
 
     use super::*;
 
@@ -1405,7 +1405,8 @@ mod test {
 
     #[test]
     fn read_rect() {
-        let f = std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap();
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap());
         let mut decoder = super::BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];

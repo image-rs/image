@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::dynimage::DynamicImage;
@@ -67,7 +67,7 @@ pub struct Reader<R: Read + Seek> {
     limits: super::Limits,
 }
 
-impl<'a, R: 'a + Read + Seek> Reader<R> {
+impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,

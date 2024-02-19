@@ -91,14 +91,14 @@
 //! While [`ImageDecoder`] and [`ImageDecoderRect`] give access to more advanced decoding options:
 //!
 //! ```rust,no_run
-//! # use std::io::Read;
+//! # use std::io::{BufReader, Cursor};
 //! # use image::DynamicImage;
 //! # use image::ImageDecoder;
 //! # #[cfg(feature = "png")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # use image::codecs::png::PngDecoder;
 //! # let img: DynamicImage = unimplemented!();
-//! # let reader: Box<dyn Read> = unimplemented!();
+//! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
 //! let decoder = PngDecoder::new(&mut reader)?;
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;

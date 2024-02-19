@@ -1,5 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::{error, fmt};
 
 use crate::color::ColorType;
@@ -106,12 +106,12 @@ impl From<IcoEntryImageFormat> for ImageFormat {
 }
 
 /// An ico decoder
-pub struct IcoDecoder<R: Read> {
+pub struct IcoDecoder<R: BufRead + Seek> {
     selected_entry: DirEntry,
     inner_decoder: InnerDecoder<R>,
 }
 
-enum InnerDecoder<R: Read> {
+enum InnerDecoder<R: BufRead + Seek> {
     Bmp(BmpDecoder<R>),
     Png(Box<PngDecoder<R>>),
 }
@@ -141,7 +141,7 @@ struct DirEntry {
     image_offset: u32,
 }
 
-impl<R: Read + Seek> IcoDecoder<R> {
+impl<R: BufRead + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
         let entries = read_entries(&mut r)?;
@@ -248,7 +248,7 @@ impl DirEntry {
         Ok(signature == PNG_SIGNATURE)
     }
 
-    fn decoder<R: Read + Seek>(&self, mut r: R) -> ImageResult<InnerDecoder<R>> {
+    fn decoder<R: BufRead + Seek>(&self, mut r: R) -> ImageResult<InnerDecoder<R>> {
         let is_png = self.is_png(&mut r)?;
         self.seek_to_start(&mut r)?;
 
@@ -260,7 +260,7 @@ impl DirEntry {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for IcoDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             Bmp(ref decoder) => decoder.dimensions(),

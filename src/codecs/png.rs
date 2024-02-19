@@ -7,7 +7,7 @@
 //!
 
 use std::fmt;
-use std::io::{Read, Write};
+use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DisposeOp};
 
@@ -26,13 +26,13 @@ use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, Rgb
 pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /// PNG decoder
-pub struct PngDecoder<R: Read> {
+pub struct PngDecoder<R: BufRead + Seek> {
     color_type: ColorType,
     reader: png::Reader<R>,
     limits: Limits,
 }
 
-impl<R: Read> PngDecoder<R> {
+impl<R: BufRead + Seek> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
         Self::with_limits(r, Limits::no_limits())
@@ -164,7 +164,7 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
     ))
 }
 
-impl<R: Read> ImageDecoder for PngDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.reader.info().size()
     }
@@ -221,7 +221,7 @@ impl<R: Read> ImageDecoder for PngDecoder<R> {
 /// [`AnimationDecoder`]: ../trait.AnimationDecoder.html
 /// [`PngDecoder`]: struct.PngDecoder.html
 /// [`PngDecoder::apng`]: struct.PngDecoder.html#method.apng
-pub struct ApngDecoder<R: Read> {
+pub struct ApngDecoder<R: BufRead + Seek> {
     inner: PngDecoder<R>,
     /// The current output buffer.
     current: Option<RgbaImage>,
@@ -235,7 +235,7 @@ pub struct ApngDecoder<R: Read> {
     has_thumbnail: bool,
 }
 
-impl<R: Read> ApngDecoder<R> {
+impl<R: BufRead + Seek> ApngDecoder<R> {
     fn new(inner: PngDecoder<R>) -> Self {
         let info = inner.reader.info();
         let remaining = match info.animation_control() {
@@ -419,11 +419,11 @@ impl<R: Read> ApngDecoder<R> {
     }
 }
 
-impl<'a, R: Read + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
+impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
     fn into_frames(self) -> Frames<'a> {
-        struct FrameIterator<R: Read>(ApngDecoder<R>);
+        struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
 
-        impl<R: Read> Iterator for FrameIterator<R> {
+        impl<R: BufRead + Seek> Iterator for FrameIterator<R> {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -685,14 +685,14 @@ impl std::error::Error for BadPngRepresentation {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::io::{BufReader, Cursor, Read};
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PngDecoder::new(
+        let dec = PngDecoder::new(BufReader::new(
             std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
                 .unwrap(),
-        )
+        ))
         .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
@@ -721,7 +721,7 @@ mod tests {
                 .unwrap();
         not_png[0] = 0;
 
-        let error = PngDecoder::new(&not_png[..]).err().unwrap();
+        let error = PngDecoder::new(Cursor::new(&not_png)).err().unwrap();
         let _ = error
             .source()
             .unwrap()

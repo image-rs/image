@@ -1,4 +1,4 @@
-use std::io::{Read, Seek};
+use std::io::{BufRead, Read, Seek};
 
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
@@ -10,7 +10,7 @@ pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
 }
 
-impl<R: Read + Seek> WebPDecoder<R> {
+impl<R: BufRead + Seek> WebPDecoder<R> {
     /// Create a new WebPDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> ImageResult<Self> {
@@ -32,7 +32,7 @@ impl<R: Read + Seek> WebPDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for WebPDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()
     }

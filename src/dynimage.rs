@@ -1108,18 +1108,15 @@ where
 ///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
-pub fn save_buffer<P>(
-    path: P,
+pub fn save_buffer(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: ExtendedColorType,
-) -> ImageResult<()>
-where
-    P: AsRef<Path>,
-{
+    color: impl Into<ExtendedColorType>,
+) -> ImageResult<()> {
     // thin wrapper function to strip generics before calling save_buffer_impl
-    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color)
+    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color.into())
 }
 
 /// Saves the supplied buffer to a file at the path specified
@@ -1130,19 +1127,23 @@ where
 /// This will lead to corrupted files if the buffer contains
 /// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
-pub fn save_buffer_with_format<P>(
-    path: P,
+pub fn save_buffer_with_format(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: ExtendedColorType,
+    color: impl Into<ExtendedColorType>,
     format: ImageFormat,
-) -> ImageResult<()>
-where
-    P: AsRef<Path>,
-{
+) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
+    free_functions::save_buffer_with_format_impl(
+        path.as_ref(),
+        buf,
+        width,
+        height,
+        color.into(),
+        format,
+    )
 }
 
 /// Writes the supplied buffer to a writer in the specified format.
@@ -1157,19 +1158,16 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-pub fn write_buffer_with_format<W>(
+pub fn write_buffer_with_format<W: Write + Seek>(
     buffered_writer: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: ExtendedColorType,
+    color: impl Into<ExtendedColorType>,
     format: ImageFormat,
-) -> ImageResult<()>
-where
-    W: Write + Seek,
-{
+) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format)
+    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color.into(), format)
 }
 
 /// Create a new image from a byte slice

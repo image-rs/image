@@ -8,7 +8,7 @@
 
 extern crate tiff;
 
-use std::io::{self, Cursor, Read, Seek, Write};
+use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -22,7 +22,7 @@ use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
 where
-    R: Read + Seek,
+    R: BufRead + Seek,
 {
     dimensions: (u32, u32),
     color_type: ColorType,
@@ -34,7 +34,7 @@ where
 
 impl<R> TiffDecoder<R>
 where
-    R: Read + Seek,
+    R: BufRead + Seek,
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
@@ -183,7 +183,7 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TiffDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions
     }

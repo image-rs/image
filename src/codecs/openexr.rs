@@ -27,7 +27,7 @@ use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
 
-use std::io::{Read, Seek, Write};
+use std::io::{BufRead, Seek, Write};
 
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
@@ -45,7 +45,7 @@ pub struct OpenExrDecoder<R> {
     alpha_present_in_file: bool,
 }
 
-impl<R: Read + Seek> OpenExrDecoder<R> {
+impl<R: BufRead + Seek> OpenExrDecoder<R> {
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     /// Assumes the reader is buffered. In most cases,
     /// you should wrap your reader in a `BufReader` for best performance.
@@ -104,7 +104,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for OpenExrDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         let size = self
             .selected_exr_header()
@@ -382,7 +382,7 @@ mod test {
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
-    fn read_as_rgb_image(read: impl Read + Seek) -> ImageResult<Rgb32FImage> {
+    fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
@@ -396,7 +396,7 @@ mod test {
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
-    fn read_as_rgba_image(read: impl Read + Seek) -> ImageResult<Rgba32FImage> {
+    fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;

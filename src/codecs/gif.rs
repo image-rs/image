@@ -10,9 +10,10 @@
 //! use image::codecs::gif::{GifDecoder, GifEncoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
+//! use std::io::BufReader;
 //! # fn main() -> std::io::Result<()> {
 //! // Decode a gif into frames
-//! let file_in = File::open("foo.gif")?;
+//! let file_in = BufReader::new(File::open("foo.gif")?);
 //! let mut decoder = GifDecoder::new(file_in).unwrap();
 //! let frames = decoder.into_frames();
 //! let frames = frames.collect_frames().expect("error decoding gif");
@@ -26,7 +27,7 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::io::{self, Cursor, Read, Write};
+use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -82,7 +83,7 @@ impl<R> Read for GifReader<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for GifDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (
             u32::from(self.reader.width()),
@@ -226,7 +227,7 @@ struct GifFrameIterator<R: Read> {
     limits: Limits,
 }
 
-impl<R: Read> GifFrameIterator<R> {
+impl<R: BufRead + Seek> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
         let limits = decoder.limits.clone();
@@ -392,7 +393,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     }
 }
 
-impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
+impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn into_frames(self) -> animation::Frames<'a> {
         animation::Frames::new(Box::new(GifFrameIterator::new(self)))
     }

@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{BufRead, Seek};
 use std::marker::PhantomData;
 
 use crate::color::ColorType;
@@ -22,7 +22,7 @@ pub struct JpegDecoder<R> {
     phantom: PhantomData<R>,
 }
 
-impl<R: Read> JpegDecoder<R> {
+impl<R: BufRead + Seek> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
         let mut input = Vec::new();
@@ -50,7 +50,7 @@ impl<R: Read> JpegDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for JpegDecoder<R> {
+impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.width), u32::from(self.height))
     }

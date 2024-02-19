@@ -7,7 +7,7 @@ use crate::{
     image::{ImageDecoder, ImageFormat},
 };
 use byteorder::ReadBytesExt;
-use std::io::{self, Read, Seek};
+use std::io::{self, Read};
 
 struct ColorMap {
     /// sizes in bytes
@@ -59,7 +59,7 @@ pub struct TgaDecoder<R> {
     color_map: Option<ColorMap>,
 }
 
-impl<R: Read + Seek> TgaDecoder<R> {
+impl<R: Read> TgaDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> ImageResult<TgaDecoder<R>> {
         let mut decoder = TgaDecoder {
@@ -172,7 +172,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
         self.r
-            .seek(io::SeekFrom::Current(i64::from(self.header.id_length)))?;
+            .read_exact(&mut vec![0; self.header.id_length as usize])?;
         Ok(())
     }
 
@@ -336,7 +336,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TgaDecoder<R> {
+impl<R: Read> ImageDecoder for TgaDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }

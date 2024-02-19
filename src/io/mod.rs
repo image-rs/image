@@ -1,7 +1,5 @@
 //! Input and output of images.
 
-use std::convert::TryFrom;
-
 use crate::{error, ColorType, ImageError, ImageResult};
 
 pub(crate) mod free_functions;

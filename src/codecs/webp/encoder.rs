@@ -54,7 +54,7 @@ impl<W: Write> WebPEncoder<W> {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::WebP.into(),
-                        UnsupportedErrorKind::Color(color_type.into()),
+                        UnsupportedErrorKind::Color(color_type),
                     ),
                 ))
             }

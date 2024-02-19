@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::io::{Read, Seek};
 
 use crate::buffer::ConvertBuffer;

@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::iter::Iterator;
 use std::time::Duration;
 
 use crate::error::ImageResult;

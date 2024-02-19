@@ -336,12 +336,13 @@ fn to_image_err(exr_error: Error) -> ImageError {
 mod test {
     use super::*;
 
+    use std::fs::File;
     use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{ImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -417,26 +418,25 @@ mod test {
 
         #[cfg(feature = "hdr")]
         {
+            use crate::codecs::hdr::HdrDecoder;
+
             let folder = BASE_PATH.iter().collect::<PathBuf>();
             let reference_path = folder.clone().join("overexposed gradient.hdr");
             let exr_path = folder
                 .clone()
                 .join("overexposed gradient - data window equals display window.exr");
 
-            let hdr: Vec<Rgb<f32>> = crate::codecs::hdr::HdrDecoder::new(std::io::BufReader::new(
-                std::fs::File::open(reference_path).unwrap(),
-            ))
-            .unwrap()
-            .read_image_hdr()
-            .unwrap();
+            let hdr_decoder =
+                HdrDecoder::new(BufReader::new(File::open(reference_path).unwrap())).unwrap();
+            let hdr: Rgb32FImage = match DynamicImage::from_decoder(hdr_decoder).unwrap() {
+                DynamicImage::ImageRgb32F(image) => image,
+                _ => panic!("expected rgb32f image"),
+            };
 
             let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
-            assert_eq!(
-                exr_pixels.dimensions().0 * exr_pixels.dimensions().1,
-                hdr.len() as u32
-            );
+            assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
-            for (expected, found) in hdr.iter().zip(exr_pixels.pixels()) {
+            for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
                 for (expected, found) in expected.0.iter().zip(found.0.iter()) {
                     // the large tolerance seems to be caused by
                     // the RGBE u8x4 pixel quantization of the hdr image format

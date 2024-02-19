@@ -1,19 +1,13 @@
-use crate::Primitive;
-use num_traits::identities::Zero;
-#[cfg(test)]
-use std::borrow::Cow;
-use std::io::{self, BufRead, Cursor, Read, Seek};
-use std::marker::PhantomData;
+use std::io::{self, Read};
+
 use std::num::{ParseFloatError, ParseIntError};
-use std::path::Path;
-use std::{error, fmt, mem};
+use std::{error, fmt};
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{
-    DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
-    UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageFormat};
+use crate::image::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,113 +115,6 @@ impl fmt::Display for LineType {
     }
 }
 
-/// Adapter to conform to `ImageDecoder` trait
-#[derive(Debug)]
-pub struct HdrAdapter<R: Read> {
-    inner: Option<HdrDecoder<R>>,
-    // data: Option<Vec<u8>>,
-    meta: HdrMetadata,
-}
-
-impl<R: Read> HdrAdapter<R> {
-    /// Creates adapter
-    pub fn new(r: R) -> ImageResult<HdrAdapter<R>> {
-        let decoder = HdrDecoder::new(r)?;
-        let meta = decoder.metadata();
-        Ok(HdrAdapter {
-            inner: Some(decoder),
-            meta,
-        })
-    }
-
-    /// Allows reading old Radiance HDR images
-    pub fn new_nonstrict(r: R) -> ImageResult<HdrAdapter<R>> {
-        let decoder = HdrDecoder::with_strictness(r, false)?;
-        let meta = decoder.metadata();
-        Ok(HdrAdapter {
-            inner: Some(decoder),
-            meta,
-        })
-    }
-
-    /// Read the actual data of the image, and store it in Self::data.
-    fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner.take() {
-            Some(decoder) => {
-                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                for (i, Rgb(data)) in img.into_iter().enumerate() {
-                    buf[(i * 3)..][..3].copy_from_slice(&data);
-                }
-
-                Ok(())
-            }
-            None => Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::NoMoreData,
-            ))),
-        }
-    }
-}
-
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct HdrReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for HdrReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<R: Read> ImageDecoder for HdrAdapter<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.meta.width, self.meta.height)
-    }
-
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgb8
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        self.read_image_data(buf)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
-    }
-}
-
-impl<R: BufRead + Seek> ImageDecoderRect for HdrAdapter<R> {
-    fn read_rect(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        buf: &mut [u8],
-        row_pitch: usize,
-    ) -> ImageResult<()> {
-        image::load_rect(
-            x,
-            y,
-            width,
-            height,
-            buf,
-            row_pitch,
-            self,
-            self.total_bytes() as usize,
-            |_, _| unreachable!(),
-            |s, buf| s.read_image_data(buf),
-        )
-    }
-}
-
 /// Radiance HDR file signature
 pub const SIGNATURE: &[u8] = b"#?RADIANCE";
 const SIGNATURE_LENGTH: usize = 10;
@@ -244,22 +131,22 @@ pub struct HdrDecoder<R> {
 /// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Rgbe8Pixel {
+pub(crate) struct Rgbe8Pixel {
     /// Color components
-    pub c: [u8; 3],
+    pub(crate) c: [u8; 3],
     /// Exponent
-    pub e: u8,
+    pub(crate) e: u8,
 }
 
 /// Creates `Rgbe8Pixel` from components
-pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
+pub(crate) fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
     Rgbe8Pixel { c: [r, g, b], e }
 }
 
 impl Rgbe8Pixel {
     /// Converts `Rgbe8Pixel` into `Rgb<f32>` linearly
     #[inline]
-    pub fn to_hdr(self) -> Rgb<f32> {
+    pub(crate) fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
             Rgb([0.0, 0.0, 0.0])
         } else {
@@ -272,61 +159,19 @@ impl Rgbe8Pixel {
             ])
         }
     }
-
-    /// Converts `Rgbe8Pixel` into `Rgb<T>` with scale=1 and gamma=2.2
-    ///
-    /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
-    ///
-    /// # Panic
-    ///
-    /// Panics when `T::max_value()` cannot be represented as f32.
-    #[inline]
-    pub fn to_ldr<T: Primitive + Zero>(self) -> Rgb<T> {
-        self.to_ldr_scale_gamma(1.0, 2.2)
-    }
-
-    /// Converts `Rgbe8Pixel` into `Rgb<T>` using provided scale and gamma
-    ///
-    /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
-    ///
-    /// # Panic
-    ///
-    /// Panics when `T::max_value()` cannot be represented as f32.
-    /// Panics when scale or gamma is NaN
-    #[inline]
-    pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
-        let Rgb(data) = self.to_hdr();
-        let (r, g, b) = (data[0], data[1], data[2]);
-        #[inline]
-        fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {
-            let t_max = T::max_value();
-            // Disassembly shows that t_max_f32 is compiled into constant
-            let t_max_f32: f32 = num_traits::NumCast::from(t_max)
-                .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
-            let fv = f32::powf(v * scale, gamma) * t_max_f32 + 0.5;
-            if fv < 0.0 {
-                T::zero()
-            } else if fv > t_max_f32 {
-                t_max
-            } else {
-                num_traits::NumCast::from(fv)
-                    .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
-            }
-        }
-        Rgb([
-            sg(r, scale, gamma),
-            sg(g, scale, gamma),
-            sg(b, scale, gamma),
-        ])
-    }
 }
 
 impl<R: Read> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream ```r```
     /// if the header is valid, creates HdrDecoder
     /// strict mode is enabled
-    pub fn new(reader: R) -> ImageResult<HdrDecoder<R>> {
+    pub fn new(reader: R) -> ImageResult<Self> {
         HdrDecoder::with_strictness(reader, true)
+    }
+
+    /// Allows reading old Radiance HDR images
+    pub fn new_nonstrict(reader: R) -> ImageResult<Self> {
+        Self::with_strictness(reader, false)
     }
 
     /// Reads Radiance HDR image header from stream `reader`,
@@ -421,23 +266,8 @@ impl<R: Read> HdrDecoder<R> {
         self.meta.clone()
     }
 
-    /// Consumes decoder and returns a vector of RGBE8 pixels
-    pub fn read_image_native(mut self) -> ImageResult<Vec<Rgbe8Pixel>> {
-        // Don't read anything if image is empty
-        if self.width == 0 || self.height == 0 {
-            return Ok(vec![]);
-        }
-        // expression self.width > 0 && self.height > 0 is true from now to the end of this method
-        let pixel_count = self.width as usize * self.height as usize;
-        let mut ret = vec![Default::default(); pixel_count];
-        for chunk in ret.chunks_mut(self.width as usize) {
-            read_scanline(&mut self.r, chunk)?;
-        }
-        Ok(ret)
-    }
-
     /// Consumes decoder and returns a vector of transformed pixels
-    pub fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
+    fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
         mut self,
         f: F,
         output_slice: &mut [T],
@@ -465,117 +295,34 @@ impl<R: Read> HdrDecoder<R> {
         }
         Ok(())
     }
-
-    /// Consumes decoder and returns a vector of `Rgb<u8>` pixels.
-    /// scale = 1, gamma = 2.2
-    pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
-        let mut ret = vec![Rgb([0, 0, 0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_ldr(), &mut ret[..])?;
-        Ok(ret)
-    }
-
-    /// Consumes decoder and returns a vector of `Rgb<f32>` pixels.
-    ///
-    pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
-        let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_hdr(), &mut ret[..])?;
-        Ok(ret)
-    }
 }
 
-impl<R: Read> IntoIterator for HdrDecoder<R> {
-    type Item = ImageResult<Rgbe8Pixel>;
-    type IntoIter = HdrImageDecoderIterator<R>;
+impl<R: Read> ImageDecoder for HdrDecoder<R> {
+    fn dimensions(&self) -> (u32, u32) {
+        (self.meta.width, self.meta.height)
+    }
 
-    fn into_iter(self) -> Self::IntoIter {
-        HdrImageDecoderIterator {
-            r: self.r,
-            scanline_cnt: self.height as usize,
-            buf: vec![Default::default(); self.width as usize],
-            col: 0,
-            scanline: 0,
-            trouble: true, // make first call to `next()` read scanline
-            error_encountered: false,
+    fn color_type(&self) -> ColorType {
+        ColorType::Rgb32F
+    }
+
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+
+        let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
+        self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
+
+        for (i, Rgb(data)) in img.into_iter().enumerate() {
+            buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
         }
-    }
-}
 
-/// Scanline buffered pixel by pixel iterator
-pub struct HdrImageDecoderIterator<R: Read> {
-    r: R,
-    scanline_cnt: usize,
-    buf: Vec<Rgbe8Pixel>, // scanline buffer
-    col: usize,           // current position in scanline
-    scanline: usize,      // current scanline
-    trouble: bool,        // optimization, true indicates that we need to check something
-    error_encountered: bool,
-}
-
-impl<R: Read> HdrImageDecoderIterator<R> {
-    // Advances counter to the next pixel
-    #[inline]
-    fn advance(&mut self) {
-        self.col += 1;
-        if self.col == self.buf.len() {
-            self.col = 0;
-            self.scanline += 1;
-            self.trouble = true;
-        }
-    }
-}
-
-impl<R: Read> Iterator for HdrImageDecoderIterator<R> {
-    type Item = ImageResult<Rgbe8Pixel>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if !self.trouble {
-            let ret = self.buf[self.col];
-            self.advance();
-            Some(Ok(ret))
-        } else {
-            // some condition is pending
-            if self.buf.is_empty() || self.scanline == self.scanline_cnt {
-                // No more pixels
-                return None;
-            } // no else
-            if self.error_encountered {
-                self.advance();
-                // Error was encountered. Keep producing errors.
-                // ImageError can't implement Clone, so just dump some error
-                return Some(Err(ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::FailedAlready,
-                ))));
-            } // no else
-            if self.col == 0 {
-                // fill scanline buffer
-                match read_scanline(&mut self.r, &mut self.buf[..]) {
-                    Ok(_) => {
-                        // no action required
-                    }
-                    Err(err) => {
-                        self.advance();
-                        self.error_encountered = true;
-                        self.trouble = true;
-                        return Some(Err(err));
-                    }
-                }
-            } // no else
-            self.trouble = false;
-            let ret = self.buf[0];
-            self.advance();
-            Some(Ok(ret))
-        }
+        Ok(())
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let total_cnt = self.buf.len() * self.scanline_cnt;
-        let cur_cnt = self.buf.len() * self.scanline + self.col;
-        let remaining = total_cnt - cur_cnt;
-        (remaining, Some(remaining))
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
-
-impl<R: Read> ExactSizeIterator for HdrImageDecoderIterator<R> {}
 
 // Precondition: buf.len() > 0
 fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {
@@ -936,30 +683,6 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
     }
 }
 
-#[test]
-fn split_at_first_test() {
-    assert_eq!(split_at_first(&Cow::Owned("".into()), "="), None);
-    assert_eq!(split_at_first(&Cow::Owned("=".into()), "="), None);
-    assert_eq!(split_at_first(&Cow::Owned("= ".into()), "="), None);
-    assert_eq!(
-        split_at_first(&Cow::Owned(" = ".into()), "="),
-        Some((" ", " "))
-    );
-    assert_eq!(
-        split_at_first(&Cow::Owned("EXPOSURE= ".into()), "="),
-        Some(("EXPOSURE", " "))
-    );
-    assert_eq!(
-        split_at_first(&Cow::Owned("EXPOSURE= =".into()), "="),
-        Some(("EXPOSURE", " ="))
-    );
-    assert_eq!(
-        split_at_first(&Cow::Owned("EXPOSURE== =".into()), "=="),
-        Some(("EXPOSURE", " ="))
-    );
-    assert_eq!(split_at_first(&Cow::Owned("EXPOSURE".into()), ""), None);
-}
-
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
@@ -978,50 +701,54 @@ fn read_line_u8<R: Read>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
     }
 }
 
-#[test]
-fn read_line_u8_test() {
-    let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
-    let input = &mut ::std::io::Cursor::new(buf);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-    assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-    assert_eq!(read_line_u8(input).unwrap(), None);
-}
-
-/// Helper function for reading raw 3-channel f32 images
-pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>> {
-    use byteorder::{LittleEndian as LE, ReadBytesExt};
-    use std::fs::File;
-    use std::io::BufReader;
-
-    let mut r = BufReader::new(File::open(path)?);
-    let w = r.read_u32::<LE>()? as usize;
-    let h = r.read_u32::<LE>()? as usize;
-    let c = r.read_u32::<LE>()? as usize;
-    assert_eq!(c, 3);
-    let cnt = w * h;
-    let mut ret = Vec::with_capacity(cnt);
-    for _ in 0..cnt {
-        let cr = r.read_f32::<LE>()?;
-        let cg = r.read_f32::<LE>()?;
-        let cb = r.read_f32::<LE>()?;
-        ret.push(Rgb([cr, cg, cb]));
-    }
-    Ok(ret)
-}
-
 #[cfg(test)]
-mod test {
+mod tests {
+    use std::{borrow::Cow, io::Cursor};
+
     use super::*;
+
+    #[test]
+    fn split_at_first_test() {
+        assert_eq!(split_at_first(&Cow::Owned("".into()), "="), None);
+        assert_eq!(split_at_first(&Cow::Owned("=".into()), "="), None);
+        assert_eq!(split_at_first(&Cow::Owned("= ".into()), "="), None);
+        assert_eq!(
+            split_at_first(&Cow::Owned(" = ".into()), "="),
+            Some((" ", " "))
+        );
+        assert_eq!(
+            split_at_first(&Cow::Owned("EXPOSURE= ".into()), "="),
+            Some(("EXPOSURE", " "))
+        );
+        assert_eq!(
+            split_at_first(&Cow::Owned("EXPOSURE= =".into()), "="),
+            Some(("EXPOSURE", " ="))
+        );
+        assert_eq!(
+            split_at_first(&Cow::Owned("EXPOSURE== =".into()), "=="),
+            Some(("EXPOSURE", " ="))
+        );
+        assert_eq!(split_at_first(&Cow::Owned("EXPOSURE".into()), ""), None);
+    }
+
+    #[test]
+    fn read_line_u8_test() {
+        let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
+        let input = &mut ::std::io::Cursor::new(buf);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
+        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
+        assert_eq!(read_line_u8(input).unwrap(), None);
+    }
 
     #[test]
     fn dimension_overflow() {
         let data = b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n -Y 4294967295 +X 4294967295";
 
-        assert!(HdrAdapter::new(Cursor::new(data)).is_err());
-        assert!(HdrAdapter::new_nonstrict(Cursor::new(data)).is_err());
+        assert!(HdrDecoder::new(Cursor::new(data)).is_err());
+        assert!(HdrDecoder::new_nonstrict(Cursor::new(data)).is_err());
     }
 }

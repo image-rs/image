@@ -1302,7 +1302,7 @@ impl<I> SubImage<I> {
     }
 
     /// The offsets of this subimage relative to the underlying image.
-    fn offsets(&self) -> (u32, u32) {
+    pub fn offsets(&self) -> (u32, u32) {
         (self.inner.xoffset, self.inner.yoffset)
     }
 

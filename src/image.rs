@@ -1025,11 +1025,6 @@ pub trait GenericImageView {
         h
     }
 
-    /// The offsets of this image view relative to the underlying image buffer.
-    fn offsets(&self) -> (u32, u32) {
-        (0, 0)
-    }
-
     /// The bounding rectangle of this image.
     #[deprecated = "This method has inconsistent behavior between implementations (#1829). Use `dimensions` instead"]
     fn bounds(&self) -> (u32, u32, u32, u32);
@@ -1306,6 +1301,11 @@ impl<I> SubImage<I> {
         self.inner.ystride = height;
     }
 
+    /// The offsets of this subimage relative to the underlying image.
+    fn offsets(&self) -> (u32, u32) {
+        (self.inner.xoffset, self.inner.yoffset)
+    }
+
     /// Convert this subimage to an ImageBuffer
     pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
@@ -1422,10 +1422,6 @@ where
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
-    }
-
-    fn offsets(&self) -> (u32, u32) {
-        (self.xoffset, self.yoffset)
     }
 
     fn bounds(&self) -> (u32, u32, u32, u32) {

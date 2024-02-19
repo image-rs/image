@@ -819,7 +819,7 @@ impl DynamicImage {
     pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
-        let color = self.color().into();
+        let color: ExtendedColorType = self.color().into();
 
         // TODO do not repeat this match statement across the crate
 

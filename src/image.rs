@@ -1301,6 +1301,11 @@ impl<I> SubImage<I> {
         self.inner.ystride = height;
     }
 
+    /// The offsets of this subimage relative to the underlying image.
+    pub fn offsets(&self) -> (u32, u32) {
+        (self.inner.xoffset, self.inner.yoffset)
+    }
+
     /// Convert this subimage to an ImageBuffer
     pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where

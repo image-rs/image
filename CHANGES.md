@@ -7,15 +7,22 @@
 
 ## Changes
 
-### Unreleased
+### Version 0.24.9
 
-- More convenient to use buffers will be added in the future. In particular,
-  improving initialization, passing of output buffers, and adding a more
-  complete representation for layouts. The plan is for these to interact with
-  the rest of the library through a byte-based interface similar to
-  `ImageDecoder`.
-  See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
-  you want to participate.
+Structural changes:
+- Relicense to MIT OR Apache-2.0
+- Increase MSRV 1.63.0
+
+New features:
+- Support limits in PNG animation decoding.
+- Added offsets to SubImage to compensate for the now-deprecated bounds call
+  from GenericImageView.
+
+Bug fixes:
+- Correct limit tests for TIFF.
+- Avoid overflow in gif::Decoder::buffer_size.
+- Return error instead of using asssertion for Avif decoder unsupported or
+  invalid bit depth.
 
 ### Version 0.24.8
 
@@ -27,7 +34,7 @@ New features:
 - TGA encoder now supports RLE encoding.
 - Add rayon parallel iterators behind an optional `rayon` feature.
 - Support CMYK TIFF images.
-- Implement From<DynamicImage> for all image types.
+- Implement `From<DynamicImage>` for all image types.
 
 Bug fixes:
 - Fix decoding pngs with invalid text chunks.

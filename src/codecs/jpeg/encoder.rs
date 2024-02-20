@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::borrow::Cow;
-use std::convert::TryFrom;
 use std::io::{self, Write};
 
 use crate::error::{

@@ -3,8 +3,8 @@ cargo-features = ["public-dependency"]
 [package]
 name = "image"
 version = "0.24.0-alpha"
-edition = "2018"
-rust-version = "1.56"
+edition = "2021"
+rust-version = "1.63.0"
 
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."

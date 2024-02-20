@@ -1,5 +1,4 @@
 #![allow(clippy::too_many_arguments)]
-use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;

@@ -8,7 +8,6 @@
 
 extern crate tiff;
 
-use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;

@@ -7,7 +7,6 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
-use std::convert::TryFrom;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ColorType;

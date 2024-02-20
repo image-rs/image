@@ -26,8 +26,6 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;

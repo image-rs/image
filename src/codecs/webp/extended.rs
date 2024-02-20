@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::io::{self, Cursor, Error, Read, Seek};
 use std::{error, fmt};
 

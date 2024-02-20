@@ -6,7 +6,6 @@
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 //!
 
-use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, Read, Write};
 
@@ -790,10 +789,9 @@ impl std::error::Error for BadPngRepresentation {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::image::ImageDecoder;
     use crate::ImageOutputFormat;
 
-    use std::io::{Cursor, Read};
+    use std::io::Cursor;
 
     #[test]
     fn ensure_no_decoder_off_by_one() {

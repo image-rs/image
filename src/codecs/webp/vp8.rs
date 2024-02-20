@@ -13,7 +13,6 @@
 //!
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::convert::TryInto;
 use std::default::Default;
 use std::io::Read;
 use std::{cmp, error, fmt};

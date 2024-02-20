@@ -8,7 +8,6 @@ use crate::{
 };
 use byteorder::ReadBytesExt;
 use std::{
-    convert::TryFrom,
     io::{self, Read, Seek},
     mem,
 };

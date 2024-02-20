@@ -3,7 +3,7 @@ use crate::{
     codecs::tga::header::ImageType, error::EncodingError, ColorType, ImageEncoder, ImageError,
     ImageFormat, ImageResult,
 };
-use std::{convert::TryFrom, error, fmt, io::Write};
+use std::{error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

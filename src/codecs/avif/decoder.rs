@@ -3,7 +3,6 @@
 /// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
 ///
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
-use std::convert::TryFrom;
 use std::error::Error;
 use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;

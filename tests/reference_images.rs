@@ -1,5 +1,4 @@
 //! Compares the decoding results with reference renderings.
-use std::convert::TryInto;
 use std::fs;
 use std::io;
 use std::path::PathBuf;

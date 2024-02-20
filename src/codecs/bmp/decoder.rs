@@ -1,7 +1,6 @@
 use std::cmp::{self, Ordering};
-use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
-use std::iter::{repeat, Iterator, Rev};
+use std::iter::{repeat, Rev};
 use std::marker::PhantomData;
 use std::slice::ChunksMut;
 use std::{error, fmt, mem};

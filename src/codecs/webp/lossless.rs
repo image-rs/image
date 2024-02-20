@@ -4,8 +4,6 @@
 //!
 
 use std::{
-    convert::TryFrom,
-    convert::TryInto,
     error, fmt,
     io::Read,
     ops::{AddAssign, Shl},

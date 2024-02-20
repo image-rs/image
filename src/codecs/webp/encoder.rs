@@ -5,7 +5,6 @@ use std::collections::BinaryHeap;
 ///
 /// [libwebp]: https://developers.google.com/speed/webp/docs/api#simple_encoding_api
 use std::io::{self, Write};
-use std::iter::FromIterator;
 use std::slice::ChunksExact;
 
 #[cfg(feature = "webp-encoder")]

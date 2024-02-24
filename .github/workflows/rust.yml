@@ -140,8 +140,8 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-fuzz
-    - name: build
-      run: cargo fuzz build
+    - name: check
+      run: cargo fuzz check
       env:
         CARGO_INCREMENTAL: 0
 

@@ -81,7 +81,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-        key: ${{ matrix.arch }}
+          key: ${{ matrix.arch }}
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
       - name: Cross-Run Tests using QEMU

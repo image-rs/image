@@ -84,7 +84,7 @@ jobs:
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
       - name: Cross-Run Tests using QEMU
-        run: cross test --target ${{ matrix.arch }} --verbose -v
+        run: cross test --target ${{ matrix.arch }} --verbose -v --release
 
   test_avif_decoding:
     runs-on: ubuntu-latest

@@ -62,9 +62,6 @@ num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
 criterion = "0.5.0"
-# Keep this in sync with the jpeg dependency above. This is used to enable the platform_independent
-# feature when testing, so `cargo test` works correctly.
-jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, features = ["platform_independent"] }
 
 [features]
 default = ["rayon", "default-formats"]
@@ -89,7 +86,7 @@ webp = ["dep:image-webp"]
 
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading
-avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d (requires rustc 1.64.0)
+avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 
 [[bench]]

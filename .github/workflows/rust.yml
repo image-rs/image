@@ -136,10 +136,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
+    - name: Install cargo-fuzz
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-fuzz
     - name: build
-      run: |
-        cargo install cargo-fuzz
-        cargo fuzz build
+      run: cargo fuzz build
 
   public_private_dependencies:
     runs-on: ubuntu-latest

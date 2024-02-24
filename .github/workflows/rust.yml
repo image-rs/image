@@ -142,6 +142,8 @@ jobs:
         crate: cargo-fuzz
     - name: build
       run: cargo fuzz build
+      env:
+        CARGO_INCREMENTAL: 0
 
   public_private_dependencies:
     runs-on: ubuntu-latest

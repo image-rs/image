@@ -256,7 +256,7 @@ $( // START Structure definitions
 
 $(#[$doc])*
 #[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
-#[repr(C)]
+#[repr(transparent)]
 #[allow(missing_docs)]
 pub struct $ident<T> (pub [T; $channels]);
 

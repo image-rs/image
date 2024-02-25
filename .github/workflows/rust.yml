@@ -126,7 +126,7 @@ jobs:
         crate: cargo-afl
     - name: Build AFL++
       run: |
-        cargo install cargo-afl
+        cargo fetch cargo-afl
         cargo afl config --build || true
     - name: build
       run: |

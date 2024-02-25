@@ -128,6 +128,12 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-prefetch
+    - name: Cache Cargo Registry
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+        cache-all-crates: true
+        cache-on-failure: true
     - name: Build AFL++
       run: |
         cargo prefetch cargo-afl

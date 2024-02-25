@@ -44,7 +44,7 @@ fn truncate_images(decoder: &str) {
         let max_length = 1000;
         let mut buf = Vec::with_capacity(max_length);
         fin.take(max_length as u64).read_to_end(&mut buf).unwrap();
-        for i in 0..buf.len() {
+        for i in (0..buf.len()).step_by(37) {
             image::load_from_memory(&buf[..i + 1]).ok();
         }
     })

@@ -120,9 +120,12 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - name: install-deps
       run: sudo apt-get -y install clang llvm
+    - name: Install cargo-afl
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-afl
     - name: build
       run: |
-        cargo install cargo-afl
         cd fuzz-afl
         cargo check --bin reproduce_webp
         cargo check --bin reproduce_pnm

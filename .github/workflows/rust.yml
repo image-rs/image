@@ -127,7 +127,7 @@ jobs:
         cache-all-crates: true
         cache-on-failure: true
     - name: Install cargo-afl
-      run: cargo install --locked cargo-afl
+      run: cargo install --locked -f cargo-afl
     - name: build
       run: |
         cd fuzz-afl

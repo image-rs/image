@@ -120,9 +120,16 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - name: install-deps
       run: sudo apt-get -y install clang llvm
+    - name: Cache Cargo Registry
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+        cache-all-crates: true
+        cache-on-failure: true
+    - name: Install cargo-afl
+      run: cargo install --locked cargo-afl
     - name: build
       run: |
-        cargo install cargo-afl
         cd fuzz-afl
         cargo check --bin reproduce_webp
         cargo check --bin reproduce_pnm

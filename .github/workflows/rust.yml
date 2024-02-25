@@ -124,9 +124,13 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-afl
+    - name: Install cargo-prefetch
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-prefetch
     - name: Build AFL++
       run: |
-        cargo fetch cargo-afl
+        cargo prefetch cargo-afl
         cargo afl config --build || true
     - name: build
       run: |

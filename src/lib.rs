@@ -132,6 +132,8 @@ pub use crate::color::{ColorType, ExtendedColorType};
 
 pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
+pub use crate::convert::{ConvertError, Converter, NormalizeConverter};
+
 pub use crate::error::{ImageError, ImageResult};
 
 pub use crate::image::{
@@ -290,6 +292,7 @@ mod buffer_;
 #[cfg(feature = "rayon")]
 mod buffer_par;
 mod color;
+mod convert;
 mod dynimage;
 mod image;
 mod traits;

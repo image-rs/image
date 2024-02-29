@@ -250,6 +250,7 @@ impl<W: Write> BitWriter<W> {
         self.write_bits(code, size)
     }
 
+    #[cfg(feature = "benchmarks")]
     fn write_block_old(
         &mut self,
         block: &[i32; 64],
@@ -260,7 +261,7 @@ impl<W: Write> BitWriter<W> {
         // Differential DC encoding
         let dcval = block[0];
         let diff = dcval - prevdc;
-        let (size, value) = encode_coefficient(diff);
+        let (size, value) = encode_coefficient_old(diff);
 
         self.huffman_encode(size, dctable)?;
         self.write_bits(value, size)?;
@@ -277,7 +278,7 @@ impl<W: Write> BitWriter<W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = encode_coefficient(block[k as usize]);
+                let (size, value) = encode_coefficient_old(block[k as usize]);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode(symbol, actable)?;
@@ -853,6 +854,27 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
     for &i in &UNZIGZAG[..] {
         m.push(qtable[i as usize]);
     }
+}
+
+#[cfg(feature = "benchmarks")]
+fn encode_coefficient_old(coefficient: i32) -> (u8, u16) {
+    let mut magnitude = coefficient.unsigned_abs() as u16;
+    let mut num_bits = 0u8;
+
+    while magnitude > 0 {
+        magnitude >>= 1;
+        num_bits += 1;
+    }
+
+    let mask = (1 << num_bits as usize) - 1;
+
+    let val = if coefficient < 0 {
+        (coefficient - 1) as u16 & mask
+    } else {
+        coefficient as u16 & mask
+    };
+
+    (num_bits, val)
 }
 
 #[inline]

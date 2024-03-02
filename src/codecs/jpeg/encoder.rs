@@ -339,14 +339,14 @@ impl<W: Write> BitWriter<W> {
                             zero_run -= 16;
                         }
 
-                        (size, value) = encode_coefficient(tmp as i32);
+                        (size, value) = encode_coefficient(tmp);
                         symbol = (zero_run << 4) | size;
 
                         break;
                     }
                 }
             } else {
-                (size, value) = encode_coefficient(tmp as i32);
+                (size, value) = encode_coefficient(tmp);
                 symbol = size;
             }
 
@@ -890,9 +890,9 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
         let n = (nz.get() as u32).wrapping_add(adjustment) as u16; // turn v into a 2s complement of s bits
         let s = 32 - leading_zeros;
 
-        return (s, n);
+        (s, n)
     } else {
-        return (0, 0);
+        (0, 0)
     }
 }
 

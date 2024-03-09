@@ -228,7 +228,7 @@ fn write_buffer(
 
     match color_type {
         ExtendedColorType::Rgb32F => {
-            exr::prelude::Image // TODO compression method zip??
+            Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
                 SpecificChannels::rgb(|pixel: Vec2<usize>| {
@@ -249,7 +249,7 @@ fn write_buffer(
         }
 
         ExtendedColorType::Rgba32F => {
-            exr::prelude::Image // TODO compression method zip??
+            Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
                 SpecificChannels::rgba(|pixel: Vec2<usize>| {

@@ -48,7 +48,7 @@ mod test {
             // We could check that case separately but it does not conform to the same expectation.
             if new_w as u64 * 400u64 >= old_w as u64 * u64::from(u32::MAX) { return true; }
 
-            let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
+            let result = super::resize_dimensions(old_w, 400, new_w, std::u32::MAX, false);
             let exact = (400_f64 * new_w as f64 / old_w as f64).round() as u32;
             result.0 == new_w && result.1 == exact.max(1)
         }
@@ -61,7 +61,7 @@ mod test {
             // We could check that case separately but it does not conform to the same expectation.
             if 400u64 * new_h as u64 >= old_h as u64 * u64::from(u32::MAX) { return true; }
 
-            let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
+            let result = super::resize_dimensions(400, old_h, std::u32::MAX, new_h, false);
             let exact = (400_f64 * new_h as f64 / old_h as f64).round() as u32;
             result.1 == new_h && result.0 == exact.max(1)
         }
@@ -87,12 +87,12 @@ mod test {
 
     #[test]
     fn resize_handles_overflow() {
-        let result = super::resize_dimensions(100, ::std::u32::MAX, 200, ::std::u32::MAX, true);
+        let result = super::resize_dimensions(100, std::u32::MAX, 200, std::u32::MAX, true);
         assert!(result.0 == 100);
-        assert!(result.1 == ::std::u32::MAX);
+        assert!(result.1 == std::u32::MAX);
 
-        let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
-        assert!(result.0 == ::std::u32::MAX);
+        let result = super::resize_dimensions(std::u32::MAX, 100, std::u32::MAX, 200, true);
+        assert!(result.0 == std::u32::MAX);
         assert!(result.1 == 100);
     }
 

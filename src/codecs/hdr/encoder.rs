@@ -421,7 +421,7 @@ fn noruncombine_test() {
     assert_eq!(rsi.next(), Some(Norun(129, 7)));
     assert_eq!(rsi.next(), None);
 
-    let v: Vec<_> = ::std::iter::repeat(())
+    let v: Vec<_> = std::iter::repeat(())
         .flat_map(|_| (0..2))
         .take(257)
         .collect();

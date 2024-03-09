@@ -588,7 +588,7 @@ impl<W: Write> GifEncoder<W> {
             gif_encoder = self.gif_encoder.as_mut().unwrap()
         }
 
-        frame.dispose = gif::DisposalMethod::Background;
+        frame.dispose = DisposalMethod::Background;
 
         gif_encoder
             .write_frame(&frame)

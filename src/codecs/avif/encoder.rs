@@ -221,7 +221,7 @@ impl<W: Write> AvifEncoder<W> {
                 }
 
                 Ok(RgbColor::Rgb8(Img::new(
-                    rgb::AsPixels::as_pixels(data),
+                    AsPixels::as_pixels(data),
                     width as usize,
                     height as usize,
                 )))
@@ -238,7 +238,7 @@ impl<W: Write> AvifEncoder<W> {
                 }
 
                 Ok(RgbColor::Rgba8(Img::new(
-                    rgb::AsPixels::as_pixels(data),
+                    AsPixels::as_pixels(data),
                     width as usize,
                     height as usize,
                 )))

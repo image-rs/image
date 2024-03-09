@@ -171,7 +171,7 @@ impl Lerp for f32 {
 
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
-pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
+pub trait PixelWithColorType: Pixel + private::SealedPixelWithColorType {
     /// This pixel has the format of one of the predefined `ColorType`s,
     /// such as `Rgb8`, `La16` or `Rgba32F`.
     /// This is needed for automatically detecting

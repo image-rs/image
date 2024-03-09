@@ -686,7 +686,7 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
+fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
     loop {
         let mut byte = [0];
@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn read_line_u8_test() {
         let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
-        let input = &mut ::std::io::Cursor::new(buf);
+        let input = &mut Cursor::new(buf);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);

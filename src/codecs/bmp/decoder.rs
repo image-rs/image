@@ -1407,7 +1407,7 @@ mod test {
     fn read_rect() {
         let f =
             BufReader::new(std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap());
-        let mut decoder = super::BmpDecoder::new(f).unwrap();
+        let mut decoder = BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
         decoder.read_rect(0, 0, 8, 8, &mut buf, 8 * 3).unwrap();
@@ -1436,7 +1436,7 @@ mod test {
             0x4d, 0x00, 0x2a, 0x00,
         ];
 
-        let decoder = BmpDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
         let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }

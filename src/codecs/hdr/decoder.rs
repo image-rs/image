@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn read_line_u8_test() {
         let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
-        let input = &mut ::std::io::Cursor::new(buf);
+        let input = &mut Cursor::new(buf);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
         assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);

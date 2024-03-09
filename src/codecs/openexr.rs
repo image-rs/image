@@ -374,12 +374,12 @@ mod test {
 
     /// Read the file from the specified path into an `Rgba32FImage`.
     fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
-        read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
+        read_as_rgba_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
     fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
-        read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
+        read_as_rgb_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.

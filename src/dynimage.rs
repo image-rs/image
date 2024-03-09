@@ -1231,7 +1231,7 @@ mod test {
     fn open_16bpc_png() {
         let im_path = "./tests/images/png/16bpc/basn6a16.png";
         let image = super::open(im_path).unwrap();
-        assert_eq!(image.color(), super::color::ColorType::Rgba16);
+        assert_eq!(image.color(), ColorType::Rgba16);
     }
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {

@@ -205,23 +205,23 @@ pub mod flat;
 ///
 /// <!--- NOTE: Make sure to keep this table in sync with the README -->
 ///
-// | Format   | Decoding                                  | Encoding                                |
-// | -------- | ----------------------------------------- | --------------------------------------- |
-// | AVIF     | Yes (8-bit only) \*                       | Yes (lossy only)                        |
-// | BMP      | Yes                                       | Yes                                     |
-// | DDS      | Yes                                       | ---                                      |
-// | Farbfeld | Yes                                       | Yes                                     |
-// | GIF      | Yes                                       | Yes                                     |
-// | HDR      | Yes                                       | Yes                                     |
-// | ICO      | Yes                                       | Yes                                     |
-// | JPEG     | Yes                                       | Yes                                     |
-// | EXR      | Yes                                       | Yes                                     |
-// | PNG      | Yes                                       | Yes                                     |
-// | PNM      | Yes                                       | Yes                                     |
-// | QOI      | Yes                                       | Yes                                     |
-// | TGA      | Yes                                       | Yes                                     |
-// | TIFF     | Yes                                       | Yes                                     |
-// | WebP     | Yes                                       | Yes (lossless only)                     |
+/// | Format   | Decoding                                  | Encoding                                |
+/// | -------- | ----------------------------------------- | --------------------------------------- |
+/// | AVIF     | Yes (8-bit only) \*                       | Yes (lossy only)                        |
+/// | BMP      | Yes                                       | Yes                                     |
+/// | DDS      | Yes                                       | ---                                     |
+/// | Farbfeld | Yes                                       | Yes                                     |
+/// | GIF      | Yes                                       | Yes                                     |
+/// | HDR      | Yes                                       | Yes                                     |
+/// | ICO      | Yes                                       | Yes                                     |
+/// | JPEG     | Yes                                       | Yes                                     |
+/// | EXR      | Yes                                       | Yes                                     |
+/// | PNG      | Yes                                       | Yes                                     |
+/// | PNM      | Yes                                       | Yes                                     |
+/// | QOI      | Yes                                       | Yes                                     |
+/// | TGA      | Yes                                       | Yes                                     |
+/// | TIFF     | Yes                                       | Yes                                     |
+/// | WebP     | Yes                                       | Yes (lossless only)                     |
 ///
 /// - \* Requires the `avif-native` feature, uses the libdav1d C library.
 ///

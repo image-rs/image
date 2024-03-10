@@ -1,5 +1,4 @@
-use std::io;
-use std::io::{Seek, Write};
+use std::io::{self, Seek, Write};
 use std::path::Path;
 use std::u32;
 
@@ -7,8 +6,6 @@ use std::u32;
 use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
-#[cfg(feature = "pnm")]
-use crate::codecs::pnm;
 
 use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
@@ -17,14 +14,12 @@ use crate::buffer_::{
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
-};
-use crate::imageops;
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
+use crate::{imageops, ExtendedColorType};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -189,7 +184,7 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
+    pub fn from_decoder(decoder: impl ImageDecoder) -> ImageResult<Self> {
         decoder_to_image(decoder)
     }
 
@@ -607,16 +602,6 @@ impl DynamicImage {
         })
     }
 
-    /// Return a copy of this image's pixels as a byte vector.
-    /// Deprecated, because it does nothing but hide an expensive clone operation.
-    #[deprecated(
-        since = "0.24.0",
-        note = "use `image.into_bytes()` or `image.as_bytes().to_vec()` instead"
-    )]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
-    }
-
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
@@ -831,36 +816,24 @@ impl DynamicImage {
     ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
-        &self,
-        w: &mut W,
-        format: F,
-    ) -> ImageResult<()> {
+    pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
-        let color = self.color();
-        let format = format.into();
+        let color: ExtendedColorType = self.color().into();
 
         // TODO do not repeat this match statement across the crate
 
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png")]
-            image::ImageOutputFormat::Png => {
+            ImageFormat::Png => {
                 let p = png::PngEncoder::new(w);
                 p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
-            #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::Pnm(subtype) => {
-                let p = pnm::PnmEncoder::new(w).with_subtype(subtype);
-                p.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
             #[cfg(feature = "gif")]
-            image::ImageOutputFormat::Gif => {
+            ImageFormat::Gif => {
                 let mut g = gif::GifEncoder::new(w);
                 g.encode_frame(crate::animation::Frame::new(self.to_rgba8()))?;
                 Ok(())
@@ -978,10 +951,6 @@ impl GenericImageView for DynamicImage {
         dynamic_map!(*self, ref p, p.dimensions())
     }
 
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        dynamic_map!(*self, ref p, p.bounds())
-    }
-
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
         dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
     }
@@ -1040,7 +1009,7 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
@@ -1115,8 +1084,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::open_impl(path.as_ref())
+    crate::io::Reader::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1130,8 +1098,7 @@ pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::image_dimensions_impl(path.as_ref())
+    crate::io::Reader::open(path)?.into_dimensions()
 }
 
 /// Saves the supplied buffer to a file at the path specified.
@@ -1141,18 +1108,15 @@ where
 ///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
-pub fn save_buffer<P>(
-    path: P,
+pub fn save_buffer(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
-) -> ImageResult<()>
-where
-    P: AsRef<Path>,
-{
+    color: impl Into<ExtendedColorType>,
+) -> ImageResult<()> {
     // thin wrapper function to strip generics before calling save_buffer_impl
-    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color)
+    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color.into())
 }
 
 /// Saves the supplied buffer to a file at the path specified
@@ -1163,19 +1127,23 @@ where
 /// This will lead to corrupted files if the buffer contains
 /// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
-pub fn save_buffer_with_format<P>(
-    path: P,
+pub fn save_buffer_with_format(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
+    color: impl Into<ExtendedColorType>,
     format: ImageFormat,
-) -> ImageResult<()>
-where
-    P: AsRef<Path>,
-{
+) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
+    free_functions::save_buffer_with_format_impl(
+        path.as_ref(),
+        buf,
+        width,
+        height,
+        color.into(),
+        format,
+    )
 }
 
 /// Writes the supplied buffer to a writer in the specified format.
@@ -1190,20 +1158,16 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-pub fn write_buffer_with_format<W, F>(
+pub fn write_buffer_with_format<W: Write + Seek>(
     buffered_writer: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: color::ColorType,
-    format: F,
-) -> ImageResult<()>
-where
-    W: Write + Seek,
-    F: Into<ImageOutputFormat>,
-{
+    color: impl Into<ExtendedColorType>,
+    format: ImageFormat,
+) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format.into())
+    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color.into(), format)
 }
 
 /// Create a new image from a byte slice
@@ -1267,7 +1231,7 @@ mod test {
     fn open_16bpc_png() {
         let im_path = "./tests/images/png/16bpc/basn6a16.png";
         let image = super::open(im_path).unwrap();
-        assert_eq!(image.color(), super::color::ColorType::Rgba16);
+        assert_eq!(image.color(), ColorType::Rgba16);
     }
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {

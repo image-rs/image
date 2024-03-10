@@ -1,8 +1,6 @@
 use std::error;
 use std::fmt::{self, Display};
-use std::io::{self, BufRead, Cursor, Read};
-use std::marker::PhantomData;
-use std::mem;
+use std::io::{self, Read};
 use std::num::ParseIntError;
 use std::str::{self, FromStr};
 
@@ -12,7 +10,7 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageFormat};
 use crate::utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
@@ -262,7 +260,7 @@ pub struct PnmDecoder<R> {
     tuple: TupleType,
 }
 
-impl<R: BufRead> PnmDecoder<R> {
+impl<R: Read> PnmDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
     pub fn new(mut buffered_read: R) -> ImageResult<PnmDecoder<R>> {
         let magic = buffered_read.read_magic_constant()?;
@@ -362,7 +360,7 @@ impl<R: BufRead> PnmDecoder<R> {
     }
 }
 
-trait HeaderReader: BufRead {
+trait HeaderReader: Read {
     /// Reads the two magic constant bytes
     fn read_magic_constant(&mut self) -> ImageResult<[u8; 2]> {
         let mut magic: [u8; 2] = [0, 0];
@@ -417,6 +415,20 @@ trait HeaderReader: BufRead {
             .unwrap_or_else(|_| unreachable!("Only ASCII characters should be decoded"));
 
         Ok(string)
+    }
+
+    fn read_next_line(&mut self) -> ImageResult<String> {
+        let mut buffer = Vec::new();
+        loop {
+            let mut byte = [0];
+            if self.read(&mut byte)? == 0 || byte[0] == b'\n' {
+                break;
+            }
+            buffer.push(byte[0]);
+        }
+
+        String::from_utf8(buffer)
+            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e)))
     }
 
     fn read_next_u32(&mut self) -> ImageResult<u32> {
@@ -487,16 +499,15 @@ trait HeaderReader: BufRead {
             Some(Ok(c)) => return Err(DecoderError::NotNewlineAfterP7Magic(c).into()),
         }
 
-        let mut line = String::new();
+        let mut line;
         let mut height: Option<u32> = None;
         let mut width: Option<u32> = None;
         let mut depth: Option<u32> = None;
         let mut maxval: Option<u32> = None;
         let mut tupltype: Option<String> = None;
         loop {
-            line.truncate(0);
-            let len = self.read_line(&mut line)?;
-            if len == 0 {
+            line = self.read_next_line()?;
+            if line.is_empty() {
                 return Err(DecoderError::UnexpectedPnmHeaderEnd.into());
             }
             if line.as_bytes()[0] == b'#' {
@@ -568,27 +579,9 @@ trait HeaderReader: BufRead {
     }
 }
 
-impl<R> HeaderReader for R where R: BufRead {}
+impl<R> HeaderReader for R where R: Read {}
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct PnmReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for PnmReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
-    type Reader = PnmReader<R>;
-
+impl<R: Read> ImageDecoder for PnmDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.header.width(), self.header.height())
     }
@@ -615,13 +608,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
         }
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(PnmReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
-    }
-
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.tuple {
@@ -632,6 +618,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
             TupleType::GrayU8 => self.read_samples::<U8>(1, buf),
             TupleType::GrayU16 => self.read_samples::<U16>(1, buf),
         }
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

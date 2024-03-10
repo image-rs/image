@@ -12,7 +12,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
+use crate::{ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
@@ -104,10 +104,9 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         data: &[u8],
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
+        let expected_buffer_len = color.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             data.len() as u64,
@@ -134,7 +133,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
 
 impl<W: Write> AvifEncoder<W> {
     // Does not currently do anything. Mirrors behaviour of old config function.
-    fn set_color(&mut self, _color: ColorType) {
+    fn set_color(&mut self, _color: ExtendedColorType) {
         // self.config.color_space = ColorSpace::RGB;
     }
 
@@ -143,7 +142,7 @@ impl<W: Write> AvifEncoder<W> {
         data: &'buf [u8],
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
         fn try_from_raw<P: Pixel + 'static>(
@@ -210,7 +209,7 @@ impl<W: Write> AvifEncoder<W> {
         }
 
         match color {
-            ColorType::Rgb8 => {
+            ExtendedColorType::Rgb8 => {
                 // ravif doesn't do any checks but has some asserts, so we do the checks.
                 let img = try_from_raw::<Rgb<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
@@ -222,12 +221,12 @@ impl<W: Write> AvifEncoder<W> {
                 }
 
                 Ok(RgbColor::Rgb8(Img::new(
-                    rgb::AsPixels::as_pixels(data),
+                    AsPixels::as_pixels(data),
                     width as usize,
                     height as usize,
                 )))
             }
-            ColorType::Rgba8 => {
+            ExtendedColorType::Rgba8 => {
                 // ravif doesn't do any checks but has some asserts, so we do the checks.
                 let img = try_from_raw::<Rgba<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
@@ -239,37 +238,37 @@ impl<W: Write> AvifEncoder<W> {
                 }
 
                 Ok(RgbColor::Rgba8(Img::new(
-                    rgb::AsPixels::as_pixels(data),
+                    AsPixels::as_pixels(data),
                     width as usize,
                     height as usize,
                 )))
             }
             // we need a separate buffer..
-            ColorType::L8 => {
+            ExtendedColorType::L8 => {
                 let image = try_from_raw::<Luma<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
-            ColorType::La8 => {
+            ExtendedColorType::La8 => {
                 let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             // we need to really convert data..
-            ColorType::L16 => {
+            ExtendedColorType::L16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Luma<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
-            ColorType::La16 => {
+            ExtendedColorType::La16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<LumaA<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
-            ColorType::Rgb16 => {
+            ExtendedColorType::Rgb16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgb<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
-            ColorType::Rgba16 => {
+            ExtendedColorType::Rgba16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgba<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
@@ -278,7 +277,7 @@ impl<W: Write> AvifEncoder<W> {
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Avif.into(),
-                    UnsupportedErrorKind::Color(color.into()),
+                    UnsupportedErrorKind::Color(color),
                 ),
             )),
         }

@@ -1,13 +1,12 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{self, Cursor, Read, Seek, SeekFrom};
-use std::marker::PhantomData;
-use std::{error, fmt, mem};
+use std::io::{BufRead, Read, Seek, SeekFrom};
+use std::{error, fmt};
 
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
 use crate::codecs::bmp::BmpDecoder;
@@ -107,12 +106,12 @@ impl From<IcoEntryImageFormat> for ImageFormat {
 }
 
 /// An ico decoder
-pub struct IcoDecoder<R: Read> {
+pub struct IcoDecoder<R: BufRead + Seek> {
     selected_entry: DirEntry,
     inner_decoder: InnerDecoder<R>,
 }
 
-enum InnerDecoder<R: Read> {
+enum InnerDecoder<R: BufRead + Seek> {
     Bmp(BmpDecoder<R>),
     Png(Box<PngDecoder<R>>),
 }
@@ -142,7 +141,7 @@ struct DirEntry {
     image_offset: u32,
 }
 
-impl<R: Read + Seek> IcoDecoder<R> {
+impl<R: BufRead + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
         let entries = read_entries(&mut r)?;
@@ -249,7 +248,7 @@ impl DirEntry {
         Ok(signature == PNG_SIGNATURE)
     }
 
-    fn decoder<R: Read + Seek>(&self, mut r: R) -> ImageResult<InnerDecoder<R>> {
+    fn decoder<R: BufRead + Seek>(&self, mut r: R) -> ImageResult<InnerDecoder<R>> {
         let is_png = self.is_png(&mut r)?;
         self.seek_to_start(&mut r)?;
 
@@ -261,25 +260,7 @@ impl DirEntry {
     }
 }
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct IcoReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for IcoReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
-    type Reader = IcoReader<R>;
-
+impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             Bmp(ref decoder) => decoder.dimensions(),
@@ -292,13 +273,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
             Bmp(ref decoder) => decoder.color_type(),
             Png(ref decoder) => decoder.color_type(),
         }
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(IcoReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
@@ -402,6 +376,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
             }
         }
     }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
 #[cfg(test)]
@@ -462,7 +440,7 @@ mod test {
             0x50, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc7, 0x37, 0x61,
         ];
 
-        let decoder = IcoDecoder::new(Cursor::new(&data)).unwrap();
+        let decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
         let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }

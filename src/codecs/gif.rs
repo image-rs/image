@@ -10,9 +10,10 @@
 //! use image::codecs::gif::{GifDecoder, GifEncoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
+//! use std::io::BufReader;
 //! # fn main() -> std::io::Result<()> {
 //! // Decode a gif into frames
-//! let file_in = File::open("foo.gif")?;
+//! let file_in = BufReader::new(File::open("foo.gif")?);
 //! let mut decoder = GifDecoder::new(file_in).unwrap();
 //! let frames = decoder.into_frames();
 //! let frames = frames.collect_frames().expect("error decoding gif");
@@ -26,7 +27,7 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::io::{self, Cursor, Read, Write};
+use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -41,9 +42,10 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, AnimationDecoder, ImageDecoder, ImageFormat};
+use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::io::Limits;
 use crate::traits::Pixel;
+use crate::ExtendedColorType;
 use crate::ImageBuffer;
 
 /// GIF decoder
@@ -63,16 +65,6 @@ impl<R: Read> GifDecoder<R> {
             limits: Limits::no_limits(),
         })
     }
-
-    /// Creates a new decoder that decodes the input steam `r`, using limits `limits`
-    #[deprecated(since = "0.24.8", note = "Use `new` followed by `set_limits` instead")]
-    pub fn with_limits(r: R, limits: Limits) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = Self::new(r)?;
-        // call `.set_limits()` instead of just setting the field directly
-        // so that we raise an error in case they are exceeded
-        decoder.set_limits(limits)?;
-        Ok(decoder)
-    }
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
@@ -91,9 +83,7 @@ impl<R> Read for GifReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
-    type Reader = GifReader<R>;
-
+impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (
             u32::from(self.reader.width()),
@@ -103,13 +93,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         ColorType::Rgba8
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(GifReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
@@ -228,6 +211,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         Ok(())
     }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
 struct GifFrameIterator<R: Read> {
@@ -240,7 +227,7 @@ struct GifFrameIterator<R: Read> {
     limits: Limits,
 }
 
-impl<R: Read> GifFrameIterator<R> {
+impl<R: BufRead + Seek> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
         let limits = decoder.limits.clone();
@@ -406,7 +393,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     }
 }
 
-impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
+impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn into_frames(self) -> animation::Frames<'a> {
         animation::Frames::new(Box::new(GifFrameIterator::new(self)))
     }
@@ -445,9 +432,9 @@ pub enum Repeat {
 }
 
 impl Repeat {
-    pub(crate) fn to_gif_enum(&self) -> gif::Repeat {
+    pub(crate) fn to_gif_enum(self) -> gif::Repeat {
         match self {
-            Repeat::Finite(n) => gif::Repeat::Finite(*n),
+            Repeat::Finite(n) => gif::Repeat::Finite(n),
             Repeat::Infinite => gif::Repeat::Infinite,
         }
     }
@@ -500,18 +487,18 @@ impl<W: Write> GifEncoder<W> {
         data: &[u8],
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
         let (width, height) = self.gif_dimensions(width, height)?;
         match color {
-            ColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
-            ColorType::Rgba8 => {
+            ExtendedColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
+            ExtendedColorType::Rgba8 => {
                 self.encode_gif(Frame::from_rgba(width, height, &mut data.to_owned()))
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Gif.into(),
-                    UnsupportedErrorKind::Color(color.into()),
+                    UnsupportedErrorKind::Color(color),
                 ),
             )),
         }
@@ -601,7 +588,7 @@ impl<W: Write> GifEncoder<W> {
             gif_encoder = self.gif_encoder.as_mut().unwrap()
         }
 
-        frame.dispose = gif::DisposalMethod::Background;
+        frame.dispose = DisposalMethod::Background;
 
         gif_encoder
             .write_frame(&frame)

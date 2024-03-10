@@ -14,34 +14,81 @@ This crate provides basic image processing functions and methods for converting 
 
 All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
 
+## High level API
+
+Load images using [`io::Reader`]:
+
+```rust,ignore
+use std::io::Cursor;
+use image::io::Reader as ImageReader;
+
+let img = ImageReader::open("myimage.png")?.decode()?;
+let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+```
+
+And save them using [`save`] or [`write_to`] methods:
+
+```rust,ignore
+img.save("empty.jpg")?;
+
+let mut bytes: Vec<u8> = Vec::new();
+img2.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
+```
+
 ## Supported Image Formats
 
-`image` provides implementations of common image format encoders and decoders.
+With default features enabled, `image` provides implementations of many common
+image format encoders and decoders.
 
 <!--- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
 
 | Format   | Decoding                                  | Encoding                                |
 | -------- | ----------------------------------------- | --------------------------------------- |
-| AVIF     | Only 8-bit \*\*                           | Lossy                                   |
-| BMP      | Yes                                       | Rgb8, Rgba8, Gray8, GrayA8              |
-| DDS      | DXT1, DXT3, DXT5                          | No                                      |
+| AVIF     | Yes (8-bit only) \*                       | Yes (lossy only)                        |
+| BMP      | Yes                                       | Yes                                     |
+| DDS      | Yes                                       | ---                                      |
 | Farbfeld | Yes                                       | Yes                                     |
 | GIF      | Yes                                       | Yes                                     |
 | HDR      | Yes                                       | Yes                                     |
 | ICO      | Yes                                       | Yes                                     |
-| JPEG     | Baseline and progressive                  | Baseline JPEG                           |
-| OpenEXR  | Rgb32F, Rgba32F (no dwa compression)      | Rgb32F, Rgba32F (no dwa compression)    |
-| PNG      | All supported color types                 | Same as decoding                        |
-| PNM      | PBM, PGM, PPM, standard PAM               | Yes                                     |
+| JPEG     | Yes                                       | Yes                                     |
+| EXR      | Yes                                       | Yes                                     |
+| PNG      | Yes                                       | Yes                                     |
+| PNM      | Yes                                       | Yes                                     |
 | QOI      | Yes                                       | Yes                                     |
-| TGA      | Yes                                       | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
-| TIFF     | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8                      |
-| WebP     | Yes                                       | Rgb8, Rgba8 \*                          |
+| TGA      | Yes                                       | Yes                                     |
+| TIFF     | Yes                                       | Yes                                     |
+| WebP     | Yes                                       | Yes (lossless only)                     |
 
-- \* Requires the `webp-encoder` feature, uses the libwebp C library.
-- \*\* Requires the `avif-decoder` feature, uses the libdav1d C library.
+- \* Requires the `avif-native` feature, uses the libdav1d C library.
 
-### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
+## Image Types
+
+This crate provides a number of different types for representing images.
+Individual pixels within images are indexed with (0,0) at the top left corner.
+
+### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
+An image parameterised by its Pixel type, represented by a width and height and
+a vector of pixels. It provides direct access to its pixels and implements the
+`GenericImageView` and `GenericImage` traits.
+
+### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
+A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
+Its exact image type is determined at runtime. It is the type returned when
+opening an image. For convenience `DynamicImage` reimplements all image
+processing functions.
+
+### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
+
+Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
+
+### [`SubImage`](https://docs.rs/image/*/image/struct.SubImage.html)
+A view into another image, delimited by the coordinates of a rectangle.
+The coordinates given set the position of the top left corner of the rectangle.
+This is used to perform image processing functions on a subregion of an image.
+
+
+## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
@@ -62,81 +109,6 @@ The most important methods for decoders are...
 + **LumaA**: Grayscale with alpha
 
 All pixels are parameterised by their component type.
-
-## Images
-Individual pixels within images are indexed with (0,0) at the top left corner. 
-### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
-
-Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
-
-Some of these methods for `GenericImageView` are...
-+ **dimensions**: Return a tuple containing the width and height of the image.
-+ **get_pixel**: Returns the pixel located at (x, y).
-+ **pixels**: Returns an Iterator over the pixels of this image.
-
-While some of the methods for `GenericImage` are...
-+ **put_pixel**: Put a pixel at location (x, y).
-+ **copy_from**: Copies all of the pixels from another image into this image.
-
-### Representation of Images
-`image` provides two main ways of representing image data:
-
-#### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
-An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
-
-```rust
-use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
-
-// Construct a new RGB ImageBuffer with the specified width and height.
-let img: RgbImage = ImageBuffer::new(512, 512);
-
-// Construct a new by repeated calls to the supplied closure.
-let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
-    if x % 2 == 0 {
-        image::Luma([0u8])
-    } else {
-        image::Luma([255u8])
-    }
-});
-
-// Obtain the image's width and height.
-let (width, height) = img.dimensions();
-
-// Access the pixel at coordinate (100, 100).
-let pixel = img[(100, 100)];
-
-// Or use the `get_pixel` method from the `GenericImage` trait.
-let pixel = *img.get_pixel(100, 100);
-
-// Put a pixel at coordinate (100, 100).
-img.put_pixel(100, 100, pixel);
-
-// Iterate over all pixels in the image.
-for pixel in img.pixels() {
-    // Do something with pixel.
-}
-```
-
-#### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
-A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
-Its exact image type is determined at runtime. It is the type returned when opening an image.
-For convenience `DynamicImage` reimplements all image processing functions.
-
-`DynamicImage` implement the `GenericImageView` and `GenericImage` traits for RGBA pixels.
-
-#### [`SubImage`](https://docs.rs/image/*/image/struct.SubImage.html)
-A view into another image, delimited by the coordinates of a rectangle.
-The coordinates given set the position of the top left corner of the rectangle.
-This is used to perform image processing functions on a subregion of an image.
-
-```rust
-use image::{GenericImageView, ImageBuffer, RgbImage, imageops};
-
-let mut img: RgbImage = ImageBuffer::new(512, 512);
-let subimg = imageops::crop(&mut img, 0, 0, 100, 100);
-
-assert!(subimg.dimensions() == (100, 100));
-```
 
 ## Image Processing Functions
 These are the functions defined in the `imageops` module. All functions operate on types that implement the `GenericImage` trait.
@@ -246,6 +218,6 @@ fn main() {
     let buffer: &[u8] = unimplemented!(); // Generate the image data
 
     // Save the buffer as "image.png"
-    image::save_buffer("image.png", buffer, 800, 600, image::ColorType::Rgb8).unwrap()
+    image::save_buffer("image.png", buffer, 800, 600, image::ExtendedColorType::Rgb8).unwrap()
 }
 ```

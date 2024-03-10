@@ -1390,16 +1390,6 @@ where
         (self.inner.layout.width, self.inner.layout.height)
     }
 
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        let (w, h) = self.dimensions();
-        (0, w, 0, h)
-    }
-
-    fn in_bounds(&self, x: u32, y: u32) -> bool {
-        let (w, h) = self.dimensions();
-        x < w && y < h
-    }
-
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         if !self.inner.in_bounds(0, x, y) {
             panic_pixel_out_of_bounds((x, y), self.dimensions())
@@ -1431,16 +1421,6 @@ where
 
     fn dimensions(&self) -> (u32, u32) {
         (self.inner.layout.width, self.inner.layout.height)
-    }
-
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        let (w, h) = self.dimensions();
-        (0, w, 0, h)
-    }
-
-    fn in_bounds(&self, x: u32, y: u32) -> bool {
-        let (w, h) = self.dimensions();
-        x < w && y < h
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {

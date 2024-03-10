@@ -8,7 +8,7 @@
 
 extern crate tiff;
 
-use std::io::{self, Cursor, Read, Seek, Write};
+use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -18,12 +18,11 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
-use crate::utils;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
 where
-    R: Read + Seek,
+    R: BufRead + Seek,
 {
     dimensions: (u32, u32),
     color_type: ColorType,
@@ -35,7 +34,7 @@ where
 
 impl<R> TiffDecoder<R>
 where
-    R: Read + Seek,
+    R: BufRead + Seek,
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
@@ -184,9 +183,7 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
-    type Reader = TiffReader<R>;
-
+impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions
     }
@@ -199,11 +196,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.original_color_type
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         if let Some(decoder) = &mut self.inner {
-            decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok()
+            Ok(decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok())
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -225,28 +222,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
 
         Ok(())
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        let buf = match self
-            .inner
-            .unwrap()
-            .read_image()
-            .map_err(ImageError::from_tiff_decode)?
-        {
-            tiff::decoder::DecodingResult::U8(v) => v,
-            tiff::decoder::DecodingResult::U16(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::U32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::U64(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I8(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I16(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I64(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::F32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::F64(v) => utils::vec_copy_to_u8(&v),
-        };
-
-        Ok(TiffReader(Cursor::new(buf), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
@@ -298,6 +273,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         }
         Ok(())
     }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
 /// Encoder for tiff images
@@ -345,48 +324,53 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color.bytes_per_pixel() as u64);
+    pub fn encode(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
-            data.len() as u64,
+            buf.len() as u64,
             "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            data.len(),
+            buf.len(),
         );
 
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
-        match color {
-            ColorType::L8 => {
-                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)
+        match color_type {
+            ExtendedColorType::L8 => {
+                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, buf)
             }
-            ColorType::Rgb8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)
+            ExtendedColorType::Rgb8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, buf)
             }
-            ColorType::Rgba8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)
+            ExtendedColorType::Rgba8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, buf)
             }
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
+            ExtendedColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
+            ExtendedColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
+            ExtendedColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
                 width,
                 height,
-                u8_slice_as_u16(data)?,
+                u8_slice_as_u16(buf)?,
             ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Tiff.into(),
-                        UnsupportedErrorKind::Color(color.into()),
+                        UnsupportedErrorKind::Color(color_type),
                     ),
                 ))
             }
@@ -404,7 +388,7 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }

@@ -7,7 +7,9 @@ use image::codecs::gif::GifDecoder;
 
 #[cfg(feature = "gif")]
 fn gif_decode(data: &[u8], limits: Limits) -> ImageResult<()> {
-    let mut decoder = GifDecoder::new(data).unwrap();
+    use std::io::Cursor;
+
+    let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
     decoder.set_limits(limits)?;
     {
         let frames = decoder.into_frames();

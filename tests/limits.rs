@@ -15,15 +15,12 @@
 
 use std::io::Cursor;
 
-use image::{
-    io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, ImageOutputFormat,
-    RgbImage,
-};
+use image::{io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, RgbImage};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
 
-fn test_image(format: ImageOutputFormat) -> Vec<u8> {
+fn test_image(format: ImageFormat) -> Vec<u8> {
     let image = RgbImage::new(WIDTH, HEIGHT);
     let mut bytes: Vec<u8> = Vec::new();
     image
@@ -72,7 +69,7 @@ fn load_through_reader(
 fn gif() {
     use image::codecs::gif::GifDecoder;
 
-    let image = test_image(ImageOutputFormat::Gif);
+    let image = test_image(ImageFormat::Gif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());
     // check that the limits implementation is not overly restrictive
@@ -89,7 +86,10 @@ fn gif() {
     // Custom constructor on GifDecoder
     #[allow(deprecated)]
     {
-        assert!(GifDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
+        assert!(GifDecoder::new(Cursor::new(&image))
+            .unwrap()
+            .set_limits(width_height_limits())
+            .is_err());
         // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
     }
 }
@@ -99,7 +99,7 @@ fn gif() {
 fn png() {
     use image::codecs::png::PngDecoder;
 
-    let image = test_image(ImageOutputFormat::Png);
+    let image = test_image(ImageFormat::Png);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Png).is_ok());
     // check that the limits implementation is not overly restrictive
@@ -126,7 +126,7 @@ fn png() {
 fn jpeg() {
     use image::codecs::jpeg::JpegDecoder;
 
-    let image = test_image(ImageOutputFormat::Jpeg(80));
+    let image = test_image(ImageFormat::Jpeg);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Jpeg).is_ok());
     // check that the limits implementation is not overly restrictive
@@ -146,7 +146,7 @@ fn jpeg() {
 fn webp() {
     use image::codecs::webp::WebPDecoder;
 
-    let image = test_image(ImageOutputFormat::WebP);
+    let image = test_image(ImageFormat::WebP);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::WebP).is_ok());
     // check that the limits implementation is not overly restrictive
@@ -166,7 +166,7 @@ fn webp() {
 fn tiff() {
     use image::codecs::tiff::TiffDecoder;
 
-    let image = test_image(ImageOutputFormat::Tiff);
+    let image = test_image(ImageFormat::Tiff);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Tiff).is_ok());
 
@@ -189,11 +189,11 @@ fn tiff() {
 }
 
 #[test]
-#[cfg(all(feature = "avif", feature = "avif-decoder"))]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
 fn avif() {
     use image::codecs::avif::AvifDecoder;
 
-    let image = test_image(ImageOutputFormat::Avif);
+    let image = test_image(ImageFormat::Avif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Avif).is_ok());
     // check that the limits implementation is not overly restrictive
@@ -213,7 +213,7 @@ fn avif() {
 fn bmp() {
     use image::codecs::bmp::BmpDecoder;
 
-    let image = test_image(ImageOutputFormat::Bmp);
+    let image = test_image(ImageFormat::Bmp);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Bmp).is_ok());
     // check that the limits implementation is not overly restrictive

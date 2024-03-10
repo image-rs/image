@@ -23,12 +23,11 @@
 use exr::prelude::*;
 
 use crate::error::{DecodingError, EncodingError, ImageFormatHint};
-use crate::image::decoder_to_vec;
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
-    Progress,
 };
-use std::io::{Cursor, Read, Seek, Write};
+
+use std::io::{BufRead, Seek, Write};
 
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
@@ -46,7 +45,7 @@ pub struct OpenExrDecoder<R> {
     alpha_present_in_file: bool,
 }
 
-impl<R: Read + Seek> OpenExrDecoder<R> {
+impl<R: BufRead + Seek> OpenExrDecoder<R> {
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     /// Assumes the reader is buffered. In most cases,
     /// you should wrap your reader in a `BufReader` for best performance.
@@ -105,9 +104,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
-    type Reader = Cursor<Vec<u8>>;
-
+impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         let size = self
             .selected_exr_header()
@@ -134,27 +131,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
         }
     }
 
-    /// Use `read_image` instead if possible,
-    /// as this method creates a whole new buffer just to contain the entire image.
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?))
-    }
-
-    fn scanline_bytes(&self) -> u64 {
-        // we cannot always read individual scan lines for every file,
-        // as the tiles or lines in the file could be in random or reversed order.
-        // therefore we currently read all lines at once
-        // Todo: optimize for specific exr.line_order?
-        self.total_bytes()
-    }
-
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image_with_progress<F: Fn(Progress)>(
-        self,
-        unaligned_bytes: &mut [u8],
-        progress_callback: F,
-    ) -> ImageResult<()> {
-        let blocks_in_header = self.selected_exr_header().chunk_count as u64;
+    fn read_image(self, unaligned_bytes: &mut [u8]) -> ImageResult<()> {
+        let _blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
 
         let display_window = self.selected_exr_header().shared_attributes.display_window;
@@ -212,14 +191,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
             )
             .first_valid_layer() // TODO select exact layer by self.header_index?
             .all_attributes()
-            .on_progress(|progress| {
-                progress_callback(
-                    Progress::new(
-                        (progress * blocks_in_header as f64) as u64,
-                        blocks_in_header,
-                    ), // TODO precision errors?
-                );
-            })
             .from_chunks(self.exr_reader)
             .map_err(to_image_err)?;
 
@@ -231,6 +202,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
             result.layer_data.channel_data.pixels.as_slice(),
         ));
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 
@@ -245,37 +220,15 @@ fn write_buffer(
     unaligned_bytes: &[u8],
     width: u32,
     height: u32,
-    color_type: ColorType,
+    color_type: ExtendedColorType,
 ) -> ImageResult<()> {
     let width = width as usize;
     let height = height as usize;
-
-    {
-        // check whether the buffer is large enough for the specified dimensions
-        let expected_byte_count = width
-            .checked_mul(height)
-            .and_then(|size| size.checked_mul(color_type.bytes_per_pixel() as usize));
-
-        // if the width and height does not match the length of the bytes, the arguments are invalid
-        let has_invalid_size_or_overflowed = expected_byte_count
-            .map(|expected_byte_count| unaligned_bytes.len() < expected_byte_count)
-            // otherwise, size calculation overflowed, is bigger than memory,
-            // therefore data is too small, so it is invalid.
-            .unwrap_or(true);
-
-        if has_invalid_size_or_overflowed {
-            return Err(ImageError::Encoding(EncodingError::new(
-                ImageFormatHint::Exact(ImageFormat::OpenExr),
-                "byte buffer not large enough for the specified dimensions and f32 pixels",
-            )));
-        }
-    }
-
-    let bytes_per_pixel = color_type.bytes_per_pixel() as usize;
+    let bytes_per_pixel = color_type.bits_per_pixel() as usize / 8;
 
     match color_type {
-        ColorType::Rgb32F => {
-            exr::prelude::Image // TODO compression method zip??
+        ExtendedColorType::Rgb32F => {
+            Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
                 SpecificChannels::rgb(|pixel: Vec2<usize>| {
@@ -295,8 +248,8 @@ fn write_buffer(
             .map_err(to_image_err)?;
         }
 
-        ColorType::Rgba32F => {
-            exr::prelude::Image // TODO compression method zip??
+        ExtendedColorType::Rgba32F => {
+            Image // TODO compression method zip??
                 ::from_channels(
                 (width, height),
                 SpecificChannels::rgba(|pixel: Vec2<usize>| {
@@ -358,10 +311,9 @@ where
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len =
-            (width as u64 * height as u64).saturating_mul(color_type.bytes_per_pixel() as u64);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,
@@ -384,12 +336,13 @@ fn to_image_err(exr_error: Error) -> ImageError {
 mod test {
     use super::*;
 
-    use std::io::BufReader;
+    use std::fs::File;
+    use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{ImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -402,7 +355,7 @@ mod test {
             bytemuck::cast_slice(image.as_raw().as_slice()),
             image.width(),
             image.height(),
-            ColorType::Rgb32F,
+            ExtendedColorType::Rgb32F,
         )
     }
 
@@ -415,25 +368,25 @@ mod test {
             bytemuck::cast_slice(image.as_raw().as_slice()),
             image.width(),
             image.height(),
-            ColorType::Rgba32F,
+            ExtendedColorType::Rgba32F,
         )
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
     fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
-        read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
+        read_as_rgba_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
     fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
-        read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
+        read_as_rgb_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
-    fn read_as_rgb_image(read: impl Read + Seek) -> ImageResult<Rgb32FImage> {
+    fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -444,10 +397,10 @@ mod test {
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
-    fn read_as_rgba_image(read: impl Read + Seek) -> ImageResult<Rgba32FImage> {
+    fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -465,26 +418,25 @@ mod test {
 
         #[cfg(feature = "hdr")]
         {
+            use crate::codecs::hdr::HdrDecoder;
+
             let folder = BASE_PATH.iter().collect::<PathBuf>();
             let reference_path = folder.clone().join("overexposed gradient.hdr");
             let exr_path = folder
                 .clone()
                 .join("overexposed gradient - data window equals display window.exr");
 
-            let hdr: Vec<Rgb<f32>> = crate::codecs::hdr::HdrDecoder::new(std::io::BufReader::new(
-                std::fs::File::open(reference_path).unwrap(),
-            ))
-            .unwrap()
-            .read_image_hdr()
-            .unwrap();
+            let hdr_decoder =
+                HdrDecoder::new(BufReader::new(File::open(reference_path).unwrap())).unwrap();
+            let hdr: Rgb32FImage = match DynamicImage::from_decoder(hdr_decoder).unwrap() {
+                DynamicImage::ImageRgb32F(image) => image,
+                _ => panic!("expected rgb32f image"),
+            };
 
             let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
-            assert_eq!(
-                exr_pixels.dimensions().0 * exr_pixels.dimensions().1,
-                hdr.len() as u32
-            );
+            assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
-            for (expected, found) in hdr.iter().zip(exr_pixels.pixels()) {
+            for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
                 for (expected, found) in expected.0.iter().zip(found.0.iter()) {
                     // the large tolerance seems to be caused by
                     // the RGBE u8x4 pixel quantization of the hdr image format

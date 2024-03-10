@@ -187,6 +187,46 @@ impl ExtendedColorType {
             | ExtendedColorType::Cmyk8 => 4,
         }
     }
+
+    /// Returns the number of bits per pixel for this color type.
+    pub fn bits_per_pixel(&self) -> u16 {
+        match *self {
+            ExtendedColorType::A8 => 8,
+            ExtendedColorType::L1 => 1,
+            ExtendedColorType::La1 => 2,
+            ExtendedColorType::Rgb1 => 3,
+            ExtendedColorType::Rgba1 => 4,
+            ExtendedColorType::L2 => 2,
+            ExtendedColorType::La2 => 4,
+            ExtendedColorType::Rgb2 => 6,
+            ExtendedColorType::Rgba2 => 8,
+            ExtendedColorType::L4 => 4,
+            ExtendedColorType::La4 => 8,
+            ExtendedColorType::Rgb4 => 12,
+            ExtendedColorType::Rgba4 => 16,
+            ExtendedColorType::L8 => 8,
+            ExtendedColorType::La8 => 16,
+            ExtendedColorType::Rgb8 => 24,
+            ExtendedColorType::Rgba8 => 32,
+            ExtendedColorType::L16 => 16,
+            ExtendedColorType::La16 => 32,
+            ExtendedColorType::Rgb16 => 48,
+            ExtendedColorType::Rgba16 => 64,
+            ExtendedColorType::Rgb32F => 96,
+            ExtendedColorType::Rgba32F => 128,
+            ExtendedColorType::Bgr8 => 24,
+            ExtendedColorType::Bgra8 => 32,
+            ExtendedColorType::Cmyk8 => 32,
+            ExtendedColorType::Unknown(bpp) => bpp as u16,
+        }
+    }
+
+    /// Returns the number of bytes required to hold a width x height image of this color type.
+    pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
+        let bpp = self.bits_per_pixel() as u64;
+        let row_pitch = (width as u64 * bpp + 7) / 8;
+        row_pitch.saturating_mul(height as u64)
+    }
 }
 impl From<ColorType> for ExtendedColorType {
     fn from(c: ColorType) -> Self {
@@ -216,7 +256,7 @@ $( // START Structure definitions
 
 $(#[$doc])*
 #[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
-#[repr(C)]
+#[repr(transparent)]
 #[allow(missing_docs)]
 pub struct $ident<T> (pub [T; $channels]);
 
@@ -444,6 +484,7 @@ impl FromPrimitive<u8> for u16 {
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
+    #[allow(clippy::wrong_self_convention)]
     fn from_color(&mut self, _: &Other);
 }
 
@@ -452,6 +493,7 @@ pub trait FromColor<Other> {
 // rather than assuming sRGB.
 pub(crate) trait IntoColor<Other> {
     /// Constructs a pixel of the target type and converts this pixel into it.
+    #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> Other;
 }
 
@@ -459,6 +501,7 @@ impl<O, S> IntoColor<O> for S
 where
     O: Pixel + FromColor<S>,
 {
+    #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.

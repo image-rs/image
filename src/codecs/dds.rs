@@ -11,7 +11,7 @@ use std::{error, fmt};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 #[allow(deprecated)]
-use crate::codecs::dxt::{DxtDecoder, DxtReader, DxtVariant};
+use crate::codecs::dxt::{DxtDecoder, DxtVariant};
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
@@ -20,6 +20,7 @@ use crate::image::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::enum_variant_names)]
 enum DecoderError {
     /// Wrong DDS channel width
     PixelFormatSizeInvalid(u32),
@@ -327,10 +328,7 @@ impl<R: Read> DdsDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
-    #[allow(deprecated)]
-    type Reader = DxtReader<R>;
-
+impl<R: Read> ImageDecoder for DdsDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()
     }
@@ -339,18 +337,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
         self.inner.color_type()
     }
 
-    fn scanline_bytes(&self) -> u64 {
-        #[allow(deprecated)]
-        self.inner.scanline_bytes()
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        #[allow(deprecated)]
-        self.inner.into_reader()
-    }
-
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.inner.read_image(buf)
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

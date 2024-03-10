@@ -227,7 +227,7 @@ fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
 }
 
 /// Converts ```Rgb<f32>``` into ```Rgbe8Pixel```
-pub fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
+pub(crate) fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
     let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
     if mx <= 0.0 {
@@ -421,7 +421,7 @@ fn noruncombine_test() {
     assert_eq!(rsi.next(), Some(Norun(129, 7)));
     assert_eq!(rsi.next(), None);
 
-    let v: Vec<_> = ::std::iter::repeat(())
+    let v: Vec<_> = std::iter::repeat(())
         .flat_map(|_| (0..2))
         .take(257)
         .collect();

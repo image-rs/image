@@ -27,6 +27,7 @@ Codec changes:
 - Switched to image-webp for WebP encoding.
 - Switched to zune-jpeg for JPEG decoding.
 - Made the HDR decoder produce f32 images.
+- Removed DXT encoding and decoding support.
 
 ### Version 0.24.9
 

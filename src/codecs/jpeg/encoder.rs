@@ -577,7 +577,7 @@ impl<W: Write> JpegEncoder<W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, &buf)?;
 
-        if let ExtendedColorType::Rgb8 = color_type {
+        if ExtendedColorType::Rgb8 == color_type || ExtendedColorType::Rgba8 == color_type {
             self.encode_rgb(image)
         } else {
             self.encode_gray(image)

@@ -18,12 +18,12 @@ enum DecoderError {
     /// The ICO directory is empty
     NoEntries,
     /// The number of color planes (0 or 1), or the horizontal coordinate of the hotspot for CUR files too big.
-    IcoEntryTooManyPlanesOrHotspot,
+    IcoEntryTooManyPlanesOrHotspot(u16),
     /// The bit depth (may be 0 meaning unspecified), or the vertical coordinate of the hotspot for CUR files too big.
-    IcoEntryTooManyBitsPerPixelOrHotspot,
+    IcoEntryTooManyBitsPerPixelOrHotspot(u16),
 
     /// The entry is in PNG format and specified a length that is shorter than PNG header.
-    PngShorterThanHeader,
+    PngShorterThanHeader(u32),
     /// The enclosed PNG is not in RGBA, which is invalid: https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/.
     PngNotRgba,
 
@@ -45,14 +45,14 @@ impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DecoderError::NoEntries => f.write_str("ICO directory contains no image"),
-            DecoderError::IcoEntryTooManyPlanesOrHotspot => {
-                f.write_str("ICO image entry has too many color planes or too large hotspot value")
-            }
-            DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot => f.write_str(
-                "ICO image entry has too many bits per pixel or too large hotspot value",
-            ),
-            DecoderError::PngShorterThanHeader => {
-                f.write_str("Entry specified a length that is shorter than PNG header!")
+            DecoderError::IcoEntryTooManyPlanesOrHotspot(num_color_planes) => {
+                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of color planes or has an invalid hotspot value", num_color_planes))
+            },
+            DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot(bits_per_pixel) => {
+                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of bits per pixel or has an invalid hotspot value", bits_per_pixel))
+            },
+            DecoderError::PngShorterThanHeader(length) => {
+                f.write_fmt(format_args!("Entry specifies a length of {} which is shorter than the PNG header!", length))
             }
             DecoderError::PngNotRgba => f.write_str("The PNG is not in RGBA format!"),
             DecoderError::InvalidDataSize => {
@@ -173,7 +173,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
             // of the hotspot for CUR files.
             let num = r.read_u16::<LittleEndian>()?;
             if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
+                return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot(num).into());
             }
             num
         },
@@ -182,7 +182,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
             // or the vertical coordinate of the hotspot for CUR files.
             let num = r.read_u16::<LittleEndian>()?;
             if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+                return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot(num).into());
             }
             num
         },
@@ -280,7 +280,10 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         match self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
-                    return Err(DecoderError::PngShorterThanHeader.into());
+                    return Err(DecoderError::PngShorterThanHeader(
+                        self.selected_entry.image_length,
+                    )
+                    .into());
                 }
 
                 // Check if the image dimensions match the ones in the image data.

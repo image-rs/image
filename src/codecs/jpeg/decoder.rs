@@ -28,7 +28,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         let mut input = Vec::new();
         let mut r = r;
         r.read_to_end(&mut input)?;
-        let mut options = zune_core::options::DecoderOptions::default()
+        let options = zune_core::options::DecoderOptions::default()
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder = zune_jpeg::JpegDecoder::new_with_options(input.as_slice(), options);

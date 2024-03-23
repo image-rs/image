@@ -461,18 +461,8 @@ impl<W: Write> JpegEncoder<W> {
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
-            ExtendedColorType::La8 => {
-                let image: ImageBuffer<LumaA<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            }
             ExtendedColorType::Rgb8 => {
                 let image: ImageBuffer<Rgb<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            }
-            ExtendedColorType::Rgba8 => {
-                let image: ImageBuffer<Rgba<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }

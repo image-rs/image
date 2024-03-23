@@ -205,11 +205,18 @@ impl PixelWithColorType for Luma<u8> {
 impl PixelWithColorType for Luma<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
 }
+impl PixelWithColorType for Luma<f32> {
+    const COLOR_TYPE: ColorType = ColorType::L32F;
+}
+
 impl PixelWithColorType for LumaA<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
 }
 impl PixelWithColorType for LumaA<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
+}
+impl PixelWithColorType for LumaA<f32> {
+    const COLOR_TYPE: ColorType = ColorType::La32F;
 }
 
 /// Prevents down-stream users from implementing the `Primitive` trait
@@ -226,10 +233,12 @@ mod private {
     impl SealedPixelWithColorType for Rgba<f32> {}
 
     impl SealedPixelWithColorType for Luma<u8> {}
-    impl SealedPixelWithColorType for LumaA<u8> {}
-
     impl SealedPixelWithColorType for Luma<u16> {}
+    impl SealedPixelWithColorType for Luma<f32> {}
+
+    impl SealedPixelWithColorType for LumaA<u8> {}
     impl SealedPixelWithColorType for LumaA<u16> {}
+    impl SealedPixelWithColorType for LumaA<f32> {}
 }
 
 /// A generalized pixel.

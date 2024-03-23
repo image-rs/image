@@ -28,7 +28,10 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         let mut input = Vec::new();
         let mut r = r;
         r.read_to_end(&mut input)?;
-        let mut decoder = zune_jpeg::JpegDecoder::new(input.as_slice());
+        let options = zune_core::options::DecoderOptions::default()
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(input.as_slice(), options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers

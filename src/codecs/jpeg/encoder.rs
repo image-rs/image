@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
+use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
@@ -461,18 +461,8 @@ impl<W: Write> JpegEncoder<W> {
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
-            ExtendedColorType::La8 => {
-                let image: ImageBuffer<LumaA<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            }
             ExtendedColorType::Rgb8 => {
                 let image: ImageBuffer<Rgb<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            }
-            ExtendedColorType::Rgba8 => {
-                let image: ImageBuffer<Rgba<_>, _> =
                     ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
@@ -577,7 +567,7 @@ impl<W: Write> JpegEncoder<W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, &buf)?;
 
-        if let ExtendedColorType::Rgb8 = color_type {
+        if ExtendedColorType::Rgb8 == color_type || ExtendedColorType::Rgba8 == color_type {
             self.encode_rgb(image)
         } else {
             self.encode_gray(image)

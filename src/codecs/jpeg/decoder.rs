@@ -29,6 +29,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         let mut r = r;
         r.read_to_end(&mut input)?;
         let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder = zune_jpeg::JpegDecoder::new_with_options(input.as_slice(), options);
@@ -133,8 +134,9 @@ fn new_zune_decoder(
     limits: Limits,
 ) -> zune_jpeg::JpegDecoder<&[u8]> {
     let target_color_space = to_supported_color_space(orig_color_space);
-    let mut options =
-        zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
+    let mut options = zune_core::options::DecoderOptions::default()
+        .jpeg_set_out_colorspace(target_color_space)
+        .set_strict_mode(false);
     options = options.set_max_width(match limits.max_image_width {
         Some(max_width) => max_width as usize, // u32 to usize never truncates
         None => usize::MAX,

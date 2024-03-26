@@ -318,7 +318,7 @@ impl ImageFormat {
             ImageFormat::Hdr => cfg!(feature = "hdr"),
             ImageFormat::OpenExr => cfg!(feature = "openexr"),
             ImageFormat::Pnm => cfg!(feature = "pnm"),
-            ImageFormat::Farbfeld => cfg!(feature = "farbfeld"),
+            ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Dds => false,
@@ -337,7 +337,7 @@ impl ImageFormat {
             ImageFormat::Tiff => cfg!(feature = "tiff"),
             ImageFormat::Tga => cfg!(feature = "tga"),
             ImageFormat::Pnm => cfg!(feature = "pnm"),
-            ImageFormat::Farbfeld => cfg!(feature = "farbfeld"),
+            ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::WebP => cfg!(feature = "webp"),
             ImageFormat::OpenExr => cfg!(feature = "openexr"),
@@ -1805,12 +1805,20 @@ mod tests {
     #[test]
     fn reading_enabled() {
         assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.reading_enabled());
+        assert_eq!(
+            cfg!(feature = "ff"),
+            ImageFormat::Farbfeld.reading_enabled()
+        );
         assert!(!ImageFormat::Dds.reading_enabled());
     }
 
     #[test]
     fn writing_enabled() {
         assert_eq!(cfg!(feature = "jpeg"), ImageFormat::Jpeg.writing_enabled());
+        assert_eq!(
+            cfg!(feature = "ff"),
+            ImageFormat::Farbfeld.writing_enabled()
+        );
         assert!(!ImageFormat::Hdr.writing_enabled());
         assert!(!ImageFormat::Dds.writing_enabled());
     }

@@ -101,7 +101,7 @@ impl ImageFormat {
                 "hdr" => ImageFormat::Hdr,
                 "exr" => ImageFormat::OpenExr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
-                "ff" | "farbfeld" => ImageFormat::Farbfeld,
+                "ff" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
                 _ => return None,
             })

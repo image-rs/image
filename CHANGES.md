@@ -7,6 +7,17 @@
 
 ## Changes
 
+### Version 0.25.1
+
+Bug fixes:
+- Fixed corrupt JPEG output when attempting to encode images containing an alpha
+  channel.
+- Only accept ".ff" file extension for farbfeld images.
+- Correct farbfeld feature flag for `ImageFormat::{reading_enabled, writing_enabled}`.
+- Disable strict mode for JPEG decoder.
+- Add nasm feature to optionally enable faster AVIF encoding.
+
+
 ### Version 0.25.0
 
 Breaking changes:

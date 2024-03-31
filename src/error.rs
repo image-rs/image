@@ -361,7 +361,7 @@ impl fmt::Display for UnsupportedError {
             }
             UnsupportedErrorKind::Color(color) => write!(
                 fmt,
-                "The decoder for {} does not support the color type `{:?}`",
+                "The encoder or decoder for {} does not support the color type `{:?}`",
                 self.format, color,
             ),
             UnsupportedErrorKind::GenericFeature(message) => match &self.format {

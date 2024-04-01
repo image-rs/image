@@ -485,6 +485,8 @@ pub struct StreamingDecoder {
     /// Whether we have already seen a start of an IDAT chunk.  (Used to validate chunk ordering -
     /// some chunk types can only appear before or after an IDAT chunk.)
     have_idat: bool,
+    /// Whether we have already seen an iCCP chunk. Used to prevent parsing of duplicate iCCP chunks.
+    have_iccp: bool,
     decode_options: DecodeOptions,
     pub(crate) limits: Limits,
 }
@@ -523,6 +525,7 @@ impl StreamingDecoder {
             info: None,
             current_seq_no: None,
             have_idat: false,
+            have_iccp: false,
             decode_options,
             limits: Limits { bytes: usize::MAX },
         }
@@ -1203,12 +1206,11 @@ impl StreamingDecoder {
     }
 
     fn parse_iccp(&mut self) -> Result<Decoded, DecodingError> {
-        let info = self.info.as_mut().unwrap();
         if self.have_idat {
             Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::iCCP }.into(),
             ))
-        } else if info.icc_profile.is_some() {
+        } else if self.have_iccp {
             // We have already encountered an iCCP chunk before.
             //
             // Section "4.2.2.4. iCCP Embedded ICC profile" of the spec says:
@@ -1222,44 +1224,51 @@ impl StreamingDecoder {
             //     (treating them as a benign error).
             Ok(Decoded::Nothing)
         } else {
-            let mut buf = &self.current_chunk.raw_bytes[..];
-
-            // read profile name
-            let _: u8 = buf.read_be()?;
-            for _ in 1..80 {
-                let raw: u8 = buf.read_be()?;
-                if raw == 0 {
-                    break;
-                }
-            }
-
-            match buf.read_be()? {
-                // compression method
-                0u8 => (),
-                n => {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::UnknownCompressionMethod(n).into(),
-                    ))
-                }
-            }
-
-            match fdeflate::decompress_to_vec_bounded(buf, self.limits.bytes) {
-                Ok(profile) => {
-                    self.limits.reserve_bytes(profile.len())?;
-                    info.icc_profile = Some(Cow::Owned(profile));
-                }
-                Err(fdeflate::BoundedDecompressionError::DecompressionError { inner: err }) => {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::CorruptFlateStream { err }.into(),
-                    ))
-                }
-                Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
-                    return Err(DecodingError::LimitsExceeded);
-                }
-            }
-
+            self.have_iccp = true;
+            let _ = self.parse_iccp_raw();
             Ok(Decoded::Nothing)
         }
+    }
+
+    fn parse_iccp_raw(&mut self) -> Result<(), DecodingError> {
+        let info = self.info.as_mut().unwrap();
+        let mut buf = &self.current_chunk.raw_bytes[..];
+
+        // read profile name
+        let _: u8 = buf.read_be()?;
+        for _ in 1..80 {
+            let raw: u8 = buf.read_be()?;
+            if raw == 0 {
+                break;
+            }
+        }
+
+        match buf.read_be()? {
+            // compression method
+            0u8 => (),
+            n => {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::UnknownCompressionMethod(n).into(),
+                ))
+            }
+        }
+
+        match fdeflate::decompress_to_vec_bounded(buf, self.limits.bytes) {
+            Ok(profile) => {
+                self.limits.reserve_bytes(profile.len())?;
+                info.icc_profile = Some(Cow::Owned(profile));
+            }
+            Err(fdeflate::BoundedDecompressionError::DecompressionError { inner: err }) => {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::CorruptFlateStream { err }.into(),
+                ))
+            }
+            Err(fdeflate::BoundedDecompressionError::OutputTooLarge { .. }) => {
+                return Err(DecodingError::LimitsExceeded);
+            }
+        }
+
+        Ok(())
     }
 
     fn parse_ihdr(&mut self) -> Result<Decoded, DecodingError> {

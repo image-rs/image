@@ -46,7 +46,7 @@ impl fmt::Display for DecoderError {
         match self {
             DecoderError::NoEntries => f.write_str("ICO directory contains no image"),
             DecoderError::IcoEntryTooManyPlanesOrHotspot(num_color_planes) => {
-                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of color planes or has an invalid hotspot value", num_color_planes))
+                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of color planes for ICO or has an invalid hotspot for CUR files", num_color_planes))
             },
             DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot(bits_per_pixel) => {
                 f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of bits per pixel or has an invalid hotspot value", bits_per_pixel))

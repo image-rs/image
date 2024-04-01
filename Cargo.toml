@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.25.0"
+version = "0.25.1"
 edition = "2021"
 resolver = "2"
 
@@ -86,6 +86,7 @@ webp = ["dep:image-webp"]
 
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading
+nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 

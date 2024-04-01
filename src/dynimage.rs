@@ -1148,16 +1148,11 @@ pub fn save_buffer_with_format(
 
 /// Writes the supplied buffer to a writer in the specified format.
 ///
-/// The buffer is assumed to have the correct format according
-/// to the specified color type.
-/// This will lead to corrupted writers if the buffer contains
-/// malformed data.
+/// The buffer is assumed to have the correct format according to the specified color type. This
+/// will lead to corrupted writers if the buffer contains malformed data.
 ///
-/// See [`ImageOutputFormat`](enum.ImageOutputFormat.html) for
-/// supported types.
-///
-/// Assumes the writer is buffered. In most cases,
-/// you should wrap your writer in a `BufWriter` for best performance.
+/// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter` for
+/// best performance.
 pub fn write_buffer_with_format<W: Write + Seek>(
     buffered_writer: &mut W,
     buf: &[u8],

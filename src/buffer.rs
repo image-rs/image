@@ -1044,11 +1044,8 @@ where
 {
     /// Writes the buffer to a writer in the specified format.
     ///
-    /// Assumes the writer is buffered. In most cases,
-    /// you should wrap your writer in a `BufWriter` for best performance.
-    ///
-    /// See [`ImageOutputFormat`](enum.ImageOutputFormat.html) for
-    /// supported types.
+    /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
+    /// for best performance.
     pub fn write_to<W>(&self, writer: &mut W, format: ImageFormat) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,

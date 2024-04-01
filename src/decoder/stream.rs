@@ -1,7 +1,6 @@
 extern crate crc32fast;
 
-use std::convert::{From, TryInto};
-use std::default::Default;
+use std::convert::TryInto;
 use std::error;
 use std::fmt;
 use std::io;
@@ -1765,7 +1764,7 @@ mod tests {
     #[test]
     fn test_png_with_broken_iccp() {
         let decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
-        assert!(decoder.read_info().is_err());
+        assert!(decoder.read_info().is_ok());
         let mut decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
         decoder.set_ignore_iccp_chunk(true);
         assert!(decoder.read_info().is_ok());

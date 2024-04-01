@@ -1716,9 +1716,9 @@ mod tests {
     use crate::Decoder;
 
     use rand::{thread_rng, Rng};
+    use std::cmp;
     use std::fs::File;
-    use std::io::{Cursor, Write};
-    use std::{cmp, io};
+    use std::io::Cursor;
 
     #[test]
     fn roundtrip() {

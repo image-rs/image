@@ -49,7 +49,7 @@ impl fmt::Display for DecoderError {
                 f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of color planes for ICO or has an invalid hotspot for CUR files", num_color_planes))
             },
             DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot(bits_per_pixel) => {
-                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of bits per pixel or has an invalid hotspot value", bits_per_pixel))
+                f.write_fmt(format_args!("ICO image entry specifies {}, which exceeds the allowed number of bits per pixel for ICO or has an invalid hotspot value for CUR files.", bits_per_pixel))
             },
             DecoderError::PngShorterThanHeader(length) => {
                 f.write_fmt(format_args!("Entry specifies a length of {} which is shorter than the PNG header!", length))

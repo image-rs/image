@@ -279,6 +279,22 @@ impl<R: Read> Decoder<R> {
             .set_ignore_text_chunk(ignore_text_chunk);
     }
 
+    /// Set the decoder to ignore iccp chunks while parsing.
+    ///
+    /// eg.
+    /// ```
+    /// use std::fs::File;
+    /// use png::Decoder;
+    /// let mut decoder = Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
+    /// decoder.set_ignore_iccp_chunk(true);
+    /// assert!(decoder.read_info().is_ok());
+    /// ```
+    pub fn set_ignore_iccp_chunk(&mut self, ignore_iccp_chunk: bool) {
+        self.read_decoder
+            .decoder
+            .set_ignore_iccp_chunk(ignore_iccp_chunk);
+    }
+
     /// Set the decoder to ignore and not verify the Adler-32 checksum
     /// and CRC code.
     pub fn ignore_checksums(&mut self, ignore_checksums: bool) {

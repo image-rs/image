@@ -408,6 +408,7 @@ pub struct DecodeOptions {
     ignore_adler32: bool,
     ignore_crc: bool,
     ignore_text_chunk: bool,
+    ignore_iccp_chunk: bool,
     skip_ancillary_crc_failures: bool,
 }
 
@@ -417,6 +418,7 @@ impl Default for DecodeOptions {
             ignore_adler32: true,
             ignore_crc: false,
             ignore_text_chunk: false,
+            ignore_iccp_chunk: false,
             skip_ancillary_crc_failures: true,
         }
     }
@@ -449,6 +451,13 @@ impl DecodeOptions {
     /// Defaults to `false`.
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.ignore_text_chunk = ignore_text_chunk;
+    }
+
+    /// Ignore ICCP chunks while decoding.
+    ///
+    /// Defaults to `false`.
+    pub fn set_ignore_iccp_chunk(&mut self, ignore_iccp_chunk: bool) {
+        self.ignore_iccp_chunk = ignore_iccp_chunk;
     }
 
     /// Ignore ancillary chunks if CRC fails
@@ -538,6 +547,10 @@ impl StreamingDecoder {
 
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.decode_options.set_ignore_text_chunk(ignore_text_chunk);
+    }
+
+    pub fn set_ignore_iccp_chunk(&mut self, ignore_iccp_chunk: bool) {
+        self.decode_options.set_ignore_iccp_chunk(ignore_iccp_chunk);
     }
 
     /// Return whether the decoder is set to ignore the Adler-32 checksum.
@@ -888,7 +901,7 @@ impl StreamingDecoder {
             chunk::fcTL => self.parse_fctl(),
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
-            chunk::iCCP => self.parse_iccp(),
+            chunk::iCCP if !self.decode_options.ignore_iccp_chunk => self.parse_iccp(),
             chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
             chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
             chunk::iTXt if !self.decode_options.ignore_text_chunk => self.parse_itxt(),
@@ -1738,6 +1751,15 @@ mod tests {
         // Note that the 2nd chunk in the test file has been manually altered to have a different
         // content (`b"test iccp contents"`) which would have a different CRC (797351983).
         assert_eq!(4070462061, crc32fast::hash(&icc_profile));
+    }
+
+    #[test]
+    fn test_png_with_broken_iccp() {
+        let decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
+        assert!(decoder.read_info().is_err());
+        let mut decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
+        decoder.set_ignore_iccp_chunk(true);
+        assert!(decoder.read_info().is_ok());
     }
 
     /// Writes an acTL chunk.

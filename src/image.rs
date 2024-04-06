@@ -60,10 +60,10 @@ pub enum ImageFormat {
     /// An Image in farbfeld Format
     Farbfeld,
 
-    /// An Image in AVIF format.
+    /// An Image in AVIF Format
     Avif,
 
-    /// An Image in QOI format.
+    /// An Image in QOI Format
     Qoi,
 }
 

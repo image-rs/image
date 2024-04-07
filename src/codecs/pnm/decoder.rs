@@ -13,7 +13,7 @@ use crate::error::{
 use crate::image::{ImageDecoder, ImageFormat};
 use crate::utils;
 
-use byteorder::{BigEndian, ByteOrder, NativeEndian};
+use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
 
 /// All errors that can occur when attempting to parse a PNM
 #[derive(Debug, Clone)]

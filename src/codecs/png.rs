@@ -178,7 +178,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        use byteorder::{BigEndian, ByteOrder, NativeEndian};
+        use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
 
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.reader.next_frame(buf).map_err(ImageError::from_png)?;
@@ -607,7 +607,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        use byteorder::{BigEndian, ByteOrder, NativeEndian};
+        use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
         use ExtendedColorType::*;
 
         let expected_buffer_len = color_type.buffer_size(width, height);

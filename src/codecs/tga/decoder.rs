@@ -6,7 +6,7 @@ use crate::{
     },
     image::{ImageDecoder, ImageFormat},
 };
-use byteorder::ReadBytesExt;
+use byteorder_lite::ReadBytesExt;
 use std::io::{self, Read};
 
 struct ColorMap {

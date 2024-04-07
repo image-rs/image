@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder_lite::{LittleEndian, ReadBytesExt};
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::{error, fmt};
 

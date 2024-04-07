@@ -315,7 +315,7 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
 mod tests {
     use crate::codecs::farbfeld::FarbfeldDecoder;
     use crate::ImageDecoderRect;
-    use byteorder::{ByteOrder, NativeEndian};
+    use byteorder_lite::{ByteOrder, NativeEndian};
     use std::io::{Cursor, Seek, SeekFrom};
 
     static RECTANGLE_IN: &[u8] =     b"farbfeld\

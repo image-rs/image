@@ -631,7 +631,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             return Err(DecoderError::ImageTooLarge(self.width, self.height).into());
         }
 
-        if self.height == i32::min_value() {
+        if self.height == i32::MIN {
             return Err(DecoderError::InvalidHeight.into());
         }
 

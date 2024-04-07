@@ -16,7 +16,6 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
-use std::i64;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ExtendedColorType;

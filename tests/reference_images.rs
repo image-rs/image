@@ -2,7 +2,6 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::u32;
 
 use crc32fast::Hasher as Crc32;
 use image::DynamicImage;

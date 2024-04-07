@@ -1,6 +1,5 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
-use std::u32;
 
 #[cfg(feature = "gif")]
 use crate::codecs::gif;

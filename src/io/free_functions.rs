@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufWriter, Seek};
 use std::path::Path;
-use std::u32;
 
 use crate::{codecs::*, ExtendedColorType};
 

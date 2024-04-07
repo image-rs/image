@@ -551,7 +551,7 @@ impl<W: Write> GifEncoder<W> {
         // would require a new special cased variant in ParameterErrorKind which most
         // likely couldn't be reused for other cases. This isn't a bad trade-off given
         // that the current algorithm is already lossy.
-        frame.delay = (frame_delay / 10).try_into().unwrap_or(std::u16::MAX);
+        frame.delay = (frame_delay / 10).try_into().unwrap_or(u16::MAX);
 
         Ok(frame)
     }

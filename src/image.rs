@@ -3,7 +3,6 @@ use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::usize;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -482,7 +481,7 @@ where
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
     let total_bytes = width * height * bytes_per_pixel;
 
-    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::max_value()) {
+    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
         panic!(
             "output buffer too short\n expected `{}`, provided `{}`",
             total_bytes,
@@ -560,7 +559,7 @@ where
                 ParameterErrorKind::DimensionMismatch,
             )));
         }
-        if scanline_bytes > usize::max_value() as u64 {
+        if scanline_bytes > usize::MAX as u64 {
             return Err(ImageError::Limits(LimitError::from_kind(
                 LimitErrorKind::InsufficientMemory,
             )));
@@ -592,7 +591,7 @@ where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
-    if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
+    if total_bytes.is_err() || total_bytes.unwrap() > isize::MAX as usize {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::InsufficientMemory,
         )));
@@ -1786,7 +1785,7 @@ mod tests {
                 (*self).read_image(buf)
             }
         }
-        assert_eq!(D.total_bytes(), u64::max_value());
+        assert_eq!(D.total_bytes(), u64::MAX);
 
         let v: ImageResult<Vec<u8>> = super::decoder_to_vec(D);
         assert!(v.is_err());

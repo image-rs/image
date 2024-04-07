@@ -438,8 +438,8 @@ mod tests {
         overlay(
             &mut target,
             &source,
-            i64::from(u32::max_value() - 31),
-            i64::from(u32::max_value() - 31),
+            i64::from(u32::MAX - 31),
+            i64::from(u32::MAX - 31),
         );
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));

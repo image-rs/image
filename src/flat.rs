@@ -139,8 +139,8 @@ impl SampleLayout {
     /// # Panics
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
-    /// in the `height` direction would be larger than `usize::max_value()`. On other platforms
-    /// where it can surely accommodate `u8::max_value() * u32::max_value(), this can never happen.
+    /// in the `height` direction would be larger than `usize::MAX`. On other platforms
+    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let height_stride = (channels as usize).checked_mul(width as usize).expect(
             "Row major packed image can not be described because it does not fit into memory",
@@ -169,8 +169,8 @@ impl SampleLayout {
     /// # Panics
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
-    /// in the `width` direction would be larger than `usize::max_value()`. On other platforms
-    /// where it can surely accommodate `u8::max_value() * u32::max_value(), this can never happen.
+    /// in the `width` direction would be larger than `usize::MAX`. On other platforms
+    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let width_stride = (channels as usize).checked_mul(height as usize).expect(
             "Column major packed image can not be described because it does not fit into memory",

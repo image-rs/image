@@ -244,11 +244,18 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         for row in (0..height).rev() {
             // from the bottom up
             let row_start = row * y_stride;
-            for col in 0..width {
-                let pixel_start = (row_start + (col * x_stride)) as usize;
-                // color value is equal to the palette index
-                self.writer.write_u8(image[pixel_start])?;
-                // alpha is never written as it's not widely supported
+
+            // color value is equal to the palette index
+            if x_stride == 1 {
+                // improve performance by writing the whole row at once
+                self.writer
+                    .write_all(&image[row_start as usize..][..y_stride as usize])?;
+            } else {
+                for col in 0..width {
+                    let pixel_start = (row_start + (col * x_stride)) as usize;
+                    self.writer.write_u8(image[pixel_start])?;
+                    // alpha is never written as it's not widely supported
+                }
             }
 
             self.write_row_pad(row_pad_size)?;

@@ -109,9 +109,20 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 PixelLayout::I422 => dcp::PixelFormat::I422,
                 PixelLayout::I444 => dcp::PixelFormat::I444,
             };
+            let src_color_space = match (self.picture.color_primaries(), self.picture.color_range())
+            {
+                (dav1d::pixel::ColorPrimaries::BT709, dav1d::pixel::YUVRange::Full) => {
+                    dcp::ColorSpace::Bt709FR
+                }
+                (dav1d::pixel::ColorPrimaries::BT709, dav1d::pixel::YUVRange::Limited) => {
+                    dcp::ColorSpace::Bt709
+                }
+                (_, dav1d::pixel::YUVRange::Full) => dcp::ColorSpace::Bt601FR,
+                (_, dav1d::pixel::YUVRange::Limited) => dcp::ColorSpace::Bt601,
+            };
             let src_format = dcp::ImageFormat {
                 pixel_format,
-                color_space: dcp::ColorSpace::Bt601,
+                color_space: src_color_space,
                 num_planes: 3,
             };
             let dst_format = dcp::ImageFormat {

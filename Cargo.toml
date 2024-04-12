@@ -18,9 +18,8 @@ repository = "https://github.com/image-rs/image"
 homepage = "https://github.com/image-rs/image"
 categories = ["multimedia::images", "multimedia::encoding", "encoding"]
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+# Crate build related
+exclude = ["src/png/testdata/*", "examples/*", "tests/*"]
 
 include = [
     "/LICENSE-APACHE",
@@ -31,8 +30,9 @@ include = [
     "/benches/",
 ]
 
-# Crate build related
-exclude = ["src/png/testdata/*", "examples/*", "tests/*"]
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec

@@ -2,7 +2,7 @@ use crate::{
     error::{UnsupportedError, UnsupportedErrorKind},
     ExtendedColorType, ImageError, ImageFormat, ImageResult,
 };
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder_lite::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
 
 pub(crate) const ALPHA_BIT_MASK: u8 = 0b1111;

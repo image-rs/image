@@ -8,7 +8,7 @@
 use std::io::Read;
 use std::{error, fmt};
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder_lite::{LittleEndian, ReadBytesExt};
 
 #[allow(deprecated)]
 use crate::codecs::dxt::{DxtDecoder, DxtVariant};

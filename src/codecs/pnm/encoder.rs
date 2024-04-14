@@ -14,7 +14,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 
-use byteorder::{BigEndian, WriteBytesExt};
+use byteorder_lite::{BigEndian, WriteBytesExt};
 
 enum HeaderStrategy {
     Dynamic,

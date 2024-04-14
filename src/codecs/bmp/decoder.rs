@@ -4,7 +4,7 @@ use std::iter::{repeat, Rev};
 use std::slice::ChunksMut;
 use std::{error, fmt};
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder_lite::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
 use crate::error::{

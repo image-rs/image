@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder_lite::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use crate::error::{

@@ -314,7 +314,7 @@ fn check_references() {
 #[cfg(feature = "hdr")]
 #[test]
 fn check_hdr_references() {
-    use byteorder::{LittleEndian as LE, ReadBytesExt};
+    use byteorder_lite::{LittleEndian as LE, ReadBytesExt};
     use std::fs::File;
     use std::io::BufReader;
     use std::path::Path;

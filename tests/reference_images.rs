@@ -314,7 +314,6 @@ fn check_references() {
     })
 }
 
-#[test]
 fn write_test_json() {
     let base: PathBuf = BASE_PATH.iter().collect();
     let mut path = base.clone();
@@ -356,7 +355,6 @@ fn write_test_json() {
     }
 }
 
-#[test]
 fn read_test_json() {
     let base: PathBuf = BASE_PATH.iter().collect();
     let mut path = base.clone();
@@ -398,6 +396,12 @@ fn read_test_json() {
         let img = res.unwrap();
         assert_eq!(img, ref_img);
     }
+}
+
+#[test]
+fn test_json() {
+    write_test_json();
+    read_test_json();
 }
 
 #[cfg(feature = "fitsio")]

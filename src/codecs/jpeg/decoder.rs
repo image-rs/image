@@ -1,4 +1,4 @@
-use std::io::{BufRead, Seek};
+use std::io::{BufRead, Cursor, Seek};
 use std::marker::PhantomData;
 
 use zune_core::options::DecoderOptions;
@@ -73,7 +73,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(self.decoder.icc_profile())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         let advertised_len = self.total_bytes();
         let actual_len = buf.len() as u64;
 
@@ -87,6 +87,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
                 ),
             )));
         }
+
         let options = DecoderOptions::default()
             .jpeg_set_out_colorspace(to_supported_color_space(self.orig_color_space))
             .set_strict_mode(false);
@@ -103,9 +104,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
         options.set_max_height(max_height).set_max_width(max_width);
 
-        self.decoder.set_options(options);
+        let mut decoder =
+            zune_jpeg::JpegDecoder::new_with_options(Cursor::new(buf.to_owned()), options);
 
-        self.decoder.decode_into(buf).map_err(ImageError::from_jpeg)
+        decoder.decode_into(buf).map_err(ImageError::from_jpeg)
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {

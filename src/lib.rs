@@ -141,6 +141,9 @@ pub use roi::ROI;
 #[cfg(feature = "fitsio")]
 mod savefits;
 
+#[cfg(feature = "fitsio")]
+pub use savefits::FitsCompression;
+
 pub use crate::image::{
     AnimationDecoder,
     SerialGenericImage,
@@ -157,8 +160,12 @@ pub use crate::image::{
 pub use crate::buffer_::{
     SerialGrayAlphaImage,
     SerialGrayImage,
-    // Image types
+    SerialGray16Image,
+    SerialGrayAlpha16Image,
+    SerialRgb16Image,
+    SerialRgba16Image,
     SerialImageBuffer,
+    // Image types
     SerialRgb32FImage,
     SerialRgbImage,
     SerialRgba32FImage,

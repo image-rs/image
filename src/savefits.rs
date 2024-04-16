@@ -1,6 +1,5 @@
 use chrono::DateTime;
 use std::{
-    fs::remove_file,
     io,
     ops::Deref,
     path::{Path, PathBuf},
@@ -15,28 +14,56 @@ use fitsio::{
 
 use crate::{Pixel, SerialImageBuffer};
 
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+/// Compression algorithms used in FITS files.
+pub enum FitsCompression {
+    /// No compression.
+    None,
+    /// GZIP compression.
+    Gzip,
+    /// Rice compression.
+    Rice,
+    /// HCOMPRESS compression.
+    Hcompress,
+    /// HCOMPRESS with smoothing.
+    Hsmooth,
+    /// BZIP2 compression.
+    Bzip2,
+    /// PLIO compression.
+    Plio,
+}
+
+impl From<Option<FitsCompression>> for FitsCompression {
+    fn from(opt: Option<FitsCompression>) -> Self {
+        opt.unwrap_or(FitsCompression::None)
+    }
+}
+
+impl ToString for FitsCompression {
+    fn to_string(&self) -> String {
+        match self {
+            FitsCompression::None => "uncomp",
+            FitsCompression::Gzip => "gzip",
+            FitsCompression::Rice => "rice",
+            FitsCompression::Hcompress => "hcompress",
+            FitsCompression::Hsmooth => "hscompress",
+            FitsCompression::Bzip2 => "bzip2",
+            FitsCompression::Plio => "plio",
+        }
+        .to_owned()
+    }
+}
+
 #[cfg_attr(docsrs, doc(cfg(feature = "fitsio")))]
 impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> SerialImageBuffer<P, Container> {
-    // #[cfg(feature = "fitsio")]
-    /// Save the image data to a FITS file.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{timestamp}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///  * `image_type` - The type of the image data (e.g. [`ImageType::UnsignedByte`])
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
+    /// Save the image to a FITS file.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn savefits_generic(
         &self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool,
         data_type: ImageType,
         numpix: usize,
@@ -80,51 +107,50 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> SerialImageBuffer<P, Co
 
         let fpath = dir_prefix.join(Path::new(&format!("{}_{}.fits", file_prefix, timestamp)));
 
-        if fpath.exists() {
-            if !overwrite {
-                return Err(FitsError::Io(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("File {:?} already exists", fpath),
-                )));
-            } else {
-                let res = remove_file(fpath.clone());
-                if let Err(msg) = res {
-                    return Err(FitsError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("Could not remove file {:?}: {}", fpath, msg),
-                    )));
-                }
-            }
-        }
         let (width, height) = (self.width(), self.height());
-        let imgsize = [height as usize, width as usize, numpix];
-
-        // let data_type =
-        // let data_type = match TypeId::of::<P>() {
-        //     u8 => ImageType::Short,
-        //     u16 => fitsio::DataType::Long,
-        //     f32 => fitsio::DataType::Float,
-        //     f64 => fitsio::DataType::Double,
-        //     _ => return Err(FitsError::Message("Unsupported pixel type".to_owned())),
-        // };
+        let imgsize = if numpix == 0 {
+            vec![height as usize, width as usize]
+        } else {
+            vec![height as usize, width as usize, numpix]
+        };
 
         let img_desc = ImageDescription {
             data_type,
             dimensions: &imgsize,
         };
 
+        let fmt = match compress {
+            FitsCompression::None => "",
+            FitsCompression::Gzip => "[compress G]",
+            FitsCompression::Rice => "[compress R]",
+            FitsCompression::Hcompress => "[compress H]",
+            FitsCompression::Hsmooth => "[compress HS]",
+            FitsCompression::Bzip2 => "[compress B]",
+            FitsCompression::Plio => "[compress P]",
+        };
+
         let path = Path::new(dir_prefix).join(Path::new(&format!(
             "{}_{}.fits{}",
-            file_prefix,
-            timestamp,
-            if compress { "[compress]" } else { "" }
+            file_prefix, timestamp, fmt,
         )));
 
-        let mut fptr = FitsFile::create(path)
-            .with_custom_primary(&img_desc)
-            .open()?;
-        let hdu = fptr.create_image("test", &img_desc)?;
-        // let hdu = fptr.primary_hdu()?;
+        let mut fptr = FitsFile::create(path);
+        if overwrite {
+            fptr = fptr.overwrite();
+        }
+        if compress == FitsCompression::None {
+            fptr = fptr.with_custom_primary(&img_desc);
+        }
+        let mut fptr = fptr.open()?;
+
+        let hdu = if compress == FitsCompression::None {
+            fptr.primary_hdu()?
+        } else {
+            let hdu = fptr.primary_hdu()?;
+            hdu.write_key(&mut fptr, "COMPRESSED_IMAGE", "T")?;
+            fptr.create_image("IMAGE", &img_desc)?
+        };
+
         hdu.write_image(&mut fptr, self.inner_pixels())?;
         hdu.write_key(&mut fptr, "PROGRAM", progname.unwrap_or("unknown"))?;
         hdu.write_key(&mut fptr, "CAMERA", cameraname)?;

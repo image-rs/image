@@ -17,6 +17,9 @@ use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::{DynamicSerialImage, ImageMetadata};
 
+#[cfg(feature = "fitsio")]
+use crate::FitsCompression;
+
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
 where
@@ -1440,13 +1443,13 @@ pub type SerialGrayImage = SerialImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type SerialGrayAlphaImage = SerialImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
-pub(crate) type SerialRgb16Image = SerialImageBuffer<Rgb<u16>, Vec<u16>>;
+pub type SerialRgb16Image = SerialImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer
-pub(crate) type SerialRgba16Image = SerialImageBuffer<Rgba<u16>, Vec<u16>>;
+pub type SerialRgba16Image = SerialImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
-pub(crate) type SerialGray16Image = SerialImageBuffer<Luma<u16>, Vec<u16>>;
+pub type SerialGray16Image = SerialImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
-pub(crate) type SerialGrayAlpha16Image = SerialImageBuffer<LumaA<u16>, Vec<u16>>;
+pub type SerialGrayAlpha16Image = SerialImageBuffer<LumaA<u16>, Vec<u16>>;
 
 #[cfg(feature="fitsio")]
 use fitsio::{errors::Error as FitsError, images::ImageType};
@@ -1454,12 +1457,32 @@ use fitsio::{errors::Error as FitsError, images::ImageType};
 use std::path::PathBuf;
 #[cfg(feature="fitsio")]
 impl SerialRgbImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1475,12 +1498,32 @@ impl SerialRgbImage {
 
 #[cfg(feature="fitsio")]
 impl SerialRgbaImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1496,12 +1539,32 @@ impl SerialRgbaImage {
 
 #[cfg(feature="fitsio")]
 impl SerialGrayImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1517,12 +1580,32 @@ impl SerialGrayImage {
 
 #[cfg(feature="fitsio")]
 impl SerialGrayAlphaImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1538,12 +1621,32 @@ impl SerialGrayAlphaImage {
 
 #[cfg(feature="fitsio")]
 impl SerialRgb16Image {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1559,12 +1662,32 @@ impl SerialRgb16Image {
 
 #[cfg(feature="fitsio")]
 impl SerialRgba16Image {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1580,12 +1703,32 @@ impl SerialRgba16Image {
 
 #[cfg(feature="fitsio")]
 impl SerialGray16Image {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1601,12 +1744,32 @@ impl SerialGray16Image {
 
 #[cfg(feature="fitsio")]
 impl SerialGrayAlpha16Image {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1626,12 +1789,32 @@ impl SerialGrayAlpha16Image {
 pub type SerialRgb32FImage = SerialImageBuffer<Rgb<f32>, Vec<f32>>;
 #[cfg(feature="fitsio")]
 impl SerialRgb32FImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,
@@ -1650,12 +1833,32 @@ impl SerialRgb32FImage {
 pub type SerialRgba32FImage = SerialImageBuffer<Rgba<f32>, Vec<f32>>;
 #[cfg(feature="fitsio")]
 impl SerialRgba32FImage {
-    /// Save the image buffer to a FITS file.
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `dir_prefix` - The directory where the file will be saved.
+    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///  * `progname` - The name of the program that generated the image.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(&self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
-        compress: bool,
+        compress: FitsCompression,
         overwrite: bool) -> Result<PathBuf, FitsError> {
             self.savefits_generic(
                 dir_prefix,

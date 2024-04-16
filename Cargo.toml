@@ -68,7 +68,7 @@ quickcheck = "1"
 criterion = "0.5.0"
 
 [features]
-default = ["default-formats", "fitsio"]
+default = ["default-formats"]
 
 # Format features
 default-formats = ["bmp", "gif", "jpeg", "png", "tiff", "webp"]

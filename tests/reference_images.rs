@@ -3,6 +3,9 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+#[cfg(feature = "fitsio")]
+use image::FitsCompression;
+
 use crc32fast::Hasher as Crc32;
 use image::DynamicSerialImage;
 
@@ -311,9 +314,8 @@ fn check_references() {
     })
 }
 
-#[cfg(feature = "fitsio")]
 #[test]
-fn write_fits() {
+fn write_test_json() {
     let base: PathBuf = BASE_PATH.iter().collect();
     let mut path = base.clone();
     path.push(REFERENCE_DIR);
@@ -323,7 +325,7 @@ fn write_fits() {
 
     let mut out = base.clone();
     out.push(OUTPUT_DIR);
-    out.push("fits");
+    out.push("json");
 
     fs::create_dir_all(&out).unwrap();
 
@@ -344,11 +346,105 @@ fn write_fits() {
         };
 
         let filename = filename.as_os_str().to_str().unwrap();
-        let res = ref_img.savefits(&out, filename, None, false, true);
+        let res = serde_json::to_string(&ref_img);
+        if let Err(e) = res {
+            panic!("Failed to serialize image for {path:?} ({ref_img:?}): {e}");
+        }
+        if fs::write(out.join(filename).with_extension("json"), res.unwrap()).is_err() {
+            panic!("Failed to write JSON file for {path:?} ({ref_img:?})");
+        }
+    }
+}
+
+#[test]
+fn read_test_json() {
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let mut path = base.clone();
+    path.push(REFERENCE_DIR);
+    path.push("png");
+    path.push("**");
+    path.push("*.png");
+
+    let mut out = base.clone();
+    out.push(OUTPUT_DIR);
+    out.push("json");
+
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        let ref_img = match image::open(&path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(_)) => return,
+            Err(err) => panic!("{}", err),
+        };
+
+        let (filename, _) = {
+            let mut path: Vec<_> = path.components().collect();
+            (path.pop().unwrap(), path.pop().unwrap())
+        };
+
+        let filename = filename.as_os_str().to_str().unwrap();
+        let json = fs::read_to_string(out.join(filename).with_extension("json"));
+        if let Err(e) = json {
+            panic!("Failed to read JSON file for {path:?} ({ref_img:?}): {e}");
+        }
+        let json = json.unwrap();
+        let res = serde_json::from_str::<DynamicSerialImage>(&json);
+        if let Err(e) = res {
+            panic!("Failed to deserialize image for {path:?} ({ref_img:?}): {e}");
+        }
+        let img = res.unwrap();
+        assert_eq!(img, ref_img);
+    }
+}
+
+#[cfg(feature = "fitsio")]
+fn write_fits_backend(compress: FitsCompression) {
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let mut path = base.clone();
+    path.push(REFERENCE_DIR);
+    path.push("png");
+    path.push("**");
+    path.push("*.png");
+
+    let mut out = base.clone();
+    out.push(OUTPUT_DIR);
+    out.push("fits");
+    out.push(compress.to_string());
+
+    fs::create_dir_all(&out).unwrap();
+
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        let ref_img = match image::open(&path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(_)) => return,
+            Err(err) => panic!("{}", err),
+        };
+
+        let (filename, _) = {
+            let mut path: Vec<_> = path.components().collect();
+            (path.pop().unwrap(), path.pop().unwrap())
+        };
+
+        let filename = filename.as_os_str().to_str().unwrap();
+        let res = ref_img.savefits(&out, filename, None, compress, true);
         if let Err(e) = res {
             panic!("Failed to save FITS file for {path:?} ({ref_img:?}): {e}");
         }
     }
+}
+
+#[cfg(feature = "fitsio")]
+#[test]
+fn write_fits() {
+    write_fits_backend(FitsCompression::None);
+    write_fits_backend(FitsCompression::Gzip);
 }
 
 #[cfg(feature = "hdr")]

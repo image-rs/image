@@ -1,4 +1,4 @@
-use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
+use image::{SerialGenericImage, GenericImageView, SerialImageBuffer, Pixel, Primitive};
 
 /// Example showcasing a generic implementation of image concatenation.
 ///
@@ -17,7 +17,7 @@ fn main() {
 }
 
 /// Concatenate horizontally images with the same pixel type.
-fn h_concat<I, P, S>(images: &[I]) -> ImageBuffer<P, Vec<S>>
+fn h_concat<I, P, S>(images: &[I]) -> SerialImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
@@ -30,7 +30,7 @@ where
     let img_height_out: u32 = images.iter().map(|im| im.height()).max().unwrap_or(0);
 
     // Initialize an image buffer with the appropriate size.
-    let mut imgbuf = image::ImageBuffer::new(img_width_out, img_height_out);
+    let mut imgbuf = image::SerialImageBuffer::new(img_width_out, img_height_out);
     let mut accumulated_width = 0;
 
     // Copy each input image at the correct location in the output image.

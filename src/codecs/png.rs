@@ -19,7 +19,7 @@ use crate::error::{
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::io::Limits;
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
+use crate::{DynamicSerialImage, SerialGenericImage, SerialImageBuffer, Luma, LumaA, Rgb, Rgba, SerialRgbaImage};
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
@@ -224,9 +224,9 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
 pub struct ApngDecoder<R: BufRead + Seek> {
     inner: PngDecoder<R>,
     /// The current output buffer.
-    current: Option<RgbaImage>,
+    current: Option<SerialRgbaImage>,
     /// The previous output buffer, used for dispose op previous.
-    previous: Option<RgbaImage>,
+    previous: Option<SerialRgbaImage>,
     /// The dispose op of the current frame.
     dispose: DisposeOp,
     /// The number of image still expected to be able to load.
@@ -259,7 +259,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
     // TODO: thumbnail(&mut self) -> Option<impl ImageDecoder<'_>>
 
     /// Decode one subframe and overlay it on the canvas.
-    fn mix_next_frame(&mut self) -> Result<Option<&RgbaImage>, ImageError> {
+    fn mix_next_frame(&mut self) -> Result<Option<&SerialRgbaImage>, ImageError> {
         // The iterator always produces RGBA8 images
         const COLOR_TYPE: ColorType = ColorType::Rgba8;
 
@@ -269,12 +269,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             let limits = &mut self.inner.limits;
             if self.previous.is_none() {
                 limits.reserve_buffer(width, height, COLOR_TYPE)?;
-                self.previous = Some(RgbaImage::new(width, height));
+                self.previous = Some(SerialRgbaImage::new(width, height));
             }
 
             if self.current.is_none() {
                 limits.reserve_buffer(width, height, COLOR_TYPE)?;
-                self.current = Some(RgbaImage::new(width, height));
+                self.current = Some(SerialRgbaImage::new(width, height));
             }
         }
 
@@ -366,18 +366,18 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         limits.reserve_buffer(width, height, COLOR_TYPE)?;
         let source = match self.inner.color_type {
             ColorType::L8 => {
-                let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLuma8(image).into_rgba8()
+                let image = SerialImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicSerialImage::ImageLuma8(image).into_rgba8()
             }
             ColorType::La8 => {
-                let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLumaA8(image).into_rgba8()
+                let image = SerialImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicSerialImage::ImageLumaA8(image).into_rgba8()
             }
             ColorType::Rgb8 => {
-                let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageRgb8(image).into_rgba8()
+                let image = SerialImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicSerialImage::ImageRgb8(image).into_rgba8()
             }
-            ColorType::Rgba8 => ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
+            ColorType::Rgba8 => SerialImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
             ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
                 // TODO: to enable remove restriction in `animatable_color_type` method.
                 unreachable!("16-bit apng not yet support")
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn encode_bad_color_type() {
         // regression test for issue #1663
-        let image = DynamicImage::new_rgb32f(1, 1);
+        let image = DynamicSerialImage::new_rgb32f(1, 1);
         let mut target = Cursor::new(vec![]);
         let _ = image.write_to(&mut target, ImageFormat::Png);
     }

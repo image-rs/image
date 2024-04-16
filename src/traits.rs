@@ -2,6 +2,8 @@
 
 // Note copied from the stdlib under MIT license
 
+#[cfg(feature = "fitsio")]
+use fitsio::images::WriteImage;
 use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
@@ -35,6 +37,21 @@ impl EncodableLayout for [f32] {
     }
 }
 
+#[cfg(feature = "fitsio")]
+/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
+// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
+pub trait Primitive:
+    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + WriteImage
+{
+    /// The maximum value for this type of primitive within the context of color.
+    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
+    const DEFAULT_MAX_VALUE: Self;
+
+    /// The minimum value for this type of primitive within the context of color.
+    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
+    const DEFAULT_MIN_VALUE: Self;
+}
+#[cfg(not(feature = "fitsio"))]
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
@@ -56,13 +73,13 @@ macro_rules! declare_primitive {
     };
 }
 
-declare_primitive!(usize: (0)..Self::MAX);
+// declare_primitive!(usize: (0)..Self::MAX);
 declare_primitive!(u8: (0)..Self::MAX);
 declare_primitive!(u16: (0)..Self::MAX);
 declare_primitive!(u32: (0)..Self::MAX);
 declare_primitive!(u64: (0)..Self::MAX);
 
-declare_primitive!(isize: (Self::MIN)..Self::MAX);
+// declare_primitive!(isize: (Self::MIN)..Self::MAX);
 declare_primitive!(i8: (Self::MIN)..Self::MAX);
 declare_primitive!(i16: (Self::MIN)..Self::MAX);
 declare_primitive!(i32: (Self::MIN)..Self::MAX);

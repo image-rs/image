@@ -12,7 +12,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
+use crate::{ExtendedColorType, SerialImageBuffer, ImageEncoder, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
@@ -149,8 +149,8 @@ impl<W: Write> AvifEncoder<W> {
             data: &[P::Subpixel],
             width: u32,
             height: u32,
-        ) -> ImageResult<ImageBuffer<P, &[P::Subpixel]>> {
-            ImageBuffer::from_raw(width, height, data).ok_or_else(|| {
+        ) -> ImageResult<SerialImageBuffer<P, &[P::Subpixel]>> {
+            SerialImageBuffer::from_raw(width, height, data).ok_or_else(|| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
                 ))
@@ -160,7 +160,7 @@ impl<W: Write> AvifEncoder<W> {
         // Convert to target color type using few buffer allocations.
         fn convert_into<'buf, P>(
             buf: &'buf mut Vec<u8>,
-            image: ImageBuffer<P, &[P::Subpixel]>,
+            image: SerialImageBuffer<P, &[P::Subpixel]>,
         ) -> Img<&'buf [RGBA8]>
         where
             P: Pixel + 'static,
@@ -168,7 +168,7 @@ impl<W: Write> AvifEncoder<W> {
         {
             let (width, height) = image.dimensions();
             // TODO: conversion re-using the target buffer?
-            let image: ImageBuffer<Rgba<u8>, _> = image.convert();
+            let image: SerialImageBuffer<Rgba<u8>, _> = image.convert();
             *buf = image.into_raw();
             Img::new(buf.as_pixels(), width as usize, height as usize)
         }

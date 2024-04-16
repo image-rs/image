@@ -1,7 +1,7 @@
 //! Image Processing Functions
 use std::cmp;
 
-use crate::image::{GenericImage, GenericImageView, SubImage};
+use crate::image::{SerialGenericImage, GenericImageView, SubImage};
 use crate::traits::{Lerp, Pixel, Primitive};
 
 pub use self::sample::FilterType;
@@ -217,7 +217,7 @@ fn overlay_bounds_ext(
 /// Overlay an image at a given coordinate (x, y)
 pub fn overlay<I, J>(bottom: &mut I, top: &J, x: i64, y: i64)
 where
-    I: GenericImage,
+    I: SerialGenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
 {
     let bottom_dims = bottom.dimensions();
@@ -242,9 +242,9 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{RgbaImage};
+/// use image::{SerialRgbaImage};
 ///
-/// let mut img = RgbaImage::new(1920, 1080);
+/// let mut img = SerialRgbaImage::new(1920, 1080);
 /// let tile = image::open("tile.png").unwrap();
 ///
 /// image::imageops::tile(&mut img, &tile);
@@ -252,7 +252,7 @@ where
 /// ```
 pub fn tile<I, J>(bottom: &mut I, top: &J)
 where
-    I: GenericImage,
+    I: SerialGenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
 {
     for x in (0..bottom.width()).step_by(top.width() as usize) {
@@ -268,9 +268,9 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{Rgba, RgbaImage, Pixel};
+/// use image::{Rgba, SerialRgbaImage, Pixel};
 ///
-/// let mut img = RgbaImage::new(100, 100);
+/// let mut img = SerialRgbaImage::new(100, 100);
 /// let start = Rgba::from_slice(&[0, 128, 0, 0]);
 /// let end = Rgba::from_slice(&[255, 255, 255, 255]);
 ///
@@ -278,7 +278,7 @@ where
 /// img.save("vertical_gradient.png").unwrap();
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
-    I: GenericImage<Pixel = P>,
+    I: SerialGenericImage<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Lerp + 'static,
 {
@@ -301,9 +301,9 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{Rgba, RgbaImage, Pixel};
+/// use image::{Rgba, SerialRgbaImage, Pixel};
 ///
-/// let mut img = RgbaImage::new(100, 100);
+/// let mut img = SerialRgbaImage::new(100, 100);
 /// let start = Rgba::from_slice(&[0, 128, 0, 0]);
 /// let end = Rgba::from_slice(&[255, 255, 255, 255]);
 ///
@@ -311,7 +311,7 @@ where
 /// img.save("horizontal_gradient.png").unwrap();
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
-    I: GenericImage<Pixel = P>,
+    I: SerialGenericImage<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Lerp + 'static,
 {
@@ -331,7 +331,7 @@ where
 /// Replace the contents of an image at a given coordinate (x, y)
 pub fn replace<I, J>(bottom: &mut I, top: &J, x: i64, y: i64)
 where
-    I: GenericImage,
+    I: SerialGenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
 {
     let bottom_dims = bottom.dimensions();
@@ -354,8 +354,8 @@ mod tests {
 
     use super::{overlay, overlay_bounds_ext};
     use crate::color::Rgb;
-    use crate::ImageBuffer;
-    use crate::RgbaImage;
+    use crate::SerialImageBuffer;
+    use crate::SerialRgbaImage;
 
     #[test]
     fn test_overlay_bounds_ext() {
@@ -396,8 +396,8 @@ mod tests {
     #[test]
     /// Test that images written into other images works
     fn test_image_in_image() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
+        let mut target = SerialImageBuffer::new(32, 32);
+        let source = SerialImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 0, 0);
         assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
         assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
@@ -409,8 +409,8 @@ mod tests {
     #[test]
     /// Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = SerialImageBuffer::new(32, 32);
+        let source = SerialImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 1, 1);
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
@@ -421,8 +421,8 @@ mod tests {
     /// Test that images written to coordinates out of the frame doesn't blow up
     /// (issue came up in #848)
     fn test_image_outside_image_no_wrap_around() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = SerialImageBuffer::new(32, 32);
+        let source = SerialImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 33, 33);
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
@@ -432,8 +432,8 @@ mod tests {
     #[test]
     /// Test that images written to coordinates with overflow works
     fn test_image_coordinate_overflow() {
-        let mut target = ImageBuffer::new(16, 16);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = SerialImageBuffer::new(16, 16);
+        let source = SerialImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         // Overflows to 'sane' coordinates but top is larger than bot.
         overlay(
             &mut target,
@@ -451,7 +451,7 @@ mod tests {
     #[test]
     /// Test that horizontal gradients are correctly generated
     fn test_image_horizontal_gradient_limits() {
-        let mut img = ImageBuffer::new(100, 1);
+        let mut img = SerialImageBuffer::new(100, 1);
 
         let start = Rgb([0u8, 128, 0]);
         let end = Rgb([255u8, 255, 255]);
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     /// Test that vertical gradients are correctly generated
     fn test_image_vertical_gradient_limits() {
-        let mut img = ImageBuffer::new(1, 100);
+        let mut img = SerialImageBuffer::new(1, 100);
 
         let start = Rgb([0u8, 128, 0]);
         let end = Rgb([255u8, 255, 255]);
@@ -479,7 +479,7 @@ mod tests {
     #[test]
     /// Test blur doesn't panick when passed 0.0
     fn test_blur_zero() {
-        let image = RgbaImage::new(50, 50);
+        let image = SerialRgbaImage::new(50, 50);
         let _ = super::blur(&image, 0.0);
     }
 }

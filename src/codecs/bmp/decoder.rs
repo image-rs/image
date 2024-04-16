@@ -1458,7 +1458,7 @@ mod test {
             // skip the BITMAPFILEHEADER
             let slice = &mut data[14..];
             let decoder = BmpDecoder::new_without_file_header(Cursor::new(slice)).unwrap();
-            let no_hdr_img = crate::DynamicImage::from_decoder(decoder).unwrap();
+            let no_hdr_img = crate::DynamicSerialImage::from_decoder(decoder).unwrap();
             assert_eq!(ref_img, no_hdr_img);
         }
     }

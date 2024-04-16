@@ -37,9 +37,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder = "1.3.2"
-num-traits = { version = "0.2.0" }
+num-traits = { version = "0.2" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
 
 # Optional dependencies
+fitsio = { version = "0.21", optional = true }
 color_quant = { version = "1.1", optional = true }
 dav1d = { version = "0.10.3", optional = true }
 dcv-color-primitives = { version = "0.6.1", optional = true }
@@ -55,6 +58,7 @@ rgb = { version = "0.8.25", optional = true }
 tiff = { version = "0.9.0", optional = true }
 zune-core = { version = "0.4.11", default-features = false, optional = true }
 zune-jpeg = { version = "0.4.11", optional = true }
+chrono = "0.4"
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -64,10 +68,10 @@ quickcheck = "1"
 criterion = "0.5.0"
 
 [features]
-default = ["rayon", "default-formats"]
+default = ["default-formats", "fitsio"]
 
 # Format features
-default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
+default-formats = ["bmp", "gif", "jpeg", "png", "tiff", "webp"]
 avif = ["dep:ravif", "dep:rgb"]
 bmp = []
 dds = []
@@ -85,6 +89,7 @@ tiff = ["dep:tiff"]
 webp = ["dep:image-webp"]
 
 # Other features
+fitsio = ["dep:fitsio"]
 rayon = ["dep:rayon"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d

@@ -1,25 +1,33 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
+#[cfg(feature = "fitsio")]
+use fitsio::errors::Error as FitsError;
+#[cfg(feature = "fitsio")]
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
 
 use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+    ConvertBuffer, SerialGray16Image, SerialGrayAlpha16Image, SerialGrayAlphaImage,
+    SerialGrayImage, SerialImageBuffer, SerialRgb16Image, SerialRgbImage, SerialRgba16Image,
+    SerialRgbaImage,
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::{GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, SerialGenericImage};
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
-use crate::{Rgb32FImage, Rgba32FImage};
+use crate::{SerialRgb32FImage, SerialRgba32FImage};
 
 /// A Dynamic Image
 ///
@@ -29,13 +37,13 @@ use crate::{Rgb32FImage, Rgba32FImage};
 ///
 /// # Usage
 ///
-/// This type can act as a converter between specific `ImageBuffer` instances.
+/// This type can act as a converter between specific `SerialImageBuffer` instances.
 ///
 /// ```
-/// use image::{DynamicImage, GrayImage, RgbImage};
+/// use image::{DynamicSerialImage, SerialGrayImage, SerialRgbImage};
 ///
-/// let rgb: RgbImage = RgbImage::new(10, 10);
-/// let luma: GrayImage = DynamicImage::ImageRgb8(rgb).into_luma8();
+/// let rgb: SerialRgbImage = SerialRgbImage::new(10, 10);
+/// let luma: SerialGrayImage = DynamicSerialImage::ImageRgb8(rgb).into_luma8();
 /// ```
 ///
 /// # Design
@@ -44,43 +52,43 @@ use crate::{Rgb32FImage, Rgba32FImage};
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum DynamicImage {
+pub enum DynamicSerialImage {
     /// Each pixel in this image is 8-bit Luma
-    ImageLuma8(GrayImage),
+    ImageLuma8(SerialGrayImage),
 
     /// Each pixel in this image is 8-bit Luma with alpha
-    ImageLumaA8(GrayAlphaImage),
+    ImageLumaA8(SerialGrayAlphaImage),
 
     /// Each pixel in this image is 8-bit Rgb
-    ImageRgb8(RgbImage),
+    ImageRgb8(SerialRgbImage),
 
     /// Each pixel in this image is 8-bit Rgb with alpha
-    ImageRgba8(RgbaImage),
+    ImageRgba8(SerialRgbaImage),
 
     /// Each pixel in this image is 16-bit Luma
-    ImageLuma16(Gray16Image),
+    ImageLuma16(SerialGray16Image),
 
     /// Each pixel in this image is 16-bit Luma with alpha
-    ImageLumaA16(GrayAlpha16Image),
+    ImageLumaA16(SerialGrayAlpha16Image),
 
     /// Each pixel in this image is 16-bit Rgb
-    ImageRgb16(Rgb16Image),
+    ImageRgb16(SerialRgb16Image),
 
     /// Each pixel in this image is 16-bit Rgb with alpha
-    ImageRgba16(Rgba16Image),
+    ImageRgba16(SerialRgba16Image),
 
     /// Each pixel in this image is 32-bit float Rgb
-    ImageRgb32F(Rgb32FImage),
+    ImageRgb32F(SerialRgb32FImage),
 
     /// Each pixel in this image is 32-bit float Rgb with alpha
-    ImageRgba32F(Rgba32FImage),
+    ImageRgba32F(SerialRgba32FImage),
 }
 
 macro_rules! dynamic_map(
         ($dynimage: expr, $image: pat => $action: expr) => ({
-            use DynamicImage::*;
+            use DynamicSerialImage::*;
             match $dynimage {
                 ImageLuma8($image) => ImageLuma8($action),
                 ImageLumaA8($image) => ImageLumaA8($action),
@@ -97,24 +105,24 @@ macro_rules! dynamic_map(
 
         ($dynimage: expr, $image:pat_param, $action: expr) => (
             match $dynimage {
-                DynamicImage::ImageLuma8($image) => $action,
-                DynamicImage::ImageLumaA8($image) => $action,
-                DynamicImage::ImageRgb8($image) => $action,
-                DynamicImage::ImageRgba8($image) => $action,
-                DynamicImage::ImageLuma16($image) => $action,
-                DynamicImage::ImageLumaA16($image) => $action,
-                DynamicImage::ImageRgb16($image) => $action,
-                DynamicImage::ImageRgba16($image) => $action,
-                DynamicImage::ImageRgb32F($image) => $action,
-                DynamicImage::ImageRgba32F($image) => $action,
+                DynamicSerialImage::ImageLuma8($image) => $action,
+                DynamicSerialImage::ImageLumaA8($image) => $action,
+                DynamicSerialImage::ImageRgb8($image) => $action,
+                DynamicSerialImage::ImageRgba8($image) => $action,
+                DynamicSerialImage::ImageLuma16($image) => $action,
+                DynamicSerialImage::ImageLumaA16($image) => $action,
+                DynamicSerialImage::ImageRgb16($image) => $action,
+                DynamicSerialImage::ImageRgba16($image) => $action,
+                DynamicSerialImage::ImageRgb32F($image) => $action,
+                DynamicSerialImage::ImageRgba32F($image) => $action,
             }
         );
 );
 
-impl DynamicImage {
+impl DynamicSerialImage {
     /// Creates a dynamic image backed by a buffer depending on
     /// the color type given.
-    pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicImage {
+    pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicSerialImage {
         use color::ColorType::*;
         match color {
             L8 => Self::new_luma8(w, h),
@@ -131,55 +139,55 @@ impl DynamicImage {
     }
 
     /// Creates a dynamic image backed by a buffer of gray pixels.
-    pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
+    pub fn new_luma8(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageLuma8(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
-    pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
+    pub fn new_luma_a8(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageLumaA8(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    pub fn new_rgb8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb8(ImageBuffer::new(w, h))
+    pub fn new_rgb8(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgb8(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
-    pub fn new_rgba8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
+    pub fn new_rgba8(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgba8(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray pixels.
-    pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
+    pub fn new_luma16(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageLuma16(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
-    pub fn new_luma_a16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLumaA16(ImageBuffer::new(w, h))
+    pub fn new_luma_a16(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageLumaA16(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    pub fn new_rgb16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb16(ImageBuffer::new(w, h))
+    pub fn new_rgb16(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgb16(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
-    pub fn new_rgba16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba16(ImageBuffer::new(w, h))
+    pub fn new_rgba16(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgba16(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    pub fn new_rgb32f(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb32F(ImageBuffer::new(w, h))
+    pub fn new_rgb32f(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgb32F(SerialImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
-    pub fn new_rgba32f(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba32F(ImageBuffer::new(w, h))
+    pub fn new_rgba32f(w: u32, h: u32) -> DynamicSerialImage {
+        DynamicSerialImage::ImageRgba32F(SerialImageBuffer::new(w, h))
     }
 
     /// Decodes an encoded image into a dynamic image.
@@ -188,62 +196,62 @@ impl DynamicImage {
     }
 
     /// Returns a copy of this image as an RGB image.
-    pub fn to_rgb8(&self) -> RgbImage {
+    pub fn to_rgb8(&self) -> SerialRgbImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
-    pub fn to_rgb16(&self) -> Rgb16Image {
+    pub fn to_rgb16(&self) -> SerialRgb16Image {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
-    pub fn to_rgb32f(&self) -> Rgb32FImage {
+    pub fn to_rgb32f(&self) -> SerialRgb32FImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
-    pub fn to_rgba8(&self) -> RgbaImage {
+    pub fn to_rgba8(&self) -> SerialRgbaImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
-    pub fn to_rgba16(&self) -> Rgba16Image {
+    pub fn to_rgba16(&self) -> SerialRgba16Image {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGBA image.
-    pub fn to_rgba32f(&self) -> Rgba32FImage {
+    pub fn to_rgba32f(&self) -> SerialRgba32FImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
-    pub fn to_luma8(&self) -> GrayImage {
+    pub fn to_luma8(&self) -> SerialGrayImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
-    pub fn to_luma16(&self) -> Gray16Image {
+    pub fn to_luma16(&self) -> SerialGray16Image {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a Luma image.
-    pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
+    pub fn to_luma32f(&self) -> SerialImageBuffer<Luma<f32>, Vec<f32>> {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
-    pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
+    pub fn to_luma_alpha8(&self) -> SerialGrayAlphaImage {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
-    pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
+    pub fn to_luma_alpha16(&self) -> SerialGrayAlpha16Image {
         dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as a LumaA image.
-    pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
+    pub fn to_luma_alpha32f(&self) -> SerialImageBuffer<LumaA<f32>, Vec<f32>> {
         dynamic_map!(*self, ref p, p.convert())
     }
 
@@ -251,9 +259,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgb8(self) -> RgbImage {
+    pub fn into_rgb8(self) -> SerialRgbImage {
         match self {
-            DynamicImage::ImageRgb8(x) => x,
+            DynamicSerialImage::ImageRgb8(x) => x,
             x => x.to_rgb8(),
         }
     }
@@ -262,9 +270,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgb16(self) -> Rgb16Image {
+    pub fn into_rgb16(self) -> SerialRgb16Image {
         match self {
-            DynamicImage::ImageRgb16(x) => x,
+            DynamicSerialImage::ImageRgb16(x) => x,
             x => x.to_rgb16(),
         }
     }
@@ -273,9 +281,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgb32f(self) -> Rgb32FImage {
+    pub fn into_rgb32f(self) -> SerialRgb32FImage {
         match self {
-            DynamicImage::ImageRgb32F(x) => x,
+            DynamicSerialImage::ImageRgb32F(x) => x,
             x => x.to_rgb32f(),
         }
     }
@@ -284,9 +292,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgba8(self) -> RgbaImage {
+    pub fn into_rgba8(self) -> SerialRgbaImage {
         match self {
-            DynamicImage::ImageRgba8(x) => x,
+            DynamicSerialImage::ImageRgba8(x) => x,
             x => x.to_rgba8(),
         }
     }
@@ -295,9 +303,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgba16(self) -> Rgba16Image {
+    pub fn into_rgba16(self) -> SerialRgba16Image {
         match self {
-            DynamicImage::ImageRgba16(x) => x,
+            DynamicSerialImage::ImageRgba16(x) => x,
             x => x.to_rgba16(),
         }
     }
@@ -306,9 +314,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgba32f(self) -> Rgba32FImage {
+    pub fn into_rgba32f(self) -> SerialRgba32FImage {
         match self {
-            DynamicImage::ImageRgba32F(x) => x,
+            DynamicSerialImage::ImageRgba32F(x) => x,
             x => x.to_rgba32f(),
         }
     }
@@ -317,9 +325,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_luma8(self) -> GrayImage {
+    pub fn into_luma8(self) -> SerialGrayImage {
         match self {
-            DynamicImage::ImageLuma8(x) => x,
+            DynamicSerialImage::ImageLuma8(x) => x,
             x => x.to_luma8(),
         }
     }
@@ -328,9 +336,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_luma16(self) -> Gray16Image {
+    pub fn into_luma16(self) -> SerialGray16Image {
         match self {
-            DynamicImage::ImageLuma16(x) => x,
+            DynamicSerialImage::ImageLuma16(x) => x,
             x => x.to_luma16(),
         }
     }
@@ -339,9 +347,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_luma_alpha8(self) -> GrayAlphaImage {
+    pub fn into_luma_alpha8(self) -> SerialGrayAlphaImage {
         match self {
-            DynamicImage::ImageLumaA8(x) => x,
+            DynamicSerialImage::ImageLumaA8(x) => x,
             x => x.to_luma_alpha8(),
         }
     }
@@ -350,9 +358,9 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_luma_alpha16(self) -> GrayAlpha16Image {
+    pub fn into_luma_alpha16(self) -> SerialGrayAlpha16Image {
         match self {
-            DynamicImage::ImageLumaA16(x) => x,
+            DynamicSerialImage::ImageLumaA16(x) => x,
             x => x.to_luma_alpha16(),
         }
     }
@@ -361,171 +369,171 @@ impl DynamicImage {
     ///
     /// Note: this method does *not* modify the object,
     /// and its signature will be replaced with `crop_imm()`'s in the 0.24 release
-    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
+    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicSerialImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
     }
 
     /// Return a cut-out of this image delimited by the bounding rectangle.
-    pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
+    pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::crop_imm(p, x, y, width, height).to_image())
     }
 
     /// Return a reference to an 8bit RGB image
-    pub fn as_rgb8(&self) -> Option<&RgbImage> {
+    pub fn as_rgb8(&self) -> Option<&SerialRgbImage> {
         match *self {
-            DynamicImage::ImageRgb8(ref p) => Some(p),
+            DynamicSerialImage::ImageRgb8(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 8bit RGB image
-    pub fn as_mut_rgb8(&mut self) -> Option<&mut RgbImage> {
+    pub fn as_mut_rgb8(&mut self) -> Option<&mut SerialRgbImage> {
         match *self {
-            DynamicImage::ImageRgb8(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgb8(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 8bit RGBA image
-    pub fn as_rgba8(&self) -> Option<&RgbaImage> {
+    pub fn as_rgba8(&self) -> Option<&SerialRgbaImage> {
         match *self {
-            DynamicImage::ImageRgba8(ref p) => Some(p),
+            DynamicSerialImage::ImageRgba8(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 8bit RGBA image
-    pub fn as_mut_rgba8(&mut self) -> Option<&mut RgbaImage> {
+    pub fn as_mut_rgba8(&mut self) -> Option<&mut SerialRgbaImage> {
         match *self {
-            DynamicImage::ImageRgba8(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgba8(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 8bit Grayscale image
-    pub fn as_luma8(&self) -> Option<&GrayImage> {
+    pub fn as_luma8(&self) -> Option<&SerialGrayImage> {
         match *self {
-            DynamicImage::ImageLuma8(ref p) => Some(p),
+            DynamicSerialImage::ImageLuma8(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 8bit Grayscale image
-    pub fn as_mut_luma8(&mut self) -> Option<&mut GrayImage> {
+    pub fn as_mut_luma8(&mut self) -> Option<&mut SerialGrayImage> {
         match *self {
-            DynamicImage::ImageLuma8(ref mut p) => Some(p),
+            DynamicSerialImage::ImageLuma8(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_luma_alpha8(&self) -> Option<&GrayAlphaImage> {
+    pub fn as_luma_alpha8(&self) -> Option<&SerialGrayAlphaImage> {
         match *self {
-            DynamicImage::ImageLumaA8(ref p) => Some(p),
+            DynamicSerialImage::ImageLumaA8(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GrayAlphaImage> {
+    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut SerialGrayAlphaImage> {
         match *self {
-            DynamicImage::ImageLumaA8(ref mut p) => Some(p),
+            DynamicSerialImage::ImageLumaA8(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 16bit RGB image
-    pub fn as_rgb16(&self) -> Option<&Rgb16Image> {
+    pub fn as_rgb16(&self) -> Option<&SerialRgb16Image> {
         match *self {
-            DynamicImage::ImageRgb16(ref p) => Some(p),
+            DynamicSerialImage::ImageRgb16(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 16bit RGB image
-    pub fn as_mut_rgb16(&mut self) -> Option<&mut Rgb16Image> {
+    pub fn as_mut_rgb16(&mut self) -> Option<&mut SerialRgb16Image> {
         match *self {
-            DynamicImage::ImageRgb16(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgb16(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 16bit RGBA image
-    pub fn as_rgba16(&self) -> Option<&Rgba16Image> {
+    pub fn as_rgba16(&self) -> Option<&SerialRgba16Image> {
         match *self {
-            DynamicImage::ImageRgba16(ref p) => Some(p),
+            DynamicSerialImage::ImageRgba16(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 16bit RGBA image
-    pub fn as_mut_rgba16(&mut self) -> Option<&mut Rgba16Image> {
+    pub fn as_mut_rgba16(&mut self) -> Option<&mut SerialRgba16Image> {
         match *self {
-            DynamicImage::ImageRgba16(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgba16(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 32bit RGB image
-    pub fn as_rgb32f(&self) -> Option<&Rgb32FImage> {
+    pub fn as_rgb32f(&self) -> Option<&SerialRgb32FImage> {
         match *self {
-            DynamicImage::ImageRgb32F(ref p) => Some(p),
+            DynamicSerialImage::ImageRgb32F(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 32bit RGB image
-    pub fn as_mut_rgb32f(&mut self) -> Option<&mut Rgb32FImage> {
+    pub fn as_mut_rgb32f(&mut self) -> Option<&mut SerialRgb32FImage> {
         match *self {
-            DynamicImage::ImageRgb32F(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgb32F(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 32bit RGBA image
-    pub fn as_rgba32f(&self) -> Option<&Rgba32FImage> {
+    pub fn as_rgba32f(&self) -> Option<&SerialRgba32FImage> {
         match *self {
-            DynamicImage::ImageRgba32F(ref p) => Some(p),
+            DynamicSerialImage::ImageRgba32F(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 16bit RGBA image
-    pub fn as_mut_rgba32f(&mut self) -> Option<&mut Rgba32FImage> {
+    pub fn as_mut_rgba32f(&mut self) -> Option<&mut SerialRgba32FImage> {
         match *self {
-            DynamicImage::ImageRgba32F(ref mut p) => Some(p),
+            DynamicSerialImage::ImageRgba32F(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 16bit Grayscale image
-    pub fn as_luma16(&self) -> Option<&Gray16Image> {
+    pub fn as_luma16(&self) -> Option<&SerialGray16Image> {
         match *self {
-            DynamicImage::ImageLuma16(ref p) => Some(p),
+            DynamicSerialImage::ImageLuma16(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 16bit Grayscale image
-    pub fn as_mut_luma16(&mut self) -> Option<&mut Gray16Image> {
+    pub fn as_mut_luma16(&mut self) -> Option<&mut SerialGray16Image> {
         match *self {
-            DynamicImage::ImageLuma16(ref mut p) => Some(p),
+            DynamicSerialImage::ImageLuma16(ref mut p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a reference to an 16bit Grayscale image with an alpha channel
-    pub fn as_luma_alpha16(&self) -> Option<&GrayAlpha16Image> {
+    pub fn as_luma_alpha16(&self) -> Option<&SerialGrayAlpha16Image> {
         match *self {
-            DynamicImage::ImageLumaA16(ref p) => Some(p),
+            DynamicSerialImage::ImageLumaA16(ref p) => Some(p),
             _ => None,
         }
     }
 
     /// Return a mutable reference to an 16bit Grayscale image with an alpha channel
-    pub fn as_mut_luma_alpha16(&mut self) -> Option<&mut GrayAlpha16Image> {
+    pub fn as_mut_luma_alpha16(&mut self) -> Option<&mut SerialGrayAlpha16Image> {
         match *self {
-            DynamicImage::ImageLumaA16(ref mut p) => Some(p),
+            DynamicSerialImage::ImageLumaA16(ref mut p) => Some(p),
             _ => None,
         }
     }
@@ -533,10 +541,10 @@ impl DynamicImage {
     /// Return a view on the raw sample buffer for 8 bit per channel images.
     pub fn as_flat_samples_u8(&self) -> Option<FlatSamples<&[u8]>> {
         match *self {
-            DynamicImage::ImageLuma8(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageLumaA8(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageRgb8(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageRgba8(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageLuma8(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageLumaA8(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgb8(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgba8(ref p) => Some(p.as_flat_samples()),
             _ => None,
         }
     }
@@ -544,10 +552,10 @@ impl DynamicImage {
     /// Return a view on the raw sample buffer for 16 bit per channel images.
     pub fn as_flat_samples_u16(&self) -> Option<FlatSamples<&[u16]>> {
         match *self {
-            DynamicImage::ImageLuma16(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageLumaA16(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageRgb16(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageRgba16(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageLuma16(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageLumaA16(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgb16(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgba16(ref p) => Some(p.as_flat_samples()),
             _ => None,
         }
     }
@@ -555,15 +563,15 @@ impl DynamicImage {
     /// Return a view on the raw sample buffer for 32bit per channel images.
     pub fn as_flat_samples_f32(&self) -> Option<FlatSamples<&[f32]>> {
         match *self {
-            DynamicImage::ImageRgb32F(ref p) => Some(p.as_flat_samples()),
-            DynamicImage::ImageRgba32F(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgb32F(ref p) => Some(p.as_flat_samples()),
+            DynamicSerialImage::ImageRgba32F(ref p) => Some(p.as_flat_samples()),
             _ => None,
         }
     }
 
     /// Return this image's pixels as a native endian byte slice.
     pub fn as_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `SerialImageBuffer<_, Vec<_>>`
         dynamic_map!(
             *self,
             ref image_buffer,
@@ -573,7 +581,7 @@ impl DynamicImage {
 
     // TODO: choose a name under which to expose?
     fn inner_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `SerialImageBuffer<_, Vec<_>>`
         dynamic_map!(
             *self,
             ref image_buffer,
@@ -581,11 +589,96 @@ impl DynamicImage {
         )
     }
 
-    /// Return this image's pixels as a byte vector. If the `ImageBuffer`
+    #[cfg(feature = "fitsio")]
+    /// Save the image to a FITS file at the path specified.
+    pub fn savefits(
+        &self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool,
+    ) -> Result<PathBuf, FitsError> {
+        match self {
+            DynamicSerialImage::ImageLuma8(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageLumaA8(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgb8(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgba8(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageLuma16(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageLumaA16(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgb16(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgba16(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgb32F(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+            DynamicSerialImage::ImageRgba32F(p) => p.savefits(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+            ),
+
+        }
+    }
+
+    /// Return this image's pixels as a byte vector. If the `SerialImageBuffer`
     /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
     /// is returned.
     pub fn into_bytes(self) -> Vec<u8> {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `SerialImageBuffer<_, Vec<_>>`
         dynamic_map!(self, image_buffer, {
             match bytemuck::allocation::try_cast_vec(image_buffer.into_raw()) {
                 Ok(vec) => vec,
@@ -604,16 +697,16 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
-            DynamicImage::ImageLumaA8(_) => color::ColorType::La8,
-            DynamicImage::ImageRgb8(_) => color::ColorType::Rgb8,
-            DynamicImage::ImageRgba8(_) => color::ColorType::Rgba8,
-            DynamicImage::ImageLuma16(_) => color::ColorType::L16,
-            DynamicImage::ImageLumaA16(_) => color::ColorType::La16,
-            DynamicImage::ImageRgb16(_) => color::ColorType::Rgb16,
-            DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
-            DynamicImage::ImageRgb32F(_) => color::ColorType::Rgb32F,
-            DynamicImage::ImageRgba32F(_) => color::ColorType::Rgba32F,
+            DynamicSerialImage::ImageLuma8(_) => color::ColorType::L8,
+            DynamicSerialImage::ImageLumaA8(_) => color::ColorType::La8,
+            DynamicSerialImage::ImageRgb8(_) => color::ColorType::Rgb8,
+            DynamicSerialImage::ImageRgba8(_) => color::ColorType::Rgba8,
+            DynamicSerialImage::ImageLuma16(_) => color::ColorType::L16,
+            DynamicSerialImage::ImageLumaA16(_) => color::ColorType::La16,
+            DynamicSerialImage::ImageRgb16(_) => color::ColorType::Rgb16,
+            DynamicSerialImage::ImageRgba16(_) => color::ColorType::Rgba16,
+            DynamicSerialImage::ImageRgb32F(_) => color::ColorType::Rgb32F,
+            DynamicSerialImage::ImageRgba32F(_) => color::ColorType::Rgba32F,
         }
     }
 
@@ -630,29 +723,33 @@ impl DynamicImage {
     /// Return a grayscale version of this image.
     /// Returns `Luma` images in most cases. However, for `f32` images,
     /// this will return a grayscale `Rgb/Rgba` image instead.
-    pub fn grayscale(&self) -> DynamicImage {
+    pub fn grayscale(&self) -> DynamicSerialImage {
         match *self {
-            DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
-            DynamicImage::ImageLumaA8(ref p) => {
-                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
+            DynamicSerialImage::ImageLuma8(ref p) => DynamicSerialImage::ImageLuma8(p.clone()),
+            DynamicSerialImage::ImageLumaA8(ref p) => {
+                DynamicSerialImage::ImageLumaA8(imageops::grayscale_alpha(p))
             }
-            DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
-            DynamicImage::ImageRgba8(ref p) => {
-                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
+            DynamicSerialImage::ImageRgb8(ref p) => {
+                DynamicSerialImage::ImageLuma8(imageops::grayscale(p))
             }
-            DynamicImage::ImageLuma16(ref p) => DynamicImage::ImageLuma16(p.clone()),
-            DynamicImage::ImageLumaA16(ref p) => {
-                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
+            DynamicSerialImage::ImageRgba8(ref p) => {
+                DynamicSerialImage::ImageLumaA8(imageops::grayscale_alpha(p))
             }
-            DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
-            DynamicImage::ImageRgba16(ref p) => {
-                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
+            DynamicSerialImage::ImageLuma16(ref p) => DynamicSerialImage::ImageLuma16(p.clone()),
+            DynamicSerialImage::ImageLumaA16(ref p) => {
+                DynamicSerialImage::ImageLumaA16(imageops::grayscale_alpha(p))
             }
-            DynamicImage::ImageRgb32F(ref p) => {
-                DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p))
+            DynamicSerialImage::ImageRgb16(ref p) => {
+                DynamicSerialImage::ImageLuma16(imageops::grayscale(p))
             }
-            DynamicImage::ImageRgba32F(ref p) => {
-                DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
+            DynamicSerialImage::ImageRgba16(ref p) => {
+                DynamicSerialImage::ImageLumaA16(imageops::grayscale_alpha(p))
+            }
+            DynamicSerialImage::ImageRgb32F(ref p) => {
+                DynamicSerialImage::ImageRgb32F(imageops::grayscale_with_type(p))
+            }
+            DynamicSerialImage::ImageRgba32F(ref p) => {
+                DynamicSerialImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
             }
         }
     }
@@ -667,7 +764,12 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
-    pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
+    pub fn resize(
+        &self,
+        nwidth: u32,
+        nheight: u32,
+        filter: imageops::FilterType,
+    ) -> DynamicSerialImage {
         if (nwidth, nheight) == self.dimensions() {
             return self.clone();
         }
@@ -685,7 +787,7 @@ impl DynamicImage {
         nwidth: u32,
         nheight: u32,
         filter: imageops::FilterType,
-    ) -> DynamicImage {
+    ) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
     }
 
@@ -697,7 +799,7 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
-    pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+    pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicSerialImage {
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
         self.thumbnail_exact(width2, height2)
@@ -709,7 +811,7 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
-    pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+    pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
     }
 
@@ -724,7 +826,7 @@ impl DynamicImage {
         nwidth: u32,
         nheight: u32,
         filter: imageops::FilterType,
-    ) -> DynamicImage {
+    ) -> DynamicSerialImage {
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
 
@@ -742,7 +844,7 @@ impl DynamicImage {
 
     /// Performs a Gaussian blur on this image.
     /// `sigma` is a measure of how much to blur by.
-    pub fn blur(&self, sigma: f32) -> DynamicImage {
+    pub fn blur(&self, sigma: f32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
@@ -751,12 +853,12 @@ impl DynamicImage {
     /// `threshold` is a control of how much to sharpen.
     ///
     /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
-    pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
+    pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
 
     /// Filters this image with the specified 3x3 kernel.
-    pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
+    pub fn filter3x3(&self, kernel: &[f32]) -> DynamicSerialImage {
         if kernel.len() != 9 {
             panic!("filter must be 3 x 3")
         }
@@ -767,14 +869,14 @@ impl DynamicImage {
     /// Adjust the contrast of this image.
     /// `contrast` is the amount to adjust the contrast by.
     /// Negative values decrease the contrast and positive values increase the contrast.
-    pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
+    pub fn adjust_contrast(&self, c: f32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }
 
     /// Brighten the pixels of this image.
     /// `value` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.
-    pub fn brighten(&self, value: i32) -> DynamicImage {
+    pub fn brighten(&self, value: i32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
     }
 
@@ -782,32 +884,32 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
-    pub fn huerotate(&self, value: i32) -> DynamicImage {
+    pub fn huerotate(&self, value: i32) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
     }
 
     /// Flip this image vertically
-    pub fn flipv(&self) -> DynamicImage {
+    pub fn flipv(&self) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
     }
 
     /// Flip this image horizontally
-    pub fn fliph(&self) -> DynamicImage {
+    pub fn fliph(&self) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
     }
 
     /// Rotate this image 90 degrees clockwise.
-    pub fn rotate90(&self) -> DynamicImage {
+    pub fn rotate90(&self) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::rotate90(p))
     }
 
     /// Rotate this image 180 degrees clockwise.
-    pub fn rotate180(&self) -> DynamicImage {
+    pub fn rotate180(&self) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))
     }
 
     /// Rotate this image 270 degrees clockwise.
-    pub fn rotate270(&self) -> DynamicImage {
+    pub fn rotate270(&self) -> DynamicSerialImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
@@ -870,80 +972,80 @@ impl DynamicImage {
     }
 }
 
-impl From<GrayImage> for DynamicImage {
-    fn from(image: GrayImage) -> Self {
-        DynamicImage::ImageLuma8(image)
+impl From<SerialGrayImage> for DynamicSerialImage {
+    fn from(image: SerialGrayImage) -> Self {
+        DynamicSerialImage::ImageLuma8(image)
     }
 }
 
-impl From<GrayAlphaImage> for DynamicImage {
-    fn from(image: GrayAlphaImage) -> Self {
-        DynamicImage::ImageLumaA8(image)
+impl From<SerialGrayAlphaImage> for DynamicSerialImage {
+    fn from(image: SerialGrayAlphaImage) -> Self {
+        DynamicSerialImage::ImageLumaA8(image)
     }
 }
 
-impl From<RgbImage> for DynamicImage {
-    fn from(image: RgbImage) -> Self {
-        DynamicImage::ImageRgb8(image)
+impl From<SerialRgbImage> for DynamicSerialImage {
+    fn from(image: SerialRgbImage) -> Self {
+        DynamicSerialImage::ImageRgb8(image)
     }
 }
 
-impl From<RgbaImage> for DynamicImage {
-    fn from(image: RgbaImage) -> Self {
-        DynamicImage::ImageRgba8(image)
+impl From<SerialRgbaImage> for DynamicSerialImage {
+    fn from(image: SerialRgbaImage) -> Self {
+        DynamicSerialImage::ImageRgba8(image)
     }
 }
 
-impl From<Gray16Image> for DynamicImage {
-    fn from(image: Gray16Image) -> Self {
-        DynamicImage::ImageLuma16(image)
+impl From<SerialGray16Image> for DynamicSerialImage {
+    fn from(image: SerialGray16Image) -> Self {
+        DynamicSerialImage::ImageLuma16(image)
     }
 }
 
-impl From<GrayAlpha16Image> for DynamicImage {
-    fn from(image: GrayAlpha16Image) -> Self {
-        DynamicImage::ImageLumaA16(image)
+impl From<SerialGrayAlpha16Image> for DynamicSerialImage {
+    fn from(image: SerialGrayAlpha16Image) -> Self {
+        DynamicSerialImage::ImageLumaA16(image)
     }
 }
 
-impl From<Rgb16Image> for DynamicImage {
-    fn from(image: Rgb16Image) -> Self {
-        DynamicImage::ImageRgb16(image)
+impl From<SerialRgb16Image> for DynamicSerialImage {
+    fn from(image: SerialRgb16Image) -> Self {
+        DynamicSerialImage::ImageRgb16(image)
     }
 }
 
-impl From<Rgba16Image> for DynamicImage {
-    fn from(image: Rgba16Image) -> Self {
-        DynamicImage::ImageRgba16(image)
+impl From<SerialRgba16Image> for DynamicSerialImage {
+    fn from(image: SerialRgba16Image) -> Self {
+        DynamicSerialImage::ImageRgba16(image)
     }
 }
 
-impl From<Rgb32FImage> for DynamicImage {
-    fn from(image: Rgb32FImage) -> Self {
-        DynamicImage::ImageRgb32F(image)
+impl From<SerialRgb32FImage> for DynamicSerialImage {
+    fn from(image: SerialRgb32FImage) -> Self {
+        DynamicSerialImage::ImageRgb32F(image)
     }
 }
 
-impl From<Rgba32FImage> for DynamicImage {
-    fn from(image: Rgba32FImage) -> Self {
-        DynamicImage::ImageRgba32F(image)
+impl From<SerialRgba32FImage> for DynamicSerialImage {
+    fn from(image: SerialRgba32FImage) -> Self {
+        DynamicSerialImage::ImageRgba32F(image)
     }
 }
 
-impl From<ImageBuffer<Luma<f32>, Vec<f32>>> for DynamicImage {
-    fn from(image: ImageBuffer<Luma<f32>, Vec<f32>>) -> Self {
-        DynamicImage::ImageRgb32F(image.convert())
+impl From<SerialImageBuffer<Luma<f32>, Vec<f32>>> for DynamicSerialImage {
+    fn from(image: SerialImageBuffer<Luma<f32>, Vec<f32>>) -> Self {
+        DynamicSerialImage::ImageRgb32F(image.convert())
     }
 }
 
-impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
-    fn from(image: ImageBuffer<LumaA<f32>, Vec<f32>>) -> Self {
-        DynamicImage::ImageRgba32F(image.convert())
+impl From<SerialImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicSerialImage {
+    fn from(image: SerialImageBuffer<LumaA<f32>, Vec<f32>>) -> Self {
+        DynamicSerialImage::ImageRgba32F(image.convert())
     }
 }
 
 #[allow(deprecated)]
-impl GenericImageView for DynamicImage {
+impl GenericImageView for DynamicSerialImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
     fn dimensions(&self) -> (u32, u32) {
@@ -956,42 +1058,52 @@ impl GenericImageView for DynamicImage {
 }
 
 #[allow(deprecated)]
-impl GenericImage for DynamicImage {
+impl SerialGenericImage for DynamicSerialImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => {
+            DynamicSerialImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
+            DynamicSerialImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
+            DynamicSerialImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
+            DynamicSerialImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
+            DynamicSerialImage::ImageLuma16(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_luma().into_color())
+            }
+            DynamicSerialImage::ImageLumaA16(ref mut p) => {
                 p.put_pixel(x, y, pixel.to_luma_alpha().into_color())
             }
-            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicSerialImage::ImageRgb16(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_rgb().into_color())
+            }
+            DynamicSerialImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicSerialImage::ImageRgb32F(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_rgb().into_color())
+            }
+            DynamicSerialImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
         }
     }
 
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => {
+            DynamicSerialImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
+            DynamicSerialImage::ImageLumaA8(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_luma_alpha())
+            }
+            DynamicSerialImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
+            DynamicSerialImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
+            DynamicSerialImage::ImageLuma16(ref mut p) => {
                 p.blend_pixel(x, y, pixel.to_luma().into_color())
             }
-            DynamicImage::ImageLumaA16(ref mut p) => {
+            DynamicSerialImage::ImageLumaA16(ref mut p) => {
                 p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
             }
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => {
+            DynamicSerialImage::ImageRgb16(ref mut p) => {
                 p.blend_pixel(x, y, pixel.to_rgb().into_color())
             }
-            DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicSerialImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicSerialImage::ImageRgb32F(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_rgb().into_color())
+            }
+            DynamicSerialImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
         }
     }
 
@@ -1001,66 +1113,66 @@ impl GenericImage for DynamicImage {
     }
 }
 
-impl Default for DynamicImage {
+impl Default for DynamicSerialImage {
     fn default() -> Self {
         Self::ImageRgba8(Default::default())
     }
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicSerialImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
     let image = match color_type {
         color::ColorType::Rgb8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
+            SerialImageBuffer::from_raw(w, h, buf).map(DynamicSerialImage::ImageLumaA16)
         }
     };
 
@@ -1079,7 +1191,7 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
 /// content before its path.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
-pub fn open<P>(path: P) -> ImageResult<DynamicImage>
+pub fn open<P>(path: P) -> ImageResult<DynamicSerialImage>
 where
     P: AsRef<Path>,
 {
@@ -1172,7 +1284,7 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
-pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
+pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicSerialImage> {
     let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
 }
@@ -1187,7 +1299,10 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// [`load`]: fn.load.html
 /// [`io::Reader`]: io/struct.Reader.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load_from_memory_with_format(
+    buf: &[u8],
+    format: ImageFormat,
+) -> ImageResult<DynamicSerialImage> {
     let b = io::Cursor::new(buf);
     free_functions::load(b, format)
 }
@@ -1197,7 +1312,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
-        let a = super::DynamicImage::ImageRgb8(crate::ImageBuffer::new(1000, 1000));
+        let a = super::DynamicSerialImage::ImageRgb8(crate::SerialImageBuffer::new(1000, 1000));
         b.iter(|| a.to_luma8());
         b.bytes = 1000 * 1000 * 3
     }
@@ -1228,8 +1343,8 @@ mod test {
         assert_eq!(image.color(), ColorType::Rgba16);
     }
 
-    fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
-        use crate::image::{GenericImage, GenericImageView};
+    fn test_grayscale(mut img: super::DynamicSerialImage, alpha_discarded: bool) {
+        use crate::image::{GenericImageView, SerialGenericImage};
         img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(
@@ -1238,96 +1353,96 @@ mod test {
         );
     }
 
-    fn test_grayscale_alpha_discarded(img: super::DynamicImage) {
+    fn test_grayscale_alpha_discarded(img: super::DynamicSerialImage) {
         test_grayscale(img, true);
     }
 
-    fn test_grayscale_alpha_preserved(img: super::DynamicImage) {
+    fn test_grayscale_alpha_preserved(img: super::DynamicSerialImage) {
         test_grayscale(img, false);
     }
 
     #[test]
     fn test_grayscale_luma8() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_luma8(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L8));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new_luma8(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new(1, 1, ColorType::L8));
     }
 
     #[test]
     fn test_grayscale_luma_a8() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a8(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La8));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new_luma_a8(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new(1, 1, ColorType::La8));
     }
 
     #[test]
     fn test_grayscale_rgb8() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb8(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb8));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new_rgb8(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new(1, 1, ColorType::Rgb8));
     }
 
     #[test]
     fn test_grayscale_rgba8() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba8(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba8));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new_rgba8(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new(1, 1, ColorType::Rgba8));
     }
 
     #[test]
     fn test_grayscale_luma16() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_luma16(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L16));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new_luma16(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new(1, 1, ColorType::L16));
     }
 
     #[test]
     fn test_grayscale_luma_a16() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a16(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La16));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new_luma_a16(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new(1, 1, ColorType::La16));
     }
 
     #[test]
     fn test_grayscale_rgb16() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb16(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb16));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new_rgb16(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new(1, 1, ColorType::Rgb16));
     }
 
     #[test]
     fn test_grayscale_rgba16() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba16(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba16));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new_rgba16(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new(1, 1, ColorType::Rgba16));
     }
 
     #[test]
     fn test_grayscale_rgb32f() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb32f(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb32F));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new_rgb32f(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicSerialImage::new(1, 1, ColorType::Rgb32F));
     }
 
     #[test]
     fn test_grayscale_rgba32f() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba32F));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new_rgba32f(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicSerialImage::new(1, 1, ColorType::Rgba32F));
     }
 
     #[test]
     fn test_dynamic_image_default_implementation() {
-        // Test that structs wrapping a DynamicImage are able to auto-derive the Default trait
-        // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
+        // Test that structs wrapping a DynamicSerialImage are able to auto-derive the Default trait
+        // ensures that DynamicSerialImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
         struct Foo {
-            _image: super::DynamicImage,
+            _image: super::DynamicSerialImage,
         }
     }
 
     #[test]
     fn test_to_vecu8() {
-        let _ = super::DynamicImage::new_luma8(1, 1).into_bytes();
-        let _ = super::DynamicImage::new_luma16(1, 1).into_bytes();
+        let _ = super::DynamicSerialImage::new_luma8(1, 1).into_bytes();
+        let _ = super::DynamicSerialImage::new_luma16(1, 1).into_bytes();
     }
 
     #[test]
     fn issue_1705_can_turn_16bit_image_into_bytes() {
         let pixels = vec![65535u16; 64 * 64];
-        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+        let img = super::SerialImageBuffer::from_vec(64, 64, pixels).unwrap();
 
-        let img = super::DynamicImage::ImageLuma16(img);
+        let img = super::DynamicSerialImage::ImageLuma16(img);
         assert!(img.as_luma16().is_some());
 
         let bytes: Vec<u8> = img.into_bytes();

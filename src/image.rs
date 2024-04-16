@@ -11,7 +11,7 @@ use crate::error::{
 };
 use crate::math::Rect;
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::SerialImageBuffer;
 
 use crate::animation::Frames;
 
@@ -813,9 +813,9 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 /// Trait to inspect an image.
 ///
 /// ```
-/// use image::{GenericImageView, Rgb, RgbImage};
+/// use image::{GenericImageView, Rgb, SerialRgbImage};
 ///
-/// let buffer = RgbImage::new(10, 10);
+/// let buffer = SerialRgbImage::new(10, 10);
 /// let image: &dyn GenericImageView<Pixel=Rgb<u8>> = &buffer;
 /// ```
 pub trait GenericImageView {
@@ -881,7 +881,7 @@ pub trait GenericImageView {
     }
 
     /// Returns a subimage that is an immutable view into this image.
-    /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
+    /// You can use [`SerialGenericImage::sub_image`] if you need a mutable view instead.
     /// The coordinates set the position of the top left corner of the view.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
     where
@@ -894,7 +894,7 @@ pub trait GenericImageView {
 }
 
 /// A trait for manipulating images.
-pub trait GenericImage: GenericImageView {
+pub trait SerialGenericImage: GenericImageView {
     /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
     ///
     /// # Panics
@@ -1043,21 +1043,21 @@ pub trait GenericImage: GenericImageView {
 /// A View into another image
 ///
 /// Instances of this struct can be created using:
-///   - [`GenericImage::sub_image`] to create a mutable view,
+///   - [`SerialGenericImage::sub_image`] to create a mutable view,
 ///   - [`GenericImageView::view`] to create an immutable view,
 ///   - [`SubImage::new`] to instantiate the struct directly.
 ///
-/// Note that this does _not_ implement `GenericImage`, but it dereferences to one which allows you
+/// Note that this does _not_ implement `SerialGenericImage`, but it dereferences to one which allows you
 /// to use it as if it did. See [Design Considerations](#Design-Considerations) below for details.
 ///
 /// # Design Considerations
 ///
-/// For reasons relating to coherence, this is not itself a `GenericImage` or a `GenericImageView`.
+/// For reasons relating to coherence, this is not itself a `SerialGenericImage` or a `GenericImageView`.
 /// In short, we want to reserve the ability of adding traits implemented for _all_ generic images
 /// but in a different manner for `SubImage`. This may be required to ensure that stacking
 /// sub-images comes at no double indirect cost.
 ///
-/// If, ultimately, this is not needed then a directly implementation of `GenericImage` can and
+/// If, ultimately, this is not needed then a directly implementation of `SerialGenericImage` can and
 /// will get added. This inconvenience may alternatively get resolved if Rust allows some forms of
 /// specialization, which might make this trick unnecessary and thus also allows for a direct
 /// implementation.
@@ -1066,7 +1066,7 @@ pub struct SubImage<I> {
     inner: SubImageInner<I>,
 }
 
-/// The inner type of `SubImage` that implements `GenericImage{,View}`.
+/// The inner type of `SubImage` that implements `SerialGenericImage{,View}`.
 ///
 /// This type is _nominally_ `pub` but it is not exported from the crate. It should be regarded as
 /// an existential type in any case.
@@ -1113,13 +1113,13 @@ impl<I> SubImage<I> {
         (self.inner.xoffset, self.inner.yoffset)
     }
 
-    /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
+    /// Convert this subimage to an SerialImageBuffer
+    pub fn to_image(&self) -> SerialImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
         I: Deref,
         I::Target: GenericImageView + 'static,
     {
-        let mut out = ImageBuffer::new(self.inner.xstride, self.inner.ystride);
+        let mut out = SerialImageBuffer::new(self.inner.xstride, self.inner.ystride);
         let borrowed = self.inner.image.deref();
 
         for y in 0..self.inner.ystride {
@@ -1148,11 +1148,11 @@ where
     /// extra level of indirection.
     ///
     /// ```
-    /// use image::{GenericImageView, RgbImage, SubImage};
-    /// let buffer = RgbImage::new(10, 10);
+    /// use image::{GenericImageView, SerialRgbImage, SubImage};
+    /// let buffer = SerialRgbImage::new(10, 10);
     ///
-    /// let subimage: SubImage<&RgbImage> = buffer.view(0, 0, 10, 10);
-    /// let subview: SubImage<&RgbImage> = subimage.view(0, 0, 10, 10);
+    /// let subimage: SubImage<&SerialRgbImage> = buffer.view(0, 0, 10, 10);
+    /// let subview: SubImage<&SerialRgbImage> = subimage.view(0, 0, 10, 10);
     ///
     /// // Less efficient and NOT &RgbImage
     /// let _: SubImage<&_> = GenericImageView::view(&*subimage, 0, 0, 10, 10);
@@ -1175,7 +1175,7 @@ where
 impl<I> SubImage<I>
 where
     I: DerefMut,
-    I::Target: GenericImage,
+    I::Target: SerialGenericImage,
 {
     /// Create a mutable sub-view of the image.
     ///
@@ -1237,10 +1237,10 @@ where
 }
 
 #[allow(deprecated)]
-impl<I> GenericImage for SubImageInner<I>
+impl<I> SerialGenericImage for SubImageInner<I>
 where
     I: DerefMut,
-    I::Target: GenericImage + Sized,
+    I::Target: SerialGenericImage + Sized,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
@@ -1265,18 +1265,18 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        load_rect, ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat,
+        load_rect, ColorType, SerialGenericImage, GenericImageView, ImageDecoder, ImageFormat,
         ImageResult,
     };
     use crate::color::Rgba;
     use crate::math::Rect;
-    use crate::{GrayImage, ImageBuffer};
+    use crate::{SerialGrayImage, SerialImageBuffer};
 
     #[test]
     #[allow(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
-        let mut target = ImageBuffer::new(1, 1);
+        let mut target = SerialImageBuffer::new(1, 1);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
         assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
         target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
@@ -1294,7 +1294,7 @@ mod tests {
 
     #[test]
     fn test_in_bounds() {
-        let mut target = ImageBuffer::new(2, 2);
+        let mut target = SerialImageBuffer::new(2, 2);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
 
         assert!(target.in_bounds(0, 0));
@@ -1309,7 +1309,7 @@ mod tests {
 
     #[test]
     fn test_can_subimage_clone_nonmut() {
-        let mut source = ImageBuffer::new(3, 3);
+        let mut source = SerialImageBuffer::new(3, 3);
         source.put_pixel(1, 1, Rgba([255u8, 0, 0, 255]));
 
         // A non-mutable copy of the source image
@@ -1323,7 +1323,7 @@ mod tests {
 
     #[test]
     fn test_can_nest_views() {
-        let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let mut source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
 
         {
             let mut sub1 = source.sub_image(0, 0, 2, 2);
@@ -1343,48 +1343,48 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_view_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(1, 1, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_coordinates_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(3, 3, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_width_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(1, 1, 3, 2);
     }
 
     #[test]
     #[should_panic]
     fn test_view_height_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(1, 1, 2, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_x_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(3, 1, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_y_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(1, 3, 3, 3);
     }
 
     #[test]
     fn test_view_in_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         source.view(0, 0, 3, 3);
         source.view(1, 1, 2, 2);
         source.view(2, 2, 0, 0);
@@ -1392,7 +1392,7 @@ mod tests {
 
     #[test]
     fn test_copy_sub_image() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = SerialImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
         let view = source.view(0, 0, 3, 3);
         let _view2 = view;
         view.to_image();
@@ -1605,7 +1605,7 @@ mod tests {
 
     #[test]
     fn test_generic_image_copy_within_oob() {
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
         assert!(!image.sub_image(0, 0, 4, 4).copy_within(
             Rect {
                 x: 0,
@@ -1682,7 +1682,7 @@ mod tests {
     fn test_generic_image_copy_within_tl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 4, 0, 1, 2, 8, 4, 5, 6, 12, 8, 9, 10];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.sub_image(0, 0, 4, 4).copy_within(
             Rect {
                 x: 0,
@@ -1700,7 +1700,7 @@ mod tests {
     fn test_generic_image_copy_within_tr() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 1, 2, 3, 7, 5, 6, 7, 11, 9, 10, 11, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.sub_image(0, 0, 4, 4).copy_within(
             Rect {
                 x: 1,
@@ -1718,7 +1718,7 @@ mod tests {
     fn test_generic_image_copy_within_bl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 4, 5, 6, 4, 8, 9, 10, 8, 12, 13, 14, 12, 13, 14, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.sub_image(0, 0, 4, 4).copy_within(
             Rect {
                 x: 0,
@@ -1736,7 +1736,7 @@ mod tests {
     fn test_generic_image_copy_within_br() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [5, 6, 7, 3, 9, 10, 11, 7, 13, 14, 15, 11, 12, 13, 14, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.sub_image(0, 0, 4, 4).copy_within(
             Rect {
                 x: 1,

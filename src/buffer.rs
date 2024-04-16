@@ -1,5 +1,6 @@
-//! Contains the generic `ImageBuffer` struct.
+//! Contains the generic `SerialImageBuffer` struct.
 use num_traits::Zero;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
@@ -10,11 +11,11 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};
+use crate::image::{GenericImageView, ImageEncoder, ImageFormat, SerialGenericImage};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
-use crate::DynamicImage;
+use crate::{DynamicSerialImage, ImageMetadata};
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -140,9 +141,9 @@ where
 
 /// Iterate over rows of an image
 ///
-/// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
+/// This iterator is created with [`SerialImageBuffer::rows`]. See its document for details.
 ///
-/// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
+/// [`SerialImageBuffer::rows`]: ../struct.SerialImageBuffer.html#method.rows
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -238,9 +239,9 @@ where
 
 /// Iterate over mutable rows of an image
 ///
-/// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
+/// This iterator is created with [`SerialImageBuffer::rows_mut`]. See its document for details.
 ///
-/// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
+/// [`SerialImageBuffer::rows_mut`]: ../struct.SerialImageBuffer.html#method.rows_mut
 pub struct RowsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -588,25 +589,25 @@ where
 ///
 /// This is an image parameterised by its Pixel types, represented by a width and height and a
 /// container of channel data. It provides direct access to its pixels and implements the
-/// [`GenericImageView`] and [`GenericImage`] traits. In many ways, this is the standard buffer
+/// [`GenericImageView`] and [`SerialGenericImage`] traits. In many ways, this is the standard buffer
 /// implementing those traits. Using this concrete type instead of a generic type parameter has
 /// been shown to improve performance.
 ///
 /// The crate defines a few type aliases with regularly used pixel types for your convenience, such
 /// as [`RgbImage`], [`GrayImage`] etc.
 ///
-/// [`GenericImage`]: trait.GenericImage.html
+/// [`SerialGenericImage`]: trait.SerialGenericImage.html
 /// [`GenericImageView`]: trait.GenericImageView.html
 /// [`RgbImage`]: type.RgbImage.html
 /// [`GrayImage`]: type.GrayImage.html
 ///
-/// To convert between images of different Pixel types use [`DynamicImage`].
+/// To convert between images of different Pixel types use [`DynamicSerialImage`].
 ///
 /// You can retrieve a complete description of the buffer's layout and contents through
 /// [`as_flat_samples`] and [`as_flat_samples_mut`]. This can be handy to also use the contents in
 /// a foreign language, map it as a GPU host buffer or other similar tasks.
 ///
-/// [`DynamicImage`]: enum.DynamicImage.html
+/// [`DynamicSerialImage`]: enum.DynamicSerialImage.html
 /// [`as_flat_samples`]: #method.as_flat_samples
 /// [`as_flat_samples_mut`]: #method.as_flat_samples_mut
 ///
@@ -615,9 +616,9 @@ where
 /// Create a simple canvas and paint a small cross.
 ///
 /// ```
-/// use image::{RgbImage, Rgb};
+/// use image::{SerialRgbImage, Rgb};
 ///
-/// let mut img = RgbImage::new(32, 32);
+/// let mut img = SerialRgbImage::new(32, 32);
 ///
 /// for x in 15..=17 {
 ///     for y in 8..24 {
@@ -630,10 +631,10 @@ where
 /// Overlays an image on top of a larger background raster.
 ///
 /// ```no_run
-/// use image::{GenericImage, GenericImageView, ImageBuffer, open};
+/// use image::{SerialGenericImage, GenericImageView, SerialImageBuffer, open};
 ///
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
-/// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
+/// let mut img = SerialImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
 ///         image::Rgb([0, 0, 0])
 ///     } else {
@@ -647,21 +648,32 @@ where
 /// Convert an RgbaImage to a GrayImage.
 ///
 /// ```no_run
-/// use image::{open, DynamicImage};
+/// use image::{open, DynamicSerialImage};
 ///
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
-/// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
+/// let gray = DynamicSerialImage::ImageRgba8(rgba).into_luma8();
 /// ```
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct ImageBuffer<P: Pixel, Container> {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq)]
+pub struct SerialImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     _phantom: PhantomData<P>,
     data: Container,
+    meta: Option<ImageMetadata>,
+}
+
+use std::hash::{Hash, Hasher};
+
+impl<P: Pixel, Container: Hash> Hash for SerialImageBuffer<P, Container> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.width.hash(state);
+        self.height.hash(state);
+        self.data.hash(state);
+    }
 }
 
 // generic implementation, shared along all image buffers
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -671,13 +683,18 @@ where
     ///
     /// Returns `None` if the container is not big enough (including when the image dimensions
     /// necessitate an allocation of more bytes than supported by the container).
-    pub fn from_raw(width: u32, height: u32, buf: Container) -> Option<ImageBuffer<P, Container>> {
+    pub fn from_raw(
+        width: u32,
+        height: u32,
+        buf: Container,
+    ) -> Option<SerialImageBuffer<P, Container>> {
         if Self::check_image_fits(width, height, buf.len()) {
-            Some(ImageBuffer {
+            Some(SerialImageBuffer {
                 data: buf,
                 width,
                 height,
                 _phantom: PhantomData,
+                meta: None,
             })
         } else {
             None
@@ -881,9 +898,24 @@ where
             color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
+
+    /// Get the metadata of the image.
+    pub fn get_metadata(&self) -> Option<&ImageMetadata> {
+        self.meta.as_ref()
+    }
+
+    /// Set the metadata of the image.
+    pub fn set_metadata(&mut self, meta: ImageMetadata) {
+        self.meta = Some(meta);
+    }
+
+    /// Drop the metadata of the image.
+    pub fn drop_metadata(&mut self) {
+        self.meta = None;
+    }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -984,7 +1016,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1008,7 +1040,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1036,7 +1068,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1063,7 +1095,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1085,7 +1117,7 @@ where
     }
 }
 
-impl<P, Container> Default for ImageBuffer<P, Container>
+impl<P, Container> Default for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Default,
@@ -1096,11 +1128,12 @@ where
             height: 0,
             _phantom: PhantomData,
             data: Default::default(),
+            meta: None,
         }
     }
 }
 
-impl<P, Container> Deref for ImageBuffer<P, Container>
+impl<P, Container> Deref for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -1112,7 +1145,7 @@ where
     }
 }
 
-impl<P, Container> DerefMut for ImageBuffer<P, Container>
+impl<P, Container> DerefMut for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1122,7 +1155,7 @@ where
     }
 }
 
-impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
+impl<P, Container> Index<(u32, u32)> for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -1134,7 +1167,7 @@ where
     }
 }
 
-impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
+impl<P, Container> IndexMut<(u32, u32)> for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1144,22 +1177,23 @@ where
     }
 }
 
-impl<P, Container> Clone for ImageBuffer<P, Container>
+impl<P, Container> Clone for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Clone,
 {
-    fn clone(&self) -> ImageBuffer<P, Container> {
-        ImageBuffer {
+    fn clone(&self) -> SerialImageBuffer<P, Container> {
+        SerialImageBuffer {
             data: self.data.clone(),
             width: self.width,
             height: self.height,
             _phantom: PhantomData,
+            meta: self.meta.clone(),
         }
     }
 }
 
-impl<P, Container> GenericImageView for ImageBuffer<P, Container>
+impl<P, Container> GenericImageView for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Deref,
@@ -1182,7 +1216,7 @@ where
     }
 }
 
-impl<P, Container> GenericImage for ImageBuffer<P, Container>
+impl<P, Container> SerialGenericImage for SerialImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1254,48 +1288,49 @@ where
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
+impl<P: Pixel> SerialImageBuffer<P, Vec<P::Subpixel>> {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
-    pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
+    pub fn new(width: u32, height: u32) -> SerialImageBuffer<P, Vec<P::Subpixel>> {
         let size = Self::image_buffer_len(width, height)
-            .expect("Buffer length in `ImageBuffer::new` overflows usize");
-        ImageBuffer {
+            .expect("Buffer length in `SerialImageBuffer::new` overflows usize");
+        SerialImageBuffer {
             data: vec![Zero::zero(); size],
             width,
             height,
             _phantom: PhantomData,
+            meta: None,
         }
     }
 
-    /// Constructs a new ImageBuffer by copying a pixel
+    /// Constructs a new SerialImageBuffer by copying a pixel
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger the the maximum size of a vector.
-    pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
-        let mut buf = ImageBuffer::new(width, height);
+    pub fn from_pixel(width: u32, height: u32, pixel: P) -> SerialImageBuffer<P, Vec<P::Subpixel>> {
+        let mut buf = SerialImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
             *p = pixel
         }
         buf
     }
 
-    /// Constructs a new ImageBuffer by repeated application of the supplied function.
+    /// Constructs a new SerialImageBuffer by repeated application of the supplied function.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger the the maximum size of a vector.
-    pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
+    pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> SerialImageBuffer<P, Vec<P::Subpixel>>
     where
         F: FnMut(u32, u32) -> P,
     {
-        let mut buf = ImageBuffer::new(width, height);
+        let mut buf = SerialImageBuffer::new(width, height);
         for (x, y, p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)
         }
@@ -1308,8 +1343,8 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
         width: u32,
         height: u32,
         buf: Vec<P::Subpixel>,
-    ) -> Option<ImageBuffer<P, Vec<P::Subpixel>>> {
-        ImageBuffer::from_raw(width, height, buf)
+    ) -> Option<SerialImageBuffer<P, Vec<P::Subpixel>>> {
+        SerialImageBuffer::from_raw(width, height, buf)
     }
 
     /// Consumes the image buffer and returns the underlying data
@@ -1329,7 +1364,7 @@ pub trait ConvertBuffer<T> {
 }
 
 // concrete implementation Luma -> Rgba
-impl GrayImage {
+impl SerialGrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
     /// adjust it's alpha value accordingly.
@@ -1337,12 +1372,12 @@ impl GrayImage {
         self,
         palette: &[(u8, u8, u8)],
         transparent_idx: Option<u8>,
-    ) -> RgbaImage {
+    ) -> SerialRgbaImage {
         let (width, height) = self.dimensions();
         let mut data = self.into_raw();
         let entries = data.len();
         data.resize(entries.checked_mul(4).unwrap(), 0);
-        let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
+        let mut buffer = SerialImageBuffer::from_vec(width, height, data).unwrap();
         expand_packed(&mut buffer, 4, 8, |idx, pixel| {
             let (r, g, b) = palette[idx as usize];
             let a = if let Some(t_idx) = transparent_idx {
@@ -1367,7 +1402,8 @@ impl GrayImage {
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
 impl<Container, FromType: Pixel, ToType: Pixel>
-    ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
+    ConvertBuffer<SerialImageBuffer<ToType, Vec<ToType::Subpixel>>>
+    for SerialImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Subpixel]>,
     ToType: FromColor<FromType>,
@@ -1376,18 +1412,18 @@ where
     /// Convert RGB image to gray image.
     /// ```no_run
     /// use image::buffer::ConvertBuffer;
-    /// use image::GrayImage;
+    /// use image::SerialGrayImage;
     ///
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba8();
     ///
-    /// let gray_image: GrayImage = image.convert();
+    /// let gray_image: SerialGrayImage = image.convert();
     /// ```
-    fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
-        let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
-            ImageBuffer::new(self.width, self.height);
+    fn convert(&self) -> SerialImageBuffer<ToType, Vec<ToType::Subpixel>> {
+        let mut buffer: SerialImageBuffer<ToType, Vec<ToType::Subpixel>> =
+            SerialImageBuffer::new(self.width, self.height);
         for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
             to.from_color(from)
         }
@@ -1396,103 +1432,317 @@ where
 }
 
 /// Sendable Rgb image buffer
-pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
+pub type SerialRgbImage = SerialImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer
-pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
+pub type SerialRgbaImage = SerialImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer
-pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
+pub type SerialGrayImage = SerialImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
-pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
+pub type SerialGrayAlphaImage = SerialImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
-pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
+pub(crate) type SerialRgb16Image = SerialImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer
-pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
+pub(crate) type SerialRgba16Image = SerialImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
-pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+pub(crate) type SerialGray16Image = SerialImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
-pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
+pub(crate) type SerialGrayAlpha16Image = SerialImageBuffer<LumaA<u16>, Vec<u16>>;
+
+#[cfg(feature="fitsio")]
+use fitsio::{errors::Error as FitsError, images::ImageType};
+#[cfg(feature="fitsio")]
+use std::path::PathBuf;
+#[cfg(feature="fitsio")]
+impl SerialRgbImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedByte,
+                3
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialRgbaImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedByte,
+                4
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialGrayImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedByte,
+                1
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialGrayAlphaImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedByte,
+                2
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialRgb16Image {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedShort,
+                3
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialRgba16Image {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedShort,
+                4
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialGray16Image {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedShort,
+                1
+            )
+    }
+}
+
+#[cfg(feature="fitsio")]
+impl SerialGrayAlpha16Image {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::UnsignedShort,
+                2,
+            )
+    }
+}
+
 
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
-pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
+pub type SerialRgb32FImage = SerialImageBuffer<Rgb<f32>, Vec<f32>>;
+#[cfg(feature="fitsio")]
+impl SerialRgb32FImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::Float,
+                3
+            )
+    }
+}
 
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
-pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
+pub type SerialRgba32FImage = SerialImageBuffer<Rgba<f32>, Vec<f32>>;
+#[cfg(feature="fitsio")]
+impl SerialRgba32FImage {
+    /// Save the image buffer to a FITS file.
+    pub fn savefits(&self,
+        dir_prefix: &Path,
+        file_prefix: &str,
+        progname: Option<&str>,
+        compress: bool,
+        overwrite: bool) -> Result<PathBuf, FitsError> {
+            self.savefits_generic(
+                dir_prefix,
+                file_prefix,
+                progname,
+                compress,
+                overwrite,
+                ImageType::Float,
+                4
+            )
+    }
+}
 
-impl From<DynamicImage> for RgbImage {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialRgbImage {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_rgb8()
     }
 }
 
-impl From<DynamicImage> for RgbaImage {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialRgbaImage {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_rgba8()
     }
 }
 
-impl From<DynamicImage> for GrayImage {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialGrayImage {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_luma8()
     }
 }
 
-impl From<DynamicImage> for GrayAlphaImage {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialGrayAlphaImage {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_luma_alpha8()
     }
 }
 
-impl From<DynamicImage> for Rgb16Image {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialRgb16Image {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_rgb16()
     }
 }
 
-impl From<DynamicImage> for Rgba16Image {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialRgba16Image {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_rgba16()
     }
 }
 
-impl From<DynamicImage> for Gray16Image {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialGray16Image {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_luma16()
     }
 }
 
-impl From<DynamicImage> for GrayAlpha16Image {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialGrayAlpha16Image {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_luma_alpha16()
     }
 }
 
-impl From<DynamicImage> for Rgba32FImage {
-    fn from(value: DynamicImage) -> Self {
+impl From<DynamicSerialImage> for SerialRgba32FImage {
+    fn from(value: DynamicSerialImage) -> Self {
         value.into_rgba32f()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{GrayImage, ImageBuffer, RgbImage};
+    use super::{SerialGrayImage, SerialImageBuffer, SerialRgbImage};
     use crate::math::Rect;
-    use crate::GenericImage as _;
     use crate::ImageFormat;
+    use crate::SerialGenericImage as _;
     use crate::{color, Rgb};
 
     #[test]
     /// Tests if image buffers from slices work
     fn slice_buffer() {
         let data = [0; 9];
-        let buf: ImageBuffer<color::Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
+        let buf: SerialImageBuffer<color::Luma<u8>, _> =
+            SerialImageBuffer::from_raw(3, 3, &data[..]).unwrap();
         assert_eq!(&*buf, &data[..])
     }
 
     #[test]
     fn get_pixel() {
-        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
         {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
@@ -1502,7 +1752,7 @@ mod test {
 
     #[test]
     fn get_pixel_checked() {
-        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
         a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
 
         assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
@@ -1514,7 +1764,7 @@ mod test {
 
         // From image/issues/1672
         const WHITE: Rgb<u8> = Rgb([255_u8, 255, 255]);
-        let mut a = RgbImage::new(2, 1);
+        let mut a = SerialRgbImage::new(2, 1);
         a.put_pixel(1, 0, WHITE);
 
         assert_eq!(a.get_pixel_checked(1, 0), Some(&WHITE));
@@ -1523,7 +1773,7 @@ mod test {
 
     #[test]
     fn mut_iter() {
-        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
             *val = Rgb([42, 0, 0]);
@@ -1533,7 +1783,7 @@ mod test {
 
     #[test]
     fn zero_width_zero_height() {
-        let mut image = RgbImage::new(0, 0);
+        let mut image = SerialRgbImage::new(0, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -1543,7 +1793,7 @@ mod test {
 
     #[test]
     fn zero_width_nonzero_height() {
-        let mut image = RgbImage::new(0, 2);
+        let mut image = SerialRgbImage::new(0, 2);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -1553,7 +1803,7 @@ mod test {
 
     #[test]
     fn nonzero_width_zero_height() {
-        let mut image = RgbImage::new(2, 0);
+        let mut image = SerialRgbImage::new(2, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -1563,7 +1813,7 @@ mod test {
 
     #[test]
     fn pixels_on_large_buffer() {
-        let mut image = RgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
+        let mut image = SerialRgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
 
         assert_eq!(image.pixels().count(), 1);
         assert_eq!(image.enumerate_pixels().count(), 1);
@@ -1576,14 +1826,14 @@ mod test {
 
     #[test]
     fn default() {
-        let image = ImageBuffer::<Rgb<u8>, Vec<u8>>::default();
+        let image = SerialImageBuffer::<Rgb<u8>, Vec<u8>>::default();
         assert_eq!(image.dimensions(), (0, 0));
     }
 
     #[test]
     #[rustfmt::skip]
     fn test_image_buffer_copy_within_oob() {
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
+        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
         assert!(!image.copy_within(Rect { x: 0, y: 0, width: 5, height: 4 }, 0, 0));
         assert!(!image.copy_within(Rect { x: 0, y: 0, width: 4, height: 5 }, 0, 0));
         assert!(!image.copy_within(Rect { x: 1, y: 0, width: 4, height: 4 }, 0, 0));
@@ -1597,7 +1847,8 @@ mod test {
     fn test_image_buffer_copy_within_tl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 4, 0, 1, 2, 8, 4, 5, 6, 12, 8, 9, 10];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage =
+            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 0,
@@ -1615,7 +1866,8 @@ mod test {
     fn test_image_buffer_copy_within_tr() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 1, 2, 3, 7, 5, 6, 7, 11, 9, 10, 11, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage =
+            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 1,
@@ -1633,7 +1885,8 @@ mod test {
     fn test_image_buffer_copy_within_bl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 4, 5, 6, 4, 8, 9, 10, 8, 12, 13, 14, 12, 13, 14, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage =
+            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 0,
@@ -1651,7 +1904,8 @@ mod test {
     fn test_image_buffer_copy_within_br() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [5, 6, 7, 3, 9, 10, 11, 7, 13, 14, 15, 11, 12, 13, 14, 15];
-        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: SerialGrayImage =
+            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 1,
@@ -1670,7 +1924,7 @@ mod test {
     fn write_to_with_large_buffer() {
         // A buffer of 1 pixel, padded to 4 bytes as would be common in, e.g. BMP.
 
-        let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
+        let img: SerialGrayImage = SerialImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
         let mut buffer = std::io::Cursor::new(vec![]);
         assert!(img.write_to(&mut buffer, ImageFormat::Png).is_ok());
     }
@@ -1683,7 +1937,7 @@ mod test {
         // This test should work for any size image.
         const N: u32 = 10;
 
-        let mut image = RgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
+        let mut image = SerialRgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
 
         let iter = image.pixels();
         let exact_len = ExactSizeIterator::len(&iter);
@@ -1722,11 +1976,11 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use super::{ConvertBuffer, Pixel, SerialGrayImage, SerialImageBuffer, SerialRgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -1735,7 +1989,7 @@ mod benchmarks {
         }
         assert!(a.data[0] != 0);
         b.iter(|| {
-            let b: GrayImage = a.convert();
+            let b: SerialGrayImage = a.convert();
             assert!(0 != b.data[0]);
             assert!(a.data[0] != b.data[0]);
             test::black_box(b);
@@ -1745,7 +1999,7 @@ mod benchmarks {
 
     #[bench]
     fn image_access_row_by_row(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -1754,7 +2008,7 @@ mod benchmarks {
         }
 
         b.iter(move || {
-            let image: &RgbImage = test::black_box(&a);
+            let image: &SerialRgbImage = test::black_box(&a);
             let mut sum: usize = 0;
             for y in 0..1000 {
                 for x in 0..1000 {
@@ -1772,7 +2026,7 @@ mod benchmarks {
 
     #[bench]
     fn image_access_col_by_col(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -1781,7 +2035,7 @@ mod benchmarks {
         }
 
         b.iter(move || {
-            let image: &RgbImage = test::black_box(&a);
+            let image: &SerialRgbImage = test::black_box(&a);
             let mut sum: usize = 0;
             for x in 0..1000 {
                 for y in 0..1000 {

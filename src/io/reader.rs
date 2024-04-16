@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use crate::dynimage::DynamicImage;
+use crate::dynimage::DynamicSerialImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
 use crate::{ImageDecoder, ImageError, ImageResult};
@@ -257,18 +257,18 @@ impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     /// Uses the current format to construct the correct reader for the format.
     ///
     /// If no format was determined, returns an `ImageError::Unsupported`.
-    pub fn decode(mut self) -> ImageResult<DynamicImage> {
+    pub fn decode(mut self) -> ImageResult<DynamicSerialImage> {
         let format = self.require_format()?;
 
         let mut limits = self.limits;
         let mut decoder = Self::make_decoder(format, self.inner, limits.clone())?;
 
         // Check that we do not allocate a bigger buffer than we are allowed to
-        // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+        // FIXME: should this rather go in `DynamicSerialImage::from_decoder` somehow?
         limits.reserve(decoder.total_bytes())?;
         decoder.set_limits(limits)?;
 
-        DynamicImage::from_decoder(decoder)
+        DynamicSerialImage::from_decoder(decoder)
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {

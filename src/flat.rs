@@ -52,29 +52,29 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{GenericImage, GenericImageView};
+use crate::image::{SerialGenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::SerialImageBuffer;
 
 /// A flat buffer over a (multi channel) image.
 ///
-/// In contrast to `ImageBuffer`, this representation of a sample collection is much more lenient
+/// In contrast to `SerialImageBuffer`, this representation of a sample collection is much more lenient
 /// in the layout thereof. It also allows grouping by color planes instead of by pixel as long as
 /// the strides of each extent are constant. This struct itself has no invariants on the strides
 /// but not every possible configuration can be interpreted as a [`GenericImageView`] or
-/// [`GenericImage`]. The methods [`as_view`] and [`as_view_mut`] construct the actual implementors
+/// [`SerialGenericImage`]. The methods [`as_view`] and [`as_view_mut`] construct the actual implementors
 /// of these traits and perform necessary checks. To manually perform this and other layout checks
 /// use [`is_normal`] or [`has_aliased_samples`].
 ///
 /// Instances can be constructed not only by hand. The buffer instances returned by library
-/// functions such as [`ImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
+/// functions such as [`SerialImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
 /// image or generic view succeeds. A very different constructor is [`with_monocolor`]. It uses a
 /// single pixel as the backing storage for an arbitrarily sized read-only raster by mapping each
 /// pixel to the same samples by setting some strides to `0`.
 ///
-/// [`GenericImage`]: ../trait.GenericImage.html
+/// [`SerialGenericImage`]: ../trait.SerialGenericImage.html
 /// [`GenericImageView`]: ../trait.GenericImageView.html
-/// [`ImageBuffer::as_flat_samples`]: ../struct.ImageBuffer.html#method.as_flat_samples
+/// [`SerialImageBuffer::as_flat_samples`]: ../struct.SerialImageBuffer.html#method.as_flat_samples
 /// [`is_normal`]: #method.is_normal
 /// [`has_aliased_samples`]: #method.has_aliased_samples
 /// [`as_view`]: #method.as_view
@@ -128,7 +128,7 @@ impl SampleLayout {
     /// Describe a row-major image packed in all directions.
     ///
     /// The resulting will surely be `NormalForm::RowMajorPacked`. It can therefore be converted to
-    /// safely to an `ImageBuffer` with a large enough underlying buffer.
+    /// safely to an `SerialImageBuffer` with a large enough underlying buffer.
     ///
     /// ```
     /// # use image::flat::{NormalForm, SampleLayout};
@@ -529,8 +529,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// check all bounds and not panic as long as `Buffer::as_ref` does not do so.
     ///
     /// ```
-    /// # use image::{RgbImage};
-    /// let flat = RgbImage::new(480, 640).into_flat_samples();
+    /// # use image::SerialRgbImage;
+    /// let flat = SerialRgbImage::new(480, 640).into_flat_samples();
     ///
     /// // Get the blue channel at (10, 10).
     /// assert!(flat.get_sample(1, 10, 10).is_some());
@@ -563,8 +563,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// here can in fact modify more than the coordinate in the argument.
     ///
     /// ```
-    /// # use image::{RgbImage};
-    /// let mut flat = RgbImage::new(480, 640).into_flat_samples();
+    /// # use image::SerialRgbImage;
+    /// let mut flat = SerialRgbImage::new(480, 640).into_flat_samples();
     ///
     /// // Assign some new color to the blue channel at (10, 10).
     /// *flat.get_mut_sample(1, 10, 10).unwrap() = 255;
@@ -624,8 +624,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// View this buffer but keep mutability at a sample level.
     ///
     /// This is similar to `as_view` but subtly different from `as_view_mut`. The resulting type
-    /// can be used as a `GenericImage` with the same prior invariants needed as for `as_view`.
-    /// It can not be used as a mutable `GenericImage` but does not need channels to be packed in
+    /// can be used as a `SerialGenericImage` with the same prior invariants needed as for `as_view`.
+    /// It can not be used as a mutable `SerialGenericImage` but does not need channels to be packed in
     /// their pixel representation.
     ///
     /// This first ensures that all in-bounds coordinates refer to valid indices in the sample
@@ -669,11 +669,11 @@ impl<Buffer> FlatSamples<Buffer> {
     /// pixel must be packed (i.e. `channel_stride` is `1`). The number of channels must be
     /// consistent with the channel count expected by the pixel format.
     ///
-    /// This is similar to an `ImageBuffer` except it is a temporary view that is not normalized as
-    /// strongly. To get an owning version, consider copying the data into an `ImageBuffer`. This
+    /// This is similar to an `SerialImageBuffer` except it is a temporary view that is not normalized as
+    /// strongly. To get an owning version, consider copying the data into an `SerialImageBuffer`. This
     /// provides many more operations, is possibly faster (if not you may want to open an issue) is
     /// generally polished. You can also try to convert this buffer inline, see
-    /// `ImageBuffer::from_raw`.
+    /// `SerialImageBuffer::from_raw`.
     pub fn as_view_mut<P>(&mut self) -> Result<ViewMut<&mut [P::Subpixel], P>, Error>
     where
         P: Pixel,
@@ -772,7 +772,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// This does **not** convert the sample layout. The buffer needs to be in packed row-major form
     /// before calling this function. In case of an error, returns the buffer again so that it does
     /// not release any allocation.
-    pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
+    pub fn try_into_buffer<P>(self) -> Result<SerialImageBuffer<P, Buffer>, (Error, Self)>
     where
         P: Pixel + 'static,
         P::Subpixel: 'static,
@@ -794,7 +794,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         Ok(
-            ImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples)
+            SerialImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples)
                 .unwrap_or_else(|| {
                     panic!("Preconditions should have been ensured before conversion")
                 }),
@@ -935,12 +935,12 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     ///
     /// ```
     /// # fn paint_something<T>(_: T) {}
-    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
+    /// use image::{flat::FlatSamples, SerialGenericImage, SerialRgbImage, Rgb};
     ///
     /// let background = Rgb([20, 20, 20]);
     /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
     ///
-    /// let mut image = RgbImage::new(200, 200);
+    /// let mut image = SerialRgbImage::new(200, 200);
     /// paint_something(&mut image);
     ///
     /// // Reset the canvas
@@ -993,8 +993,8 @@ where
 
 /// A mutable owning version of a flat buffer.
 ///
-/// While this wraps a buffer similar to `ImageBuffer`, this is mostly intended as a utility. The
-/// library endorsed normalized representation is still `ImageBuffer`. Also, the implementation of
+/// While this wraps a buffer similar to `SerialImageBuffer`, this is mostly intended as a utility. The
+/// library endorsed normalized representation is still `SerialImageBuffer`. Also, the implementation of
 /// `AsMut<[P::Subpixel]>` must always yield the same buffer. Therefore there is no public way to
 /// construct this with an owning buffer.
 ///
@@ -1016,7 +1016,7 @@ where
 
 /// Denotes invalid flat sample buffers when trying to convert to stricter types.
 ///
-/// The biggest use case being `ImageBuffer` which expects closely packed
+/// The biggest use case being `SerialImageBuffer` which expects closely packed
 /// samples in a row major matrix representation. But this error type may be
 /// resused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
@@ -1062,7 +1062,7 @@ pub enum NormalForm {
     /// At least pixels are packed.
     ///
     /// Images of these types can wrap `[T]`-slices into the standard color types. This is a
-    /// precondition for `GenericImage` which requires by-reference access to pixels.
+    /// precondition for `SerialGenericImage` which requires by-reference access to pixels.
     PixelPacked,
 
     /// All samples are packed.
@@ -1189,15 +1189,15 @@ where
 
     /// Try to convert this into an image with mutable pixels.
     ///
-    /// The resulting image implements `GenericImage` in addition to `GenericImageView`. While this
+    /// The resulting image implements `SerialGenericImage` in addition to `GenericImageView`. While this
     /// has mutable samples, it does not enforce that pixel can not alias and that samples are
     /// packed enough for a mutable pixel reference. This is slightly cheaper than the chain
     /// `self.into_inner().as_view_mut()` and keeps the `View` alive on failure.
     ///
     /// ```
-    /// # use image::RgbImage;
+    /// # use image::SerialRgbImage;
     /// # use image::Rgb;
-    /// let mut buffer = RgbImage::new(480, 640).into_flat_samples();
+    /// let mut buffer = SerialRgbImage::new(480, 640).into_flat_samples();
     /// let view = buffer.as_view_with_mut_samples::<Rgb<u8>>().unwrap();
     ///
     /// // Inspect some pixels, …
@@ -1446,7 +1446,7 @@ where
     }
 }
 
-impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
+impl<Buffer, P: Pixel> SerialGenericImage for ViewMut<Buffer, P>
 where
     Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
@@ -1577,7 +1577,7 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer_::GrayAlphaImage;
+    use crate::buffer_::SerialGrayAlphaImage;
     use crate::color::{LumaA, Rgb};
 
     #[test]
@@ -1706,12 +1706,12 @@ mod tests {
             height_stride: 8,
         };
 
-        let initial = GrayAlphaImage::new(expected_layout.width, expected_layout.height);
+        let initial = SerialGrayAlphaImage::new(expected_layout.width, expected_layout.height);
         let buffer = initial.into_flat_samples();
 
         assert_eq!(buffer.layout, expected_layout);
 
-        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)| {
+        let _: SerialGrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)| {
             panic!("Expected buffer to be convertible but {:?}", error)
         });
     }

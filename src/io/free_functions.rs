@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::{codecs::*, ExtendedColorType};
 
-use crate::dynimage::DynamicImage;
+use crate::dynimage::DynamicSerialImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
 use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
@@ -19,7 +19,7 @@ use crate::image::{ImageDecoder, ImageEncoder};
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
-pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicSerialImage> {
     let mut reader = crate::io::Reader::new(r);
     reader.set_format(format);
     reader.decode()

@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use crate::{ExtendedColorType, GenericImageView, SerialImageBuffer, Luma, Pixel, Rgb};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
@@ -453,13 +453,13 @@ impl<W: Write> JpegEncoder<W> {
 
         match color_type {
             ExtendedColorType::L8 => {
-                let image: ImageBuffer<Luma<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
+                let image: SerialImageBuffer<Luma<_>, _> =
+                    SerialImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
             ExtendedColorType::Rgb8 => {
-                let image: ImageBuffer<Rgb<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
+                let image: SerialImageBuffer<Rgb<_>, _> =
+                    SerialImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
             _ => Err(ImageError::Unsupported(

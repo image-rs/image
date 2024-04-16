@@ -5,7 +5,7 @@
 
 use std::io::Cursor;
 
-use image::{ImageBuffer, Rgba};
+use image::{SerialImageBuffer, Rgba};
 #[macro_use] extern crate libfuzzer_sys;
 extern crate image;
 
@@ -22,7 +22,7 @@ fuzz_target!(|data: &[u8]| {
         let content_len = width * height * 4;
         if content.len() >= content_len {
             let content = content[..content_len].to_owned();
-            let image : ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_vec(
+            let image : SerialImageBuffer<Rgba<u8>, Vec<u8>> = SerialImageBuffer::from_vec(
                 width as u32, height as u32, 
                 content
             ).unwrap();

@@ -46,7 +46,6 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
                 .options()
                 .to_owned()
                 .jpeg_set_out_colorspace(orig_color_space),
-                .
         );
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
@@ -88,9 +87,24 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
                 ),
             )));
         }
-        let decoder = zune_core::options::DecoderOptions::default()
-        .jpeg_set_out_colorspace(to_supported_color_space(self.orig_color_space))
-        .set_strict_mode(false);
+        let options = zune_core::options::DecoderOptions::default()
+            .jpeg_set_out_colorspace(to_supported_color_space(self.orig_color_space))
+            .set_strict_mode(false);
+
+        let max_height = match self.limits.max_image_height {
+            Some(max_height) => max_height as usize,
+            None => usize::MAX,
+        };
+
+        let max_width = match self.limits.max_image_width {
+            Some(max_width) => max_width as usize,
+            None => usize::MAX,
+        };
+
+        options.set_max_height(max_height).set_max_width(max_width);
+
+        self.decoder.set_options(options);
+
         self.decoder.decode_into(buf).map_err(ImageError::from_jpeg)
     }
 

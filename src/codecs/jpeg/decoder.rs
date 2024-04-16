@@ -1,6 +1,7 @@
-use std::io::{BufRead, Cursor, Seek};
+use std::io::{BufRead, Seek};
 use std::marker::PhantomData;
 
+use zune_core::bytestream::ZCursor;
 use zune_core::options::DecoderOptions;
 
 use crate::color::ColorType;
@@ -14,6 +15,7 @@ type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
 /// JPEG decoder
 pub struct JpegDecoder<R: BufRead + Seek> {
+    input: Vec<u8>,
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
@@ -27,6 +29,9 @@ pub struct JpegDecoder<R: BufRead + Seek> {
 impl<R: BufRead + Seek> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
+        let mut input = Vec::new();
+        let mut r = r;
+        r.read_to_end(&mut input)?;
         let options = DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -50,6 +55,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
         Ok(JpegDecoder {
+            input,
             orig_color_space,
             width,
             height,
@@ -105,7 +111,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         options.set_max_height(max_height).set_max_width(max_width);
 
         let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(Cursor::new(buf.to_owned()), options);
+            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(self.input), options);
 
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)
     }

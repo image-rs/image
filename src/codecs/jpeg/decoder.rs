@@ -87,7 +87,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
                 ),
             )));
         }
-        let options = zune_core::options::DecoderOptions::default()
+        let options = DecoderOptions::default()
             .jpeg_set_out_colorspace(to_supported_color_space(self.orig_color_space))
             .set_strict_mode(false);
 

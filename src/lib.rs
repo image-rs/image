@@ -122,6 +122,13 @@
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 
+#[cfg(feature = "fitsio")]
+mod dynimage_fitsio;
+mod dynimage_serde;
+mod dynimage_stream;
+mod metadata;
+mod roi;
+
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
@@ -132,16 +139,9 @@ pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
-mod metadata;
-pub use metadata::{ImageMetadata, ImageMetadataBuilder, ExtendedMetadataRow, ExtendedMetadata};
+pub use metadata::{ExtendedMetadata, ExtendedMetadataRow, ImageMetadata, ImageMetadataBuilder};
 
-mod dynimage_serde;
-
-mod roi;
 pub use roi::ROI;
-
-#[cfg(feature = "fitsio")]
-mod dynimage_fitsio;
 
 #[cfg(feature = "fitsio")]
 pub use buffer_::FitsCompression;
@@ -159,19 +159,19 @@ pub use crate::image::{
     SubImage,
 };
 
+// Image types
 pub use crate::buffer_::{
-    GrayAlphaImage,
+    ImageBuffer,
     GrayImage,
+    GrayAlphaImage,
     Gray16Image,
     GrayAlpha16Image,
-    Rgb16Image,
-    Rgba16Image,
-    ImageBuffer,
-    // Image types
-    Rgb32FImage,
     RgbImage,
-    Rgba32FImage,
+    Rgb16Image,
     RgbaImage,
+    Rgba16Image,
+    Rgb32FImage,
+    Rgba32FImage,
 };
 
 pub use crate::flat::FlatSamples;

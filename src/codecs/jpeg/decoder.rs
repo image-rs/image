@@ -1,5 +1,7 @@
 use std::io::{BufRead, Seek};
-use std::marker::PhantomData;
+
+use zune_core::bytestream::ZCursor;
+use zune_core::options::DecoderOptions;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -11,28 +13,27 @@ use crate::io::Limits;
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
 /// JPEG decoder
-pub struct JpegDecoder<R> {
-    input: Vec<u8>,
+pub struct JpegDecoder {
+    decoder: zune_jpeg::JpegDecoder<ZCursor<Vec<u8>>>,
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
     limits: Limits,
-    // For API compatibility with the previous jpeg_decoder wrapper.
-    // Can be removed later, which would be an API break.
-    phantom: PhantomData<R>,
 }
 
-impl<R: BufRead + Seek> JpegDecoder<R> {
+impl JpegDecoder {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
+    pub fn new(r: (impl BufRead + Seek)) -> ImageResult<JpegDecoder> {
         let mut input = Vec::new();
         let mut r = r;
         r.read_to_end(&mut input)?;
-        let options = zune_core::options::DecoderOptions::default()
+        let mut options = DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
-        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(input.as_slice(), options);
+        let cloned_input = input.clone();
+        let cursor = ZCursor::new(cloned_input);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(cursor, options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
@@ -40,21 +41,33 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
         let width: u16 = width.try_into().unwrap();
         let height: u16 = height.try_into().unwrap();
-        let orig_color_space = decoder.get_output_colorspace().unwrap();
+        let orig_color_space = decoder.output_colorspace().unwrap();
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
+
+        options = options.set_max_width(match limits.max_image_width {
+            Some(max_width) => max_width as usize, // u32 to usize never truncates
+            None => usize::MAX,
+        });
+        options = options.set_max_height(match limits.max_image_height {
+            Some(max_height) => max_height as usize, // u32 to usize never truncates
+            None => usize::MAX,
+        });
+        options = options.jpeg_set_out_colorspace(to_supported_color_space(orig_color_space));
+
+        // update options
+        decoder.set_options(options);
         Ok(JpegDecoder {
-            input,
+            decoder,
             orig_color_space,
             width,
             height,
             limits,
-            phantom: PhantomData,
         })
     }
 }
 
-impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
+impl ImageDecoder for JpegDecoder {
     fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.width), u32::from(self.height))
     }
@@ -64,12 +77,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
-        Ok(decoder.icc_profile())
+        Ok(self.decoder.icc_profile())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         let advertised_len = self.total_bytes();
         let actual_len = buf.len() as u64;
 
@@ -84,9 +95,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
-        decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
-        Ok(())
+        self.decoder.decode_into(buf).map_err(ImageError::from_jpeg)
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
@@ -99,6 +108,17 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
+    }
+
+    fn original_color_type(&self) -> crate::ExtendedColorType {
+        self.color_type().into()
+    }
+
+    fn total_bytes(&self) -> u64 {
+        let dimensions = self.dimensions();
+        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
+        let bytes_per_pixel = u64::from(self.color_type().bytes_per_pixel());
+        total_pixels.saturating_mul(bytes_per_pixel)
     }
 }
 
@@ -126,26 +146,6 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
         // the rest is not supported by `image` so it will be converted to RGB during decoding
         _ => RGB,
     }
-}
-
-fn new_zune_decoder(
-    input: &[u8],
-    orig_color_space: ZuneColorSpace,
-    limits: Limits,
-) -> zune_jpeg::JpegDecoder<&[u8]> {
-    let target_color_space = to_supported_color_space(orig_color_space);
-    let mut options = zune_core::options::DecoderOptions::default()
-        .jpeg_set_out_colorspace(target_color_space)
-        .set_strict_mode(false);
-    options = options.set_max_width(match limits.max_image_width {
-        Some(max_width) => max_width as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
-    options = options.set_max_height(match limits.max_image_height {
-        Some(max_height) => max_height as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
-    zune_jpeg::JpegDecoder::new_with_options(input, options)
 }
 
 impl ImageError {

@@ -171,7 +171,7 @@ fn main() {
     let scaley = 3.0 / imgy as f32;
 
     // Create a new ImgBuf with width: imgx and height: imgy
-    let mut imgbuf = image::SerialImageBuffer::new(imgx, imgy);
+    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
 
     // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
@@ -201,11 +201,12 @@ fn main() {
         }
     }
 
-    let json = serde_json::to_string(&imgbuf).unwrap();
-    let img: image::DynamicSerialImage = serde_json::from_str(&json).unwrap();
+    let img: image::DynamicImage = imgbuf.into();
+    let json = serde_json::to_string(&img).unwrap();
+    let img: image::DynamicImage = serde_json::from_str(&json).unwrap();
 
     // Save the image as “fractal.png”, the format is deduced from the path
-    imgbuf.save("fractal.png").unwrap();
+    img.save("fractal.png").unwrap();
 }
 ```
 

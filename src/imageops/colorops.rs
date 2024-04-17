@@ -4,36 +4,36 @@ use num_traits::NumCast;
 use std::f64::consts::PI;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
-use crate::image::{SerialGenericImage, GenericImageView};
+use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
-use crate::SerialImageBuffer;
+use crate::ImageBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> SerialImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>> {
     grayscale_with_type(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
 pub fn grayscale_alpha<I: GenericImageView>(
     image: &I,
-) -> SerialImageBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> ImageBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>> {
     grayscale_with_type_alpha(image)
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
 pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
-) -> SerialImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
     NewPixel: Pixel + FromColor<Luma<Subpixel<I>>>,
 {
     let (width, height) = image.dimensions();
-    let mut out = SerialImageBuffer::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma();
@@ -48,12 +48,12 @@ where
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
 pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
-) -> SerialImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
     NewPixel: Pixel + FromColor<LumaA<Subpixel<I>>>,
 {
     let (width, height) = image.dimensions();
-    let mut out = SerialImageBuffer::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma_alpha();
@@ -67,7 +67,7 @@ where
 
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
-pub fn invert<I: SerialGenericImage>(image: &mut I) {
+pub fn invert<I: GenericImage>(image: &mut I) {
     // TODO find a way to use pixels?
     let (width, height) = image.dimensions();
 
@@ -86,14 +86,14 @@ pub fn invert<I: SerialGenericImage>(image: &mut I) {
 /// Negative values decrease the contrast and positive values increase the contrast.
 ///
 /// *[See also `contrast_in_place`.][contrast_in_place]*
-pub fn contrast<I, P, S>(image: &I, contrast: f32) -> SerialImageBuffer<P, Vec<S>>
+pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = SerialImageBuffer::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -122,7 +122,7 @@ where
 /// *[See also `contrast`.][contrast]*
 pub fn contrast_in_place<I>(image: &mut I, contrast: f32)
 where
-    I: SerialGenericImage,
+    I: GenericImage,
 {
     let (width, height) = image.dimensions();
 
@@ -153,14 +153,14 @@ where
 /// Negative values decrease the brightness and positive values increase it.
 ///
 /// *[See also `brighten_in_place`.][brighten_in_place]*
-pub fn brighten<I, P, S>(image: &I, value: i32) -> SerialImageBuffer<P, Vec<S>>
+pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = SerialImageBuffer::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
@@ -188,7 +188,7 @@ where
 /// *[See also `brighten`.][brighten]*
 pub fn brighten_in_place<I>(image: &mut I, value: i32)
 where
-    I: SerialGenericImage,
+    I: GenericImage,
 {
     let (width, height) = image.dimensions();
 
@@ -219,14 +219,14 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate_in_place`.][huerotate_in_place]*
-pub fn huerotate<I, P, S>(image: &I, value: i32) -> SerialImageBuffer<P, Vec<S>>
+pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = SerialImageBuffer::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     let angle: f64 = NumCast::from(value).unwrap();
 
@@ -287,7 +287,7 @@ where
 /// *[See also `huerotate`.][huerotate]*
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
-    I: SerialGenericImage,
+    I: GenericImage,
 {
     let (width, height) = image.dimensions();
 
@@ -373,22 +373,22 @@ pub trait ColorMap {
 /// # Examples
 /// ```
 /// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
-/// use image::{SerialImageBuffer, Luma};
+/// use image::{ImageBuffer, Luma};
 ///
 /// let (w, h) = (16, 16);
 /// // Create an image with a smooth horizontal gradient from black (0) to white (255).
-/// let gray = SerialImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
+/// let gray = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
 /// // Mapping the gray image through the `BiLevel` filter should map gray pixels less than half
 /// // intensity (127) to black (0), and anything greater to white (255).
 /// let cmap = BiLevel;
 /// let palletized = index_colors(&gray, &cmap);
-/// let mapped = SerialImageBuffer::from_fn(w, h, |x, y| {
+/// let mapped = ImageBuffer::from_fn(w, h, |x, y| {
 ///     let p = palletized.get_pixel(x, y);
 ///     cmap.lookup(p.0[0] as usize)
 ///         .expect("indexed color out-of-range")
 /// });
 /// // Create an black and white image of expected output.
-/// let bw = SerialImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
+/// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
 ///     if x <= (w / 2) {
 ///         [0].into()
 ///     } else {
@@ -489,7 +489,7 @@ macro_rules! do_dithering(
 
 /// Reduces the colors of the image using the supplied `color_map` while applying
 /// Floyd-Steinberg dithering to improve the visual conception
-pub fn dither<Pix, Map>(image: &mut SerialImageBuffer<Pix, Vec<u8>>, color_map: &Map)
+pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
@@ -528,14 +528,14 @@ where
 
 /// Reduces the colors using the supplied `color_map` and returns an image of the indices
 pub fn index_colors<Pix, Map>(
-    image: &SerialImageBuffer<Pix, Vec<u8>>,
+    image: &ImageBuffer<Pix, Vec<u8>>,
     color_map: &Map,
-) -> SerialImageBuffer<Luma<u8>, Vec<u8>>
+) -> ImageBuffer<Luma<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
 {
-    let mut indices = SerialImageBuffer::new(image.width(), image.height());
+    let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8])
     }
@@ -546,7 +546,7 @@ where
 mod test {
 
     use super::*;
-    use crate::SerialGrayImage;
+    use crate::GrayImage;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{
@@ -581,7 +581,7 @@ mod test {
 
     #[test]
     fn test_dither() {
-        let mut image = SerialImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
+        let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
         assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
@@ -590,44 +590,44 @@ mod test {
 
     #[test]
     fn test_grayscale() {
-        let image: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+        let image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        let expected: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         assert_pixels_eq!(&grayscale(&image), &expected);
     }
 
     #[test]
     fn test_invert() {
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        let expected: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
 
         invert(&mut image);
         assert_pixels_eq!(&image, &expected);
     }
     #[test]
     fn test_brighten() {
-        let image: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+        let image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        let expected: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
 
         assert_pixels_eq!(&brighten(&image, 10), &expected);
     }
 
     #[test]
     fn test_brighten_place() {
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        let expected: SerialGrayImage =
-            SerialImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
 
         brighten_in_place(&mut image, 10);
         assert_pixels_eq!(&image, &expected);
@@ -636,8 +636,8 @@ mod test {
     #[allow(clippy::type_complexity)]
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
     where
-        I: SerialGenericImage<Pixel = P>,
-        J: SerialGenericImage<Pixel = P>,
+        I: GenericImage<Pixel = P>,
+        J: GenericImage<Pixel = P>,
         P: Pixel + Eq,
     {
         left.pixels()

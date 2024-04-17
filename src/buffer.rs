@@ -1,4 +1,4 @@
-//! Contains the generic `SerialImageBuffer` struct.
+//! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
 use std::fmt;
 use std::marker::PhantomData;
@@ -10,14 +10,16 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImageView, ImageEncoder, ImageFormat, SerialGenericImage};
+use crate::image::{GenericImageView, ImageEncoder, ImageFormat, GenericImage};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
-use crate::{DynamicSerialImage, ImageMetadata};
+use crate::{DynamicImage, ImageMetadata};
 
 #[cfg(feature = "fitsio")]
-use crate::FitsCompression;
+mod buffer_fitsio;
+#[cfg(feature = "fitsio")]
+pub use buffer_fitsio::FitsCompression;
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -143,9 +145,9 @@ where
 
 /// Iterate over rows of an image
 ///
-/// This iterator is created with [`SerialImageBuffer::rows`]. See its document for details.
+/// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
 ///
-/// [`SerialImageBuffer::rows`]: ../struct.SerialImageBuffer.html#method.rows
+/// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -241,9 +243,9 @@ where
 
 /// Iterate over mutable rows of an image
 ///
-/// This iterator is created with [`SerialImageBuffer::rows_mut`]. See its document for details.
+/// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
 ///
-/// [`SerialImageBuffer::rows_mut`]: ../struct.SerialImageBuffer.html#method.rows_mut
+/// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
 pub struct RowsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -591,25 +593,25 @@ where
 ///
 /// This is an image parameterised by its Pixel types, represented by a width and height and a
 /// container of channel data. It provides direct access to its pixels and implements the
-/// [`GenericImageView`] and [`SerialGenericImage`] traits. In many ways, this is the standard buffer
+/// [`GenericImageView`] and [`GenericImage`] traits. In many ways, this is the standard buffer
 /// implementing those traits. Using this concrete type instead of a generic type parameter has
 /// been shown to improve performance.
 ///
 /// The crate defines a few type aliases with regularly used pixel types for your convenience, such
 /// as [`RgbImage`], [`GrayImage`] etc.
 ///
-/// [`SerialGenericImage`]: trait.SerialGenericImage.html
+/// [`GenericImage`]: trait.GenericImage.html
 /// [`GenericImageView`]: trait.GenericImageView.html
 /// [`RgbImage`]: type.RgbImage.html
 /// [`GrayImage`]: type.GrayImage.html
 ///
-/// To convert between images of different Pixel types use [`DynamicSerialImage`].
+/// To convert between images of different Pixel types use [`DynamicImage`].
 ///
 /// You can retrieve a complete description of the buffer's layout and contents through
 /// [`as_flat_samples`] and [`as_flat_samples_mut`]. This can be handy to also use the contents in
 /// a foreign language, map it as a GPU host buffer or other similar tasks.
 ///
-/// [`DynamicSerialImage`]: enum.DynamicSerialImage.html
+/// [`DynamicImage`]: enum.DynamicImage.html
 /// [`as_flat_samples`]: #method.as_flat_samples
 /// [`as_flat_samples_mut`]: #method.as_flat_samples_mut
 ///
@@ -618,9 +620,9 @@ where
 /// Create a simple canvas and paint a small cross.
 ///
 /// ```
-/// use image::{SerialRgbImage, Rgb};
+/// use image::{RgbImage, Rgb};
 ///
-/// let mut img = SerialRgbImage::new(32, 32);
+/// let mut img = RgbImage::new(32, 32);
 ///
 /// for x in 15..=17 {
 ///     for y in 8..24 {
@@ -633,10 +635,10 @@ where
 /// Overlays an image on top of a larger background raster.
 ///
 /// ```no_run
-/// use image::{SerialGenericImage, GenericImageView, SerialImageBuffer, open};
+/// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
-/// let mut img = SerialImageBuffer::from_fn(512, 512, |x, y| {
+/// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
 ///         image::Rgb([0, 0, 0])
 ///     } else {
@@ -650,13 +652,13 @@ where
 /// Convert an RgbaImage to a GrayImage.
 ///
 /// ```no_run
-/// use image::{open, DynamicSerialImage};
+/// use image::{open, DynamicImage};
 ///
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
-/// let gray = DynamicSerialImage::ImageRgba8(rgba).into_luma8();
+/// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct SerialImageBuffer<P: Pixel, Container> {
+pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     _phantom: PhantomData<P>,
@@ -666,7 +668,7 @@ pub struct SerialImageBuffer<P: Pixel, Container> {
 
 use std::hash::{Hash, Hasher};
 
-impl<P: Pixel, Container: Hash> Hash for SerialImageBuffer<P, Container> {
+impl<P: Pixel, Container: Hash> Hash for ImageBuffer<P, Container> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.width.hash(state);
         self.height.hash(state);
@@ -675,7 +677,7 @@ impl<P: Pixel, Container: Hash> Hash for SerialImageBuffer<P, Container> {
 }
 
 // generic implementation, shared along all image buffers
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -689,9 +691,9 @@ where
         width: u32,
         height: u32,
         buf: Container,
-    ) -> Option<SerialImageBuffer<P, Container>> {
+    ) -> Option<ImageBuffer<P, Container>> {
         if Self::check_image_fits(width, height, buf.len()) {
-            Some(SerialImageBuffer {
+            Some(ImageBuffer {
                 data: buf,
                 width,
                 height,
@@ -922,7 +924,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1023,7 +1025,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1047,7 +1049,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1075,7 +1077,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1102,7 +1104,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
     [P::Subpixel]: EncodableLayout,
@@ -1124,7 +1126,7 @@ where
     }
 }
 
-impl<P, Container> Default for SerialImageBuffer<P, Container>
+impl<P, Container> Default for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Default,
@@ -1140,7 +1142,7 @@ where
     }
 }
 
-impl<P, Container> Deref for SerialImageBuffer<P, Container>
+impl<P, Container> Deref for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -1152,7 +1154,7 @@ where
     }
 }
 
-impl<P, Container> DerefMut for SerialImageBuffer<P, Container>
+impl<P, Container> DerefMut for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1162,7 +1164,7 @@ where
     }
 }
 
-impl<P, Container> Index<(u32, u32)> for SerialImageBuffer<P, Container>
+impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
@@ -1174,7 +1176,7 @@ where
     }
 }
 
-impl<P, Container> IndexMut<(u32, u32)> for SerialImageBuffer<P, Container>
+impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1184,13 +1186,13 @@ where
     }
 }
 
-impl<P, Container> Clone for SerialImageBuffer<P, Container>
+impl<P, Container> Clone for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Clone,
 {
-    fn clone(&self) -> SerialImageBuffer<P, Container> {
-        SerialImageBuffer {
+    fn clone(&self) -> ImageBuffer<P, Container> {
+        ImageBuffer {
             data: self.data.clone(),
             width: self.width,
             height: self.height,
@@ -1200,7 +1202,7 @@ where
     }
 }
 
-impl<P, Container> GenericImageView for SerialImageBuffer<P, Container>
+impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Deref,
@@ -1223,7 +1225,7 @@ where
     }
 }
 
-impl<P, Container> SerialGenericImage for SerialImageBuffer<P, Container>
+impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
@@ -1295,16 +1297,16 @@ where
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel> SerialImageBuffer<P, Vec<P::Subpixel>> {
+impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
-    pub fn new(width: u32, height: u32) -> SerialImageBuffer<P, Vec<P::Subpixel>> {
+    pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let size = Self::image_buffer_len(width, height)
-            .expect("Buffer length in `SerialImageBuffer::new` overflows usize");
-        SerialImageBuffer {
+            .expect("Buffer length in `ImageBuffer::new` overflows usize");
+        ImageBuffer {
             data: vec![Zero::zero(); size],
             width,
             height,
@@ -1313,31 +1315,31 @@ impl<P: Pixel> SerialImageBuffer<P, Vec<P::Subpixel>> {
         }
     }
 
-    /// Constructs a new SerialImageBuffer by copying a pixel
+    /// Constructs a new ImageBuffer by copying a pixel
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger the the maximum size of a vector.
-    pub fn from_pixel(width: u32, height: u32, pixel: P) -> SerialImageBuffer<P, Vec<P::Subpixel>> {
-        let mut buf = SerialImageBuffer::new(width, height);
+    pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
             *p = pixel
         }
         buf
     }
 
-    /// Constructs a new SerialImageBuffer by repeated application of the supplied function.
+    /// Constructs a new ImageBuffer by repeated application of the supplied function.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.
     ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger the the maximum size of a vector.
-    pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> SerialImageBuffer<P, Vec<P::Subpixel>>
+    pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: FnMut(u32, u32) -> P,
     {
-        let mut buf = SerialImageBuffer::new(width, height);
+        let mut buf = ImageBuffer::new(width, height);
         for (x, y, p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)
         }
@@ -1350,8 +1352,8 @@ impl<P: Pixel> SerialImageBuffer<P, Vec<P::Subpixel>> {
         width: u32,
         height: u32,
         buf: Vec<P::Subpixel>,
-    ) -> Option<SerialImageBuffer<P, Vec<P::Subpixel>>> {
-        SerialImageBuffer::from_raw(width, height, buf)
+    ) -> Option<ImageBuffer<P, Vec<P::Subpixel>>> {
+        ImageBuffer::from_raw(width, height, buf)
     }
 
     /// Consumes the image buffer and returns the underlying data
@@ -1371,7 +1373,7 @@ pub trait ConvertBuffer<T> {
 }
 
 // concrete implementation Luma -> Rgba
-impl SerialGrayImage {
+impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
     /// adjust it's alpha value accordingly.
@@ -1379,12 +1381,12 @@ impl SerialGrayImage {
         self,
         palette: &[(u8, u8, u8)],
         transparent_idx: Option<u8>,
-    ) -> SerialRgbaImage {
+    ) -> RgbaImage {
         let (width, height) = self.dimensions();
         let mut data = self.into_raw();
         let entries = data.len();
         data.resize(entries.checked_mul(4).unwrap(), 0);
-        let mut buffer = SerialImageBuffer::from_vec(width, height, data).unwrap();
+        let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
         expand_packed(&mut buffer, 4, 8, |idx, pixel| {
             let (r, g, b) = palette[idx as usize];
             let a = if let Some(t_idx) = transparent_idx {
@@ -1409,8 +1411,8 @@ impl SerialGrayImage {
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
 impl<Container, FromType: Pixel, ToType: Pixel>
-    ConvertBuffer<SerialImageBuffer<ToType, Vec<ToType::Subpixel>>>
-    for SerialImageBuffer<FromType, Container>
+    ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>>
+    for ImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Subpixel]>,
     ToType: FromColor<FromType>,
@@ -1419,18 +1421,18 @@ where
     /// Convert RGB image to gray image.
     /// ```no_run
     /// use image::buffer::ConvertBuffer;
-    /// use image::SerialGrayImage;
+    /// use image::GrayImage;
     ///
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba8();
     ///
-    /// let gray_image: SerialGrayImage = image.convert();
+    /// let gray_image: GrayImage = image.convert();
     /// ```
-    fn convert(&self) -> SerialImageBuffer<ToType, Vec<ToType::Subpixel>> {
-        let mut buffer: SerialImageBuffer<ToType, Vec<ToType::Subpixel>> =
-            SerialImageBuffer::new(self.width, self.height);
+    fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
+        let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
+            ImageBuffer::new(self.width, self.height);
         for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
             to.from_color(from)
         }
@@ -1439,517 +1441,102 @@ where
 }
 
 /// Sendable Rgb image buffer
-pub type SerialRgbImage = SerialImageBuffer<Rgb<u8>, Vec<u8>>;
+pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer
-pub type SerialRgbaImage = SerialImageBuffer<Rgba<u8>, Vec<u8>>;
+pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer
-pub type SerialGrayImage = SerialImageBuffer<Luma<u8>, Vec<u8>>;
+pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
-pub type SerialGrayAlphaImage = SerialImageBuffer<LumaA<u8>, Vec<u8>>;
+pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
-pub type SerialRgb16Image = SerialImageBuffer<Rgb<u16>, Vec<u16>>;
+pub type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer
-pub type SerialRgba16Image = SerialImageBuffer<Rgba<u16>, Vec<u16>>;
+pub type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
-pub type SerialGray16Image = SerialImageBuffer<Luma<u16>, Vec<u16>>;
+pub type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
-pub type SerialGrayAlpha16Image = SerialImageBuffer<LumaA<u16>, Vec<u16>>;
-
-#[cfg(feature="fitsio")]
-use fitsio::{errors::Error as FitsError, images::ImageType};
-#[cfg(feature="fitsio")]
-use std::path::PathBuf;
-#[cfg(feature="fitsio")]
-impl SerialRgbImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedByte,
-                3
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialRgbaImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedByte,
-                4
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialGrayImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedByte,
-                1
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialGrayAlphaImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedByte,
-                2
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialRgb16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedShort,
-                3
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialRgba16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedShort,
-                4
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialGray16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedShort,
-                1
-            )
-    }
-}
-
-#[cfg(feature="fitsio")]
-impl SerialGrayAlpha16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::UnsignedShort,
-                2,
-            )
-    }
-}
-
-
+pub type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
-pub type SerialRgb32FImage = SerialImageBuffer<Rgb<f32>, Vec<f32>>;
-#[cfg(feature="fitsio")]
-impl SerialRgb32FImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::Float,
-                3
-            )
-    }
-}
-
+pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
-pub type SerialRgba32FImage = SerialImageBuffer<Rgba<f32>, Vec<f32>>;
-#[cfg(feature="fitsio")]
-impl SerialRgba32FImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(&self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool) -> Result<PathBuf, FitsError> {
-            self.savefits_generic(
-                dir_prefix,
-                file_prefix,
-                progname,
-                compress,
-                overwrite,
-                ImageType::Float,
-                4
-            )
-    }
-}
+pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
 
-impl From<DynamicSerialImage> for SerialRgbImage {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for RgbImage {
+    fn from(value: DynamicImage) -> Self {
         value.into_rgb8()
     }
 }
 
-impl From<DynamicSerialImage> for SerialRgbaImage {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for RgbaImage {
+    fn from(value: DynamicImage) -> Self {
         value.into_rgba8()
     }
 }
 
-impl From<DynamicSerialImage> for SerialGrayImage {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for GrayImage {
+    fn from(value: DynamicImage) -> Self {
         value.into_luma8()
     }
 }
 
-impl From<DynamicSerialImage> for SerialGrayAlphaImage {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for GrayAlphaImage {
+    fn from(value: DynamicImage) -> Self {
         value.into_luma_alpha8()
     }
 }
 
-impl From<DynamicSerialImage> for SerialRgb16Image {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for Rgb16Image {
+    fn from(value: DynamicImage) -> Self {
         value.into_rgb16()
     }
 }
 
-impl From<DynamicSerialImage> for SerialRgba16Image {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for Rgba16Image {
+    fn from(value: DynamicImage) -> Self {
         value.into_rgba16()
     }
 }
 
-impl From<DynamicSerialImage> for SerialGray16Image {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for Gray16Image {
+    fn from(value: DynamicImage) -> Self {
         value.into_luma16()
     }
 }
 
-impl From<DynamicSerialImage> for SerialGrayAlpha16Image {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for GrayAlpha16Image {
+    fn from(value: DynamicImage) -> Self {
         value.into_luma_alpha16()
     }
 }
 
-impl From<DynamicSerialImage> for SerialRgba32FImage {
-    fn from(value: DynamicSerialImage) -> Self {
+impl From<DynamicImage> for Rgba32FImage {
+    fn from(value: DynamicImage) -> Self {
         value.into_rgba32f()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{SerialGrayImage, SerialImageBuffer, SerialRgbImage};
+    use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::ImageFormat;
-    use crate::SerialGenericImage as _;
+    use crate::GenericImage as _;
     use crate::{color, Rgb};
 
     #[test]
     /// Tests if image buffers from slices work
     fn slice_buffer() {
         let data = [0; 9];
-        let buf: SerialImageBuffer<color::Luma<u8>, _> =
-            SerialImageBuffer::from_raw(3, 3, &data[..]).unwrap();
+        let buf: ImageBuffer<color::Luma<u8>, _> =
+            ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
         assert_eq!(&*buf, &data[..])
     }
 
     #[test]
     fn get_pixel() {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
@@ -1959,7 +1546,7 @@ mod test {
 
     #[test]
     fn get_pixel_checked() {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
         a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
 
         assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
@@ -1971,7 +1558,7 @@ mod test {
 
         // From image/issues/1672
         const WHITE: Rgb<u8> = Rgb([255_u8, 255, 255]);
-        let mut a = SerialRgbImage::new(2, 1);
+        let mut a = RgbImage::new(2, 1);
         a.put_pixel(1, 0, WHITE);
 
         assert_eq!(a.get_pixel_checked(1, 0), Some(&WHITE));
@@ -1980,7 +1567,7 @@ mod test {
 
     #[test]
     fn mut_iter() {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(10, 10);
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
             *val = Rgb([42, 0, 0]);
@@ -1990,7 +1577,7 @@ mod test {
 
     #[test]
     fn zero_width_zero_height() {
-        let mut image = SerialRgbImage::new(0, 0);
+        let mut image = RgbImage::new(0, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -2000,7 +1587,7 @@ mod test {
 
     #[test]
     fn zero_width_nonzero_height() {
-        let mut image = SerialRgbImage::new(0, 2);
+        let mut image = RgbImage::new(0, 2);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -2010,7 +1597,7 @@ mod test {
 
     #[test]
     fn nonzero_width_zero_height() {
-        let mut image = SerialRgbImage::new(2, 0);
+        let mut image = RgbImage::new(2, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
         assert_eq!(image.pixels_mut().count(), 0);
@@ -2020,7 +1607,7 @@ mod test {
 
     #[test]
     fn pixels_on_large_buffer() {
-        let mut image = SerialRgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
+        let mut image = RgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
 
         assert_eq!(image.pixels().count(), 1);
         assert_eq!(image.enumerate_pixels().count(), 1);
@@ -2033,14 +1620,14 @@ mod test {
 
     #[test]
     fn default() {
-        let image = SerialImageBuffer::<Rgb<u8>, Vec<u8>>::default();
+        let image = ImageBuffer::<Rgb<u8>, Vec<u8>>::default();
         assert_eq!(image.dimensions(), (0, 0));
     }
 
     #[test]
     #[rustfmt::skip]
     fn test_image_buffer_copy_within_oob() {
-        let mut image: SerialGrayImage = SerialImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
         assert!(!image.copy_within(Rect { x: 0, y: 0, width: 5, height: 4 }, 0, 0));
         assert!(!image.copy_within(Rect { x: 0, y: 0, width: 4, height: 5 }, 0, 0));
         assert!(!image.copy_within(Rect { x: 1, y: 0, width: 4, height: 4 }, 0, 0));
@@ -2054,8 +1641,8 @@ mod test {
     fn test_image_buffer_copy_within_tl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 4, 0, 1, 2, 8, 4, 5, 6, 12, 8, 9, 10];
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 0,
@@ -2073,8 +1660,8 @@ mod test {
     fn test_image_buffer_copy_within_tr() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 1, 2, 3, 7, 5, 6, 7, 11, 9, 10, 11, 15];
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 1,
@@ -2092,8 +1679,8 @@ mod test {
     fn test_image_buffer_copy_within_bl() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 4, 5, 6, 4, 8, 9, 10, 8, 12, 13, 14, 12, 13, 14, 15];
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 0,
@@ -2111,8 +1698,8 @@ mod test {
     fn test_image_buffer_copy_within_br() {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [5, 6, 7, 3, 9, 10, 11, 7, 13, 14, 15, 11, 12, 13, 14, 15];
-        let mut image: SerialGrayImage =
-            SerialImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.copy_within(
             Rect {
                 x: 1,
@@ -2131,7 +1718,7 @@ mod test {
     fn write_to_with_large_buffer() {
         // A buffer of 1 pixel, padded to 4 bytes as would be common in, e.g. BMP.
 
-        let img: SerialGrayImage = SerialImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
+        let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
         let mut buffer = std::io::Cursor::new(vec![]);
         assert!(img.write_to(&mut buffer, ImageFormat::Png).is_ok());
     }
@@ -2144,7 +1731,7 @@ mod test {
         // This test should work for any size image.
         const N: u32 = 10;
 
-        let mut image = SerialRgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
+        let mut image = RgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
 
         let iter = image.pixels();
         let exact_len = ExactSizeIterator::len(&iter);
@@ -2183,11 +1770,11 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, Pixel, SerialGrayImage, SerialImageBuffer, SerialRgbImage};
+    use super::{ConvertBuffer, Pixel, GrayImage, ImageBuffer, RgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -2196,7 +1783,7 @@ mod benchmarks {
         }
         assert!(a.data[0] != 0);
         b.iter(|| {
-            let b: SerialGrayImage = a.convert();
+            let b: GrayImage = a.convert();
             assert!(0 != b.data[0]);
             assert!(a.data[0] != b.data[0]);
             test::black_box(b);
@@ -2206,7 +1793,7 @@ mod benchmarks {
 
     #[bench]
     fn image_access_row_by_row(b: &mut test::Bencher) {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -2215,7 +1802,7 @@ mod benchmarks {
         }
 
         b.iter(move || {
-            let image: &SerialRgbImage = test::black_box(&a);
+            let image: &RgbImage = test::black_box(&a);
             let mut sum: usize = 0;
             for y in 0..1000 {
                 for x in 0..1000 {
@@ -2233,7 +1820,7 @@ mod benchmarks {
 
     #[bench]
     fn image_access_col_by_col(b: &mut test::Bencher) {
-        let mut a: SerialRgbImage = SerialImageBuffer::new(1000, 1000);
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
@@ -2242,7 +1829,7 @@ mod benchmarks {
         }
 
         b.iter(move || {
-            let image: &SerialRgbImage = test::black_box(&a);
+            let image: &RgbImage = test::black_box(&a);
             let mut sum: usize = 0;
             for x in 0..1000 {
                 for y in 0..1000 {

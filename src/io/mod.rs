@@ -127,7 +127,7 @@ impl Limits {
     }
 
     /// This function acts identically to [`reserve`], but accepts the width, height and color type
-    /// used to create an [`SerialImageBuffer`] and does all the math for you.
+    /// used to create an [`ImageBuffer`] and does all the math for you.
     pub fn reserve_buffer(
         &mut self,
         width: u32,

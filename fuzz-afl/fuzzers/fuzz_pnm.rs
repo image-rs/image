@@ -1,11 +1,11 @@
 extern crate afl;
 extern crate image;
 
-use image::{DynamicSerialImage, ImageDecoder};
+use image::{DynamicImage, ImageDecoder};
 use image::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
 
 #[inline(always)]
-fn pnm_decode(data: &[u8]) -> ImageResult<DynamicSerialImage> {
+fn pnm_decode(data: &[u8]) -> ImageResult<DynamicImage> {
     let decoder = image::codecs::pnm::PnmDecoder::new(data)?;
     let (width, height) = decoder.dimensions();
 
@@ -13,7 +13,7 @@ fn pnm_decode(data: &[u8]) -> ImageResult<DynamicSerialImage> {
         return Err(ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError)));
     }
 
-    DynamicSerialImage::from_decoder(decoder)
+    DynamicImage::from_decoder(decoder)
 }
 
 fn main() {

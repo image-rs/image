@@ -342,7 +342,7 @@ mod test {
 
     use crate::buffer_::{SerialRgb32FImage, SerialRgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{DynamicSerialImage, SerialImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -388,7 +388,7 @@ mod test {
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
-        SerialImageBuffer::from_raw(width, height, buffer)
+        ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
             // even though such a large allocation would probably cause an error much earlier
             .ok_or_else(|| {
@@ -402,7 +402,7 @@ mod test {
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
-        SerialImageBuffer::from_raw(width, height, buffer)
+        ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
             // even though such a large allocation would probably cause an error much earlier
             .ok_or_else(|| {
@@ -428,8 +428,8 @@ mod test {
 
             let hdr_decoder =
                 HdrDecoder::new(BufReader::new(File::open(reference_path).unwrap())).unwrap();
-            let hdr: SerialRgb32FImage = match DynamicSerialImage::from_decoder(hdr_decoder).unwrap() {
-                DynamicSerialImage::ImageRgb32F(image) => image,
+            let hdr: SerialRgb32FImage = match DynamicImage::from_decoder(hdr_decoder).unwrap() {
+                DynamicImage::ImageRgb32F(image) => image,
                 _ => panic!("expected rgb32f image"),
             };
 
@@ -458,7 +458,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: SerialRgba32FImage = SerialImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: SerialRgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
             Rgba([next_random(), next_random(), next_random(), next_random()])
         });
 
@@ -476,7 +476,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: SerialRgb32FImage = SerialImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: SerialRgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
             Rgb([next_random(), next_random(), next_random()])
         });
 

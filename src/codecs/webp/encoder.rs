@@ -90,11 +90,11 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ImageEncoder, SerialRgbaImage};
+    use crate::{ImageEncoder, RgbaImage};
 
     #[test]
     fn write_webp() {
-        let img = SerialRgbaImage::from_raw(10, 6, (0..240).collect()).unwrap();
+        let img = RgbaImage::from_raw(10, 6, (0..240).collect()).unwrap();
 
         let mut output = Vec::new();
         super::WebPEncoder::new_lossless(&mut output)

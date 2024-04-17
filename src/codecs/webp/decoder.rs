@@ -3,7 +3,7 @@ use std::io::{BufRead, Read, Seek};
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, SerialRgbImage, Rgba, SerialRgbaImage};
+use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
 
 /// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
 pub struct WebPDecoder<R> {
@@ -76,13 +76,13 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
                 let (width, height) = self.decoder.inner.dimensions();
 
                 let (img, delay) = if self.decoder.inner.has_alpha() {
-                    let mut img = SerialRgbaImage::new(width, height);
+                    let mut img = RgbaImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut img) {
                         Ok(delay) => (img, delay),
                         Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
                     }
                 } else {
-                    let mut img = SerialRgbImage::new(width, height);
+                    let mut img = RgbImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut img) {
                         Ok(delay) => (img.convert(), delay),
                         Err(e) => return Some(Err(ImageError::from_webp_decode(e))),

@@ -10,7 +10,7 @@ fn main() {
     let scaley = 3.0 / imgy as f32;
 
     // Create a new ImgBuf with width: imgx and height: imgy
-    let mut imgbuf = image::SerialImageBuffer::new(imgx, imgy);
+    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
 
     // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 use crate::error::ImageResult;
-use crate::SerialRgbaImage;
+use crate::RgbaImage;
 
 /// An implementation dependent iterator, reading the frames as requested
 pub struct Frames<'a> {
@@ -41,7 +41,7 @@ pub struct Frame {
     left: u32,
     /// y offset
     top: u32,
-    buffer: SerialRgbaImage,
+    buffer: RgbaImage,
 }
 
 /// The delay of a frame relative to the previous one.
@@ -52,7 +52,7 @@ pub struct Delay {
 
 impl Frame {
     /// Constructs a new frame without any delay.
-    pub fn new(buffer: SerialRgbaImage) -> Frame {
+    pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
             delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
             left: 0,
@@ -62,7 +62,7 @@ impl Frame {
     }
 
     /// Constructs a new frame
-    pub fn from_parts(buffer: SerialRgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
+    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
         Frame {
             delay,
             left,
@@ -77,17 +77,17 @@ impl Frame {
     }
 
     /// Returns the image buffer
-    pub fn buffer(&self) -> &SerialRgbaImage {
+    pub fn buffer(&self) -> &RgbaImage {
         &self.buffer
     }
 
     /// Returns a mutable image buffer
-    pub fn buffer_mut(&mut self) -> &mut SerialRgbaImage {
+    pub fn buffer_mut(&mut self) -> &mut RgbaImage {
         &mut self.buffer
     }
 
     /// Returns the image buffer
-    pub fn into_buffer(self) -> SerialRgbaImage {
+    pub fn into_buffer(self) -> RgbaImage {
         self.buffer
     }
 

@@ -31,11 +31,11 @@
 //!
 //! ```rust,no_run
 //! # use std::io::{Write, Cursor};
-//! # use image::{DynamicSerialImage, ImageFormat};
+//! # use image::{DynamicImage, ImageFormat};
 //! # #[cfg(feature = "png")]
 //! # fn main() -> Result<(), image::ImageError> {
-//! # let img: DynamicSerialImage = unimplemented!();
-//! # let img2: DynamicSerialImage = unimplemented!();
+//! # let img: DynamicImage = unimplemented!();
+//! # let img2: DynamicImage = unimplemented!();
 //! img.save("empty.jpg")?;
 //!
 //! let mut bytes: Vec<u8> = Vec::new();
@@ -47,27 +47,27 @@
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).
 //!
-//! [`save`]: enum.DynamicSerialImage.html#method.save
-//! [`write_to`]: enum.DynamicSerialImage.html#method.write_to
+//! [`save`]: enum.DynamicImage.html#method.save
+//! [`write_to`]: enum.DynamicImage.html#method.write_to
 //! [`io::Reader`]: io/struct.Reader.html
 //!
 //! # Image buffers
 //!
 //! The two main types for storing images:
-//! * [`SerialImageBuffer`] which holds statically typed image contents.
-//! * [`DynamicSerialImage`] which is an enum over the supported SerialImageBuffer formats
+//! * [`ImageBuffer`] which holds statically typed image contents.
+//! * [`DynamicImage`] which is an enum over the supported ImageBuffer formats
 //!     and supports conversions between them.
 //!
 //! As well as a few more specialized options:
-//! * [`SerialGenericImage`] trait for a mutable image buffer.
-//! * [`GenericImageView`] trait for read only references to a SerialGenericImage.
+//! * [`GenericImage`] trait for a mutable image buffer.
+//! * [`GenericImageView`] trait for read only references to a GenericImage.
 //! * [`flat`] module containing types for interoperability with generic channel
 //!     matrices and foreign interfaces.
 //!
 //! [`GenericImageView`]: trait.GenericImageView.html
-//! [`SerialGenericImage`]: trait.SerialGenericImage.html
-//! [`SerialImageBuffer`]: struct.SerialImageBuffer.html
-//! [`DynamicSerialImage`]: enum.DynamicSerialImage.html
+//! [`GenericImage`]: trait.GenericImage.html
+//! [`ImageBuffer`]: struct.ImageBuffer.html
+//! [`DynamicImage`]: enum.DynamicImage.html
 //! [`flat`]: flat/index.html
 //!
 //! # Low level encoding/decoding API
@@ -75,12 +75,12 @@
 //! Implementations of [`ImageEncoder`] provides low level control over encoding:
 //! ```rust,no_run
 //! # use std::io::Write;
-//! # use image::DynamicSerialImage;
+//! # use image::DynamicImage;
 //! # use image::ImageEncoder;
 //! # #[cfg(feature = "jpeg")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # use image::codecs::jpeg::JpegEncoder;
-//! # let img: DynamicSerialImage = unimplemented!();
+//! # let img: DynamicImage = unimplemented!();
 //! # let writer: Box<dyn Write> = unimplemented!();
 //! let encoder = JpegEncoder::new_with_quality(&mut writer, 95);
 //! img.write_with_encoder(encoder)?;
@@ -92,22 +92,22 @@
 //!
 //! ```rust,no_run
 //! # use std::io::{BufReader, Cursor};
-//! # use image::DynamicSerialImage;
+//! # use image::DynamicImage;
 //! # use image::ImageDecoder;
 //! # #[cfg(feature = "png")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # use image::codecs::png::PngDecoder;
-//! # let img: DynamicSerialImage = unimplemented!();
+//! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
 //! let decoder = PngDecoder::new(&mut reader)?;
 //! let icc = decoder.icc_profile();
-//! let img = DynamicSerialImage::from_decoder(decoder)?;
+//! let img = DynamicImage::from_decoder(decoder)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
 //! ```
 //!
-//! [`DynamicSerialImage::from_decoder`]: enum.DynamicSerialImage.html#method.from_decoder
+//! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
@@ -141,14 +141,14 @@ mod roi;
 pub use roi::ROI;
 
 #[cfg(feature = "fitsio")]
-mod savefits;
+mod dynimage_fitsio;
 
 #[cfg(feature = "fitsio")]
-pub use savefits::FitsCompression;
+pub use buffer_::FitsCompression;
 
 pub use crate::image::{
     AnimationDecoder,
-    SerialGenericImage,
+    GenericImage,
     GenericImageView,
     ImageDecoder,
     ImageDecoderRect,
@@ -160,18 +160,18 @@ pub use crate::image::{
 };
 
 pub use crate::buffer_::{
-    SerialGrayAlphaImage,
-    SerialGrayImage,
-    SerialGray16Image,
-    SerialGrayAlpha16Image,
-    SerialRgb16Image,
-    SerialRgba16Image,
-    SerialImageBuffer,
+    GrayAlphaImage,
+    GrayImage,
+    Gray16Image,
+    GrayAlpha16Image,
+    Rgb16Image,
+    Rgba16Image,
+    ImageBuffer,
     // Image types
-    SerialRgb32FImage,
-    SerialRgbImage,
-    SerialRgba32FImage,
-    SerialRgbaImage,
+    Rgb32FImage,
+    RgbImage,
+    Rgba32FImage,
+    RgbaImage,
 };
 
 pub use crate::flat::FlatSamples;
@@ -186,14 +186,14 @@ pub use crate::dynimage::{
 };
 pub use crate::io::free_functions::{guess_format, load};
 
-pub use crate::dynimage::DynamicSerialImage;
+pub use crate::dynimage::DynamicImage;
 
 pub use crate::animation::{Delay, Frame, Frames};
 
 // More detailed error type
 pub mod error;
 
-/// Iterators and other auxiliary structure for the `SerialImageBuffer` type.
+/// Iterators and other auxiliary structure for the `ImageBuffer` type.
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::buffer_::{

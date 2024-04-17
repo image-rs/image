@@ -46,7 +46,7 @@ use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::io::Limits;
 use crate::traits::Pixel;
 use crate::ExtendedColorType;
-use crate::SerialImageBuffer;
+use crate::ImageBuffer;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
@@ -175,12 +175,12 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                 .read_into_buffer(&mut frame_buffer[..])
                 .map_err(ImageError::from_decoding)?;
 
-            let frame_buffer = SerialImageBuffer::from_raw(frame.width, frame.height, frame_buffer);
-            let image_buffer = SerialImageBuffer::from_raw(width, height, buf);
+            let frame_buffer = ImageBuffer::from_raw(frame.width, frame.height, frame_buffer);
+            let image_buffer = ImageBuffer::from_raw(width, height, buf);
 
             // `buffer_size` uses wrapping arithmetic, thus might not report the
             // correct storage requirement if the result does not fit in `usize`.
-            // `SerialImageBuffer::from_raw` detects overflow and reports by returning `None`.
+            // `ImageBuffer::from_raw` detects overflow and reports by returning `None`.
             if frame_buffer.is_none() || image_buffer.is_none() {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -223,7 +223,7 @@ struct GifFrameIterator<R: Read> {
     width: u32,
     height: u32,
 
-    non_disposed_frame: Option<SerialImageBuffer<Rgba<u8>, Vec<u8>>>,
+    non_disposed_frame: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     limits: Limits,
 }
 
@@ -261,7 +261,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             {
                 return Some(Err(e));
             }
-            self.non_disposed_frame = Some(SerialImageBuffer::from_pixel(
+            self.non_disposed_frame = Some(ImageBuffer::from_pixel(
                 self.width,
                 self.height,
                 Rgba([0, 0, 0, 0]),
@@ -303,9 +303,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // create the image buffer from the raw frame.
         // `buffer_size` uses wrapping arithmetic, thus might not report the
         // correct storage requirement if the result does not fit in `usize`.
-        // on the other hand, `SerialImageBuffer::from_raw` detects overflow and
+        // on the other hand, `ImageBuffer::from_raw` detects overflow and
         // reports by returning `None`.
-        let mut frame_buffer = match SerialImageBuffer::from_raw(frame.width, frame.height, vec) {
+        let mut frame_buffer = match ImageBuffer::from_raw(frame.width, frame.height, vec) {
             Some(frame_buffer) => frame_buffer,
             None => {
                 return Some(Err(ImageError::Unsupported(
@@ -368,7 +368,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             if let Err(e) = local_limits.reserve_buffer(self.width, self.height, COLOR_TYPE) {
                 return Some(Err(e));
             }
-            SerialImageBuffer::from_fn(self.width, self.height, |x, y| {
+            ImageBuffer::from_fn(self.width, self.height, |x, y| {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);
                 let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);

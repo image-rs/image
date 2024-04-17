@@ -5,7 +5,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::traits::Pixel;
-use crate::SerialImageBuffer;
+use crate::ImageBuffer;
 
 /// Parallel iterator over pixel refs.
 #[derive(Clone)]
@@ -311,7 +311,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + Sync,
     P::Subpixel: Sync,
@@ -341,7 +341,7 @@ where
     }
 }
 
-impl<P, Container> SerialImageBuffer<P, Container>
+impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + Send + Sync,
     P::Subpixel: Send + Sync,
@@ -372,12 +372,12 @@ where
     }
 }
 
-impl<P> SerialImageBuffer<P, Vec<P::Subpixel>>
+impl<P> ImageBuffer<P, Vec<P::Subpixel>>
 where
     P: Pixel + Send + Sync,
     P::Subpixel: Send + Sync,
 {
-    /// Constructs a new SerialImageBuffer by repeated application of the supplied function,
+    /// Constructs a new ImageBuffer by repeated application of the supplied function,
     /// utilizing multi-threading via `rayon`.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.
@@ -385,11 +385,11 @@ where
     /// # Panics
     ///
     /// Panics when the resulting image is larger the the maximum size of a vector.
-    pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> SerialImageBuffer<P, Vec<P::Subpixel>>
+    pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: Fn(u32, u32) -> P + Send + Sync,
     {
-        let mut buf = SerialImageBuffer::new(width, height);
+        let mut buf = ImageBuffer::new(width, height);
         buf.par_enumerate_pixels_mut().for_each(|(x, y, p)| {
             *p = f(x, y);
         });
@@ -400,11 +400,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{Rgb, SerialRgbImage};
+    use crate::{Rgb, RgbImage};
     use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 
     fn test_width_height(width: u32, height: u32, len: usize) {
-        let mut image = SerialRgbImage::new(width, height);
+        let mut image = RgbImage::new(width, height);
 
         assert_eq!(image.par_enumerate_pixels_mut().len(), len);
         assert_eq!(image.par_enumerate_pixels().len(), len);
@@ -429,7 +429,7 @@ mod test {
 
     #[test]
     fn iter_parity() {
-        let mut image1 = SerialRgbImage::from_fn(17, 29, |x, y| {
+        let mut image1 = RgbImage::from_fn(17, 29, |x, y| {
             Rgb(std::array::from_fn(|i| {
                 ((x + y * 98 + i as u32 * 27) % 255) as u8
             }))
@@ -458,7 +458,7 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use crate::{Rgb, SerialRgbImage};
+    use crate::{Rgb, RgbImage};
 
     const S: u32 = 1024;
 

@@ -15,13 +15,13 @@
 
 use std::io::Cursor;
 
-use image::{io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, SerialRgbImage};
+use image::{io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, RgbImage};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
 
 fn test_image(format: ImageFormat) -> Vec<u8> {
-    let image = SerialRgbImage::new(WIDTH, HEIGHT);
+    let image = RgbImage::new(WIDTH, HEIGHT);
     let mut bytes: Vec<u8> = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut bytes), format)
@@ -57,7 +57,7 @@ fn load_through_reader(
     input: &[u8],
     format: ImageFormat,
     limits: Limits,
-) -> Result<image::DynamicSerialImage, image::ImageError> {
+) -> Result<image::DynamicImage, image::ImageError> {
     let mut reader = image::io::Reader::new(Cursor::new(input));
     reader.set_format(format);
     reader.limits(limits);

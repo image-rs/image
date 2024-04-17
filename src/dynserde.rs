@@ -1,7 +1,7 @@
 use crate::{
-    DynamicSerialImage, ImageMetadata, SerialGray16Image, SerialGrayAlpha16Image,
-    SerialGrayAlphaImage, SerialGrayImage, SerialRgb16Image, SerialRgb32FImage, SerialRgbImage,
-    SerialRgba16Image, SerialRgba32FImage, SerialRgbaImage,
+    DynamicImage, ImageMetadata, Gray16Image, GrayAlpha16Image,
+    GrayAlphaImage, GrayImage, Rgb16Image, Rgb32FImage, RgbImage,
+    Rgba16Image, Rgba32FImage, RgbaImage,
 };
 use serde::{
     de::{self, Visitor},
@@ -75,8 +75,8 @@ impl<'a> Serialize for SerialBuffer<'a> {
     }
 }
 
-impl<'de> Deserialize<'de> for DynamicSerialImage {
-    fn deserialize<D>(deserializer: D) -> Result<DynamicSerialImage, D::Error>
+impl<'de> Deserialize<'de> for DynamicImage {
+    fn deserialize<D>(deserializer: D) -> Result<DynamicImage, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -244,7 +244,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
         let res = deserializer.deserialize_struct("SerialBuffer", FIELDS, SerialBufferVisitor)?;
 
         use DynaColor::*;
-        use DynamicSerialImage::*;
+        use DynamicImage::*;
 
         use flate2::read::ZlibDecoder;
         let mut decoder = ZlibDecoder::new(res.data.as_slice());
@@ -257,7 +257,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if dlen != res.width as usize * res.height as usize {
                     return Err(de::Error::custom("Data length does not match image size"));
                 }
-                let img = SerialGrayImage::from_vec(res.width, res.height, data)
+                let img = GrayImage::from_vec(res.width, res.height, data)
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageLuma8(img)
             }
@@ -265,7 +265,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if dlen != res.width as usize * res.height as usize * 2 {
                     return Err(de::Error::custom("Data length does not match image size"));
                 }
-                let img = SerialGrayAlphaImage::from_vec(res.width, res.height, data)
+                let img = GrayAlphaImage::from_vec(res.width, res.height, data)
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageLumaA8(img)
             }
@@ -273,7 +273,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if dlen != res.width as usize * res.height as usize * 3 {
                     return Err(de::Error::custom("Data length does not match image size"));
                 }
-                let img = SerialRgbImage::from_raw(res.width, res.height, data)
+                let img = RgbImage::from_raw(res.width, res.height, data)
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgb8(img)
             }
@@ -281,7 +281,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if dlen != res.width as usize * res.height as usize * 4 {
                     return Err(de::Error::custom("Data length does not match image size"));
                 }
-                let img = SerialRgbaImage::from_raw(res.width, res.height, data)
+                let img = RgbaImage::from_raw(res.width, res.height, data)
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgba8(img)
             }
@@ -293,7 +293,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if little_endian() != res.le {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
-                let img = SerialGray16Image::from_vec(res.width, res.height, data.into())
+                let img = Gray16Image::from_vec(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageLuma16(img)
             }
@@ -305,7 +305,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if little_endian() != res.le {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
-                let img = SerialGrayAlpha16Image::from_vec(res.width, res.height, data.into())
+                let img = GrayAlpha16Image::from_vec(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageLumaA16(img)
             }
@@ -317,7 +317,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if little_endian() != res.le {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
-                let img = SerialRgb16Image::from_raw(res.width, res.height, data.into())
+                let img = Rgb16Image::from_raw(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgb16(img)
             }
@@ -329,7 +329,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                 if little_endian() != res.le {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
-                let img = SerialRgba16Image::from_raw(res.width, res.height, data.into())
+                let img = Rgba16Image::from_raw(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgba16(img)
             }
@@ -342,7 +342,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
                 let data = bytemuck::cast_slice_mut::<u32, f32>(data);
-                let img = SerialRgb32FImage::from_raw(res.width, res.height, data.into())
+                let img = Rgb32FImage::from_raw(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgb32F(img)
             }
@@ -355,7 +355,7 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
                 let data = bytemuck::cast_slice_mut::<u32, f32>(data);
-                let img = SerialRgba32FImage::from_raw(res.width, res.height, data.into())
+                let img = Rgba32FImage::from_raw(res.width, res.height, data.into())
                     .ok_or(de::Error::custom("Could not convert"))?;
                 ImageRgba32F(img)
             }
@@ -367,9 +367,9 @@ impl<'de> Deserialize<'de> for DynamicSerialImage {
     }
 }
 
-impl From<&DynamicSerialImage> for DynaColor {
-    fn from(dynimage: &DynamicSerialImage) -> Self {
-        use DynamicSerialImage::*;
+impl From<&DynamicImage> for DynaColor {
+    fn from(dynimage: &DynamicImage) -> Self {
+        use DynamicImage::*;
         match dynimage {
             ImageLuma8(_) => DynaColor::Luma8,
             ImageLumaA8(_) => DynaColor::LumaA8,
@@ -385,8 +385,8 @@ impl From<&DynamicSerialImage> for DynaColor {
     }
 }
 
-impl<'a> From<&'a DynamicSerialImage> for SerialBuffer<'a> {
-    fn from(value: &'a DynamicSerialImage) -> Self {
+impl<'a> From<&'a DynamicImage> for SerialBuffer<'a> {
+    fn from(value: &'a DynamicImage) -> Self {
         let kind: DynaColor = value.into();
         let data = value.as_bytes();
         let meta = value.metadata();
@@ -403,7 +403,7 @@ impl<'a> From<&'a DynamicSerialImage> for SerialBuffer<'a> {
     }
 }
 
-impl Serialize for DynamicSerialImage {
+impl Serialize for DynamicImage {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

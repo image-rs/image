@@ -3,11 +3,11 @@ extern crate image;
 
 use std::io::Cursor;
 
-use image::{DynamicSerialImage, ImageDecoder};
+use image::{DynamicImage, ImageDecoder};
 use image::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
 
 #[inline(always)]
-fn webp_decode(data: &[u8]) -> ImageResult<DynamicSerialImage> {
+fn webp_decode(data: &[u8]) -> ImageResult<DynamicImage> {
     let decoder = image::codecs::webp::WebPDecoder::new(Cursor::new(data))?;
     let (width, height) = decoder.dimensions();
 
@@ -15,7 +15,7 @@ fn webp_decode(data: &[u8]) -> ImageResult<DynamicSerialImage> {
         return Err(ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError)));
     }
 
-    DynamicSerialImage::from_decoder(decoder)
+    DynamicImage::from_decoder(decoder)
 }
 
 fn main() {

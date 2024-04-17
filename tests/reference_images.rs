@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use image::FitsCompression;
 
 use crc32fast::Hasher as Crc32;
-use image::DynamicSerialImage;
+use image::DynamicImage;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -47,7 +47,7 @@ fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
         println!("render_images {}", path.display());
         let img = match image::open(&path) {
-            Ok(DynamicSerialImage::ImageRgb32F(_)) | Ok(DynamicSerialImage::ImageRgba32F(_)) => {
+            Ok(DynamicImage::ImageRgb32F(_)) | Ok(DynamicImage::ImageRgba32F(_)) => {
                 println!("Skipping {} - HDR codec is not enabled", path.display());
                 return;
             }
@@ -219,7 +219,7 @@ fn check_references() {
                     let frame = frames.drain(frame_num..).next().unwrap();
 
                     // Convert the frame to a`RgbaImage`
-                    test_img = Some(DynamicSerialImage::from(frame.into_buffer()));
+                    test_img = Some(DynamicImage::from(frame.into_buffer()));
                 }
 
                 #[cfg(feature = "png")]
@@ -247,7 +247,7 @@ fn check_references() {
                     let frame = frames.drain(frame_num..).next().unwrap();
 
                     // Convert the frame to a`RgbaImage`
-                    test_img = Some(DynamicSerialImage::from(frame.into_buffer()));
+                    test_img = Some(DynamicImage::from(frame.into_buffer()));
                 }
 
                 if test_img.is_none() {
@@ -277,19 +277,19 @@ fn check_references() {
         let test_crc_actual = {
             let mut hasher = Crc32::new();
             match test_img {
-                DynamicSerialImage::ImageLuma8(_)
-                | DynamicSerialImage::ImageLumaA8(_)
-                | DynamicSerialImage::ImageRgb8(_)
-                | DynamicSerialImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
-                DynamicSerialImage::ImageLuma16(_)
-                | DynamicSerialImage::ImageLumaA16(_)
-                | DynamicSerialImage::ImageRgb16(_)
-                | DynamicSerialImage::ImageRgba16(_) => {
+                DynamicImage::ImageLuma8(_)
+                | DynamicImage::ImageLumaA8(_)
+                | DynamicImage::ImageRgb8(_)
+                | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
+                DynamicImage::ImageLuma16(_)
+                | DynamicImage::ImageLumaA16(_)
+                | DynamicImage::ImageRgb16(_)
+                | DynamicImage::ImageRgba16(_) => {
                     for v in test_img.as_bytes().chunks(2) {
                         hasher.update(&u16::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
                     }
                 }
-                DynamicSerialImage::ImageRgb32F(_) | DynamicSerialImage::ImageRgba32F(_) => {
+                DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_) => {
                     for v in test_img.as_bytes().chunks(4) {
                         hasher.update(&f32::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
                     }
@@ -389,7 +389,7 @@ fn read_test_json() {
             panic!("Failed to read JSON file for {path:?} ({ref_img:?}): {e}");
         }
         let json = json.unwrap();
-        let res = serde_json::from_str::<DynamicSerialImage>(&json);
+        let res = serde_json::from_str::<DynamicImage>(&json);
         if let Err(e) = res {
             panic!("Failed to deserialize image for {path:?} ({ref_img:?}): {e}");
         }
@@ -508,8 +508,8 @@ fn check_hdr_references() {
         let decoder =
             image::codecs::hdr::HdrDecoder::new(io::BufReader::new(fs::File::open(&path).unwrap()))
                 .unwrap();
-        let decoded = match DynamicSerialImage::from_decoder(decoder).unwrap() {
-            DynamicSerialImage::ImageRgb32F(img) => img.into_vec(),
+        let decoded = match DynamicImage::from_decoder(decoder).unwrap() {
+            DynamicImage::ImageRgb32F(img) => img.into_vec(),
             _ => unreachable!(),
         };
 

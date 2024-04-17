@@ -1,7 +1,7 @@
-use image::{Pixel, Rgba, SerialRgbaImage};
+use image::{Pixel, Rgba, RgbaImage};
 
 fn main() {
-    let mut img = SerialRgbaImage::new(100, 100);
+    let mut img = RgbaImage::new(100, 100);
 
     let start = Rgba::from_slice(&[0, 128, 0, 0]);
     let end = Rgba::from_slice(&[255, 255, 255, 255]);

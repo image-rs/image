@@ -8,8 +8,6 @@ use std::path::PathBuf;
 #[cfg(feature = "fitsio")]
 use crate::FitsCompression;
 
-use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
 #[cfg(feature = "png")]
@@ -27,7 +25,7 @@ use crate::image::{GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, Se
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
-use crate::{image, Luma, LumaA};
+use crate::{image, ImageMetadata, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
 use crate::{SerialRgb32FImage, SerialRgba32FImage};
 
@@ -54,7 +52,7 @@ use crate::{SerialRgb32FImage, SerialRgba32FImage};
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DynamicSerialImage {
     /// Each pixel in this image is 8-bit Luma
@@ -590,6 +588,27 @@ impl DynamicSerialImage {
             bytemuck::cast_slice(image_buffer.inner_pixels())
         )
     }
+
+    /// Return the metadata of the image.
+    pub fn metadata(&self) -> Option<&ImageMetadata> {
+        dynamic_map!(*self, ref p, p.metadata())
+    }
+
+    /// Mutably return the metadata of the image.
+    pub fn get_metadata_mut(&mut self) -> Option<&mut ImageMetadata> {
+        dynamic_map!(*self, ref mut p, p.metadata_mut())
+    }
+
+    /// Set the metadata of the image.
+    pub fn set_metadata(&mut self, metadata: ImageMetadata) {
+        dynamic_map!(*self, ref mut p, p.set_metadata(metadata))
+    }
+
+    /// Drop the metadata of the image.
+    pub fn drop_metadata(&mut self) {
+        dynamic_map!(*self, ref mut p, p.drop_metadata())
+    }
+
 
     #[cfg(feature = "fitsio")]
     /// Save the image data to a FITS file. The file name

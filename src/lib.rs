@@ -135,6 +135,8 @@ pub use crate::error::{ImageError, ImageResult};
 mod metadata;
 pub use metadata::{ImageMetadata, ImageMetadataBuilder, ExtendedMetadataRow, ExtendedMetadata};
 
+mod dynserde;
+
 mod roi;
 pub use roi::ROI;
 

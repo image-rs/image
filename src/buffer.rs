@@ -1,6 +1,5 @@
 //! Contains the generic `SerialImageBuffer` struct.
 use num_traits::Zero;
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
@@ -656,7 +655,7 @@ where
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicSerialImage::ImageRgba8(rgba).into_luma8();
 /// ```
-#[derive(Debug, PartialEq, Serialize, Deserialize, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SerialImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
@@ -903,8 +902,13 @@ where
     }
 
     /// Get the metadata of the image.
-    pub fn get_metadata(&self) -> Option<&ImageMetadata> {
+    pub fn metadata(&self) -> Option<&ImageMetadata> {
         self.meta.as_ref()
+    }
+
+    /// Get the metadata of the image.
+    pub fn metadata_mut(&mut self) -> Option<&mut ImageMetadata> {
+        self.meta.as_mut()
     }
 
     /// Set the metadata of the image.

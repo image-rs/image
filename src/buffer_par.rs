@@ -315,7 +315,7 @@ impl<P, Container> SerialImageBuffer<P, Container>
 where
     P: Pixel + Sync,
     P::Subpixel: Sync,
-    Container: Deref<Target = [P::Subpixel]>,
+    Container: Deref<Target = [P::Subpixel]> + IntoIterator<Item = P::Subpixel>,
 {
     /// Returns a parallel iterator over the pixels of this image, usable with `rayon`.
     /// See [`pixels`] for more information.

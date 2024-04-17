@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deserialimage"
+authors = [
+    {name = "Sunip K. Mukherjee", email = "sunipkmukherjee@gmail.com"},
+]
+description = "Deserializer for RAW images from [serialimage](https://crates.io/crates/serialimage)"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["one", "two"]
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy",
+]
+dynamic = ["version"]
+
+# [project.scripts]
+# my-script = "my_package.module:function"
+
+# ... other project metadata fields as listed in:
+#     https://packaging.python.org/en/latest/guides/writing-pyproject-toml/

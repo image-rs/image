@@ -20,3 +20,5 @@
 /.rust/
 rusti.sh
 Cargo.lock
+python/build
+**/*.egg-info

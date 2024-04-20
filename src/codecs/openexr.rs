@@ -340,7 +340,7 @@ mod test {
     use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
-    use crate::buffer_::{SerialRgb32FImage, SerialRgba32FImage};
+    use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
     use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
@@ -349,7 +349,7 @@ mod test {
     /// Write an `Rgb32FImage`.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    fn write_rgb_image(write: impl Write + Seek, image: &SerialRgb32FImage) -> ImageResult<()> {
+    fn write_rgb_image(write: impl Write + Seek, image: &Rgb32FImage) -> ImageResult<()> {
         write_buffer(
             write,
             bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -362,7 +362,7 @@ mod test {
     /// Write an `Rgba32FImage`.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    fn write_rgba_image(write: impl Write + Seek, image: &SerialRgba32FImage) -> ImageResult<()> {
+    fn write_rgba_image(write: impl Write + Seek, image: &Rgba32FImage) -> ImageResult<()> {
         write_buffer(
             write,
             bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -373,17 +373,17 @@ mod test {
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
-    fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<SerialRgba32FImage> {
+    fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
         read_as_rgba_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
-    fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<SerialRgb32FImage> {
+    fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
         read_as_rgb_image(BufReader::new(File::open(path)?))
     }
 
     /// Read the file from the specified path into an `Rgb32FImage`.
-    fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<SerialRgb32FImage> {
+    fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
@@ -397,7 +397,7 @@ mod test {
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
-    fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<SerialRgba32FImage> {
+    fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
@@ -428,12 +428,12 @@ mod test {
 
             let hdr_decoder =
                 HdrDecoder::new(BufReader::new(File::open(reference_path).unwrap())).unwrap();
-            let hdr: SerialRgb32FImage = match DynamicImage::from_decoder(hdr_decoder).unwrap() {
+            let hdr: Rgb32FImage = match DynamicImage::from_decoder(hdr_decoder).unwrap() {
                 DynamicImage::ImageRgb32F(image) => image,
                 _ => panic!("expected rgb32f image"),
             };
 
-            let exr_pixels: SerialRgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
+            let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
             assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
             for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
@@ -458,7 +458,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: SerialRgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: Rgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
             Rgba([next_random(), next_random(), next_random(), next_random()])
         });
 
@@ -476,7 +476,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: SerialRgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: Rgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
             Rgb([next_random(), next_random(), next_random()])
         });
 
@@ -494,8 +494,8 @@ mod test {
             .collect::<PathBuf>()
             .join("overexposed gradient - data window equals display window.exr");
 
-        let rgb: SerialRgb32FImage = read_as_rgb_image_from_file(&exr_path).unwrap();
-        let rgba: SerialRgba32FImage = read_as_rgba_image_from_file(&exr_path).unwrap();
+        let rgb: Rgb32FImage = read_as_rgb_image_from_file(&exr_path).unwrap();
+        let rgba: Rgba32FImage = read_as_rgba_image_from_file(&exr_path).unwrap();
 
         assert_eq!(rgba.dimensions(), rgb.dimensions());
 
@@ -537,8 +537,8 @@ mod test {
         }
 
         // check that they result in the same image
-        let original: SerialRgba32FImage = read_as_rgba_image_from_file(&original).unwrap();
-        let cropped: SerialRgba32FImage = read_as_rgba_image_from_file(&cropped).unwrap();
+        let original: Rgba32FImage = read_as_rgba_image_from_file(&original).unwrap();
+        let cropped: Rgba32FImage = read_as_rgba_image_from_file(&cropped).unwrap();
         assert_eq!(original.dimensions(), cropped.dimensions());
 
         // the following is not a simple assert_eq, as in case of an error,

@@ -1,8 +1,4 @@
-use crate::{
-    Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, Rgb16Image, RgbImage, Rgba16Image,
-    RgbaImage, Rgb32FImage, Rgba32FImage,
-};
-use fitsio::{errors::Error as FitsError, images::ImageType};
+use fitsio::{errors::Error as FitsError, images::ImageDescription, FitsFile};
 use std::path::PathBuf;
 
 use chrono::DateTime;
@@ -13,9 +9,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use fitsio::{images::ImageDescription, FitsFile};
-
-use crate::{Pixel, ImageBuffer};
+use crate::{ImageBuffer, Pixel, Primitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 /// Compression algorithms used in FITS files.
@@ -61,17 +55,14 @@ impl ToString for FitsCompression {
 impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Container> {
     /// Save the image to a FITS file.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn savefits_generic(
+    pub(crate) fn savefits(
         &self,
         dir_prefix: &Path,
         file_prefix: &str,
         progname: Option<&str>,
         compress: FitsCompression,
         overwrite: bool,
-        data_type: ImageType,
-        numpix: usize,
     ) -> Result<PathBuf, FitsError> {
-        // let data_type = imagetype_from_pixel::<P>()?;
         if !dir_prefix.exists() {
             return Err(FitsError::Io(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -111,14 +102,15 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
         let fpath = dir_prefix.join(Path::new(&format!("{}_{}.fits", file_prefix, timestamp)));
 
         let (width, height) = (self.width(), self.height());
-        let imgsize = if numpix == 0 {
+        let numpix = P::CHANNEL_COUNT as usize;
+        let imgsize = if numpix == 1 {
             vec![height as usize, width as usize]
         } else {
             vec![height as usize, width as usize, numpix]
         };
 
         let img_desc = ImageDescription {
-            data_type,
+            data_type: <P::Subpixel as Primitive>::image_type(),
             dimensions: &imgsize,
         };
 
@@ -151,6 +143,7 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
         } else {
             let hdu = fptr.primary_hdu()?;
             hdu.write_key(&mut fptr, "COMPRESSED_IMAGE", "T")?;
+            hdu.write_key(&mut fptr, "COMPRESSION_ALGO", compress.to_string())?;
             fptr.create_image("IMAGE", &img_desc)?
         };
 
@@ -178,434 +171,5 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
         }
 
         Ok(fpath)
-    }
-}
-
-impl RgbImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedByte,
-            3,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl RgbaImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedByte,
-            4,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl GrayImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedByte,
-            1,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl GrayAlphaImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedByte,
-            2,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl Rgb16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedShort,
-            3,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl Rgba16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedShort,
-            4,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl Gray16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedShort,
-            1,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl GrayAlpha16Image {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::UnsignedShort,
-            2,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl Rgb32FImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::Float,
-            3,
-        )
-    }
-}
-
-#[cfg(feature = "fitsio")]
-impl Rgba32FImage {
-    /// Save the image data to a FITS file. The file name
-    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///
-    /// ### Note
-    /// If compression is enabled, the compressed image data is stored
-    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
-    /// primary HDU. HDU 1 is created only if compression is enabled.
-    /// The HDU containing the image also contains all the necessary
-    /// metadata. In case compression is enabled, the primary HDU contains
-    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
-    /// image data is present in HDU 1.
-    ///
-    /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
-    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
-    ///  * `overwrite` - Whether to overwrite the file if it already exists.
-    ///
-    /// # Errors
-    ///  * [`fitsio::errors::Error`] with the error description.
-    pub fn savefits(
-        &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
-        compress: FitsCompression,
-        overwrite: bool,
-    ) -> Result<PathBuf, FitsError> {
-        self.savefits_generic(
-            dir_prefix,
-            file_prefix,
-            progname,
-            compress,
-            overwrite,
-            ImageType::Float,
-            4,
-        )
     }
 }

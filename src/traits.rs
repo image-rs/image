@@ -2,8 +2,6 @@
 
 // Note copied from the stdlib under MIT license
 
-#[cfg(feature = "fitsio")]
-use fitsio::images::WriteImage;
 use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
@@ -38,54 +36,89 @@ impl EncodableLayout for [f32] {
 }
 
 #[cfg(feature = "fitsio")]
-/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
-// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
-pub trait Primitive:
-    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + WriteImage
-{
-    /// The maximum value for this type of primitive within the context of color.
-    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
-    const DEFAULT_MAX_VALUE: Self;
+pub(crate) mod primitive {
+    use fitsio::images::{ImageType, WriteImage};
+    use num_traits::{Bounded, Num, NumCast};
 
-    /// The minimum value for this type of primitive within the context of color.
-    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
-    const DEFAULT_MIN_VALUE: Self;
+    /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
+    // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
+    pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + WriteImage {
+        /// The maximum value for this type of primitive within the context of color.
+        /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
+        const DEFAULT_MAX_VALUE: Self;
+
+        /// The minimum value for this type of primitive within the context of color.
+        /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
+        const DEFAULT_MIN_VALUE: Self;
+
+        /// Image type for FITS I/O.
+        const IMAGE_TYPE: ImageType;
+
+        /// Get the image type
+        fn image_type() -> ImageType {
+            Self::IMAGE_TYPE
+        }
+    }
+
+    macro_rules! declare_primitive {
+        ($base:ty: ($from:expr)..$to:expr, $type:expr) => {
+            impl Primitive for $base {
+                const DEFAULT_MAX_VALUE: Self = $to;
+                const DEFAULT_MIN_VALUE: Self = $from;
+                const IMAGE_TYPE: ImageType = $type;
+            }
+        };
+    }
+
+    declare_primitive!(u8: (0)..Self::MAX, ImageType::UnsignedByte);
+    declare_primitive!(u16: (0)..Self::MAX, ImageType::UnsignedShort);
+    declare_primitive!(u32: (0)..Self::MAX, ImageType::UnsignedLong);
+
+    declare_primitive!(i8: (Self::MIN)..Self::MAX, ImageType::Byte);
+    declare_primitive!(i16: (Self::MIN)..Self::MAX, ImageType::Short);
+    declare_primitive!(i32: (Self::MIN)..Self::MAX, ImageType::UnsignedLong);
+    declare_primitive!(i64: (Self::MIN)..Self::MAX, ImageType::LongLong);
+    declare_primitive!(f32: (0.0)..1.0, ImageType::Float);
+    declare_primitive!(f64: (0.0)..1.0, ImageType::Double);
 }
 #[cfg(not(feature = "fitsio"))]
-/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
-// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
-    /// The maximum value for this type of primitive within the context of color.
-    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
-    const DEFAULT_MAX_VALUE: Self;
+pub(crate) mod primitive {
+    use num_traits::{Bounded, Num, NumCast};
 
-    /// The minimum value for this type of primitive within the context of color.
-    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
-    const DEFAULT_MIN_VALUE: Self;
+    /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
+    // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
+    pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
+        /// The maximum value for this type of primitive within the context of color.
+        /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
+        const DEFAULT_MAX_VALUE: Self;
+
+        /// The minimum value for this type of primitive within the context of color.
+        /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
+        const DEFAULT_MIN_VALUE: Self;
+    }
+
+    macro_rules! declare_primitive {
+        ($base:ty: ($from:expr)..$to:expr) => {
+            impl Primitive for $base {
+                const DEFAULT_MAX_VALUE: Self = $to;
+                const DEFAULT_MIN_VALUE: Self = $from;
+            }
+        };
+    }
+
+    declare_primitive!(u8: (0)..Self::MAX);
+    declare_primitive!(u16: (0)..Self::MAX);
+    declare_primitive!(u32: (0)..Self::MAX);
+
+    declare_primitive!(i8: (Self::MIN)..Self::MAX);
+    declare_primitive!(i16: (Self::MIN)..Self::MAX);
+    declare_primitive!(i32: (Self::MIN)..Self::MAX);
+    declare_primitive!(i64: (Self::MIN)..Self::MAX);
+    declare_primitive!(f32: (0.0)..1.0);
+    declare_primitive!(f64: (0.0)..1.0);
 }
 
-macro_rules! declare_primitive {
-    ($base:ty: ($from:expr)..$to:expr) => {
-        impl Primitive for $base {
-            const DEFAULT_MAX_VALUE: Self = $to;
-            const DEFAULT_MIN_VALUE: Self = $from;
-        }
-    };
-}
-
-// declare_primitive!(usize: (0)..Self::MAX);
-declare_primitive!(u8: (0)..Self::MAX);
-declare_primitive!(u16: (0)..Self::MAX);
-declare_primitive!(u32: (0)..Self::MAX);
-declare_primitive!(u64: (0)..Self::MAX);
-
-// declare_primitive!(isize: (Self::MIN)..Self::MAX);
-declare_primitive!(i8: (Self::MIN)..Self::MAX);
-declare_primitive!(i16: (Self::MIN)..Self::MAX);
-declare_primitive!(i32: (Self::MIN)..Self::MAX);
-declare_primitive!(i64: (Self::MIN)..Self::MAX);
-declare_primitive!(f32: (0.0)..1.0);
-declare_primitive!(f64: (0.0)..1.0);
+pub use primitive::Primitive;
 
 /// An Enlargable::Larger value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.

@@ -6,10 +6,13 @@
 - The color space information of pixels is not clearly communicated.
 
 ## Changes
-- Implemented ZLib compressed serialization-deserialization for the `DynamicImage` object for transport over the network (minor).
 - Images may now contain optional metadata (minor).
-- Images can now be saved as compressed/uncompressed FITS files (minor).
-- Automatic exposure control on images, i.e. calculate new exposure and bin settings given an image with exposure and bin.
+- Implemented serialization and deserialization for the `DynamicImage` object for transport over the network, with Zlib compression of the image container (minor).
+- Images can now be saved as compressed/uncompressed FITS files if the `fitsio` feature flag is set (breaking).
+  - If the `fitsio` feature is enabled, imposes the additional `WriteImage` trait bound on the `Primitive` trait. 
+  This trait bound (and the `fitsio` feature) is optional to compile `image` crate on `wasm` targets, since `fitsio` crate requires the `cfitsio` library. 
+  - Removes the `Primitive` trait implementations for `usize`, `isize` and `u64`. `fitsio::images::WriteImage` is not implemented for these types, and these pixel types could be deemed unusable since `image` does not serialize these types natively, and any of the image encoders/decoders do not support these types.
+- Exposed the 16-bit buffer types (e.g. `Gray16Image`, minor).
 
 ### Version 0.25.1
 

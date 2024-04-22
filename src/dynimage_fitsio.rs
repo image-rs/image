@@ -19,9 +19,7 @@ impl DynamicImage {
     /// image data is present in HDU 1.
     ///
     /// # Arguments
-    ///  * `dir_prefix` - The directory where the file will be saved.
-    ///  * `file_prefix` - The prefix of the file name. The file name will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
-    ///  * `progname` - The name of the program that generated the image.
+    ///  * `path` - The path to the FITS file.
     ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
     ///  * `overwrite` - Whether to overwrite the file if it already exists.
     ///
@@ -29,80 +27,58 @@ impl DynamicImage {
     ///  * [`fitsio::errors::Error`] with the error description.
     pub fn savefits(
         &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
+        path: &Path,
         compress: FitsCompression,
         overwrite: bool,
     ) -> Result<PathBuf, FitsError> {
         match self {
             DynamicImage::ImageLuma8(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageLumaA8(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgb8(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgba8(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageLuma16(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageLumaA16(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgb16(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgba16(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgb32F(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),
             DynamicImage::ImageRgba32F(p) => p.savefits(
-                dir_prefix,
-                file_prefix,
-                progname,
+                path,
                 compress,
                 overwrite,
             ),

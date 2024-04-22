@@ -437,7 +437,8 @@ fn write_fits_backend(compress: FitsCompression) {
         };
 
         let filename = filename.as_os_str().to_str().unwrap();
-        let res = ref_img.savefits(&out, filename, None, compress, true);
+        let out = out.join(filename).with_extension("fits");
+        let res = ref_img.savefits(&out, compress, true);
         if let Err(e) = res {
             panic!("Failed to save FITS file for {path:?} ({ref_img:?}): {e}");
         }

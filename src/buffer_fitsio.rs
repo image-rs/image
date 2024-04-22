@@ -1,9 +1,8 @@
+use chrono::{DateTime, Utc};
 use fitsio::{errors::Error as FitsError, images::ImageDescription, FitsFile};
 use std::path::PathBuf;
 
-use chrono::DateTime;
 use std::{
-    io,
     ops::Deref,
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -53,58 +52,58 @@ impl ToString for FitsCompression {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "fitsio")))]
 impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Container> {
-    /// Save the image to a FITS file.
-    #[allow(clippy::too_many_arguments)]
+    /// Save the image data to a FITS file. The file name
+    /// will be of the form `{file_prefix}_{yyyymmdd}_{hhmmss}.fits`.
+    ///
+    /// ### Note
+    /// If compression is enabled, the compressed image data is stored
+    /// in HDU 1 (IMAGE), while the uncompressed data is stored in the
+    /// primary HDU. HDU 1 is created only if compression is enabled.
+    /// The HDU containing the image also contains all the necessary
+    /// metadata. In case compression is enabled, the primary HDU contains
+    /// a key `COMPRESSED_IMAGE` with value `T` to indicate that the compressed
+    /// image data is present in HDU 1.
+    ///
+    /// # Arguments
+    ///  * `path` - The path to the FITS file.
+    ///  * `compress` - Whether to compress the FITS file. Compression uses the GZIP algorithm.
+    ///  * `overwrite` - Whether to overwrite the file if it already exists.
+    ///
+    /// # Errors
+    ///  * [`fitsio::errors::Error`] with the error description.
     pub(crate) fn savefits(
         &self,
-        dir_prefix: &Path,
-        file_prefix: &str,
-        progname: Option<&str>,
+        path: &Path,
         compress: FitsCompression,
         overwrite: bool,
     ) -> Result<PathBuf, FitsError> {
-        if !dir_prefix.exists() {
-            return Err(FitsError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Directory {:?} does not exist", dir_prefix),
-            )));
-        }
-        let timestamp;
         let cameraname;
-        if let Some(metadata) = self.metadata() {
-            timestamp = metadata
+        let timestamp = if let Some(metadata) = self.metadata() {
+            metadata.timestamp()
+        } else {
+            SystemTime::now()
+        };
+        let timestamp: DateTime<Utc> = timestamp.into();
+        let timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%.6f").to_string();
+        let ts = if let Some(metadata) = self.metadata() {
+            cameraname = metadata.camera_name();
+            metadata
                 .timestamp()
                 .duration_since(UNIX_EPOCH)
                 .map_err(|e| FitsError::Message(e.to_string()))?
-                .as_millis();
-            cameraname = metadata.camera_name();
+                .as_millis() as u64
         } else {
-            timestamp = SystemTime::now()
+            cameraname = "unknown";
+            SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or(Duration::from_secs(0))
-                .as_millis();
-            cameraname = "unknown";
-        }
-        let ts = timestamp as u64;
-        // Create a NaiveDateTime from the timestamp
-        let timestamp = DateTime::from_timestamp_millis(timestamp as i64).ok_or(
-            FitsError::Message("Could not convert timestamp to NaiveDateTime".to_owned()),
-        )?;
-
-        let timestamp = timestamp.format("%Y%m%d_%H%M%S");
-
-        let file_prefix = if file_prefix.trim().is_empty() {
-            cameraname
-        } else {
-            file_prefix
+                .as_millis() as u64
         };
-
-        let fpath = dir_prefix.join(Path::new(&format!("{}_{}.fits", file_prefix, timestamp)));
 
         let (width, height) = (self.width(), self.height());
         let numpix = P::CHANNEL_COUNT as usize;
         let imgsize = if numpix == 1 {
-            vec![height as usize, width as usize]
+            vec![height as usize, width as usize, numpix]
         } else {
             vec![height as usize, width as usize, numpix]
         };
@@ -115,21 +114,19 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
         };
 
         let fmt = match compress {
-            FitsCompression::None => "",
-            FitsCompression::Gzip => "[compress G]",
-            FitsCompression::Rice => "[compress R]",
-            FitsCompression::Hcompress => "[compress H]",
-            FitsCompression::Hsmooth => "[compress HS]",
-            FitsCompression::Bzip2 => "[compress B]",
-            FitsCompression::Plio => "[compress P]",
+            FitsCompression::None => "fits",
+            FitsCompression::Gzip => "fits[compress G]",
+            FitsCompression::Rice => "fits[compress R]",
+            FitsCompression::Hcompress => "fits[compress H]",
+            FitsCompression::Hsmooth => "fits[compress HS]",
+            FitsCompression::Bzip2 => "fits[compress B]",
+            FitsCompression::Plio => "fits[compress P]",
         };
 
-        let path = Path::new(dir_prefix).join(Path::new(&format!(
-            "{}_{}.fits{}",
-            file_prefix, timestamp, fmt,
-        )));
+        let mut path = PathBuf::from(path);
+        path.set_extension(fmt);
 
-        let mut fptr = FitsFile::create(path);
+        let mut fptr = FitsFile::create(path.clone());
         if overwrite {
             fptr = fptr.overwrite();
         }
@@ -148,18 +145,21 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
         };
 
         hdu.write_image(&mut fptr, self.inner_pixels())?;
-        hdu.write_key(&mut fptr, "PROGRAM", progname.unwrap_or("unknown"))?;
         hdu.write_key(&mut fptr, "CAMERA", cameraname)?;
+        hdu.write_key(&mut fptr, "DATE-OBS", timestamp.as_str())?;
         hdu.write_key(&mut fptr, "TIMESTAMP", ts)?;
         if let Some(meta) = self.metadata() {
-            hdu.write_key(&mut fptr, "TEMPERATURE", meta.temperature())?;
-            hdu.write_key(&mut fptr, "EXPOSURE_US", meta.exposure().as_micros() as u64)?;
-            let (org_x, org_y) = meta.origin();
-            hdu.write_key(&mut fptr, "ORIGIN_X", org_x)?;
-            hdu.write_key(&mut fptr, "ORIGIN_Y", org_y)?;
             let (bin_x, bin_y) = meta.binning();
-            hdu.write_key(&mut fptr, "BIN_X", bin_x)?;
-            hdu.write_key(&mut fptr, "BIN_Y", bin_y)?;
+            hdu.write_key(&mut fptr, "XBINNING", bin_x)?;
+            hdu.write_key(&mut fptr, "YBINNING", bin_y)?;
+            let (xpixsz, ypixsz) = meta.pixel_size();
+            hdu.write_key(&mut fptr, "XPIXSZ", xpixsz)?;
+            hdu.write_key(&mut fptr, "YPIXSZ", ypixsz)?;
+            hdu.write_key(&mut fptr, "EXPTIME", meta.exposure().as_secs_f64())?;
+            hdu.write_key(&mut fptr, "CCD-TEMP", meta.temperature())?;
+            let (org_x, org_y) = meta.origin();
+            hdu.write_key(&mut fptr, "XORIGIN", org_x)?;
+            hdu.write_key(&mut fptr, "YORIGIN", org_y)?;
             hdu.write_key(&mut fptr, "OFFSET", meta.offset())?;
             let (gain, min_gain, max_gain) = meta.gain();
             hdu.write_key(&mut fptr, "GAIN", gain)?;
@@ -170,6 +170,6 @@ impl<P: Pixel, Container: Deref<Target = [P::Subpixel]>> ImageBuffer<P, Containe
             }
         }
 
-        Ok(fpath)
+        Ok(path)
     }
 }

@@ -339,6 +339,7 @@ impl<'de> Deserialize<'de> for DynamicImage {
                 }
                 let data = bytemuck::cast_slice_mut::<u8, u32>(&mut data);
                 if little_endian() != res.le {
+
                     data.iter_mut().for_each(|x| *x = x.swap_bytes());
                 }
                 let data = bytemuck::cast_slice_mut::<u32, f32>(data);
@@ -404,6 +405,9 @@ impl<'a> From<&'a DynamicImage> for SerialBuffer<'a> {
 }
 
 impl Serialize for DynamicImage {
+    /// Serialize the image to a buffer.
+    /// The image data is interpreted as machine-endian, compressed
+    /// using the Zlib algorithm, then encoded as a base64 string.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

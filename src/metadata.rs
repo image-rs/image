@@ -15,9 +15,11 @@ pub struct ImageMetadataBuilder {
     temperature: f32,
     exposure: Duration,
     timestamp: SystemTime,
+    xpixsz: Option<f32>,
+    ypixsz: Option<f32>,
     camera_name: Option<String>,
-    gain: Option<i64>,
     offset: Option<i64>,
+    gain: Option<i64>,
     min_gain: Option<i32>,
     max_gain: Option<i32>,
     extended_metadata: ExtendedMetadata,
@@ -44,9 +46,11 @@ impl Default for ImageMetadataBuilder {
             temperature: 0f32,
             exposure: Duration::from_secs(0),
             timestamp: UNIX_EPOCH,
+            xpixsz: None,
+            ypixsz: None,
             camera_name: None,
-            gain: None,
             offset: None,
+            gain: None,
             min_gain: None,
             max_gain: None,
             extended_metadata: Vec::new(),
@@ -76,6 +80,13 @@ impl ImageMetadataBuilder {
     /// Set the timestamp.
     pub fn timestamp(mut self, timestamp: SystemTime) -> Self {
         self.timestamp = timestamp;
+        self
+    }
+
+    /// Set the pixel size in the X axis.
+    pub fn pixel_size(mut self, pixsz: (f32, f32)) -> Self {
+        self.xpixsz = Some(pixsz.0);
+        self.ypixsz = Some(pixsz.1);
         self
     }
 
@@ -124,14 +135,16 @@ impl ImageMetadataBuilder {
         ImageMetadata {
             bin_x: self.roi.bin_x,
             bin_y: self.roi.bin_y,
-            img_top: self.roi.y_min,
-            img_left: self.roi.x_min,
+            ymin: self.roi.ymin,
+            xmin: self.roi.xmin,
             temperature: self.temperature,
             exposure: self.exposure,
             timestamp: self.timestamp,
+            xpixsz: self.xpixsz.unwrap_or_default(),
+            ypixsz: self.ypixsz.unwrap_or_default(),
             camera_name: self.camera_name.unwrap_or_default(),
-            gain: self.gain.unwrap_or_default(),
             offset: self.offset.unwrap_or_default(),
+            gain: self.gain.unwrap_or_default(),
             min_gain: self.min_gain.unwrap_or_default(),
             max_gain: self.max_gain.unwrap_or_default(),
             extended_metadata: self.extended_metadata,
@@ -145,14 +158,16 @@ impl ImageMetadataBuilder {
 pub struct ImageMetadata {
     bin_x: u32,
     bin_y: u32,
-    img_top: u32,
-    img_left: u32,
+    ymin: u32,
+    xmin: u32,
+    xpixsz: f32,
+    ypixsz: f32,
     temperature: f32,
     exposure: Duration,
     timestamp: SystemTime,
     camera_name: String,
-    gain: i64,
     offset: i64,
+    gain: i64,
     min_gain: i32,
     max_gain: i32,
     extended_metadata: ExtendedMetadata,
@@ -163,8 +178,10 @@ impl PartialEq for ImageMetadata {
         let mut res = true;
         res &= self.bin_x == other.bin_x;
         res &= self.bin_y == other.bin_y;
-        res &= self.img_top == other.img_top;
-        res &= self.img_left == other.img_left;
+        res &= self.ymin == other.ymin;
+        res &= self.xmin == other.xmin;
+        res &= self.xpixsz == other.xpixsz;
+        res &= self.ypixsz == other.ypixsz;
         res &= self.temperature == other.temperature;
         res &= self.exposure == other.exposure;
         res &= self.timestamp == other.timestamp;
@@ -188,9 +205,10 @@ impl ImageMetadata {
         let mut builder = ImageMetadataBuilder::default();
         builder.roi.bin_x = self.bin_x;
         builder.roi.bin_y = self.bin_y;
-        builder.roi.x_min = self.img_left;
-        builder.roi.y_min = self.img_top;
-
+        builder.roi.xmin = self.xmin;
+        builder.roi.ymin = self.ymin;
+        builder.xpixsz = Some(self.xpixsz);
+        builder.ypixsz = Some(self.ypixsz);
         builder.temperature = self.temperature;
         builder.exposure = self.exposure;
         builder.timestamp = self.timestamp;
@@ -217,17 +235,20 @@ impl Display for ImageMetadata {
             \tImage Origin: {} x {}
             \tExposure: {} s\n
             \tGain: {}, Offset: {}\n
-            \tTemperature: {} C\n",
+            \tTemperature: {} C\n
+            \tPixel Size: {} um x {} um\n",
             date.format("%Y-%m-%d %H:%M:%S"),
             self.camera_name,
             self.bin_x,
             self.bin_y,
-            self.img_left,
-            self.img_top,
+            self.xmin,
+            self.ymin,
             self.exposure.as_secs(),
             self.gain,
             self.offset,
-            self.temperature
+            self.temperature,
+            self.xpixsz,
+            self.ypixsz
         )?;
         if !self.extended_metadata.is_empty() {
             writeln!(f, "\tExtended Metadata:")?;
@@ -263,42 +284,47 @@ impl ImageMetadata {
         &self.extended_metadata
     }
 
-    /// Get the origin of the image metadata.
+    /// Get the origin of the image.
     pub fn origin(&self) -> (u32, u32) {
-        (self.img_left, self.img_top)
+        (self.xmin, self.ymin)
     }
 
-    /// Get the binning factors of the image metadata.
+    /// Get the binning factors of the image.
     pub fn binning(&self) -> (u32, u32) {
         (self.bin_x, self.bin_y)
     }
 
-    /// Get the temperature of the image metadata.
+    /// Get the pixel size of the image.
+    pub fn pixel_size(&self) -> (f32, f32) {
+        (self.xpixsz, self.ypixsz)
+    }
+
+    /// Get the temperature of the sensor.
     pub fn temperature(&self) -> f32 {
         self.temperature
     }
 
-    /// Get the exposure of the image metadata.
+    /// Get the exposure of the image.
     pub fn exposure(&self) -> Duration {
         self.exposure
     }
 
-    /// Get the timestamp of the image metadata.
+    /// Get the timestamp of the image.
     pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 
-    /// Get the camera name of the image metadata.
+    /// Get the camera name of the image.
     pub fn camera_name(&self) -> &str {
         &self.camera_name
     }
 
-    /// Get the gain of the image metadata.
+    /// Get the current, minimum and maximum gain of the image.
     pub fn gain(&self) -> (i32, i32, i32) {
         (self.gain as i32, self.min_gain, self.max_gain)
     }
 
-    /// Get the offset of the image metadata.
+    /// Get the pixel offset of the imagea.
     pub fn offset(&self) -> i64 {
         self.offset
     }

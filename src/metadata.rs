@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
 use crate::ROI;
@@ -207,6 +208,7 @@ impl ImageMetadata {
 
 impl Display for ImageMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let date: DateTime<Local> = self.timestamp.into();
         write!(
             f,
             "ImageMetaData [{:#?}]:\n
@@ -216,7 +218,7 @@ impl Display for ImageMetadata {
             \tExposure: {} s\n
             \tGain: {}, Offset: {}\n
             \tTemperature: {} C\n",
-            self.timestamp,
+            date.format("%Y-%m-%d %H:%M:%S"),
             self.camera_name,
             self.bin_x,
             self.bin_y,
@@ -238,11 +240,7 @@ impl Display for ImageMetadata {
 }
 
 impl ImageMetadata {
-    /// Add an extended attribute to the image metadata using `vec::push()`.
-    ///
-    /// # Panics
-    ///
-    /// If the new capacity exceeds `isize::MAX` bytes.
+    /// Add an extended attribute to the image metadata.
     pub fn write_key(&mut self, key: &str, val: &str) {
         self.extended_metadata.push(ExtendedMetadataRow {
             name: key.to_string(),
@@ -251,7 +249,7 @@ impl ImageMetadata {
         });
     }
 
-    /// Get the extended attributes of the image metadata.
+    /// Add an extended attribute to the image metadata, with a comment.
     pub fn write_key_comment(&mut self, key: &str, val: &str, comment: &str) {
         self.extended_metadata.push(ExtendedMetadataRow {
             name: key.to_string(),

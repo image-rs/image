@@ -1,11 +1,15 @@
 # Release Notes
 
 ## Known issues
-- Many decoders will panic on malicous input. In most cases, this is caused by
+- Many decoders will panic on malicious input. In most cases, this is caused by
   not enforcing memory limits, though other panics have been seen from fuzzing.
 - The color space information of pixels is not clearly communicated.
 
 ## Changes
+- Implemented ZLib compressed serialization-deserialization for the `DynamicImage` object for transport over the network (minor).
+- Images may now contain optional metadata (minor).
+- Images can now be saved as compressed/uncompressed FITS files (minor).
+- Automatic exposure control on images, i.e. calculate new exposure and bin settings given an image with exposure and bin.
 
 ### Version 0.25.1
 

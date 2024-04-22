@@ -128,6 +128,7 @@ mod dynimage_serde;
 mod dynimage_stream;
 mod metadata;
 mod roi;
+mod autoexp;
 
 #[cfg(test)]
 #[macro_use]
@@ -142,6 +143,8 @@ pub use crate::error::{ImageError, ImageResult};
 pub use metadata::{ExtendedMetadata, ExtendedMetadataRow, ImageMetadata, ImageMetadataBuilder};
 
 pub use roi::ROI;
+
+pub use autoexp::{OptimumExposure, OptimumExposureBuilder};
 
 #[cfg(feature = "fitsio")]
 pub use buffer_::FitsCompression;

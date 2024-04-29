@@ -1257,6 +1257,8 @@ where
 impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     ///
+    /// all the pixels of this image have a value of zero, regardless of the data type or number of channels.
+    ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
@@ -1481,6 +1483,8 @@ mod test {
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{color, Rgb};
+    use crate::{Luma, LumaA, Pixel, Rgba};
+    use num_traits::Zero;
 
     #[test]
     /// Tests if image buffers from slices work
@@ -1489,6 +1493,37 @@ mod test {
         let buf: ImageBuffer<color::Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
         assert_eq!(&*buf, &data[..])
     }
+
+    #[test]
+    fn some_test() {
+        let buffer = ImageBuffer::<Luma<u16>, Vec<u16>>::new(2, 2);
+        assert!(buffer.iter().all(|p| *p == u16::zero()));
+    }
+
+    macro_rules! new_buffer_zero_test {
+        ($test_name:ident, $pxt:ty) => {
+            #[test]
+            fn $test_name() {
+                let buffer = ImageBuffer::<$pxt, Vec<<$pxt as Pixel>::Subpixel>>::new(2, 2);
+                assert!(buffer
+                    .iter()
+                    .all(|p| *p == <$pxt as Pixel>::Subpixel::zero()));
+            }
+        };
+    }
+
+    new_buffer_zero_test!(luma_u8_zero_test, Luma<u8>);
+    new_buffer_zero_test!(luma_u16_zero_test, Luma<u16>);
+    new_buffer_zero_test!(luma_f32_zero_test, Luma<f32>);
+    new_buffer_zero_test!(luma_a_u8_zero_test, LumaA<u8>);
+    new_buffer_zero_test!(luma_a_u16_zero_test, LumaA<u16>);
+    new_buffer_zero_test!(luma_a_f32_zero_test, LumaA<f32>);
+    new_buffer_zero_test!(rgb_u8_zero_test, Rgb<u8>);
+    new_buffer_zero_test!(rgb_u16_zero_test, Rgb<u16>);
+    new_buffer_zero_test!(rgb_f32_zero_test, Rgb<f32>);
+    new_buffer_zero_test!(rgb_a_u8_zero_test, Rgba<u8>);
+    new_buffer_zero_test!(rgb_a_u16_zero_test, Rgba<u16>);
+    new_buffer_zero_test!(rgb_a_f32_zero_test, Rgba<f32>);
 
     #[test]
     fn get_pixel() {

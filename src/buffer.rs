@@ -1482,15 +1482,14 @@ mod test {
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::ImageFormat;
-    use crate::{color, Rgb};
-    use crate::{Luma, LumaA, Pixel, Rgba};
+    use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
     use num_traits::Zero;
 
     #[test]
     /// Tests if image buffers from slices work
     fn slice_buffer() {
         let data = [0; 9];
-        let buf: ImageBuffer<color::Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
+        let buf: ImageBuffer<Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
         assert_eq!(&*buf, &data[..])
     }
 

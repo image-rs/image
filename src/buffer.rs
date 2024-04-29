@@ -1494,12 +1494,6 @@ mod test {
         assert_eq!(&*buf, &data[..])
     }
 
-    #[test]
-    fn some_test() {
-        let buffer = ImageBuffer::<Luma<u16>, Vec<u16>>::new(2, 2);
-        assert!(buffer.iter().all(|p| *p == u16::zero()));
-    }
-
     macro_rules! new_buffer_zero_test {
         ($test_name:ident, $pxt:ty) => {
             #[test]

@@ -187,6 +187,9 @@ pub mod buffer {
     pub use crate::buffer_par::*;
 }
 
+/// Serde serialization and deserialization support for `DynamicImage`.
+mod dynimage_serde;
+
 // Math utils
 pub mod math;
 

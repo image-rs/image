@@ -221,3 +221,12 @@ fn main() {
     image::save_buffer("image.png", buffer, 800, 600, image::ExtendedColorType::Rgb8).unwrap()
 }
 ```
+
+### Serialization and Deserialization
+A `DynamicImage` object can be serialized and deserialized:
+
+```rust,no_run
+fn main() {
+    let img = DynamicImage::new()
+}
+```

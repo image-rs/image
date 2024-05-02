@@ -45,7 +45,7 @@ where
         match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
-                    check_sample_format(format)?;
+                    check_sample_format(format, tiff_color_type)?;
                 }
             }
             Ok(None) => { /* assume UInt format */ }
@@ -62,6 +62,8 @@ where
             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
             tiff::ColorType::CMYK(8) => ColorType::Rgb8,
+            tiff::ColorType::RGB(32) => ColorType::Rgb32F,
+            tiff::ColorType::RGBA(32) => ColorType::Rgba32F,
 
             tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
                 return Err(err_unknown_color_type(n))
@@ -100,18 +102,45 @@ where
     }
 }
 
-fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
-    match tiff::tags::SampleFormat::from_u16(sample_format) {
-        Some(tiff::tags::SampleFormat::Uint) => Ok(()),
-        Some(other) => Err(ImageError::Unsupported(
-            UnsupportedError::from_format_and_kind(
-                ImageFormat::Tiff.into(),
-                UnsupportedErrorKind::GenericFeature(format!(
-                    "Unhandled TIFF sample format {:?}",
-                    other
-                )),
-            ),
-        )),
+fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Result<(), ImageError> {
+    use tiff::tags::SampleFormat;
+    use tiff::ColorType;
+    let num_bits = match color_type {
+        ColorType::CMYK(k) => k,
+        ColorType::Gray(k) => k,
+        ColorType::RGB(k) => k,
+        ColorType::RGBA(k) => k,
+        ColorType::GrayA(k) => k,
+        ColorType::Palette(k) | ColorType::YCbCr(k) => {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Unhandled TIFF color type {:?} for {} bits",
+                        color_type, k
+                    )),
+                ),
+            ))
+        }
+    };
+    match SampleFormat::from_u16(sample_format) {
+        Some(format) => {
+            if format == SampleFormat::Uint && num_bits <= 16 {
+                Ok(())
+            } else if format == SampleFormat::IEEEFP && num_bits == 32 {
+                Ok(())
+            } else {
+                Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tiff.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Unhandled TIFF sample format {:?} for {} bits",
+                            format, num_bits
+                        )),
+                    ),
+                ))
+            }
+        }
         None => Err(ImageError::Decoding(DecodingError::from_format_hint(
             ImageFormat::Tiff.into(),
         ))),
@@ -310,6 +339,14 @@ fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<&[u16]> {
     })
 }
 
+fn u8_slice_as_f32(buf: &[u8]) -> ImageResult<&[f32]> {
+    bytemuck::try_cast_slice(buf).map_err(|err| {
+        ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
+            format!("{:?}", err),
+        )))
+    })
+}
+
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
@@ -366,6 +403,18 @@ impl<W: Write + Seek> TiffEncoder<W> {
                 height,
                 u8_slice_as_u16(buf)?,
             ),
+            ExtendedColorType::Rgb32F => encoder
+                .write_image::<tiff::encoder::colortype::RGB32Float>(
+                    width,
+                    height,
+                    u8_slice_as_f32(buf)?,
+                ),
+            ExtendedColorType::Rgba32F => encoder
+                .write_image::<tiff::encoder::colortype::RGBA32Float>(
+                    width,
+                    height,
+                    u8_slice_as_f32(buf)?,
+                ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

@@ -1,7 +1,8 @@
 //! Compares the decoding results with reference renderings.
 use std::fs;
+use std::fs::File;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crc32fast::Hasher as Crc32;
 use image::DynamicImage;
@@ -309,6 +310,225 @@ fn check_references() {
             panic!("Reference rendering does not match.");
         }
     })
+}
+
+#[test]
+fn check_tiff() {
+    process_images(IMAGE_DIR, Some("tiff"), |base, path, decoder| {
+        println!("check_references {}", path.display());
+
+        let ref_img = match image::open(&path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(_)) => {
+                println!(
+                    "UNSUPPORTED {}: {}",
+                    path.display(),
+                    "Unsupported image format"
+                );
+                return;
+            }
+            Err(err) => panic!("{}", err),
+        };
+
+        let filename = {
+            let mut path: Vec<_> = path.components().collect();
+            path.pop().unwrap()
+        };
+
+        // Parse the file name to obtain the test case information
+        let filename_str = filename.as_os_str().to_str().unwrap();
+        println!("filename: {:?}", filename_str);
+
+        let mut img_path = base.clone();
+        img_path.push(OUTPUT_DIR);
+        img_path.push(decoder);
+        img_path.push(filename_str);
+
+        let dirname = path.parent().unwrap();
+        fs::create_dir_all(dirname).unwrap();
+
+        let outfile = &mut File::create(Path::new(&img_path)).unwrap();
+        ref_img.write_to(outfile, image::ImageFormat::Tiff).unwrap();
+
+        let test_img = match image::open(&img_path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(_)) => return,
+            Err(err) => panic!("{}", err),
+        };
+
+        let test_crc_actual = {
+            let mut hasher = Crc32::new();
+            match test_img {
+                DynamicImage::ImageLuma8(_)
+                | DynamicImage::ImageLumaA8(_)
+                | DynamicImage::ImageRgb8(_)
+                | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
+                DynamicImage::ImageLuma16(_)
+                | DynamicImage::ImageLumaA16(_)
+                | DynamicImage::ImageRgb16(_)
+                | DynamicImage::ImageRgba16(_) => {
+                    for v in test_img.as_bytes().chunks(2) {
+                        hasher.update(&u16::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_) => {
+                    for v in test_img.as_bytes().chunks(4) {
+                        hasher.update(&f32::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                _ => panic!("Unsupported image format"),
+            }
+            hasher.finalize()
+        };
+
+        let ref_crc = {
+            let mut hasher = Crc32::new();
+            match ref_img {
+                DynamicImage::ImageLuma8(_)
+                | DynamicImage::ImageLumaA8(_)
+                | DynamicImage::ImageRgb8(_)
+                | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
+                DynamicImage::ImageLuma16(_)
+                | DynamicImage::ImageLumaA16(_)
+                | DynamicImage::ImageRgb16(_)
+                | DynamicImage::ImageRgba16(_) => {
+                    for v in test_img.as_bytes().chunks(2) {
+                        hasher.update(&u16::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_) => {
+                    for v in test_img.as_bytes().chunks(4) {
+                        hasher.update(&f32::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
+                    }
+                }
+                _ => panic!("Unsupported image format"),
+            }
+            hasher.finalize()
+        };
+
+        if test_crc_actual != ref_crc {
+            panic!(
+                "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
+                img_path.display(),
+                ref_crc,
+                test_crc_actual
+            );
+        }
+
+        if ref_img.as_bytes() != test_img.as_bytes() {
+            panic!("Reference rendering does not match.");
+        }
+    })
+}
+
+fn write_test_json() {
+    let base: PathBuf = BASE_PATH.iter().collect();
+    for (ext, dir) in ["png", "tiff"]
+        .iter()
+        .zip([REFERENCE_DIR, IMAGE_DIR].iter())
+    {
+        let mut path = base.clone();
+        path.push(dir);
+        path.push(ext);
+        path.push("**");
+        path.push(format!("*.{}", ext));
+
+        let mut out = base.clone();
+        out.push(OUTPUT_DIR);
+        out.push("json");
+
+        fs::create_dir_all(&out).unwrap();
+
+        let pattern = &*format!("{}", path.display());
+        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+            let ref_img = match image::open(&path) {
+                Ok(img) => img,
+                // Do not fail on unsupported error
+                // This might happen because the testsuite contains unsupported images
+                // or because a specific decoder included via a feature.
+                Err(image::ImageError::Unsupported(_)) => {
+                    continue;
+                }
+                Err(err) => panic!("{}", err),
+            };
+
+            let filename = {
+                let mut path: Vec<_> = path.components().collect();
+                path.pop().unwrap()
+            };
+
+            let filename = filename.as_os_str().to_str().unwrap();
+            let res = serde_json::to_string(&ref_img);
+            if let Err(e) = res {
+                panic!("Failed to serialize image for {path:?} ({ref_img:?}): {e}");
+            }
+            if fs::write(out.join(filename).with_extension("json"), res.unwrap()).is_err() {
+                panic!("Failed to write JSON file for {path:?} ({ref_img:?})");
+            }
+        }
+    }
+}
+
+fn read_test_json() {
+    let base: PathBuf = BASE_PATH.iter().collect();
+    for (ext, dir) in ["png", "tiff"]
+        .iter()
+        .zip([REFERENCE_DIR, IMAGE_DIR].iter())
+    {
+        let mut path = base.clone();
+        path.push(dir);
+        path.push(ext);
+        path.push("**");
+        path.push(format!("*.{}", ext));
+
+        let mut out = base.clone();
+        out.push(OUTPUT_DIR);
+        out.push("json");
+
+        let pattern = &*format!("{}", path.display());
+        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+            let ref_img = match image::open(&path) {
+                Ok(img) => img,
+                // Do not fail on unsupported error
+                // This might happen because the testsuite contains unsupported images
+                // or because a specific decoder included via a feature.
+                Err(image::ImageError::Unsupported(_)) => {
+                    continue;
+                }
+                Err(err) => panic!("{}", err),
+            };
+
+            let (filename, _) = {
+                let mut path: Vec<_> = path.components().collect();
+                (path.pop().unwrap(), path.pop().unwrap())
+            };
+
+            let filename = filename.as_os_str().to_str().unwrap();
+            let json = fs::read_to_string(out.join(filename).with_extension("json"));
+            if let Err(e) = json {
+                panic!("Failed to read JSON file for {path:?} ({ref_img:?}): {e}");
+            }
+            let json = json.unwrap();
+            let res = serde_json::from_str::<DynamicImage>(&json);
+            if let Err(e) = res {
+                panic!("Failed to deserialize image for {path:?} ({ref_img:?}): {e}");
+            }
+            let img = res.unwrap();
+            assert_eq!(img, ref_img);
+        }
+    }
+}
+
+#[test]
+fn test_json() {
+    write_test_json();
+    read_test_json();
 }
 
 #[cfg(feature = "hdr")]

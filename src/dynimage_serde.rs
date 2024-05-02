@@ -27,7 +27,7 @@ impl<'de> Deserialize<'de> for DynamicImage {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`secs` or `nanos`")
+                        formatter.write_str("dtype or data field")
                     }
 
                     fn visit_str<E>(self, value: &str) -> Result<Field, E>
@@ -108,7 +108,7 @@ impl<'de> Deserialize<'de> for DynamicImage {
             deserializer.deserialize_struct("DynamicSerialImage", FIELDS, SerialBufferVisitor)?;
 
         let mut imgdata = STANDARD_NO_PAD.decode(res.data.as_bytes()).map_err(|e| {
-            de::Error::custom(format!("Failed to decode base64 string: {}", e.to_string()))
+            de::Error::custom(format!("Failed to decode base64 string: {}", e))
         })?;
         let imgfmt = match res.dtype.as_str() {
             "png" => Ok(ImageFormat::Png),

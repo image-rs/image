@@ -227,6 +227,14 @@ A `DynamicImage` object can be serialized and deserialized:
 
 ```rust,no_run
 fn main() {
-    let img = DynamicImage::new()
+    use image::DynamicImage;
+    let path = "/path/to/image";
+    let img = image::open(&path).expect("Could not find image in path.");
+    let img_string = serde_json::to_string(&img).expect("Could not serialize.");
+    // Send the image
+    
+    // Receive an image
+    let recv_json: String = todo!();
+    let recv_img = serde_json::from_str::<DynamicImage>(&recv_json).expect("Could not deserialize");
 }
 ```

@@ -125,9 +125,9 @@ fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Resul
     };
     match SampleFormat::from_u16(sample_format) {
         Some(format) => {
-            if format == SampleFormat::Uint && num_bits <= 16 {
-                Ok(())
-            } else if format == SampleFormat::IEEEFP && num_bits == 32 {
+            if (format == SampleFormat::Uint && num_bits <= 16)
+                || (format == SampleFormat::IEEEFP && num_bits == 32)
+            {
                 Ok(())
             } else {
                 Err(ImageError::Unsupported(

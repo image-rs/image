@@ -324,9 +324,8 @@ fn check_tiff() {
             // or because a specific decoder included via a feature.
             Err(image::ImageError::Unsupported(_)) => {
                 println!(
-                    "UNSUPPORTED {}: {}",
+                    "UNSUPPORTED {}: Unsupported image format.",
                     path.display(),
-                    "Unsupported image format"
                 );
                 return;
             }

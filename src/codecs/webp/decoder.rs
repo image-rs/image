@@ -79,12 +79,14 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
                     let mut img = RgbaImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut img) {
                         Ok(delay) => (img, delay),
+                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
                         Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
                     }
                 } else {
                     let mut img = RgbImage::new(width, height);
                     match self.decoder.inner.read_frame(&mut img) {
                         Ok(delay) => (img.convert(), delay),
+                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
                         Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
                     }
                 };

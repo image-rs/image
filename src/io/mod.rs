@@ -17,16 +17,16 @@ pub struct LimitSupport {}
 ///
 /// Limits can be either *strict* or *non-strict*. Non-strict limits are best-effort
 /// limits where the library does not guarantee that limit will not be exceeded. Do note
-/// that it is still considered a bug if a non-strict limit is exceeded, however as
-/// some of the underlying decoders do not support not support such limits one cannot
-/// rely on these limits being supported. For stric limits the library makes a stronger
+/// that it is still considered a bug if a non-strict limit is exceeded.
+/// Some of the underlying decoders do not support such limits, so one cannot
+/// rely on these limits being supported. For strict limits, the library makes a stronger
 /// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered
-/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it
-/// *must* fail with `image::error::LimitErrorKind::Unsupported`.
+/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit, it
+/// *must* fail with [error::LimitErrorKind::Unsupported].
 ///
-/// Currently the only strict limits supported are the `max_image_width` and `max_image_height`
-/// limits, however more will be added in the future. [`LimitSupport`] will default to support
-/// being false and decoders should enable support for the limits they support in
+/// The only currently supported strict limits are the `max_image_width` and `max_image_height`
+/// limits, but more will be added in the future. [`LimitSupport`] will default to support
+/// being false, and decoders should enable support for the limits they support in
 /// [`ImageDecoder::set_limits`].
 ///
 /// The limit check should only ever fail if a limit will be exceeded or an unsupported strict
@@ -113,6 +113,8 @@ impl Limits {
     }
 
     /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
+    ///
+    /// [`reserve`]: #method.reserve
     pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
         match u64::try_from(amount) {
             Ok(n) => self.reserve(n),
@@ -128,6 +130,9 @@ impl Limits {
 
     /// This function acts identically to [`reserve`], but accepts the width, height and color type
     /// used to create an [`ImageBuffer`] and does all the math for you.
+    ///
+    /// [`ImageBuffer`]: crate::ImageBuffer
+    /// [`reserve`]: #method.reserve
     pub fn reserve_buffer(
         &mut self,
         width: u32,
@@ -153,6 +158,8 @@ impl Limits {
     }
 
     /// This function acts identically to [`free`], but takes a `usize` for convenience.
+    ///
+    /// [`free`]: #method.free
     pub fn free_usize(&mut self, amount: usize) {
         match u64::try_from(amount) {
             Ok(n) => self.free(n),

@@ -4,6 +4,7 @@ use std::{
     path::PathBuf,
 };
 
+#[cfg(feature = "webp")]
 use image::{codecs::webp::WebPDecoder, AnimationDecoder};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
@@ -45,6 +46,7 @@ fn check_regressions() {
 }
 /// Check that the WEBP frames iterator returns the right amount of frames.
 #[test]
+#[cfg(feature = "webp")]
 fn check_webp_frames_regressions() {
     let path: PathBuf = BASE_PATH
         .iter()

@@ -87,6 +87,7 @@ webp = ["dep:image-webp"]
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
+color_quant = ["dep:color_quant"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 

@@ -1157,6 +1157,12 @@ where
             _phantom: PhantomData,
         }
     }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.data.clone_from(&source.data);
+        self.width = source.width;
+        self.height = source.height;
+    }
 }
 
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>

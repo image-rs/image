@@ -1,4 +1,11 @@
-use std::{fs::File, io::BufReader, path::PathBuf};
+use std::{
+    fs::{self, File},
+    io::{BufReader, Cursor},
+    path::PathBuf,
+};
+
+#[cfg(feature = "webp")]
+use image::{codecs::webp::WebPDecoder, AnimationDecoder};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -36,6 +43,30 @@ fn check_regressions() {
     process_images(REGRESSION_DIR, None, |path| {
         let _ = image::open(path);
     })
+}
+/// Check that the WEBP frames iterator returns the right amount of frames.
+#[test]
+#[cfg(feature = "webp")]
+fn check_webp_frames_regressions() {
+    let path: PathBuf = BASE_PATH
+        .iter()
+        .collect::<PathBuf>()
+        .join(IMAGE_DIR)
+        .join("webp/extended_images")
+        .join("*.webp");
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        let bytes = fs::read(path).unwrap();
+        let cursor = Cursor::new(&bytes);
+        let frame_count = image_webp::WebPDecoder::new(cursor.clone())
+            .unwrap()
+            .num_frames() as usize;
+        let decoder = WebPDecoder::new(cursor).unwrap();
+        // The `take` guards against a potentially infinitely running iterator.
+        // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.
+        let actual_frame_count = decoder.into_frames().take(frame_count + 1).count();
+        assert_eq!(actual_frame_count, frame_count);
+    }
 }
 
 /// Check that BMP files with large values could cause OOM issues are rejected.

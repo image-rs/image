@@ -68,11 +68,16 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
     fn into_frames(self) -> Frames<'a> {
         struct FramesInner<R: Read + Seek> {
             decoder: WebPDecoder<R>,
+            current: u32,
         }
         impl<R: Read + Seek> Iterator for FramesInner<R> {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
+                if self.current == self.decoder.inner.num_frames() {
+                    return None;
+                }
+                self.current += 1;
                 let (width, height) = self.decoder.inner.dimensions();
 
                 let (img, delay) = if self.decoder.inner.has_alpha() {
@@ -98,7 +103,10 @@ impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
             }
         }
 
-        Frames::new(Box::new(FramesInner { decoder: self }))
+        Frames::new(Box::new(FramesInner {
+            decoder: self,
+            current: 0,
+        }))
     }
 }
 

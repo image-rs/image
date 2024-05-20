@@ -354,6 +354,35 @@ pub trait Pixel: Copy + Clone {
     where
         F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
 
+    /// Apply the function ```f``` to each channel except alpha channel.
+    /// Apply the function ```g``` to the alpha channel.
+    fn map2_with_alpha<F, G>(&self, other: &Self, f: F, g: G) -> Self
+    where
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel,
+        G: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+
+    /// Apply the function ```f``` to each channel (except alpha) of this
+    /// pixel and ```other``` pairwise. Then apply the function ```g``` to
+    /// the alpha channel of this pixel and ```other``` pairwise.
+    ///
+    /// Works in place.
+    fn apply2_with_alpha<F, G>(&mut self, other: &Self, f: F, g: G)
+    where
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel,
+        G: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+
+    /// Apply the function ```f``` to each channel except the alpha channel,
+    /// of this pixel and ```other``` pairwise.
+    fn map2_without_alpha<F>(&self, other: &Self, f: F) -> Self
+    where
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+
+    /// Apply the function ```f``` to each channel except the alpha channel,
+    /// of this pixel and ```other``` pairwise. Works in place.
+    fn apply2_without_alpha<F>(&mut self, other: &Self, f: F)
+    where
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+
     /// Invert this pixel
     fn invert(&mut self);
 

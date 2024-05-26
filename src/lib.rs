@@ -167,7 +167,7 @@ pub use crate::dynimage::{
     save_buffer_with_format, write_buffer_with_format,
 };
 pub use crate::io::free_functions::{guess_format, load};
-pub use crate::io::{LimitSupport, Limits, ImageReader};
+pub use crate::io::{ImageReader, LimitSupport, Limits};
 
 pub use crate::dynimage::DynamicImage;
 

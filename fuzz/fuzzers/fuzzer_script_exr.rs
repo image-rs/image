@@ -4,7 +4,7 @@ extern crate libfuzzer_sys;
 extern crate image;
 
 use image::codecs::openexr::*;
-use image::io::Limits;
+use image::Limits;
 use image::ExtendedColorType;
 use image::ImageDecoder;
 use image::ImageEncoder;

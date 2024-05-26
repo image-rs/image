@@ -5,7 +5,7 @@ use crate::{error, ColorType, ImageError, ImageResult};
 pub(crate) mod free_functions;
 mod reader;
 
-pub use self::reader::Reader;
+pub use self::reader::ImageReader;
 
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]

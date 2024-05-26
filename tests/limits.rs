@@ -7,7 +7,7 @@
 //! There are several such buggy APIs in the crate. The tests for them are written but commented out.
 //! Pull requests fixing these APIs are very welcome.
 //!
-//! It is possible that a maliciously crafted file coud bypass these checks
+//! It is possible that a maliciously crafted file could bypass these checks
 //! and cause a large allocation inside the decoder despite these limits.
 //! These tests cannot catch that, but fuzzing can.
 //!
@@ -15,7 +15,9 @@
 
 use std::io::Cursor;
 
-use image::{io::Limits, load_from_memory_with_format, ImageDecoder, ImageFormat, RgbImage};
+use image::{
+    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReader, Limits, RgbImage,
+};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
@@ -58,7 +60,7 @@ fn load_through_reader(
     format: ImageFormat,
     limits: Limits,
 ) -> Result<image::DynamicImage, image::ImageError> {
-    let mut reader = image::io::Reader::new(Cursor::new(input));
+    let mut reader = ImageReader::new(Cursor::new(input));
     reader.set_format(format);
     reader.limits(limits);
     reader.decode()
@@ -74,7 +76,7 @@ fn gif() {
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::Gif, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err()); // BROKEN!
 
@@ -104,7 +106,7 @@ fn png() {
     assert!(load_from_memory_with_format(&image, ImageFormat::Png).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::Png, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Png, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
 
@@ -131,7 +133,7 @@ fn jpeg() {
     assert!(load_from_memory_with_format(&image, ImageFormat::Jpeg).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::Jpeg, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Jpeg, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Jpeg, allocation_limits()).is_err());
 
@@ -151,7 +153,7 @@ fn webp() {
     assert!(load_from_memory_with_format(&image, ImageFormat::WebP).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::WebP, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::WebP, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::WebP, allocation_limits()).is_err());
 
@@ -178,7 +180,7 @@ fn tiff() {
     tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 10).into()); // `* 9` would be exactly three output buffers, `* 10`` has some slack space
     load_through_reader(&image, ImageFormat::Tiff, tiff_permissive_limits).unwrap();
 
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Tiff, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Tiff, allocation_limits()).is_err());
 
@@ -198,7 +200,7 @@ fn avif() {
     assert!(load_from_memory_with_format(&image, ImageFormat::Avif).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::Avif, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Avif, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Avif, allocation_limits()).is_err());
 
@@ -218,7 +220,7 @@ fn bmp() {
     assert!(load_from_memory_with_format(&image, ImageFormat::Bmp).is_ok());
     // check that the limits implementation is not overly restrictive
     assert!(load_through_reader(&image, ImageFormat::Bmp, permissive_limits()).is_ok());
-    // image::io::Reader
+    // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Bmp, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Bmp, allocation_limits()).is_err());
 

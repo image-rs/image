@@ -17,6 +17,7 @@ use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, I
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
+use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
 use crate::{Rgb32FImage, Rgba32FImage};
@@ -1097,29 +1098,25 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
 ///
-/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
 /// content before its path.
-///
-/// [`io::Reader`]: io/struct.Reader.html
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    crate::io::Reader::open(path)?.decode()
+    ImageReader::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 ///
-/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
 /// content before its path or manually supplying the format.
-///
-/// [`io::Reader`]: io/struct.Reader.html
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    crate::io::Reader::open(path)?.into_dimensions()
+    ImageReader::open(path)?.into_dimensions()
 }
 
 /// Saves the supplied buffer to a file at the path specified.
@@ -1191,9 +1188,7 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 ///
-/// Try [`io::Reader`] for more advanced uses.
-///
-/// [`io::Reader`]: io/struct.Reader.html
+/// Try [`ImageReader`] for more advanced uses.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
@@ -1204,10 +1199,9 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// This is just a simple wrapper that constructs an `std::io::Cursor` around the buffer and then
 /// calls `load` with that reader.
 ///
-/// Try [`io::Reader`] for more advanced uses.
+/// Try [`ImageReader`] for more advanced uses.
 ///
 /// [`load`]: fn.load.html
-/// [`io::Reader`]: io/struct.Reader.html
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);

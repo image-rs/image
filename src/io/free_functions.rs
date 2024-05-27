@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufWriter, Seek};
 use std::path::Path;
 
-use crate::{codecs::*, ExtendedColorType};
+use crate::{codecs::*, ExtendedColorType, ImageReader};
 
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
@@ -16,11 +16,9 @@ use crate::image::{ImageDecoder, ImageEncoder};
 /// Assumes the reader is already buffered. For optimal performance,
 /// consider wrapping the reader with a `BufReader::new()`.
 ///
-/// Try [`io::Reader`] for more advanced uses.
-///
-/// [`io::Reader`]: io/struct.Reader.html
+/// Try [`ImageReader`] for more advanced uses.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    let mut reader = crate::io::Reader::new(r);
+    let mut reader = ImageReader::new(r);
     reader.set_format(format);
     reader.decode()
 }

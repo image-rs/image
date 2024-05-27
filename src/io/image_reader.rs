@@ -21,9 +21,9 @@ use super::free_functions;
 ///
 /// ```no_run
 /// # use image::ImageError;
-/// # use image::io::Reader;
+/// # use image::ImageReader;
 /// # fn main() -> Result<(), ImageError> {
-/// let image = Reader::open("path/to/image.png")?
+/// let image = ImageReader::open("path/to/image.png")?
 ///     .decode()?;
 /// # Ok(()) }
 /// ```
@@ -34,7 +34,7 @@ use super::free_functions;
 ///
 /// ```
 /// # use image::ImageError;
-/// # use image::io::Reader;
+/// # use image::ImageReader;
 /// # fn main() -> Result<(), ImageError> {
 /// use std::io::Cursor;
 /// use image::ImageFormat;
@@ -43,7 +43,7 @@ use super::free_functions;
 ///     0 1\n\
 ///     1 0\n";
 ///
-/// let mut reader = Reader::new(Cursor::new(raw_data))
+/// let mut reader = ImageReader::new(Cursor::new(raw_data))
 ///     .with_guessed_format()
 ///     .expect("Cursor io never fails");
 /// assert_eq!(reader.format(), Some(ImageFormat::Pnm));
@@ -58,7 +58,7 @@ use super::free_functions;
 ///
 /// [`set_format`]: #method.set_format
 /// [`ImageDecoder`]: ../trait.ImageDecoder.html
-pub struct Reader<R: Read + Seek> {
+pub struct ImageReader<R: Read + Seek> {
     /// The reader. Should be buffered.
     inner: R,
     /// The format, if one has been set or deduced.
@@ -67,7 +67,7 @@ pub struct Reader<R: Read + Seek> {
     limits: super::Limits,
 }
 
-impl<'a, R: 'a + BufRead + Seek> Reader<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
@@ -79,7 +79,7 @@ impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     /// [`with_guessed_format`]: #method.with_guessed_format
     /// [`set_format`]: method.set_format
     pub fn new(buffered_reader: R) -> Self {
-        Reader {
+        ImageReader {
             inner: buffered_reader,
             format: None,
             limits: super::Limits::default(),
@@ -91,7 +91,7 @@ impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     /// Assumes the reader is already buffered. For optimal performance,
     /// consider wrapping the reader with a `BufReader::new()`.
     pub fn with_format(buffered_reader: R, format: ImageFormat) -> Self {
-        Reader {
+        ImageReader {
             inner: buffered_reader,
             format: Some(format),
             limits: super::Limits::default(),
@@ -208,15 +208,15 @@ impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     ///
     /// ## Usage
     ///
-    /// This supplements the path based type deduction from [`open`](Reader::open) with content based deduction.
+    /// This supplements the path based type deduction from [`ImageReader::open()`] with content based deduction.
     /// This is more common in Linux and UNIX operating systems and also helpful if the path can
     /// not be directly controlled.
     ///
     /// ```no_run
     /// # use image::ImageError;
-    /// # use image::io::Reader;
+    /// # use image::ImageReader;
     /// # fn main() -> Result<(), ImageError> {
-    /// let image = Reader::open("image.unknown")?
+    /// let image = ImageReader::open("image.unknown")?
     ///     .with_guessed_format()?
     ///     .decode()?;
     /// # Ok(()) }
@@ -281,7 +281,7 @@ impl<'a, R: 'a + BufRead + Seek> Reader<R> {
     }
 }
 
-impl Reader<BufReader<File>> {
+impl ImageReader<BufReader<File>> {
     /// Open a file to read, format will be guessed from path.
     ///
     /// This will not attempt any io operation on the opened file.
@@ -298,7 +298,7 @@ impl Reader<BufReader<File>> {
     }
 
     fn open_impl(path: &Path) -> io::Result<Self> {
-        Ok(Reader {
+        Ok(ImageReader {
             inner: BufReader::new(File::open(path)?),
             format: ImageFormat::from_path(path).ok(),
             limits: super::Limits::default(),

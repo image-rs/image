@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use crc32fast::Hasher as Crc32;
 use image::DynamicImage;
+use image::ImageReader;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -185,7 +186,7 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
-                let format = image::io::Reader::open(&img_path)
+                let format = ImageReader::open(&img_path)
                     .unwrap()
                     .with_guessed_format()
                     .unwrap()

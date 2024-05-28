@@ -1,7 +1,7 @@
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
-use crate::error::ImageResult;
-use crate::ImageEncoder;
+use crate::error::{EncodingError, ImageFormatHint, ImageResult};
+use crate::{ColorType, ImageEncoder, ImageError, ImageFormat};
 use std::cmp::Ordering;
 use std::io::{Result, Write};
 

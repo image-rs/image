@@ -1,7 +1,7 @@
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
-use crate::{ColorType, ImageEncoder, ImageError, ImageFormat};
+use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
 use std::cmp::Ordering;
 use std::io::{Result, Write};
 
@@ -16,12 +16,13 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
         unaligned_bytes: &[u8],
         width: u32,
         height: u32,
-        color_type: ColorType,
+        color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         match color_type {
-            ColorType::Rgb32F => {
+            ExtendedColorType::Rgb32F => {
+                let bytes_per_pixel = color_type.bits_per_pixel() as usize / 8;
                 let rgbe_pixels = unaligned_bytes
-                    .chunks_exact(color_type.bytes_per_pixel() as usize)
+                    .chunks_exact(bytes_per_pixel)
                     .map(|bytes| to_rgbe8(Rgb::<f32>(bytemuck::pod_read_unaligned(bytes))));
 
                 // the length will be checked inside encode_pixels
@@ -51,10 +52,9 @@ impl<W: Write> HdrEncoder<W> {
     /// Encodes the image ```flattened_rgbe_pixels```
     /// that has dimensions ```width``` and ```height```.
     /// The callback must return the color for the given flattened index of the pixel (row major).
-    pub fn encode_pixels(
+    fn encode_pixels(
         mut self,
         mut flattened_rgbe_pixels: impl ExactSizeIterator<Item = Rgbe8Pixel>,
-
         width: usize,
         height: usize,
     ) -> ImageResult<()> {
@@ -86,12 +86,12 @@ impl<W: Write> HdrEncoder<W> {
             for _scanline_index in 0..height {
                 assert!(flattened_rgbe_pixels.len() >= width); // may reduce the bound checks
 
-                for (((r, g), b), e, pixel) in bufr
+                for ((((r, g), b), e), pixel) in bufr
                     .iter_mut()
                     .zip(bufg.iter_mut())
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
-                    .zip(flattened_rgbe_pixels)
+                    .zip(&mut flattened_rgbe_pixels)
                 {
                     *r = pixel.c[0];
                     *g = pixel.c[1];

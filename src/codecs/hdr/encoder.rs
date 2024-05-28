@@ -86,18 +86,17 @@ impl<W: Write> HdrEncoder<W> {
             for _scanline_index in 0..height {
                 assert!(flattened_rgbe_pixels.len() >= width); // may reduce the bound checks
 
-                for (((r, g), b), e) in bufr
+                for (((r, g), b), e, pixel) in bufr
                     .iter_mut()
                     .zip(bufg.iter_mut())
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
+                    .zip(flattened_rgbe_pixels)
                 {
-                    let cp = flattened_rgbe_pixels.next().unwrap(); // we know it's here because the length is checked earlier
-
-                    *r = cp.c[0];
-                    *g = cp.c[1];
-                    *b = cp.c[2];
-                    *e = cp.e;
+                    *r = pixel.c[0];
+                    *g = pixel.c[1];
+                    *b = pixel.c[2];
+                    *e = pixel.e;
                 }
 
                 write_rgbe8(w, marker)?; // New RLE encoding marker

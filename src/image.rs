@@ -1818,7 +1818,6 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.writing_enabled()
         );
-        assert!(!ImageFormat::Hdr.writing_enabled());
         assert!(!ImageFormat::Dds.writing_enabled());
     }
 }

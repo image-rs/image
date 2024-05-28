@@ -1,6 +1,7 @@
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::ImageResult;
+use crate::ImageEncoder;
 use std::cmp::Ordering;
 use std::io::{Result, Write};
 
@@ -9,16 +10,59 @@ pub struct HdrEncoder<W: Write> {
     w: W,
 }
 
+impl<W: Write> ImageEncoder for HdrEncoder<W> {
+    fn write_image(
+        self,
+        unaligned_bytes: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        match color_type {
+            ColorType::Rgb32F => {
+                let rgbe_pixels = unaligned_bytes
+                    .chunks_exact(color_type.bytes_per_pixel() as usize)
+                    .map(|bytes| to_rgbe8(Rgb::<f32>(bytemuck::pod_read_unaligned(bytes))));
+
+                // the length will be checked inside encode_pixels
+                self.encode_pixels(rgbe_pixels, width as usize, height as usize)
+            }
+
+            _ => Err(ImageError::Encoding(EncodingError::new(
+                ImageFormatHint::Exact(ImageFormat::Hdr),
+                "hdr format currently only supports the `Rgb32F` color type".to_string(),
+            ))),
+        }
+    }
+}
+
 impl<W: Write> HdrEncoder<W> {
     /// Creates encoder
     pub fn new(w: W) -> HdrEncoder<W> {
         HdrEncoder { w }
     }
 
-    /// Encodes the image ```data```
+    /// Encodes the image ```rgb```
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
-        assert!(data.len() >= width * height);
+    pub fn encode(self, rgb: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
+        self.encode_pixels(rgb.iter().map(|&rgb| to_rgbe8(rgb)), width, height)
+    }
+
+    /// Encodes the image ```flattened_rgbe_pixels```
+    /// that has dimensions ```width``` and ```height```.
+    /// The callback must return the color for the given flattened index of the pixel (row major).
+    pub fn encode_pixels(
+        mut self,
+        mut flattened_rgbe_pixels: impl ExactSizeIterator<Item = Rgbe8Pixel>,
+
+        width: usize,
+        height: usize,
+    ) -> ImageResult<()> {
+        assert!(
+            flattened_rgbe_pixels.len() >= width * height,
+            "not enough pixels provided"
+        ); // bonus: this might elide some bounds checks
+
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
         w.write_all(b"\n")?;
@@ -27,8 +71,8 @@ impl<W: Write> HdrEncoder<W> {
         w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
 
         if !(8..=32_768).contains(&width) {
-            for &pix in data {
-                write_rgbe8(w, to_rgbe8(pix))?;
+            for pixel in flattened_rgbe_pixels {
+                write_rgbe8(w, pixel)?;
             }
         } else {
             // new RLE marker contains scanline width
@@ -39,20 +83,23 @@ impl<W: Write> HdrEncoder<W> {
             let mut bufb = vec![0; width];
             let mut bufe = vec![0; width];
             let mut rle_buf = vec![0; width];
-            for scanline in data.chunks(width) {
-                for ((((r, g), b), e), &pix) in bufr
+            for _scanline_index in 0..height {
+                assert!(flattened_rgbe_pixels.len() >= width); // may reduce the bound checks
+
+                for (((r, g), b), e) in bufr
                     .iter_mut()
                     .zip(bufg.iter_mut())
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
-                    .zip(scanline.iter())
                 {
-                    let cp = to_rgbe8(pix);
+                    let cp = flattened_rgbe_pixels.next().unwrap(); // we know it's here because the length is checked earlier
+
                     *r = cp.c[0];
                     *g = cp.c[1];
                     *b = cp.c[2];
                     *e = cp.e;
                 }
+
                 write_rgbe8(w, marker)?; // New RLE encoding marker
                 rle_buf.clear();
                 rle_compress(&bufr[..], &mut rle_buf);
@@ -77,6 +124,7 @@ enum RunOrNot {
     Run(u8, usize),
     Norun(usize, usize),
 }
+
 use self::RunOrNot::{Norun, Run};
 
 const RUN_MAX_LEN: usize = 127;

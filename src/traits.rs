@@ -7,7 +7,7 @@ pub use pixeli::Pixel;
 use std::ops::AddAssign;
 
 use crate::{
-    color::{Luma, LumaA, Rgb, Rgba},
+    color::{Gray, GrayAlpha, Rgb, Rgba},
     ExtendedColorType,
 };
 
@@ -200,16 +200,16 @@ impl PixelWithColorType for Rgba<f32> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgba32F;
 }
 
-impl PixelWithColorType for Luma<u8> {
+impl PixelWithColorType for Gray<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L8;
 }
-impl PixelWithColorType for Luma<u16> {
+impl PixelWithColorType for Gray<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
 }
-impl PixelWithColorType for LumaA<u8> {
+impl PixelWithColorType for GrayAlpha<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
 }
-impl PixelWithColorType for LumaA<u16> {
+impl PixelWithColorType for GrayAlpha<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
 }
 
@@ -226,11 +226,11 @@ mod private {
     impl Sealed for Rgba<u16> {}
     impl Sealed for Rgba<f32> {}
 
-    impl Sealed for Luma<u8> {}
-    impl Sealed for LumaA<u8> {}
+    impl Sealed for Gray<u8> {}
+    impl Sealed for GrayAlpha<u8> {}
 
-    impl Sealed for Luma<u16> {}
-    impl Sealed for LumaA<u16> {}
+    impl Sealed for Gray<u16> {}
+    impl Sealed for GrayAlpha<u16> {}
 }
 
 /// Private module for supertraits of sealed traits.

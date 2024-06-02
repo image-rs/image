@@ -275,12 +275,12 @@ fn check_references() {
         let test_crc_actual = {
             let mut hasher = Crc32::new();
             match test_img {
-                DynamicImage::ImageLuma8(_)
-                | DynamicImage::ImageLumaA8(_)
+                DynamicImage::ImageGray8(_)
+                | DynamicImage::ImageGrayAlpha8(_)
                 | DynamicImage::ImageRgb8(_)
                 | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
-                DynamicImage::ImageLuma16(_)
-                | DynamicImage::ImageLumaA16(_)
+                DynamicImage::ImageGray16(_)
+                | DynamicImage::ImageGrayAlpha16(_)
                 | DynamicImage::ImageRgb16(_)
                 | DynamicImage::ImageRgba16(_) => {
                     for v in test_img.as_bytes().chunks(2) {

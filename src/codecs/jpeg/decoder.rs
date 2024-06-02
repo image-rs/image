@@ -111,8 +111,8 @@ impl ColorType {
             // but support for 16-bit JPEG might be added in the future.
             RGB => ColorType::Rgb8,
             RGBA => ColorType::Rgba8,
-            Luma => ColorType::L8,
-            LumaA => ColorType::La8,
+            Gray => ColorType::L8,
+            GrayAlpha => ColorType::La8,
             // to_supported_color_space() doesn't return any of the other variants
             _ => unreachable!(),
         }
@@ -122,7 +122,7 @@ impl ColorType {
 fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     use zune_core::colorspace::ColorSpace::*;
     match orig {
-        RGB | RGBA | Luma | LumaA => orig,
+        RGB | RGBA | Gray | GrayAlpha => orig,
         // the rest is not supported by `image` so it will be converted to RGB during decoding
         _ => RGB,
     }

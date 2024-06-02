@@ -18,8 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::Limits;
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
+use crate::{Limits, RgbaImage};
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
@@ -366,12 +365,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         limits.reserve_buffer(width, height, COLOR_TYPE)?;
         let source = match self.inner.color_type {
             ColorType::L8 => {
-                let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLuma8(image).into_rgba8()
+                let image = ImageBuffer::<Gray<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicImage::ImageGray8(image).into_rgba8()
             }
             ColorType::La8 => {
-                let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLumaA8(image).into_rgba8()
+                let image =
+                    ImageBuffer::<GrayAlpha<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicImage::ImageGrayAlpha8(image).into_rgba8()
             }
             ColorType::Rgb8 => {
                 let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();

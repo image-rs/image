@@ -8,7 +8,7 @@ use std::cmp::min;
 use std::io::Write;
 
 use crate::buffer::ConvertBuffer;
-use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
+use crate::color::{FromColor, Gray, GrayAlpha, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
@@ -245,22 +245,22 @@ impl<W: Write> AvifEncoder<W> {
             }
             // we need a separate buffer..
             ExtendedColorType::L8 => {
-                let image = try_from_raw::<Luma<u8>>(data, width, height)?;
+                let image = try_from_raw::<Gray<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ExtendedColorType::La8 => {
-                let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
+                let image = try_from_raw::<GrayAlpha<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             // we need to really convert data..
             ExtendedColorType::L16 => {
                 let buffer = cast_buffer(data)?;
-                let image = try_from_raw::<Luma<u16>>(&buffer, width, height)?;
+                let image = try_from_raw::<Gray<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ExtendedColorType::La16 => {
                 let buffer = cast_buffer(data)?;
-                let image = try_from_raw::<LumaA<u16>>(&buffer, width, height)?;
+                let image = try_from_raw::<GrayAlpha<u16>>(&buffer, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ExtendedColorType::Rgb16 => {

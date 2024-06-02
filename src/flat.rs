@@ -1578,7 +1578,7 @@ impl PartialOrd for NormalForm {
 mod tests {
     use super::*;
     use crate::buffer_::GrayAlphaImage;
-    use crate::color::{LumaA, Rgb};
+    use crate::color::{GrayAlpha, Rgb};
 
     #[test]
     fn aliasing_view() {
@@ -1620,12 +1620,12 @@ mod tests {
 
         {
             let mut view = buffer
-                .as_view_mut::<LumaA<u16>>()
+                .as_view_mut::<GrayAlpha<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
             #[allow(deprecated)]
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
+                *view.get_pixel_mut(i % 3, i / 3) = GrayAlpha([2 * i as u16, 2 * i as u16 + 1]);
             }
         }
 

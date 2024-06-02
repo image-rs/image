@@ -39,7 +39,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     }
 
     /// Same as `encode`, but allow a palette to be passed in. The `palette` is ignored for color
-    /// types other than Luma/Luma-with-alpha.
+    /// types other than Gray/Gray-with-alpha.
     ///
     /// # Panics
     ///

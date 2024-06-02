@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
+use crate::color::{FromColor, Gray, GrayAlpha, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
@@ -1336,7 +1336,7 @@ pub trait ConvertBuffer<T> {
     fn convert(&self) -> T;
 }
 
-// concrete implementation Luma -> Rgba
+// concrete implementation Gray -> Rgba
 impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
@@ -1408,17 +1408,17 @@ pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer
-pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
+pub type GrayImage = ImageBuffer<Gray<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
-pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
+pub type GrayAlphaImage = ImageBuffer<GrayAlpha<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
 pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer
 pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
-pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+pub(crate) type Gray16Image = ImageBuffer<Gray<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
-pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
+pub(crate) type GrayAlpha16Image = ImageBuffer<GrayAlpha<u16>, Vec<u16>>;
 
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
@@ -1488,14 +1488,14 @@ mod test {
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::ImageFormat;
-    use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
+    use crate::{Gray, GrayAlpha, Pixel, Rgb, Rgba};
     use num_traits::Zero;
 
     #[test]
     /// Tests if image buffers from slices work
     fn slice_buffer() {
         let data = [0; 9];
-        let buf: ImageBuffer<Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
+        let buf: ImageBuffer<Gray<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
         assert_eq!(&*buf, &data[..])
     }
 
@@ -1511,12 +1511,12 @@ mod test {
         };
     }
 
-    new_buffer_zero_test!(luma_u8_zero_test, Luma<u8>);
-    new_buffer_zero_test!(luma_u16_zero_test, Luma<u16>);
-    new_buffer_zero_test!(luma_f32_zero_test, Luma<f32>);
-    new_buffer_zero_test!(luma_a_u8_zero_test, LumaA<u8>);
-    new_buffer_zero_test!(luma_a_u16_zero_test, LumaA<u16>);
-    new_buffer_zero_test!(luma_a_f32_zero_test, LumaA<f32>);
+    new_buffer_zero_test!(luma_u8_zero_test, Gray<u8>);
+    new_buffer_zero_test!(luma_u16_zero_test, Gray<u16>);
+    new_buffer_zero_test!(luma_f32_zero_test, Gray<f32>);
+    new_buffer_zero_test!(luma_a_u8_zero_test, GrayAlpha<u8>);
+    new_buffer_zero_test!(luma_a_u16_zero_test, GrayAlpha<u16>);
+    new_buffer_zero_test!(luma_a_f32_zero_test, GrayAlpha<f32>);
     new_buffer_zero_test!(rgb_u8_zero_test, Rgb<u8>);
     new_buffer_zero_test!(rgb_u16_zero_test, Rgb<u16>);
     new_buffer_zero_test!(rgb_f32_zero_test, Rgb<f32>);

@@ -3,7 +3,6 @@
 use num_traits::NumCast;
 use std::f64::consts::PI;
 
-use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
@@ -14,14 +13,14 @@ type Component<I> = <<I as GenericImageView>::Pixel as Pixel>::Component;
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<Luma<Component<I>>, Vec<Component<I>>> {
+) -> ImageBuffer<Gray<Component<I>>, Vec<Component<I>>> {
     grayscale_with_type(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
 pub fn grayscale_alpha<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<LumaA<Component<I>>, Vec<Component<I>>> {
+) -> ImageBuffer<GrayAlpha<Component<I>>, Vec<Component<I>>> {
     grayscale_with_type_alpha(image)
 }
 
@@ -30,7 +29,7 @@ pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<Luma<Component<I>>>,
+    NewPixel: Pixel + FromColor<Gray<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -50,7 +49,7 @@ pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<LumaA<Component<I>>>,
+    NewPixel: Pixel + FromColor<GrayAlpha<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -373,11 +372,11 @@ pub trait ColorMap {
 /// # Examples
 /// ```
 /// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
-/// use image::{ImageBuffer, Luma};
+/// use image::{ImageBuffer, Gray};
 ///
 /// let (w, h) = (16, 16);
 /// // Create an image with a smooth horizontal gradient from black (0) to white (255).
-/// let gray = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
+/// let gray = ImageBuffer::from_fn(w, h, |x, y| -> Gray<u8> { [(255 * x / w) as u8].into() });
 /// // Mapping the gray image through the `BiLevel` filter should map gray pixels less than half
 /// // intensity (127) to black (0), and anything greater to white (255).
 /// let cmap = BiLevel;
@@ -388,7 +387,7 @@ pub trait ColorMap {
 ///         .expect("indexed color out-of-range")
 /// });
 /// // Create an black and white image of expected output.
-/// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
+/// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Gray<u8> {
 ///     if x <= (w / 2) {
 ///         [0].into()
 ///     } else {
@@ -401,10 +400,10 @@ pub trait ColorMap {
 pub struct BiLevel;
 
 impl ColorMap for BiLevel {
-    type Color = Luma<u8>;
+    type Color = Gray<u8>;
 
     #[inline(always)]
-    fn index_of(&self, color: &Luma<u8>) -> usize {
+    fn index_of(&self, color: &Gray<u8>) -> usize {
         let luma = color.0;
         if luma[0] > 127 {
             1
@@ -428,7 +427,7 @@ impl ColorMap for BiLevel {
     }
 
     #[inline(always)]
-    fn map_color(&self, color: &mut Luma<u8>) {
+    fn map_color(&self, color: &mut Gray<u8>) {
         let new_color = 0xFF * self.index_of(color) as u8;
         let luma = &mut color.0;
         luma[0] = new_color;
@@ -530,14 +529,14 @@ where
 pub fn index_colors<Pix, Map>(
     image: &ImageBuffer<Pix, Vec<u8>>,
     color_map: &Map,
-) -> ImageBuffer<Luma<u8>, Vec<u8>>
+) -> ImageBuffer<Gray<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Component = u8> + 'static,
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
-        *idx = Luma([color_map.index_of(pixel) as u8])
+        *idx = Gray([color_map.index_of(pixel) as u8])
     }
     indices
 }

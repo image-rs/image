@@ -288,7 +288,8 @@ mod buffer_par;
 mod color;
 mod dynimage;
 mod image;
-mod io;
+//TODO un-pub this module after the deprecated (ImageReader as Reader) re-export is removed from within it.
+pub mod io;
 mod traits;
 mod utils;
 

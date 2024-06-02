@@ -7,6 +7,9 @@ mod image_reader;
 
 pub use self::image_reader::ImageReader;
 
+#[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
+pub use self::image_reader::ImageReader as Reader;
+
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]

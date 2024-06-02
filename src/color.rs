@@ -365,12 +365,11 @@ pub(crate) trait Invert {
 
 impl<T: PixelComponent> Invert for GrayAlpha<T> {
     fn invert(&mut self) {
-        let l = self.0;
         let max = T::COMPONENT_MAX;
 
         *self = GrayAlpha {
-            gray: max - l[0],
-            a: l[1],
+            gray: max - self.gray,
+            a: self.a,
         }
     }
 }
@@ -403,18 +402,12 @@ impl<T: PixelComponent> Invert for Rgba<T> {
 
 impl<T: PixelComponent> Invert for Rgb<T> {
     fn invert(&mut self) {
-        let rgb = self.0;
-
         let max = T::COMPONENT_MAX;
 
-        let r1 = max - rgb[0];
-        let g1 = max - rgb[1];
-        let b1 = max - rgb[2];
-
         *self = Rgb {
-            r: r1,
-            g: g1,
-            b: b1,
+            r: max - self.r,
+            g: max - self.g,
+            b: max - self.b,
         }
     }
 }
@@ -437,9 +430,9 @@ mod tests {
 
     #[test]
     fn test_apply_with_alpha_rgb() {
-        let mut rgb = Rgb{r: 0, g: 0, b: 0};
+        let mut rgb = Rgb { r: 0, g: 0, b: 0 };
         rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb{r: 0, g: 0, b: 0});
+        assert_eq!(rgb, Rgb { r: 0, g: 0, b: 0 });
     }
 
     #[test]
@@ -456,8 +449,8 @@ mod tests {
 
     #[test]
     fn test_map_with_alpha_rgb() {
-        let rgb = Rgb{r: 0, g: 0, b: 0}.map_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb{r: 0, g: 0, b: 0});
+        let rgb = Rgb { r: 0, g: 0, b: 0 }.map_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(rgb, Rgb { r: 0, g: 0, b: 0 });
     }
 
     #[test]
@@ -532,9 +525,9 @@ mod tests {
 
     #[test]
     fn test_apply_without_alpha_rgb() {
-        let mut rgb = Rgb{r: 0, g: 0, b: 0};
+        let mut rgb = Rgb { r: 0, g: 0, b: 0 };
         rgb.apply_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb{r: 1, g: 1, b: 1});
+        assert_eq!(rgb, Rgb { r: 1, g: 1, b: 1 });
     }
 
     #[test]
@@ -559,8 +552,8 @@ mod tests {
 
     #[test]
     fn test_map_without_alpha_rgb() {
-        let rgb = Rgb{r: 0, g: 0, b: 0}.map_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb{r: 1, g: 1, b: 1});
+        let rgb = Rgb { r: 0, g: 0, b: 0 }.map_without_alpha(|s| s + 1);
+        assert_eq!(rgb, Rgb { r: 1, g: 1, b: 1 });
     }
 
     macro_rules! test_lossless_conversion {

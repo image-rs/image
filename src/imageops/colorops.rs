@@ -4,6 +4,7 @@ use num_traits::NumCast;
 use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent};
 use std::f64::consts::PI;
 
+use crate::color::Invert;
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
 use crate::ImageBuffer;
@@ -11,54 +12,63 @@ use crate::ImageBuffer;
 type Component<I> = <<I as GenericImageView>::Pixel as Pixel>::Component;
 
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
+#[deprecated(note = "use image::imageops::convert_generic_image() instead")]
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<Gray<Component<I>>, Vec<Component<I>>> {
-    grayscale_with_type(image)
+) -> ImageBuffer<Gray<Component<I>>, Vec<Component<I>>>
+where
+    Gray<<<I as GenericImageView>::Pixel as Pixel>::Component>:
+        FromPixelCommon<<I as GenericImageView>::Pixel>,
+{
+    convert_generic_image(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
+#[deprecated(note = "use image::imageops::convert_generic_image() instead")]
 pub fn grayscale_alpha<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<GrayAlpha<Component<I>>, Vec<Component<I>>> {
-    grayscale_with_type_alpha(image)
+) -> ImageBuffer<GrayAlpha<Component<I>>, Vec<Component<I>>>
+where
+    GrayAlpha<<<I as GenericImageView>::Pixel as Pixel>::Component>:
+        FromPixelCommon<<I as GenericImageView>::Pixel>,
+{
+    convert_generic_image(image)
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
+#[deprecated(note = "use image::imageops::convert_generic_image() instead")]
 pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromPixelCommon<Gray<Component<I>>>,
+    NewPixel: Pixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
-
-    for (x, y, pixel) in image.pixels() {
-        let grayscale = pixel.to_luma();
-        let new_pixel = grayscale.into_color(); // no-op for luma->luma
-
-        out.put_pixel(x, y, new_pixel);
-    }
-
-    out
+    convert_generic_image::<NewPixel, I>(image)
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
+#[deprecated(note = "use image::imageops::convert_generic_image() instead")]
 pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromPixelCommon<GrayAlpha<Component<I>>>,
+    NewPixel: Pixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
+{
+    convert_generic_image::<NewPixel, I>(image)
+}
+
+pub fn convert_generic_image<NewPixel, I>(
+    image: &I,
+) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
+where
+    I: GenericImageView,
+    NewPixel: Pixel + FromPixelCommon<I::Pixel>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
     for (x, y, pixel) in image.pixels() {
-        let grayscale = pixel.to_luma_alpha();
-        let new_pixel = grayscale.into_color(); // no-op for luma->luma
-
-        out.put_pixel(x, y, new_pixel);
+        out.put_pixel(x, y, NewPixel::from_pixel_common(pixel));
     }
 
     out
@@ -66,7 +76,10 @@ where
 
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
-pub fn invert<I: GenericImage>(image: &mut I) {
+pub fn invert<I: GenericImage>(image: &mut I)
+where
+    I::Pixel: Invert,
+{
     // TODO find a way to use pixels?
     let (width, height) = image.dimensions();
 
@@ -88,7 +101,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S, SelfType<S> = P> + 'static,
     S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
@@ -100,7 +113,7 @@ where
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
     for (x, y, pixel) in image.pixels() {
-        let f = pixel.map_components(|b| {
+        let f = pixel.map_components(|b| -> S {
             let c: f32 = NumCast::from(b).unwrap();
 
             let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -133,14 +146,16 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
-                let c: f32 = NumCast::from(b).unwrap();
+            let f = image
+                .get_pixel(x, y)
+                .map_components(|b| -> <I::Pixel as Pixel>::Component {
+                    let c: f32 = NumCast::from(b).unwrap();
 
-                let d = ((c / max - 0.5) * percent + 0.5) * max;
-                let e = clamp(d, 0.0, max);
+                    let d = ((c / max - 0.5) * percent + 0.5) * max;
+                    let e = clamp(d, 0.0, max);
 
-                NumCast::from(e).unwrap()
-            });
+                    NumCast::from(e).unwrap()
+                });
 
             image.put_pixel(x, y, f);
         }
@@ -165,15 +180,12 @@ where
     let max: i32 = NumCast::from(max).unwrap();
 
     for (x, y, pixel) in image.pixels() {
-        let e = pixel.map_with_alpha(
-            |b| {
-                let c: i32 = NumCast::from(b).unwrap();
-                let d = clamp(c + value, 0, max);
+        let e = pixel.map_colors(|b| {
+            let c: i32 = NumCast::from(b).unwrap();
+            let d = clamp(c + value, 0, max);
 
-                NumCast::from(d).unwrap()
-            },
-            |alpha| alpha,
-        );
+            NumCast::from(d).unwrap()
+        });
         out.put_pixel(x, y, e);
     }
 
@@ -197,15 +209,12 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
-                |b| {
-                    let c: i32 = NumCast::from(b).unwrap();
-                    let d = clamp(c + value, 0, max);
+            let e = image.get_pixel(x, y).map_colors(|b| {
+                let c: i32 = NumCast::from(b).unwrap();
+                let d = clamp(c + value, 0, max);
 
-                    NumCast::from(d).unwrap()
-                },
-                |alpha| alpha,
-            );
+                NumCast::from(d).unwrap()
+            });
 
             image.put_pixel(x, y, e);
         }
@@ -249,13 +258,9 @@ where
         let p = image.get_pixel(x, y);
 
         #[allow(deprecated)]
-        let (k1, k2, k3, k4) = p.channels4();
-        let vec: (f64, f64, f64, f64) = (
-            NumCast::from(k1).unwrap(),
-            NumCast::from(k2).unwrap(),
-            NumCast::from(k3).unwrap(),
-            NumCast::from(k4).unwrap(),
-        );
+        let vec = p
+            .map_components(|x| NumCast::from(x).unwrap())
+            .component_array();
 
         let r = vec.0;
         let g = vec.1;

@@ -9,28 +9,28 @@ use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
-type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
+type Component<I> = <<I as GenericImageView>::Pixel as Pixel>::Component;
 
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> ImageBuffer<Luma<Component<I>>, Vec<Component<I>>> {
     grayscale_with_type(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
 pub fn grayscale_alpha<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> ImageBuffer<LumaA<Component<I>>, Vec<Component<I>>> {
     grayscale_with_type_alpha(image)
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
 pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<Luma<Subpixel<I>>>,
+    NewPixel: Pixel + FromColor<Luma<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -48,9 +48,9 @@ where
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
 pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<LumaA<Subpixel<I>>>,
+    NewPixel: Pixel + FromColor<LumaA<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -89,7 +89,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
@@ -126,7 +126,7 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
+    let max = <I::Pixel as Pixel>::Component::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -156,7 +156,7 @@ where
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
@@ -192,7 +192,7 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
+    let max = <I::Pixel as Pixel>::Component::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
     // TODO find a way to use pixels?
@@ -222,7 +222,7 @@ where
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
@@ -461,7 +461,7 @@ impl ColorMap for color_quant::NeuQuant {
 }
 
 /// Floyd-Steinberg error diffusion
-fn diffuse_err<P: Pixel<Subpixel = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
+fn diffuse_err<P: Pixel<Component = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
     for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
         *c = match <i16 as From<_>>::from(*c) + e * factor / 16 {
             val if val < 0 => 0,
@@ -492,7 +492,7 @@ macro_rules! do_dithering(
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Component = u8> + 'static,
 {
     let (width, height) = image.dimensions();
     let mut err: [i16; 3] = [0; 3];
@@ -533,7 +533,7 @@ pub fn index_colors<Pix, Map>(
 ) -> ImageBuffer<Luma<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Component = u8> + 'static,
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {

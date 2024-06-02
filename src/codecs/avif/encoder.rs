@@ -146,10 +146,10 @@ impl<W: Write> AvifEncoder<W> {
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
         fn try_from_raw<P: Pixel + 'static>(
-            data: &[P::Subpixel],
+            data: &[P::Component],
             width: u32,
             height: u32,
-        ) -> ImageResult<ImageBuffer<P, &[P::Subpixel]>> {
+        ) -> ImageResult<ImageBuffer<P, &[P::Component]>> {
             ImageBuffer::from_raw(width, height, data).ok_or_else(|| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
@@ -160,7 +160,7 @@ impl<W: Write> AvifEncoder<W> {
         // Convert to target color type using few buffer allocations.
         fn convert_into<'buf, P>(
             buf: &'buf mut Vec<u8>,
-            image: ImageBuffer<P, &[P::Subpixel]>,
+            image: ImageBuffer<P, &[P::Component]>,
         ) -> Img<&'buf [RGBA8]>
         where
             P: Pixel + 'static,

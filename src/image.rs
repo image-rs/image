@@ -1082,8 +1082,8 @@ pub struct SubImageInner<I> {
 /// Alias to access Pixel behind a reference
 type DerefPixel<I> = <<I as Deref>::Target as GenericImageView>::Pixel;
 
-/// Alias to access Subpixel behind a reference
-type DerefSubpixel<I> = <DerefPixel<I> as Pixel>::Subpixel;
+/// Alias to access Component behind a reference
+type DerefComponent<I> = <DerefPixel<I> as Pixel>::Component;
 
 impl<I> SubImage<I> {
     /// Construct a new subimage
@@ -1114,7 +1114,7 @@ impl<I> SubImage<I> {
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
+    pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefComponent<I>>>
     where
         I: Deref,
         I::Target: GenericImageView + 'static,

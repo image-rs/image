@@ -834,7 +834,7 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Subpixel::DEFAULT_MAX_VALUE >> 2;
+            let a: $a = [<$a as Pixel>::Component::DEFAULT_MAX_VALUE >> 2;
                 <$a as Pixel>::CHANNEL_COUNT as usize]
                 .into();
             let b: $b = a.into_color();

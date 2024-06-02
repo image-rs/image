@@ -227,7 +227,7 @@ fn horizontal_sample<P, S>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
@@ -438,18 +438,18 @@ pub fn interpolate_bilinear<P: Pixel>(
     debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
     // hack to see if primitive is an integer or a float
-    let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
+    let is_float = P::Component::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
 
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
         let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
         // this rounding may introduce quantization errors,
         // Specifically what is meant is that many samples may deviate
         // from the mean value of the originals, but it's not possible to fix that.
-        *c = <P::Subpixel as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
+        *c = <P::Component as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
             if v < 0.0 {
-                P::Subpixel::DEFAULT_MIN_VALUE
+                P::Component::DEFAULT_MIN_VALUE
             } else {
-                P::Subpixel::DEFAULT_MAX_VALUE
+                P::Component::DEFAULT_MAX_VALUE
             }
         });
     }
@@ -466,7 +466,7 @@ pub fn interpolate_bilinear<P: Pixel>(
 fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
@@ -552,7 +552,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
         <S::Larger as NumCast>::from(val).unwrap()
     }
 
-    fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
+    fn add_pixel<P: Pixel<Component = S>>(&mut self, pixel: P) {
         #[allow(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
@@ -577,7 +577,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
     let (width, height) = image.dimensions();
@@ -666,7 +666,7 @@ fn thumbnail_sample_block<I, P, S>(
 ) -> (S, S, S, S)
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S>,
+    P: Pixel<Component = S>,
     S: Primitive + Enlargeable,
 {
     let mut sum = ThumbnailSum::zeroed();
@@ -698,7 +698,7 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
 ) -> (S, S, S, S)
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S>,
+    P: Pixel<Component = S>,
     S: Primitive + Enlargeable,
 {
     let fract = fraction_horizontal;
@@ -742,7 +742,7 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
 ) -> (S, S, S, S)
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S>,
+    P: Pixel<Component = S>,
     S: Primitive + Enlargeable,
 {
     let fract = fraction_vertical;
@@ -784,7 +784,7 @@ fn thumbnail_sample_fraction_both<I, P, S>(
 ) -> (S, S, S, S)
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S>,
+    P: Pixel<Component = S>,
     S: Primitive + Enlargeable,
 {
     #[allow(deprecated)]
@@ -827,7 +827,7 @@ where
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     // The kernel's input positions relative to the current pixel.
@@ -911,10 +911,10 @@ pub fn resize<I: GenericImageView>(
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Component>>
 where
     I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
+    <I::Pixel as Pixel>::Component: 'static,
 {
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
@@ -956,7 +956,7 @@ where
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Component>>
 where
     I::Pixel: 'static,
 {
@@ -984,7 +984,7 @@ where
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     let mut tmp = blur(image, sigma);

@@ -279,7 +279,7 @@ where
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + Lerp + 'static,
 {
     for y in 0..img.height() {
@@ -312,7 +312,7 @@ where
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + Lerp + 'static,
 {
     for x in 0..img.width() {

@@ -20,7 +20,7 @@ fn main() {
 fn h_concat<I, P, S>(images: &[I]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
+    P: Pixel<Component = S> + 'static,
     S: Primitive + 'static,
 {
     // The final width is the sum of all images width.

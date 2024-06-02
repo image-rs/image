@@ -5,10 +5,10 @@
 
 use std::f32;
 
-use num_traits::{NumCast, ToPrimitive, Zero};
+use num_traits::{NumCast, ToPixelComponent, Zero};
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::traits::{Enlargeable, Pixel, PixelComponent};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
 
@@ -109,7 +109,7 @@ struct FloatNearest(f32);
 
 // to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
 // Note that to_f64 by default calls to_i64 and thus needs to be overridden.
-impl ToPrimitive for FloatNearest {
+impl ToPixelComponent for FloatNearest {
     // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
     // If a usecase for full 32 bits is found its trivial to add
     fn to_i8(&self) -> Option<i8> {
@@ -228,7 +228,7 @@ fn horizontal_sample<P, S>(
 ) -> ImageBuffer<P, Vec<S>>
 where
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
@@ -467,7 +467,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> 
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
@@ -536,9 +536,9 @@ where
 }
 
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
-struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+struct ThumbnailSum<S: PixelComponent + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
 
-impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
+impl<S: PixelComponent + Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {
         ThumbnailSum(
             S::Larger::zero(),
@@ -578,7 +578,7 @@ pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBu
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + Enlargeable + 'static,
+    S: PixelComponent + Enlargeable + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
@@ -667,7 +667,7 @@ fn thumbnail_sample_block<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
-    S: Primitive + Enlargeable,
+    S: PixelComponent + Enlargeable,
 {
     let mut sum = ThumbnailSum::zeroed();
 
@@ -699,7 +699,7 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
-    S: Primitive + Enlargeable,
+    S: PixelComponent + Enlargeable,
 {
     let fract = fraction_horizontal;
 
@@ -743,7 +743,7 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
-    S: Primitive + Enlargeable,
+    S: PixelComponent + Enlargeable,
 {
     let fract = fraction_vertical;
 
@@ -785,7 +785,7 @@ fn thumbnail_sample_fraction_both<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
-    S: Primitive + Enlargeable,
+    S: PixelComponent + Enlargeable,
 {
     #[allow(deprecated)]
     let k_bl = image.get_pixel(left, bottom).channels4();
@@ -828,7 +828,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -985,7 +985,7 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let mut tmp = blur(image, sigma);
 

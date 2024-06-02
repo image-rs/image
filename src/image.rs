@@ -588,7 +588,7 @@ where
 /// Panics if there isn't enough memory to decode the image.
 pub(crate) fn decoder_to_vec<T>(decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
 where
-    T: crate::traits::Primitive + bytemuck::Pod,
+    T: crate::traits::PixelComponent + bytemuck::Pod,
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::MAX as usize {

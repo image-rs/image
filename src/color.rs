@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, ToPrimitive, Zero};
+use num_traits::{NumCast, ToPixelComponent, Zero};
 use pixeli::{GrayAlpha, PixelComponent};
 
 /// An enumeration over supported color types and bit depths
@@ -283,13 +283,13 @@ impl<T: PixelComponent> Blend for GrayAlpha<T> {
     }
 }
 
-impl<T: Primitive> Blend for Gray<T> {
+impl<T: PixelComponent> Blend for Gray<T> {
     fn blend(&mut self, other: &Gray<T>) {
         *self = *other
     }
 }
 
-impl<T: Primitive> Blend for Rgba<T> {
+impl<T: PixelComponent> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
@@ -353,7 +353,7 @@ impl<T: Primitive> Blend for Rgba<T> {
     }
 }
 
-impl<T: Primitive> Blend for Rgb<T> {
+impl<T: PixelComponent> Blend for Rgb<T> {
     fn blend(&mut self, other: &Rgb<T>) {
         *self = *other
     }
@@ -365,7 +365,7 @@ pub(crate) trait Invert {
     fn invert(&mut self);
 }
 
-impl<T: Primitive> Invert for GrayAlpha<T> {
+impl<T: PixelComponent> Invert for GrayAlpha<T> {
     fn invert(&mut self) {
         let l = self.0;
         let max = T::COMPONENT_MAX;
@@ -374,7 +374,7 @@ impl<T: Primitive> Invert for GrayAlpha<T> {
     }
 }
 
-impl<T: Primitive> Invert for Gray<T> {
+impl<T: PixelComponent> Invert for Gray<T> {
     fn invert(&mut self) {
         let l = self.0;
 
@@ -385,7 +385,7 @@ impl<T: Primitive> Invert for Gray<T> {
     }
 }
 
-impl<T: Primitive> Invert for Rgba<T> {
+impl<T: PixelComponent> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.0;
 
@@ -395,7 +395,7 @@ impl<T: Primitive> Invert for Rgba<T> {
     }
 }
 
-impl<T: Primitive> Invert for Rgb<T> {
+impl<T: PixelComponent> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.0;
 
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn test_lossless_conversions() {
         use super::IntoColor;
-        use crate::traits::Primitive;
+        use crate::traits::PixelComponent;
 
         test_lossless_conversion!(Gray<u8>, Gray<u16>, Gray<u8>);
         test_lossless_conversion!(GrayAlpha<u8>, GrayAlpha<u16>, GrayAlpha<u8>);

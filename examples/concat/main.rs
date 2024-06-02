@@ -1,4 +1,4 @@
-use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
+use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, PixelComponent};
 
 /// Example showcasing a generic implementation of image concatenation.
 ///
@@ -21,7 +21,7 @@ fn h_concat<I, P, S>(images: &[I]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     // The final width is the sum of all images width.
     let img_width_out: u32 = images.iter().map(|im| im.width()).sum();

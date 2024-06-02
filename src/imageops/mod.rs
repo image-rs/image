@@ -2,7 +2,7 @@
 use std::cmp;
 
 use crate::image::{GenericImage, GenericImageView, SubImage};
-use crate::traits::{Lerp, Pixel, Primitive};
+use crate::traits::{Lerp, Pixel, PixelComponent};
 
 pub use self::sample::FilterType;
 
@@ -280,7 +280,7 @@ pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    S: PixelComponent + Lerp + 'static,
 {
     for y in 0..img.height() {
         let pixel = start.map2(stop, |a, b| {
@@ -313,7 +313,7 @@ pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    S: PixelComponent + Lerp + 'static,
 {
     for x in 0..img.width() {
         let pixel = start.map2(stop, |a, b| {

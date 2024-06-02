@@ -949,7 +949,7 @@ impl<'buf, Component> FlatSamples<&'buf [Component]> {
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Component = Component>,
-        Component: crate::Primitive,
+        Component: crate::PixelComponent,
     {
         FlatSamples {
             samples: pixel.channels(),

@@ -5,7 +5,7 @@ use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel};
 use std::f64::consts::PI;
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::Primitive;
+use crate::traits::PixelComponent;
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
@@ -90,7 +90,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -157,7 +157,7 @@ pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -223,7 +223,7 @@ pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
-    S: Primitive + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

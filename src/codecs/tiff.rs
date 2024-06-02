@@ -204,8 +204,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         }
     }
 
-    fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
-        limits.check_support(&crate::io::LimitSupport::default())?;
+    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
 
         let (width, height) = self.dimensions();
         limits.check_dimensions(width, height)?;

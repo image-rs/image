@@ -166,8 +166,8 @@ pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
     save_buffer_with_format, write_buffer_with_format,
 };
-pub use crate::io::free_functions::{guess_format, load};
-pub use crate::io::{ImageReader, LimitSupport, Limits};
+pub use crate::image_reader::free_functions::{guess_format, load};
+pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
 
 pub use crate::dynimage::DynamicImage;
 
@@ -288,8 +288,14 @@ mod buffer_par;
 mod color;
 mod dynimage;
 mod image;
-//TODO un-pub this module after the deprecated (ImageReader as Reader) re-export is removed from within it.
-pub mod io;
+mod image_reader;
+//TODO delete this module after a few releases
+/// deprecated io module the original io module has been renamed to `image_reader`
+pub mod io {
+    #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
+    /// Deprecated re-export of `ImageReader` as `Reader`
+    pub type Reader<R> = super::ImageReader<R>;
+}
 mod traits;
 mod utils;
 

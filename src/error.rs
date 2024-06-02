@@ -166,9 +166,9 @@ pub enum LimitErrorKind {
     /// The specified strict limits are not supported for this operation
     Unsupported {
         /// The given limits
-        limits: crate::io::Limits,
+        limits: crate::Limits,
         /// The supported strict limits
-        supported: crate::io::LimitSupport,
+        supported: crate::LimitSupport,
     },
 }
 

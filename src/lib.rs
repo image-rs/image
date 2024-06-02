@@ -295,10 +295,10 @@ pub mod io {
     #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
     /// Deprecated re-export of `ImageReader` as `Reader`
     pub type Reader<R> = super::ImageReader<R>;
-    #[deprecated(note = "this type has been moved and renamed to image::Limits")]
+    #[deprecated(note = "this type has been moved to image::Limits")]
     /// Deprecated re-export of `Limits`
     pub type Limits = super::Limits;
-    #[deprecated(note = "this type has been moved and renamed to image::LimitSupport")]
+    #[deprecated(note = "this type has been moved to image::LimitSupport")]
     /// Deprecated re-export of `LimitSupport`
     pub type LimitSupport = super::LimitSupport;
 }

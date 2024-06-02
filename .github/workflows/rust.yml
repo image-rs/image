@@ -199,3 +199,5 @@ jobs:
         with:
           cache-on-failure: true
       - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          features: "default-features"

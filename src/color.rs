@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPixelComponent, Zero};
-use pixeli::{GrayAlpha, PixelComponent};
+use pixeli::{Gray, GrayAlpha, PixelComponent, Rgb, Rgba};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -276,10 +276,10 @@ impl<T: PixelComponent> Blend for GrayAlpha<T> {
         let out_luma_a = fg_luma_a + bg_luma_a * (1.0 - fg_a);
         let out_luma = out_luma_a / alpha_final;
 
-        *self = GrayAlpha([
-            NumCast::from(max_t * out_luma).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
-        ])
+        *self = GrayAlpha {
+            gray: NumCast::from(max_t * out_luma).unwrap(),
+            a: NumCast::from(max_t * alpha_final).unwrap(),
+        }
     }
 }
 
@@ -344,12 +344,12 @@ impl<T: PixelComponent> Blend for Rgba<T> {
         );
 
         // Cast back to our initial type on return
-        *self = Rgba([
-            NumCast::from(max_t * out_r).unwrap(),
-            NumCast::from(max_t * out_g).unwrap(),
-            NumCast::from(max_t * out_b).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
-        ])
+        *self = Rgba {
+            r: NumCast::from(max_t * out_r).unwrap(),
+            g: NumCast::from(max_t * out_g).unwrap(),
+            b: NumCast::from(max_t * out_b).unwrap(),
+            a: NumCast::from(max_t * alpha_final).unwrap(),
+        }
     }
 }
 
@@ -370,7 +370,10 @@ impl<T: PixelComponent> Invert for GrayAlpha<T> {
         let l = self.0;
         let max = T::COMPONENT_MAX;
 
-        *self = GrayAlpha([max - l[0], l[1]])
+        *self = GrayAlpha {
+            gray: max - l[0],
+            a: l[1],
+        }
     }
 }
 

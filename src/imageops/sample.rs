@@ -5,10 +5,9 @@
 
 use std::f32;
 
-use num_traits::{NumCast, ToPixelComponent, Zero};
+use num_traits::{NumCast, Zero};
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Enlargeable, Pixel, PixelComponent};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
 

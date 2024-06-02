@@ -2,7 +2,7 @@
 
 // Note copied from the stdlib under MIT license
 
-use num_traits::{Bounded, Num, NumCast};
+use num_traits::{Bounded, NumCast};
 use pixeli::{Gray, GrayAlpha, Pixel, PixelComponent, Rgb, Rgba};
 
 use crate::ExtendedColorType;

@@ -774,11 +774,8 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
-    use crate::traits::PixelComponent;
-    use num_traits::cast::ToPixelComponent;
-
     let [r, g, b] = pixel.to_rgb().0;
-    let max: f32 = P::Component::DEFAULT_MAX_VALUE.to_f32().unwrap();
+    let max: f32 = P::Component::COMPONENT_MAX.to_f32().unwrap();
     let r: f32 = r.to_f32().unwrap();
     let g: f32 = g.to_f32().unwrap();
     let b: f32 = b.to_f32().unwrap();
@@ -823,7 +820,6 @@ fn copy_blocks_ycbcr<I: GenericImageView>(
 }
 
 fn copy_blocks_gray<I: GenericImageView>(source: &I, x0: u32, y0: u32, gb: &mut [u8; 64]) {
-    use num_traits::cast::ToPixelComponent;
     for y in 0..8 {
         for x in 0..8 {
             let pixel = pixel_at_or_near(source, x0 + x, y0 + y);

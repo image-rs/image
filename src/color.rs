@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, ToPixelComponent, Zero};
+use num_traits::{NumCast, Zero};
 use pixeli::{Gray, GrayAlpha, PixelComponent, Rgb, Rgba};
 
 /// An enumeration over supported color types and bit depths
@@ -384,7 +384,7 @@ impl<T: PixelComponent> Invert for Gray<T> {
         let max = T::COMPONENT_MAX;
         let l1 = max - l[0];
 
-        *self = Gray([l1])
+        *self = Gray { gray: l1 }
     }
 }
 
@@ -394,7 +394,12 @@ impl<T: PixelComponent> Invert for Rgba<T> {
 
         let max = T::COMPONENT_MAX;
 
-        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
+        *self = Rgba {
+            r: max - rgba[0],
+            g: max - rgba[1],
+            b: max - rgba[2],
+            a: rgba[3],
+        }
     }
 }
 
@@ -408,17 +413,26 @@ impl<T: PixelComponent> Invert for Rgb<T> {
         let g1 = max - rgb[1];
         let b1 = max - rgb[2];
 
-        *self = Rgb([r1, g1, b1])
+        *self = Rgb {
+            r: r1,
+            g: g1,
+            b: b1,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Gray, GrayAlpha, Pixel, Rgb, Rgba};
+    use super::{Gray, GrayAlpha, Rgb, Rgba};
 
     #[test]
     fn test_apply_with_alpha_rgba() {
-        let mut rgba = Rgba{r: 0, g: 0, b: 0, a: 0};
+        let mut rgba = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
         rgba.apply_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
     }
@@ -432,7 +446,13 @@ mod tests {
 
     #[test]
     fn test_map_with_alpha_rgba() {
-        let rgba = Rgba{r: 0, g: 0, b: 0, a: 0}.map_with_alpha(|s| s, |_| 0xFF);
+        let rgba = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        }
+        .map_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
     }
 
@@ -494,9 +514,22 @@ mod tests {
 
     #[test]
     fn test_apply_without_alpha_rgba() {
-        let mut rgba = Rgba{r: 0, g: 0, b: 0, a: 0};
+        let mut rgba = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
         rgba.apply_without_alpha(|s| s + 1);
-        assert_eq!(rgba, Rgba{r: 1, g: 1, b: 1, a: 0});
+        assert_eq!(
+            rgba,
+            Rgba {
+                r: 1,
+                g: 1,
+                b: 1,
+                a: 0
+            }
+        );
     }
 
     #[test]
@@ -508,8 +541,22 @@ mod tests {
 
     #[test]
     fn test_map_without_alpha_rgba() {
-        let rgba = Rgba{r: 0, g: 0, b: 0, a: 0}.map_without_alpha(|s| s + 1);
-        assert_eq!(rgba, Rgba{r: 1, g: 1, b: 1, a: 0});
+        let rgba = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        }
+        .map_without_alpha(|s| s + 1);
+        assert_eq!(
+            rgba,
+            Rgba {
+                r: 1,
+                g: 1,
+                b: 1,
+                a: 0
+            }
+        );
     }
 
     #[test]
@@ -531,9 +578,6 @@ mod tests {
 
     #[test]
     fn test_lossless_conversions() {
-        use super::IntoColor;
-        use crate::traits::PixelComponent;
-
         test_lossless_conversion!(Gray<u8>, Gray<u16>, Gray<u8>);
         test_lossless_conversion!(GrayAlpha<u8>, GrayAlpha<u16>, GrayAlpha<u8>);
         test_lossless_conversion!(Rgb<u8>, Rgb<u16>, Rgb<u8>);
@@ -542,7 +586,7 @@ mod tests {
 
     #[test]
     fn accuracy_conversion() {
-        use super::{Gray, Pixel, Rgb};
+        use super::{Gray, Rgb};
         let pixel = Rgb::from([13, 13, 13]);
         let Gray([luma]) = pixel.to_luma();
         assert_eq!(luma, 13);

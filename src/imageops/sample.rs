@@ -104,36 +104,6 @@ pub(crate) struct Filter<'a> {
     pub(crate) support: f32,
 }
 
-struct FloatNearest(f32);
-
-// to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
-// Note that to_f64 by default calls to_i64 and thus needs to be overridden.
-impl ToPixelComponent for FloatNearest {
-    // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
-    // If a usecase for full 32 bits is found its trivial to add
-    fn to_i8(&self) -> Option<i8> {
-        self.0.round().to_i8()
-    }
-    fn to_i16(&self) -> Option<i16> {
-        self.0.round().to_i16()
-    }
-    fn to_i64(&self) -> Option<i64> {
-        self.0.round().to_i64()
-    }
-    fn to_u8(&self) -> Option<u8> {
-        self.0.round().to_u8()
-    }
-    fn to_u16(&self) -> Option<u16> {
-        self.0.round().to_u16()
-    }
-    fn to_u64(&self) -> Option<u64> {
-        self.0.round().to_u64()
-    }
-    fn to_f64(&self) -> Option<f64> {
-        self.0.to_f64()
-    }
-}
-
 // sinc function: the ideal sampling filter.
 fn sinc(t: f32) -> f32 {
     let a = t * f32::consts::PI;
@@ -234,7 +204,7 @@ where
     let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::COMPONENT_MAX).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::COMPONENT_MIN).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -446,7 +416,7 @@ pub fn interpolate_bilinear<P: Pixel>(
         // from the mean value of the originals, but it's not possible to fix that.
         *c = <P::Component as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
             if v < 0.0 {
-                P::Component::DEFAULT_MIN_VALUE
+                P::Component::COMPONENT_MIN
             } else {
                 P::Component::COMPONENT_MAX
             }
@@ -462,11 +432,9 @@ pub fn interpolate_bilinear<P: Pixel>(
 // ```filter``` is the filter to use for sampling.
 // The return value is not necessarily Rgba, the underlying order of channels in ```image``` is
 // preserved.
-fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
+fn vertical_sample<I, P>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
-    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
@@ -525,7 +493,7 @@ where
 
             #[allow(deprecated)]
             // This is not necessarily Rgba.
-            let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
+            let t = P::from_components([t.0, t.1, t.2, t.3]);
 
             out.put_pixel(x, outy, t);
         }
@@ -1023,6 +991,7 @@ where
 mod tests {
     use super::{resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
+    use pixeli::Rgba;
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1086,35 +1055,106 @@ mod tests {
     }
     #[test]
     fn test_sample_bilinear_correctness() {
-        use crate::Rgba;
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
-            (0, 0) => Rgba{r: 255, g: 0, b: 0, a: 0},
-            (0, 1) => Rgba{r: 0, g: 255, b: 0, a: 0},
-            (1, 0) => Rgba{r: 0, g: 0, b: 255, a: 0},
-            (1, 1) => Rgba{r: 0, g: 0, b: 0, a: 255},
+            (0, 0) => Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            (0, 1) => Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0,
+            },
+            (1, 0) => Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0,
+            },
+            (1, 1) => Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
             _ => panic!(),
         });
         assert_eq!(sample_bilinear(&img, 0.5, 0.5), Some(Rgba([64; 4])));
-        assert_eq!(sample_bilinear(&img, 0.0, 0.0), Some(Rgba{r: 255, g: 0, b: 0, a: 0}));
-        assert_eq!(sample_bilinear(&img, 0.0, 1.0), Some(Rgba{r: 0, g: 255, b: 0, a: 0}));
-        assert_eq!(sample_bilinear(&img, 1.0, 0.0), Some(Rgba{r: 0, g: 0, b: 255, a: 0}));
-        assert_eq!(sample_bilinear(&img, 1.0, 1.0), Some(Rgba{r: 0, g: 0, b: 0, a: 255}));
+        assert_eq!(
+            sample_bilinear(&img, 0.0, 0.0),
+            Some(Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.0, 1.0),
+            Some(Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_bilinear(&img, 1.0, 0.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_bilinear(&img, 1.0, 1.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            })
+        );
 
         assert_eq!(
             sample_bilinear(&img, 0.5, 0.0),
-            Some(Rgba{r: 128, g: 0, b: 128, a: 0})
+            Some(Rgba {
+                r: 128,
+                g: 0,
+                b: 128,
+                a: 0
+            })
         );
         assert_eq!(
             sample_bilinear(&img, 0.0, 0.5),
-            Some(Rgba{r: 128, g: 128, b: 0, a: 0})
+            Some(Rgba {
+                r: 128,
+                g: 128,
+                b: 0,
+                a: 0
+            })
         );
         assert_eq!(
             sample_bilinear(&img, 0.5, 1.0),
-            Some(Rgba{r: 0, g: 128, b: 0, a: 128})
+            Some(Rgba {
+                r: 0,
+                g: 128,
+                b: 0,
+                a: 128
+            })
         );
         assert_eq!(
             sample_bilinear(&img, 1.0, 0.5),
-            Some(Rgba{r: 0, g: 0, b: 128, a: 128})
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 128,
+                a: 128
+            })
         );
     }
     #[bench]
@@ -1122,10 +1162,30 @@ mod tests {
     fn bench_sample_bilinear(b: &mut test::Bencher) {
         use crate::Rgba;
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
-            (0, 0) => Rgba{r: 255, g: 0, b: 0, a: 0},
-            (0, 1) => Rgba{r: 0, g: 255, b: 0, a: 0},
-            (1, 0) => Rgba{r: 0, g: 0, b: 255, a: 0},
-            (1, 1) => Rgba{r: 0, g: 0, b: 0, a: 255},
+            (0, 0) => Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            (0, 1) => Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0,
+            },
+            (1, 0) => Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0,
+            },
+            (1, 1) => Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
             _ => panic!(),
         });
         b.iter(|| {
@@ -1134,25 +1194,116 @@ mod tests {
     }
     #[test]
     fn test_sample_nearest_correctness() {
-        use crate::Rgba;
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
-            (0, 0) => Rgba{r: 255, g: 0, b: 0, a: 0},
-            (0, 1) => Rgba{r: 0, g: 255, b: 0, a: 0},
-            (1, 0) => Rgba{r: 0, g: 0, b: 255, a: 0},
-            (1, 1) => Rgba{r: 0, g: 0, b: 0, a: 255},
+            (0, 0) => Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            (0, 1) => Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0,
+            },
+            (1, 0) => Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0,
+            },
+            (1, 1) => Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
             _ => panic!(),
         });
 
-        assert_eq!(sample_nearest(&img, 0.0, 0.0), Some(Rgba{r: 255, g: 0, b: 0, a: 0}));
-        assert_eq!(sample_nearest(&img, 0.0, 1.0), Some(Rgba{r: 0, g: 255, b: 0, a: 0}));
-        assert_eq!(sample_nearest(&img, 1.0, 0.0), Some(Rgba{r: 0, g: 0, b: 255, a: 0}));
-        assert_eq!(sample_nearest(&img, 1.0, 1.0), Some(Rgba{r: 0, g: 0, b: 0, a: 255}));
+        assert_eq!(
+            sample_nearest(&img, 0.0, 0.0),
+            Some(Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 0.0, 1.0),
+            Some(Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 1.0, 0.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 1.0, 1.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            })
+        );
 
-        assert_eq!(sample_nearest(&img, 0.5, 0.5), Some(Rgba{r: 0, g: 0, b: 0, a: 255}));
-        assert_eq!(sample_nearest(&img, 0.5, 0.0), Some(Rgba{r: 0, g: 0, b: 255, a: 0}));
-        assert_eq!(sample_nearest(&img, 0.0, 0.5), Some(Rgba{r: 0, g: 255, b: 0, a: 0}));
-        assert_eq!(sample_nearest(&img, 0.5, 1.0), Some(Rgba{r: 0, g: 0, b: 0, a: 255}));
-        assert_eq!(sample_nearest(&img, 1.0, 0.5), Some(Rgba{r: 0, g: 0, b: 0, a: 255}));
+        assert_eq!(
+            sample_nearest(&img, 0.5, 0.5),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 0.5, 0.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 255,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 0.0, 0.5),
+            Some(Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 0
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 0.5, 1.0),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            })
+        );
+        assert_eq!(
+            sample_nearest(&img, 1.0, 0.5),
+            Some(Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            })
+        );
     }
 
     #[bench]

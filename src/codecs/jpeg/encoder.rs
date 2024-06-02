@@ -486,7 +486,7 @@ impl<W: Write> JpegEncoder<W> {
     where
         I::Pixel: PixelWithColorType,
     {
-        let n = I::Pixel::CHANNEL_COUNT;
+        let n = I::Pixel::COMPONENT_COUNT;
         let color_type = I::Pixel::COLOR_TYPE;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 

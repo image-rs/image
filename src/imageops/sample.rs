@@ -379,7 +379,7 @@ pub fn interpolate_bilinear<P: Pixel>(
     y: f32,
 ) -> Option<P> {
     // assumption needed for correctness of pixel creation
-    assert!(P::CHANNEL_COUNT <= 4);
+    assert!(P::COMPONENT_COUNT <= 4);
 
     let (w, h) = img.dimensions();
     if w == 0 || h == 0 {

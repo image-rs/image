@@ -184,7 +184,7 @@ where
     fn next(&mut self) -> Option<Pixels<'a, P>> {
         let row = self.pixels.next()?;
         Some(Pixels {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
+            // Note: this is not reached when COMPONENT_COUNT is 0.
             chunks: row.chunks_exact(<P as Pixel>::COMPONENT_COUNT as usize),
         })
     }
@@ -213,8 +213,8 @@ where
     fn next_back(&mut self) -> Option<Pixels<'a, P>> {
         let row = self.pixels.next_back()?;
         Some(Pixels {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
+            // Note: this is not reached when COMPONENT_COUNT is 0.
+            chunks: row.chunks_exact(<P as Pixel>::COMPONENT_COUNT as usize),
         })
     }
 }
@@ -254,7 +254,7 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
     /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
     /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
     fn with_image(pixels: &'a mut [P::Component], width: u32, height: u32) -> Self {
-        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+        let row_len = (width as usize) * usize::from(<P as Pixel>::COMPONENT_COUNT);
         if row_len == 0 {
             RowsMut {
                 pixels: [].chunks_exact_mut(1),
@@ -282,8 +282,8 @@ where
     fn next(&mut self) -> Option<PixelsMut<'a, P>> {
         let row = self.pixels.next()?;
         Some(PixelsMut {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            // Note: this is not reached when COMPONENT_COUNT is 0.
+            chunks: row.chunks_exact_mut(<P as Pixel>::COMPONENT_COUNT as usize),
         })
     }
 
@@ -311,8 +311,8 @@ where
     fn next_back(&mut self) -> Option<PixelsMut<'a, P>> {
         let row = self.pixels.next_back()?;
         Some(PixelsMut {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            // Note: this is not reached when COMPONENT_COUNT is 0.
+            chunks: row.chunks_exact_mut(<P as Pixel>::COMPONENT_COUNT as usize),
         })
     }
 }
@@ -723,7 +723,7 @@ where
         Pixels {
             chunks: self
                 .inner_pixels()
-                .chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
+                .chunks_exact(<P as Pixel>::COMPONENT_COUNT as usize),
         }
     }
 
@@ -785,7 +785,7 @@ where
         if x >= self.width {
             return None;
         }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let num_channels = <P as Pixel>::COMPONENT_COUNT as usize;
         let i = (y as usize)
             .saturating_mul(self.width as usize)
             .saturating_add(x as usize)
@@ -807,7 +807,7 @@ where
     }
 
     fn image_buffer_len(width: u32, height: u32) -> Option<usize> {
-        Some(<P as Pixel>::CHANNEL_COUNT as usize)
+        Some(<P as Pixel>::COMPONENT_COUNT as usize)
             .and_then(|size| size.checked_mul(width as usize))
             .and_then(|size| size.checked_mul(height as usize))
     }
@@ -823,7 +823,7 @@ where
 
     #[inline(always)]
     fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
-        let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let no_channels = <P as Pixel>::COMPONENT_COUNT as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize * self.width as usize + x as usize) * no_channels;
         min_index..min_index + no_channels
@@ -832,7 +832,7 @@ where
     /// Get the format of the buffer when viewed as a matrix of samples.
     pub fn sample_layout(&self) -> SampleLayout {
         // None of these can overflow, as all our memory is addressable.
-        SampleLayout::row_major_packed(<P as Pixel>::CHANNEL_COUNT, self.width, self.height)
+        SampleLayout::row_major_packed(<P as Pixel>::COMPONENT_COUNT, self.width, self.height)
     }
 
     /// Return the raw sample buffer with its stride an dimension information.
@@ -901,7 +901,7 @@ where
         PixelsMut {
             chunks: self
                 .inner_pixels_mut()
-                .chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+                .chunks_exact_mut(<P as Pixel>::COMPONENT_COUNT as usize),
         }
     }
 
@@ -963,7 +963,7 @@ where
         if x >= self.width {
             return None;
         }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let num_channels = <P as Pixel>::COMPONENT_COUNT as usize;
         let i = (y as usize)
             .saturating_mul(self.width as usize)
             .saturating_add(x as usize)

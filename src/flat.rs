@@ -599,10 +599,10 @@ impl<Buffer> FlatSamples<Buffer> {
         P: Pixel,
         Buffer: AsRef<[P::Component]>,
     {
-        if self.layout.channels != P::CHANNEL_COUNT {
+        if self.layout.channels != P::COMPONENT_COUNT {
             return Err(Error::ChannelCountMismatch(
                 self.layout.channels,
-                P::CHANNEL_COUNT,
+                P::COMPONENT_COUNT,
             ));
         }
 
@@ -641,10 +641,10 @@ impl<Buffer> FlatSamples<Buffer> {
         P: Pixel,
         Buffer: AsMut<[P::Component]>,
     {
-        if self.layout.channels != P::CHANNEL_COUNT {
+        if self.layout.channels != P::COMPONENT_COUNT {
             return Err(Error::ChannelCountMismatch(
                 self.layout.channels,
-                P::CHANNEL_COUNT,
+                P::COMPONENT_COUNT,
             ));
         }
 
@@ -683,10 +683,10 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
         }
 
-        if self.layout.channels != P::CHANNEL_COUNT {
+        if self.layout.channels != P::COMPONENT_COUNT {
             return Err(Error::ChannelCountMismatch(
                 self.layout.channels,
-                P::CHANNEL_COUNT,
+                P::COMPONENT_COUNT,
             ));
         }
 
@@ -782,9 +782,9 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self));
         }
 
-        if self.layout.channels != P::CHANNEL_COUNT {
+        if self.layout.channels != P::COMPONENT_COUNT {
             return Err((
-                Error::ChannelCountMismatch(self.layout.channels, P::CHANNEL_COUNT),
+                Error::ChannelCountMismatch(self.layout.channels, P::COMPONENT_COUNT),
                 self,
             ));
         }
@@ -954,7 +954,7 @@ impl<'buf, Component> FlatSamples<&'buf [Component]> {
         FlatSamples {
             samples: pixel.channels(),
             layout: SampleLayout {
-                channels: P::CHANNEL_COUNT,
+                channels: P::COMPONENT_COUNT,
                 channel_stride: 1,
                 width,
                 width_stride: 0,
@@ -1397,7 +1397,7 @@ where
 
         let image = self.inner.samples.as_ref();
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channels = P::CHANNEL_COUNT as usize;
+        let channels = P::COMPONENT_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
         buffer
@@ -1430,7 +1430,7 @@ where
 
         let image = self.inner.samples.as_ref();
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channels = P::CHANNEL_COUNT as usize;
+        let channels = P::COMPONENT_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
         buffer
@@ -1456,7 +1456,7 @@ where
         }
 
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
+        let channel_count = <P as Pixel>::COMPONENT_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }

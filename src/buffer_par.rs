@@ -325,7 +325,7 @@ where
         PixelsPar {
             chunks: self
                 .inner_pixels()
-                .par_chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
+                .par_chunks_exact(<P as Pixel>::COMPONENT_COUNT as usize),
         }
     }
 
@@ -355,7 +355,7 @@ where
         PixelsMutPar {
             chunks: self
                 .inner_pixels_mut()
-                .par_chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+                .par_chunks_exact_mut(<P as Pixel>::COMPONENT_COUNT as usize),
         }
     }
 

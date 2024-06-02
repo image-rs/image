@@ -5,16 +5,16 @@ use crate::{error, ColorType, ImageError, ImageResult};
 pub(crate) mod free_functions;
 mod image_reader;
 
-pub use self::image_reader::ImageReader;
+pub(crate) use self::image_reader::ImageReader;
 
 #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
-pub use self::image_reader::ImageReader as Reader;
+pub type Reader<R> = ImageReader<R>;
 
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
 #[non_exhaustive]
-pub struct LimitSupport {}
+pub(crate) struct LimitSupport {}
 
 /// Resource limits for decoding.
 ///
@@ -40,7 +40,7 @@ pub struct LimitSupport {}
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
 #[non_exhaustive]
-pub struct Limits {
+pub(crate) struct Limits {
     /// The maximum allowed image width. This limit is strict. The default is no limit.
     pub max_image_width: Option<u32>,
     /// The maximum allowed image height. This limit is strict. The default is no limit.

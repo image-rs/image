@@ -6,7 +6,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::io::Limits;
+use crate::Limits;
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
@@ -90,7 +90,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::io::LimitSupport::default())?;
+        limits.check_support(&crate::LimitSupport::default())?;
         let (width, height) = self.dimensions();
         limits.check_dimensions(width, height)?;
         self.limits = limits;

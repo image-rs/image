@@ -43,10 +43,10 @@ use crate::error::{
     UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
-use crate::io::Limits;
 use crate::traits::Pixel;
 use crate::ExtendedColorType;
 use crate::ImageBuffer;
+use crate::Limits;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
@@ -96,7 +96,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::io::LimitSupport::default())?;
+        limits.check_support(&crate::LimitSupport::default())?;
 
         let (width, height) = self.dimensions();
         limits.check_dimensions(width, height)?;

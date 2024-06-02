@@ -6,7 +6,7 @@
 use std::f32;
 
 use num_traits::{NumCast, Zero};
-use pixeli::{Pixel, PixelComponent};
+use pixeli::{Enlargeable, Pixel, PixelComponent};
 
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
@@ -496,9 +496,9 @@ where
 }
 
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
-struct ThumbnailSum<S: PixelComponent>(S::Larger, S::Larger, S::Larger, S::Larger);
+struct ThumbnailSum<S: Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
 
-impl<S: PixelComponent + Enlargeable> ThumbnailSum<S> {
+impl<S: Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {
         ThumbnailSum(
             S::Larger::zero(),

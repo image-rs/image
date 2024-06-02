@@ -1,11 +1,10 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel};
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent};
 use std::f64::consts::PI;
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::PixelComponent;
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
@@ -101,7 +100,7 @@ where
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
     for (x, y, pixel) in image.pixels() {
-        let f = pixel.map(|b| {
+        let f = pixel.map_components(|b| {
             let c: f32 = NumCast::from(b).unwrap();
 
             let d = ((c / max - 0.5) * percent + 0.5) * max;

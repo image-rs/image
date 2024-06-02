@@ -9,6 +9,7 @@
 use std::fmt;
 use std::io::{BufRead, Seek, Write};
 
+use pixeli::{Gray, GrayAlpha, Rgb, Rgba};
 use png::{BlendOp, DisposeOp};
 
 use crate::animation::{Delay, Frame, Frames, Ratio};
@@ -316,9 +317,14 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             }
             DisposeOp::Background => {
                 previous.clone_from(current);
-                current
-                    .pixels_mut()
-                    .for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
+                current.pixels_mut().for_each(|pixel| {
+                    *pixel = Rgba {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: 0,
+                    }
+                });
             }
             DisposeOp::Previous => {
                 current.clone_from(previous);

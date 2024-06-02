@@ -156,7 +156,7 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
     /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
     /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
     fn with_image(pixels: &'a [P::Component], width: u32, height: u32) -> Self {
-        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+        let row_len = (width as usize) * usize::from(<P as Pixel>::COMPONENT_COUNT);
         if row_len == 0 {
             Rows {
                 pixels: [].chunks_exact(1),
@@ -185,7 +185,7 @@ where
         let row = self.pixels.next()?;
         Some(Pixels {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact(<P as Pixel>::COMPONENT_COUNT as usize),
         })
     }
 

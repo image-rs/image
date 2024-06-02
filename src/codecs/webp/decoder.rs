@@ -1,5 +1,7 @@
 use std::io::{BufRead, Read, Seek};
 
+use pixeli::Rgba;
+
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};

@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use std::num::{ParseFloatError, ParseIntError};
 use std::{error, fmt};
 
-use pixeli::Rgb;
+use pixeli::{Pixel, Rgb};
 
 use crate::color::ColorType;
 use crate::error::{
@@ -150,15 +150,19 @@ impl Rgbe8Pixel {
     #[inline]
     pub(crate) fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
-            Rgb([0.0, 0.0, 0.0])
+            Rgb {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+            }
         } else {
             //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
             let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128.0 + 8.0));
-            Rgb([
-                exp * <f32 as From<_>>::from(self.c[0]),
-                exp * <f32 as From<_>>::from(self.c[1]),
-                exp * <f32 as From<_>>::from(self.c[2]),
-            ])
+            Rgb {
+                r: exp * <f32 as From<_>>::from(self.c[0]),
+                g: exp * <f32 as From<_>>::from(self.c[1]),
+                b: exp * <f32 as From<_>>::from(self.c[2]),
+            }
         }
     }
 }
@@ -311,11 +315,18 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
+        let mut img = vec![
+            Rgb {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0
+            };
+            self.width as usize * self.height as usize
+        ];
         self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
 
-        for (i, Rgb(data)) in img.into_iter().enumerate() {
-            buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
+        for (i, rgb) in img.into_iter().enumerate() {
+            buf[(i * 12)..][..12].copy_from_slice(rgb.component_array());
         }
 
         Ok(())

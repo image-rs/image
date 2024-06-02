@@ -44,7 +44,6 @@ use crate::error::{
     UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
-use crate::traits::Pixel;
 use crate::ExtendedColorType;
 use crate::ImageBuffer;
 use crate::Limits;
@@ -205,7 +204,12 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                     *pixel = *frame_buffer.get_pixel(frame_x, frame_y);
                 } else {
                     // this is only necessary in case the buffer is not zeroed
-                    *pixel = Rgba([0, 0, 0, 0]);
+                    *pixel = Rgba {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: 0,
+                    };
                 }
             }
         }
@@ -265,7 +269,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             self.non_disposed_frame = Some(ImageBuffer::from_pixel(
                 self.width,
                 self.height,
-                Rgba([0, 0, 0, 0]),
+                Rgba {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
             ));
         }
         // Bind to a variable to avoid repeated `.unwrap()` calls
@@ -344,7 +353,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                 DisposalMethod::Background => {
                     // restore to background color
                     // (background shows through transparent pixels in the next frame)
-                    *previous = Rgba([0, 0, 0, 0]);
+                    *previous = Rgba {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: 0,
+                    };
                 }
                 DisposalMethod::Previous => {
                     // restore to previous

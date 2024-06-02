@@ -3,6 +3,8 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
 
+use pixeli::{Gray, Pixel, Rgb};
+
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,

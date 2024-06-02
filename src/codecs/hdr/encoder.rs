@@ -22,9 +22,11 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
         match color_type {
             ExtendedColorType::Rgb32F => {
                 let bytes_per_pixel = color_type.bits_per_pixel() as usize / 8;
-                let rgbe_pixels = unaligned_bytes
-                    .chunks_exact(bytes_per_pixel)
-                    .map(|bytes| to_rgbe8(Rgb::<f32>(bytemuck::pod_read_unaligned(bytes))));
+                let rgbe_pixels = unaligned_bytes.chunks_exact(bytes_per_pixel).map(|bytes| {
+                    to_rgbe8(Rgb::<f32>::from_components(bytemuck::pod_read_unaligned::<
+                        [f32; 3],
+                    >(bytes)))
+                });
 
                 // the length will be checked inside encode_pixels
                 self.encode_pixels(rgbe_pixels, width as usize, height as usize)

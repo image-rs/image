@@ -95,7 +95,7 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::DEFAULT_MAX_VALUE;
+    let max = S::COMPONENT_MAX;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -126,7 +126,7 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Component::DEFAULT_MAX_VALUE;
+    let max = <I::Pixel as Pixel>::Component::COMPONENT_MAX;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -162,7 +162,7 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::DEFAULT_MAX_VALUE;
+    let max = S::COMPONENT_MAX;
     let max: i32 = NumCast::from(max).unwrap();
 
     for (x, y, pixel) in image.pixels() {
@@ -192,7 +192,7 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Component::DEFAULT_MAX_VALUE;
+    let max = <I::Pixel as Pixel>::Component::COMPONENT_MAX;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
     // TODO find a way to use pixels?

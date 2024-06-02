@@ -1,6 +1,6 @@
 //! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
-use pixeli::Pixel;
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, Rgb, Rgba};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
@@ -775,13 +775,13 @@ where
                 (x, y),
                 (self.width, self.height)
             ),
-            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+            Some(pixel_indices) => <P as Pixel>::from_components(self.data[pixel_indices]),
         }
     }
 
     /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
     /// the index is out of the bounds `(width, height)`.
-    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
+    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<P> {
         if x >= self.width {
             return None;
         }
@@ -793,7 +793,7 @@ where
 
         self.data
             .get(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+            .map(|pixel_indices| <P as Pixel>::from_components(pixel_indices))
     }
 
     /// Test that the image fits inside the buffer.
@@ -953,7 +953,7 @@ where
                 (x, y),
                 (self.width, self.height)
             ),
-            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+            Some(pixel_indices) => <P as Pixel>::from_components(self.data[pixel_indices]),
         }
     }
 
@@ -971,7 +971,7 @@ where
 
         self.data
             .get_mut(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
+            .map(|pixel_indices| <P as Pixel>::from_components(pixel_indices))
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -1186,7 +1186,7 @@ where
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let indices = self.pixel_indices_unchecked(x, y);
-        *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
+        *<P as Pixel>::from_components(self.data.get_unchecked(indices))
     }
 }
 
@@ -1207,8 +1207,8 @@ where
     #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let indices = self.pixel_indices_unchecked(x, y);
-        let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
-        *p = pixel
+        let pixel_data = self.data.get_unchecked_mut(indices);
+        *pixel_data = pixel.component_array();
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
@@ -1380,7 +1380,7 @@ impl<Container, FromType: Pixel, ToType: Pixel>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Component>>> for ImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Component]>,
-    ToType: FromColor<FromType>,
+    ToType: FromPixelCommon<FromType>,
 {
     /// # Examples
     /// Convert RGB image to gray image.
@@ -1491,6 +1491,7 @@ mod test {
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use num_traits::Zero;
+    use pixeli::Gray;
 
     #[test]
     /// Tests if image buffers from slices work

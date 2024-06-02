@@ -3,8 +3,7 @@
 // Note copied from the stdlib under MIT license
 
 use num_traits::{Bounded, Num, NumCast};
-use pixeli::{Gray, GrayAlpha, Pixel, Rgb, Rgba};
-use std::ops::AddAssign;
+use pixeli::{Gray, GrayAlpha, Pixel, PixelComponent, Rgb, Rgba};
 
 use crate::ExtendedColorType;
 
@@ -35,103 +34,9 @@ impl EncodableLayout for [f32] {
     }
 }
 
-/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
-// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
-    /// The maximum value for this type of primitive within the context of color.
-    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
-    const DEFAULT_MAX_VALUE: Self;
-
-    /// The minimum value for this type of primitive within the context of color.
-    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
-    const DEFAULT_MIN_VALUE: Self;
-}
-
-macro_rules! declare_primitive {
-    ($base:ty: ($from:expr)..$to:expr) => {
-        impl Primitive for $base {
-            const DEFAULT_MAX_VALUE: Self = $to;
-            const DEFAULT_MIN_VALUE: Self = $from;
-        }
-    };
-}
-
-declare_primitive!(usize: (0)..Self::MAX);
-declare_primitive!(u8: (0)..Self::MAX);
-declare_primitive!(u16: (0)..Self::MAX);
-declare_primitive!(u32: (0)..Self::MAX);
-declare_primitive!(u64: (0)..Self::MAX);
-
-declare_primitive!(isize: (Self::MIN)..Self::MAX);
-declare_primitive!(i8: (Self::MIN)..Self::MAX);
-declare_primitive!(i16: (Self::MIN)..Self::MAX);
-declare_primitive!(i32: (Self::MIN)..Self::MAX);
-declare_primitive!(i64: (Self::MIN)..Self::MAX);
-declare_primitive!(f32: (0.0)..1.0);
-declare_primitive!(f64: (0.0)..1.0);
-
-/// An Enlargable::Larger value should be enough to calculate
-/// the sum (average) of a few hundred or thousand Enlargeable values.
-pub trait Enlargeable: Sized + Bounded + NumCast {
-    type Larger: Copy + NumCast + Num + PartialOrd<Self::Larger> + Clone + Bounded + AddAssign;
-
-    fn clamp_from(n: Self::Larger) -> Self {
-        if n > Self::max_value().to_larger() {
-            Self::max_value()
-        } else if n < Self::min_value().to_larger() {
-            Self::min_value()
-        } else {
-            NumCast::from(n).unwrap()
-        }
-    }
-
-    fn to_larger(self) -> Self::Larger {
-        NumCast::from(self).unwrap()
-    }
-}
-
-impl Enlargeable for u8 {
-    type Larger = u32;
-}
-impl Enlargeable for u16 {
-    type Larger = u32;
-}
-impl Enlargeable for u32 {
-    type Larger = u64;
-}
-impl Enlargeable for u64 {
-    type Larger = u128;
-}
-impl Enlargeable for usize {
-    // Note: On 32-bit architectures, u64 should be enough here.
-    type Larger = u128;
-}
-impl Enlargeable for i8 {
-    type Larger = i32;
-}
-impl Enlargeable for i16 {
-    type Larger = i32;
-}
-impl Enlargeable for i32 {
-    type Larger = i64;
-}
-impl Enlargeable for i64 {
-    type Larger = i128;
-}
-impl Enlargeable for isize {
-    // Note: On 32-bit architectures, i64 should be enough here.
-    type Larger = i128;
-}
-impl Enlargeable for f32 {
-    type Larger = f64;
-}
-impl Enlargeable for f64 {
-    type Larger = f64;
-}
-
 /// Linear interpolation without involving floating numbers.
 pub trait Lerp: Bounded + NumCast {
-    type Ratio: Primitive;
+    type Ratio: PixelComponent;
 
     fn lerp(a: Self, b: Self, ratio: Self::Ratio) -> Self {
         let a = <Self::Ratio as NumCast>::from(a).unwrap();

@@ -1,6 +1,7 @@
 use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
+use pixeli::{GrayAlpha, PixelComponent};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -249,9 +250,9 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
-impl<T: Primitive> Blend for GrayAlpha<T> {
+impl<T: PixelComponent> Blend for GrayAlpha<T> {
     fn blend(&mut self, other: &GrayAlpha<T>) {
-        let max_t = T::DEFAULT_MAX_VALUE;
+        let max_t = T::COMPONENT_MAX;
         let max_t = max_t.to_f32().unwrap();
         let (bg_luma, bg_a) = (self.0[0], self.0[1]);
         let (fg_luma, fg_a) = (other.0[0], other.0[1]);
@@ -295,13 +296,13 @@ impl<T: Primitive> Blend for Rgba<T> {
         if other.0[3].is_zero() {
             return;
         }
-        if other.0[3] == T::DEFAULT_MAX_VALUE {
+        if other.0[3] == T::COMPONENT_MAX {
             *self = *other;
             return;
         }
 
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
-        let max_t = T::DEFAULT_MAX_VALUE;
+        let max_t = T::COMPONENT_MAX;
         let max_t = max_t.to_f32().unwrap();
         let (bg_r, bg_g, bg_b, bg_a) = (self.0[0], self.0[1], self.0[2], self.0[3]);
         let (fg_r, fg_g, fg_b, fg_a) = (other.0[0], other.0[1], other.0[2], other.0[3]);
@@ -367,7 +368,7 @@ pub(crate) trait Invert {
 impl<T: Primitive> Invert for GrayAlpha<T> {
     fn invert(&mut self) {
         let l = self.0;
-        let max = T::DEFAULT_MAX_VALUE;
+        let max = T::COMPONENT_MAX;
 
         *self = GrayAlpha([max - l[0], l[1]])
     }
@@ -377,7 +378,7 @@ impl<T: Primitive> Invert for Gray<T> {
     fn invert(&mut self) {
         let l = self.0;
 
-        let max = T::DEFAULT_MAX_VALUE;
+        let max = T::COMPONENT_MAX;
         let l1 = max - l[0];
 
         *self = Gray([l1])
@@ -388,7 +389,7 @@ impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.0;
 
-        let max = T::DEFAULT_MAX_VALUE;
+        let max = T::COMPONENT_MAX;
 
         *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
@@ -398,7 +399,7 @@ impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.0;
 
-        let max = T::DEFAULT_MAX_VALUE;
+        let max = T::COMPONENT_MAX;
 
         let r1 = max - rgb[0];
         let g1 = max - rgb[1];
@@ -516,7 +517,7 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Component::DEFAULT_MAX_VALUE >> 2;
+            let a: $a = [<$a as Pixel>::Component::COMPONENT_MAX >> 2;
                 <$a as Pixel>::COMPONENT_COUNT as usize]
                 .into();
             let b: $b = a.into_color();

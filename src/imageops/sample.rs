@@ -234,7 +234,7 @@ where
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let max: f32 = NumCast::from(S::COMPONENT_MAX).unwrap();
     let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
@@ -438,7 +438,7 @@ pub fn interpolate_bilinear<P: Pixel>(
     debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
     // hack to see if primitive is an integer or a float
-    let is_float = P::Component::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
+    let is_float = P::Component::COMPONENT_MAX.to_f32().unwrap() == 1.0;
 
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
         let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
@@ -449,7 +449,7 @@ pub fn interpolate_bilinear<P: Pixel>(
             if v < 0.0 {
                 P::Component::DEFAULT_MIN_VALUE
             } else {
-                P::Component::DEFAULT_MAX_VALUE
+                P::Component::COMPONENT_MAX
             }
         });
     }
@@ -847,7 +847,7 @@ where
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::DEFAULT_MAX_VALUE;
+    let max = S::COMPONENT_MAX;
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
@@ -989,7 +989,7 @@ where
 {
     let mut tmp = blur(image, sigma);
 
-    let max = S::DEFAULT_MAX_VALUE;
+    let max = S::COMPONENT_MAX;
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 

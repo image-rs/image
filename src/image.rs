@@ -265,7 +265,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::WebP => true,
-            ImageFormat::Hdr => false,
+            ImageFormat::Hdr => true,
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::Qoi => true,
@@ -341,8 +341,8 @@ impl ImageFormat {
             ImageFormat::WebP => cfg!(feature = "webp"),
             ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
+            ImageFormat::Hdr => cfg!(feature = "hdr"),
             ImageFormat::Dds => false,
-            ImageFormat::Hdr => false,
         }
     }
 
@@ -1818,7 +1818,6 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.writing_enabled()
         );
-        assert!(!ImageFormat::Hdr.writing_enabled());
         assert!(!ImageFormat::Dds.writing_enabled());
     }
 }

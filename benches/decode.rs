@@ -67,6 +67,8 @@ fn load_all(c: &mut Criterion) {
                 "hpredict_packbits.tiff",
                 "mandrill.tiff",
                 "rgb-3c-16b.tiff",
+                "rgb32f_bw.tiff",
+                "rgb32f_color.tiff",
             ],
             format: ImageFormat::Tiff,
         },

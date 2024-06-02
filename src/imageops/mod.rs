@@ -352,8 +352,9 @@ where
 #[cfg(test)]
 mod tests {
 
+    use pixeli::Rgb;
+
     use super::{overlay, overlay_bounds_ext};
-    use crate::color::Rgb;
     use crate::ImageBuffer;
     use crate::RgbaImage;
 
@@ -397,13 +398,42 @@ mod tests {
     /// Test that images written into other images works
     fn test_image_in_image() {
         let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
+        let source = ImageBuffer::from_pixel(
+            16,
+            16,
+            Rgb {
+                r: 255u8,
+                g: 0,
+                b: 0,
+            },
+        );
         overlay(&mut target, &source, 0, 0);
-        assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(16, 0) == Rgb([0u8, 0, 0]));
-        assert!(*target.get_pixel(0, 15) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(0, 16) == Rgb([0u8, 0, 0]));
+        assert!(
+            *target.get_pixel(0, 0)
+                == Rgb {
+                    r: 255u8,
+                    g: 0,
+                    b: 0
+                }
+        );
+        assert!(
+            *target.get_pixel(15, 0)
+                == Rgb {
+                    r: 255u8,
+                    g: 0,
+                    b: 0
+                }
+        );
+        assert!(*target.get_pixel(16, 0) == Rgb { r: 0u8, g: 0, b: 0 });
+        assert!(
+            *target.get_pixel(0, 15)
+                == Rgb {
+                    r: 255u8,
+                    g: 0,
+                    b: 0
+                }
+        );
+        assert!(*target.get_pixel(0, 16) == Rgb { r: 0u8, g: 0, b: 0 });
     }
 
     #[test]

@@ -1,8 +1,9 @@
 //! Functions for performing affine transformations.
 
+use pixeli::Pixel;
+
 use crate::error::{ImageError, ParameterError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 /// Rotate an image 90 degrees clockwise.

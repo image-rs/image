@@ -1075,7 +1075,10 @@ mod tests {
             },
             _ => panic!(),
         });
-        assert_eq!(sample_bilinear(&img, 0.5, 0.5), Some(Rgba([64; 4])));
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 0.5),
+            Some(Rgba::from_components([64; 4]))
+        );
         assert_eq!(
             sample_bilinear(&img, 0.0, 0.0),
             Some(Rgba {

@@ -1,10 +1,10 @@
+use pixeli::Pixel;
 use rayon::iter::plumbing::*;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
-use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 /// Parallel iterator over pixel refs.
@@ -29,7 +29,7 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .drive_unindexed(consumer)
     }
 
@@ -45,7 +45,7 @@ where
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .drive(consumer)
     }
 
@@ -55,7 +55,7 @@ where
 
     fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .with_producer(callback)
     }
 }
@@ -93,7 +93,7 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .drive_unindexed(consumer)
     }
 
@@ -109,7 +109,7 @@ where
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .drive(consumer)
     }
 
@@ -119,7 +119,7 @@ where
 
     fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
         self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
+            .map(|v| <P as Pixel>::from_components(v))
             .with_producer(callback)
     }
 }
@@ -400,8 +400,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{Rgb, RgbImage};
+    use pixeli::Rgb;
     use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+
+    use crate::RgbImage;
 
     fn test_width_height(width: u32, height: u32, len: usize) {
         let mut image = RgbImage::new(width, height);
@@ -430,7 +432,7 @@ mod test {
     #[test]
     fn iter_parity() {
         let mut image1 = RgbImage::from_fn(17, 29, |x, y| {
-            Rgb(std::array::from_fn(|i| {
+            Rgb::from_components(std::array::from_fn(|i| {
                 ((x + y * 98 + i as u32 * 27) % 255) as u8
             }))
         });

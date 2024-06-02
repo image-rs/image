@@ -1,5 +1,3 @@
-use std::ops::{Index, IndexMut};
-
 use num_traits::{NumCast, Zero};
 use pixeli::{Gray, GrayAlpha, PixelComponent, Rgb, Rgba};
 

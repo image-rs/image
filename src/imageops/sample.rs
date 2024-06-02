@@ -6,6 +6,7 @@
 use std::f32;
 
 use num_traits::{NumCast, Zero};
+use pixeli::{Pixel, PixelComponent};
 
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
@@ -190,21 +191,20 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
-fn horizontal_sample<P, S>(
+fn horizontal_sample<P>(
     image: &Rgba32FImage,
     new_width: u32,
     filter: &mut Filter,
-) -> ImageBuffer<P, Vec<S>>
+) -> ImageBuffer<P, Vec<P::Component>>
 where
-    P: Pixel<Component = S> + 'static,
-    S: PixelComponent + 'static,
+    P: Pixel,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::COMPONENT_MAX).unwrap();
-    let min: f32 = NumCast::from(S::COMPONENT_MIN).unwrap();
+    let max: f32 = NumCast::from(P::Component::COMPONENT_MAX).unwrap();
+    let min: f32 = NumCast::from(P::Component::COMPONENT_MIN).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -249,8 +249,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
-                #[allow(deprecated)]
-                let vec = p.channels4();
+                let vec = p.component_array();
 
                 t.0 += vec.0 * w;
                 t.1 += vec.1 * w;
@@ -258,13 +257,7 @@ where
                 t.3 += vec.3 * w;
             }
 
-            #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
-            );
+            let t = Pixel::from_components(t);
 
             out.put_pixel(outx, y, t);
         }
@@ -493,7 +486,7 @@ where
 
             #[allow(deprecated)]
             // This is not necessarily Rgba.
-            let t = P::from_components([t.0, t.1, t.2, t.3]);
+            let t = P::from_components(t);
 
             out.put_pixel(x, outy, t);
         }
@@ -503,7 +496,7 @@ where
 }
 
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
-struct ThumbnailSum<S: PixelComponent + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+struct ThumbnailSum<S: PixelComponent>(S::Larger, S::Larger, S::Larger, S::Larger);
 
 impl<S: PixelComponent + Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {

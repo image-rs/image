@@ -11,12 +11,12 @@ use crate::buffer::ConvertBuffer;
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
+use crate::{ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat};
 use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Rgb, Rgba};
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, Rgb, Rgba};
 use ravif::{Encoder, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 

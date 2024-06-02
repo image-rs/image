@@ -1,6 +1,8 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
+use pixeli::{Gray, GrayAlpha, Rgba};
+
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
 #[cfg(feature = "png")]
@@ -966,20 +968,20 @@ impl From<ImageBuffer<GrayAlpha<f32>, Vec<f32>>> for DynamicImage {
 
 #[allow(deprecated)]
 impl GenericImageView for DynamicImage {
-    type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
+    type Pixel = Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, ref p, p.dimensions())
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
+    fn get_pixel(&self, x: u32, y: u32) -> Rgba<u8> {
         dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
     }
 }
 
 #[allow(deprecated)]
 impl GenericImage for DynamicImage {
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Rgba<u8>) {
         match *self {
             DynamicImage::ImageGray8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageGrayAlpha8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
@@ -996,7 +998,7 @@ impl GenericImage for DynamicImage {
         }
     }
 
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Rgba<u8>) {
         match *self {
             DynamicImage::ImageGray8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageGrayAlpha8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
@@ -1018,7 +1020,7 @@ impl GenericImage for DynamicImage {
     }
 
     /// Do not use is function: It is unimplemented!
-    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
+    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut Rgba<u8> {
         unimplemented!()
     }
 }
@@ -1220,6 +1222,8 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use pixeli::Rgba;
+
     use crate::color::ColorType;
 
     #[test]
@@ -1245,11 +1249,25 @@ mod test {
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
         use crate::image::{GenericImage, GenericImageView};
-        img.put_pixel(0, 0, crate::color::Rgba{r: 255, g: 0, b: 0, a: 100});
+        img.put_pixel(
+            0,
+            0,
+            Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 100,
+            },
+        );
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(
             img.grayscale().get_pixel(0, 0),
-            crate::color::Rgba([54, 54, 54, expected_alpha])
+            Rgba {
+                r: 54,
+                g: 54,
+                b: 54,
+                a: expected_alpha
+            }
         );
     }
 

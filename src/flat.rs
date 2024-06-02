@@ -46,6 +46,7 @@ use std::ops::{Deref, Index, IndexMut};
 use std::{cmp, error, fmt};
 
 use num_traits::Zero;
+use pixeli::Pixel;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -53,7 +54,6 @@ use crate::error::{
     UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 /// A flat buffer over a (multi channel) image.
@@ -949,7 +949,6 @@ impl<'buf, Component> FlatSamples<&'buf [Component]> {
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Component = Component>,
-        Component: crate::PixelComponent,
     {
         FlatSamples {
             samples: pixel.channels(),
@@ -1018,7 +1017,7 @@ where
 ///
 /// The biggest use case being `ImageBuffer` which expects closely packed
 /// samples in a row major matrix representation. But this error type may be
-/// resused for other import functions. A more versatile user may also try to
+/// re-used for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Error {
@@ -1576,9 +1575,10 @@ impl PartialOrd for NormalForm {
 
 #[cfg(test)]
 mod tests {
+    use pixeli::{GrayAlpha, Rgb};
+
     use super::*;
     use crate::buffer_::GrayAlphaImage;
-    use crate::color::{GrayAlpha, Rgb};
 
     #[test]
     fn aliasing_view() {
@@ -1598,7 +1598,16 @@ mod tests {
         let view = buffer.as_view::<Rgb<u8>>().expect("This is a valid view");
         let pixel_count = view
             .pixels()
-            .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
+            .inspect(|pixel| {
+                assert!(
+                    pixel.2
+                        == Rgb {
+                            r: 42,
+                            g: 42,
+                            b: 42
+                        }
+                )
+            })
             .count();
         assert_eq!(pixel_count, 100 * 100);
     }
@@ -1625,7 +1634,10 @@ mod tests {
             assert_eq!(view.dimensions(), (3, 3));
             #[allow(deprecated)]
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = GrayAlpha([2 * i as u16, 2 * i as u16 + 1]);
+                *view.get_pixel_mut(i % 3, i / 3) = GrayAlpha {
+                    gray: 2 * i as u16,
+                    a: 2 * i as u16 + 1,
+                };
             }
         }
 

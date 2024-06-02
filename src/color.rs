@@ -2,6 +2,8 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
+pub use pixeli::{Gray as Luma, GrayAlpha as LumaA, Rgb, Rgba};
+
 use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// An enumeration over supported color types and bit depths

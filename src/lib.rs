@@ -118,6 +118,7 @@
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![deny(exported_private_dependencies)]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -188,8 +189,7 @@ pub mod buffer {
 }
 
 /// Serde serialization and deserialization support for `DynamicImage`.
-mod dynimage_serde;
-
+pub mod dynimage_serde;
 // Math utils
 pub mod math;
 

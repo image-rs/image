@@ -12,6 +12,10 @@ use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
+use tiff::decoder::{Decoder, DecodingResult};
+use tiff::encoder::compression::{Compressor, Deflate, Lzw, Packbits, Uncompressed};
+use tiff::tags::Tag;
+
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
@@ -29,7 +33,7 @@ where
     original_color_type: ExtendedColorType,
 
     // We only use an Option here so we can call with_limits on the decoder without moving.
-    inner: Option<tiff::decoder::Decoder<R>>,
+    inner: Option<Decoder<R>>,
 }
 
 impl<R> TiffDecoder<R>
@@ -38,11 +42,11 @@ where
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let mut inner = Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
-        match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
+        match inner.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
                     check_sample_format(format, tiff_color_type)?;
@@ -103,8 +107,7 @@ where
 }
 
 fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Result<(), ImageError> {
-    use tiff::tags::SampleFormat;
-    use tiff::ColorType;
+    use tiff::{tags::SampleFormat, ColorType};
     let num_bits = match color_type {
         ColorType::CMYK(k) => k,
         ColorType::Gray(k) => k,
@@ -227,7 +230,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         if let Some(decoder) = &mut self.inner {
-            Ok(decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok())
+            Ok(decoder.get_tag_u8_vec(Tag::Unknown(34675)).ok())
         } else {
             Ok(None)
         }
@@ -261,42 +264,40 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
-            tiff::decoder::DecodingResult::U8(v)
-                if self.original_color_type == ExtendedColorType::Cmyk8 =>
-            {
+            DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
                 }
             }
-            tiff::decoder::DecodingResult::U8(v) => {
+            DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
             }
-            tiff::decoder::DecodingResult::U16(v) => {
+            DecodingResult::U16(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::U32(v) => {
+            DecodingResult::U32(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::U64(v) => {
+            DecodingResult::U64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::I8(v) => {
+            DecodingResult::I8(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::I16(v) => {
+            DecodingResult::I16(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::I32(v) => {
+            DecodingResult::I32(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::I64(v) => {
+            DecodingResult::I64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::F32(v) => {
+            DecodingResult::F32(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
-            tiff::decoder::DecodingResult::F64(v) => {
+            DecodingResult::F64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
         }
@@ -311,6 +312,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
+    comp: Compressor,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
@@ -325,32 +327,85 @@ fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
     ]
 }
 
-// Utility to simplify and deduplicate error handling during 16-bit encoding.
-fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<&[u16]> {
-    bytemuck::try_cast_slice(buf).map_err(|err| {
-        // If the buffer is not aligned or the correct length for a u16 slice, err.
-        //
-        // `bytemuck::PodCastError` of bytemuck-1.2.0 does not implement
-        // `Error` and `Display` trait.
-        // See <https://github.com/Lokathor/bytemuck/issues/22>.
-        ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
-            format!("{:?}", err),
-        )))
-    })
+enum DtypeContainer<'a, T> {
+    Slice(&'a [T]),
+    Vec(Vec<T>),
 }
 
-fn u8_slice_as_f32(buf: &[u8]) -> ImageResult<&[f32]> {
-    bytemuck::try_cast_slice(buf).map_err(|err| {
-        ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
-            format!("{:?}", err),
-        )))
-    })
+impl<T> DtypeContainer<'_, T> {
+    fn as_slice(&self) -> &[T] {
+        match self {
+            DtypeContainer::Slice(slice) => slice,
+            DtypeContainer::Vec(vec) => vec,
+        }
+    }
+}
+
+fn u8_slice_as_f32(buf: &[u8]) -> ImageResult<DtypeContainer<f32>> {
+    let res = bytemuck::try_cast_slice(buf);
+    match res {
+        Ok(slc) => Ok(DtypeContainer::<f32>::Slice(slc)),
+        Err(err) => {
+            match err {
+                bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned => {
+                    // If the buffer is not aligned for a f32 slice, copy the buffer into a new Vec<f32>
+                    let mut vec = vec![0.0; buf.len() / 4];
+                    for (i, chunk) in buf.chunks_exact(4).enumerate() {
+                        let f32_val = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                        vec[i] = f32_val;
+                    }
+                    Ok(DtypeContainer::Vec(vec))
+                }
+                _ => {
+                    // If the buffer is not the correct length for a f32 slice, err.
+                    Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(format!("{:?}", err)),
+                    )))
+                }
+            }
+        }
+    }
+}
+
+fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<DtypeContainer<u16>> {
+    let res = bytemuck::try_cast_slice(buf);
+    match res {
+        Ok(slc) => Ok(DtypeContainer::<u16>::Slice(slc)),
+        Err(err) => {
+            match err {
+                bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned => {
+                    // If the buffer is not aligned for a f32 slice, copy the buffer into a new Vec<f32>
+                    let mut vec = vec![0; buf.len() / 2];
+                    for (i, chunk) in buf.chunks_exact(2).enumerate() {
+                        let u16_val = u16::from_ne_bytes([chunk[0], chunk[1]]);
+                        vec[i] = u16_val;
+                    }
+                    Ok(DtypeContainer::Vec(vec))
+                }
+                _ => {
+                    // If the buffer is not the correct length for a f32 slice, err.
+                    Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(format!("{:?}", err)),
+                    )))
+                }
+            }
+        }
+    }
 }
 
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w }
+        TiffEncoder {
+            w,
+            comp: Compressor::default(),
+        }
+    }
+
+    /// Set the image compression setting
+    pub fn with_compression(mut self, comp: Compressor) -> Self {
+        self.comp = comp;
+        self
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
@@ -368,6 +423,9 @@ impl<W: Write + Seek> TiffEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
+        use tiff::encoder::colortype::{
+            Gray16, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
+        };
         let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
@@ -375,56 +433,233 @@ impl<W: Write + Seek> TiffEncoder<W> {
             "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
             buf.len(),
         );
-
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
-        match color_type {
-            ExtendedColorType::L8 => {
-                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, buf)
+        match self.comp {
+            Compressor::Uncompressed(comp) => {
+                match color_type {
+                    ExtendedColorType::L8 => encoder
+                        .write_image_with_compression::<Gray8, Uncompressed>(
+                            width, height, comp, buf,
+                        ),
+                    ExtendedColorType::Rgb8 => encoder
+                        .write_image_with_compression::<RGB8, Uncompressed>(
+                            width, height, comp, buf,
+                        ),
+                    ExtendedColorType::Rgba8 => encoder
+                        .write_image_with_compression::<RGBA8, Uncompressed>(
+                            width, height, comp, buf,
+                        ),
+                    ExtendedColorType::L16 => encoder
+                        .write_image_with_compression::<Gray16, Uncompressed>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb16 => encoder
+                        .write_image_with_compression::<RGB16, Uncompressed>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba16 => encoder
+                        .write_image_with_compression::<RGBA16, Uncompressed>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb32F => encoder
+                        .write_image_with_compression::<RGB32Float, Uncompressed>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba32F => encoder
+                        .write_image_with_compression::<RGBA32Float, Uncompressed>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Tiff.into(),
+                                UnsupportedErrorKind::Color(color_type),
+                            ),
+                        ))
+                    }
+                }
+                .map_err(ImageError::from_tiff_encode)?;
             }
-            ExtendedColorType::Rgb8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, buf)
-            }
-            ExtendedColorType::Rgba8 => {
-                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, buf)
-            }
-            ExtendedColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
-                width,
-                height,
-                u8_slice_as_u16(buf)?,
-            ),
-            ExtendedColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
-                width,
-                height,
-                u8_slice_as_u16(buf)?,
-            ),
-            ExtendedColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
-                width,
-                height,
-                u8_slice_as_u16(buf)?,
-            ),
-            ExtendedColorType::Rgb32F => encoder
-                .write_image::<tiff::encoder::colortype::RGB32Float>(
-                    width,
-                    height,
-                    u8_slice_as_f32(buf)?,
-                ),
-            ExtendedColorType::Rgba32F => encoder
-                .write_image::<tiff::encoder::colortype::RGBA32Float>(
-                    width,
-                    height,
-                    u8_slice_as_f32(buf)?,
-                ),
-            _ => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Tiff.into(),
-                        UnsupportedErrorKind::Color(color_type),
+            Compressor::Lzw(comp) => {
+                match color_type {
+                    ExtendedColorType::L8 => {
+                        encoder.write_image_with_compression::<Gray8, Lzw>(width, height, comp, buf)
+                    }
+                    ExtendedColorType::Rgb8 => {
+                        encoder.write_image_with_compression::<RGB8, Lzw>(width, height, comp, buf)
+                    }
+                    ExtendedColorType::Rgba8 => {
+                        encoder.write_image_with_compression::<RGBA8, Lzw>(width, height, comp, buf)
+                    }
+                    ExtendedColorType::L16 => encoder.write_image_with_compression::<Gray16, Lzw>(
+                        width,
+                        height,
+                        comp,
+                        u8_slice_as_u16(buf)?.as_slice(),
                     ),
-                ))
+                    ExtendedColorType::Rgb16 => encoder.write_image_with_compression::<RGB16, Lzw>(
+                        width,
+                        height,
+                        comp,
+                        u8_slice_as_u16(buf)?.as_slice(),
+                    ),
+                    ExtendedColorType::Rgba16 => encoder
+                        .write_image_with_compression::<RGBA16, Lzw>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb32F => encoder
+                        .write_image_with_compression::<RGB32Float, Lzw>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba32F => encoder
+                        .write_image_with_compression::<RGBA32Float, Lzw>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Tiff.into(),
+                                UnsupportedErrorKind::Color(color_type),
+                            ),
+                        ))
+                    }
+                }
+                .map_err(ImageError::from_tiff_encode)?;
+            }
+            Compressor::Deflate(comp) => {
+                match color_type {
+                    ExtendedColorType::L8 => encoder
+                        .write_image_with_compression::<Gray8, Deflate>(width, height, comp, buf),
+                    ExtendedColorType::Rgb8 => encoder
+                        .write_image_with_compression::<RGB8, Deflate>(width, height, comp, buf),
+                    ExtendedColorType::Rgba8 => encoder
+                        .write_image_with_compression::<RGBA8, Deflate>(width, height, comp, buf),
+                    ExtendedColorType::L16 => encoder
+                        .write_image_with_compression::<Gray16, Deflate>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb16 => encoder
+                        .write_image_with_compression::<RGB16, Deflate>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba16 => encoder
+                        .write_image_with_compression::<RGBA16, Deflate>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb32F => encoder
+                        .write_image_with_compression::<RGB32Float, Deflate>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba32F => encoder
+                        .write_image_with_compression::<RGBA32Float, Deflate>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Tiff.into(),
+                                UnsupportedErrorKind::Color(color_type),
+                            ),
+                        ))
+                    }
+                }
+                .map_err(ImageError::from_tiff_encode)?;
+            }
+            Compressor::Packbits(comp) => {
+                match color_type {
+                    ExtendedColorType::L8 => encoder
+                        .write_image_with_compression::<Gray8, Packbits>(width, height, comp, buf),
+                    ExtendedColorType::Rgb8 => encoder
+                        .write_image_with_compression::<RGB8, Packbits>(width, height, comp, buf),
+                    ExtendedColorType::Rgba8 => encoder
+                        .write_image_with_compression::<RGBA8, Packbits>(width, height, comp, buf),
+                    ExtendedColorType::L16 => encoder
+                        .write_image_with_compression::<Gray16, Packbits>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb16 => encoder
+                        .write_image_with_compression::<RGB16, Packbits>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba16 => encoder
+                        .write_image_with_compression::<RGBA16, Packbits>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_u16(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgb32F => encoder
+                        .write_image_with_compression::<RGB32Float, Packbits>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    ExtendedColorType::Rgba32F => encoder
+                        .write_image_with_compression::<RGBA32Float, Packbits>(
+                            width,
+                            height,
+                            comp,
+                            u8_slice_as_f32(buf)?.as_slice(),
+                        ),
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Tiff.into(),
+                                UnsupportedErrorKind::Color(color_type),
+                            ),
+                        ))
+                    }
+                }
+                .map_err(ImageError::from_tiff_encode)?;
             }
         }
-        .map_err(ImageError::from_tiff_encode)?;
 
         Ok(())
     }

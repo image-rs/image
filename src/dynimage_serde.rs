@@ -1,10 +1,14 @@
 use crate::{DynamicImage, ImageFormat};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
-use serde::{
+pub use serde::{
     de::{self, Visitor},
-    ser, Deserialize, Deserializer, Serialize,
+    ser,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{fmt, io::{Cursor, Write}};
+use std::{
+    fmt,
+    io::{Cursor, Write},
+};
 
 impl<'de> Deserialize<'de> for DynamicImage {
     fn deserialize<D>(deserializer: D) -> Result<DynamicImage, D::Error>
@@ -107,9 +111,9 @@ impl<'de> Deserialize<'de> for DynamicImage {
         let res =
             deserializer.deserialize_struct("DynamicSerialImage", FIELDS, SerialBufferVisitor)?;
 
-        let mut imgdata = STANDARD_NO_PAD.decode(res.data.as_bytes()).map_err(|e| {
-            de::Error::custom(format!("Failed to decode base64 string: {}", e))
-        })?;
+        let mut imgdata = STANDARD_NO_PAD
+            .decode(res.data.as_bytes())
+            .map_err(|e| de::Error::custom(format!("Failed to decode base64 string: {}", e)))?;
         let imgfmt = match res.dtype.as_str() {
             "png" => Ok(ImageFormat::Png),
             "tiff" => {
@@ -122,7 +126,7 @@ impl<'de> Deserialize<'de> for DynamicImage {
                 })?;
                 imgdata = buf;
                 Ok(ImageFormat::Tiff)
-            },
+            }
             _ => Err(de::Error::custom(format!(
                 "Unknown image format: {}",
                 res.dtype
@@ -141,7 +145,7 @@ impl Serialize for DynamicImage {
     /// as a base64 string.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         use flate2::write::ZlibEncoder;
         use serde::ser::SerializeStruct;
@@ -154,12 +158,12 @@ impl Serialize for DynamicImage {
         // If TIFF, compress
         if fmt == ImageFormat::Tiff {
             let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-            encoder.write_all(&bytes).map_err(|e| {
-                ser::Error::custom(format!("Failed to compress TIFF image: {}", e))
-            })?;
-            bytes = encoder.finish().map_err(|e| {
-                ser::Error::custom(format!("Failed to finish compression: {}", e))
-            })?;
+            encoder
+                .write_all(&bytes)
+                .map_err(|e| ser::Error::custom(format!("Failed to compress TIFF image: {}", e)))?;
+            bytes = encoder
+                .finish()
+                .map_err(|e| ser::Error::custom(format!("Failed to finish compression: {}", e)))?;
         }
         // Encode the buffer as base64
         let b64 = STANDARD_NO_PAD.encode(&bytes);

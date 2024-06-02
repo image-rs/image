@@ -323,10 +323,7 @@ fn check_tiff() {
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
             Err(image::ImageError::Unsupported(_)) => {
-                println!(
-                    "UNSUPPORTED {}: Unsupported image format.",
-                    path.display(),
-                );
+                println!("UNSUPPORTED {}: Unsupported image format.", path.display(),);
                 return;
             }
             Err(err) => panic!("{}", err),

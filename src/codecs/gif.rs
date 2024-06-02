@@ -43,10 +43,10 @@ use crate::error::{
     UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
-use crate::Limits;
 use crate::traits::Pixel;
 use crate::ExtendedColorType;
 use crate::ImageBuffer;
+use crate::Limits;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {

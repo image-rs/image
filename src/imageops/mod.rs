@@ -440,11 +440,11 @@ mod tests {
     /// Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
         let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let source = ImageBuffer::from_pixel(32, 32, Rgb{r: 255u8, g: 0, b: 0});
         overlay(&mut target, &source, 1, 1);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(0, 0) == Rgb{r: 0, g: 0, b: 0});
+        assert!(*target.get_pixel(1, 1) == Rgb{r: 255u8, g: 0, b: 0});
+        assert!(*target.get_pixel(31, 31) == Rgb{r: 255u8, g: 0, b: 0});
     }
 
     #[test]
@@ -452,18 +452,18 @@ mod tests {
     /// (issue came up in #848)
     fn test_image_outside_image_no_wrap_around() {
         let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let source = ImageBuffer::from_pixel(32, 32, Rgb{r: 255u8, g: 0, b: 0});
         overlay(&mut target, &source, 33, 33);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(0, 0) == Rgb{r: 0, g: 0, b: 0});
+        assert!(*target.get_pixel(1, 1) == Rgb{r: 0, g: 0, b: 0});
+        assert!(*target.get_pixel(31, 31) == Rgb{r: 0, g: 0, b: 0});
     }
 
     #[test]
     /// Test that images written to coordinates with overflow works
     fn test_image_coordinate_overflow() {
         let mut target = ImageBuffer::new(16, 16);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let source = ImageBuffer::from_pixel(32, 32, Rgb{r: 255u8, g: 0, b: 0});
         // Overflows to 'sane' coordinates but top is larger than bot.
         overlay(
             &mut target,
@@ -471,9 +471,9 @@ mod tests {
             i64::from(u32::MAX - 31),
             i64::from(u32::MAX - 31),
         );
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(0, 0) == Rgb{r: 0, g: 0, b: 0});
+        assert!(*target.get_pixel(1, 1) == Rgb{r: 0, g: 0, b: 0});
+        assert!(*target.get_pixel(15, 15) == Rgb{r: 0, g: 0, b: 0});
     }
 
     use super::{horizontal_gradient, vertical_gradient};
@@ -483,8 +483,8 @@ mod tests {
     fn test_image_horizontal_gradient_limits() {
         let mut img = ImageBuffer::new(100, 1);
 
-        let start = Rgb([0u8, 128, 0]);
-        let end = Rgb([255u8, 255, 255]);
+        let start = Rgb{r: 0u8, g: 128, b: 0};
+        let end = Rgb{r: 255u8, g: 255, b: 255};
 
         horizontal_gradient(&mut img, &start, &end);
 
@@ -497,8 +497,8 @@ mod tests {
     fn test_image_vertical_gradient_limits() {
         let mut img = ImageBuffer::new(1, 100);
 
-        let start = Rgb([0u8, 128, 0]);
-        let end = Rgb([255u8, 255, 255]);
+        let start = Rgb{r: 0u8, g: 128, b: 0};
+        let end = Rgb{r: 255u8, g: 255, b: 255};
 
         vertical_gradient(&mut img, &start, &end);
 

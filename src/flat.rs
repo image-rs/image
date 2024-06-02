@@ -937,7 +937,7 @@ impl<'buf, Component> FlatSamples<&'buf [Component]> {
     /// # fn paint_something<T>(_: T) {}
     /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
     ///
-    /// let background = Rgb([20, 20, 20]);
+    /// let background = Rgb{r: 20, g: 20, b: 20};
     /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
     ///
     /// let mut image = RgbImage::new(200, 200);

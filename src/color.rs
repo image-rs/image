@@ -437,9 +437,9 @@ mod tests {
 
     #[test]
     fn test_apply_with_alpha_rgb() {
-        let mut rgb = Rgb([0, 0, 0]);
+        let mut rgb = Rgb{r: 0, g: 0, b: 0};
         rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb([0, 0, 0]));
+        assert_eq!(rgb, Rgb{r: 0, g: 0, b: 0});
     }
 
     #[test]
@@ -456,8 +456,8 @@ mod tests {
 
     #[test]
     fn test_map_with_alpha_rgb() {
-        let rgb = Rgb([0, 0, 0]).map_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb([0, 0, 0]));
+        let rgb = Rgb{r: 0, g: 0, b: 0}.map_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(rgb, Rgb{r: 0, g: 0, b: 0});
     }
 
     #[test]
@@ -532,9 +532,9 @@ mod tests {
 
     #[test]
     fn test_apply_without_alpha_rgb() {
-        let mut rgb = Rgb([0, 0, 0]);
+        let mut rgb = Rgb{r: 0, g: 0, b: 0};
         rgb.apply_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb([1, 1, 1]));
+        assert_eq!(rgb, Rgb{r: 1, g: 1, b: 1});
     }
 
     #[test]
@@ -559,8 +559,8 @@ mod tests {
 
     #[test]
     fn test_map_without_alpha_rgb() {
-        let rgb = Rgb([0, 0, 0]).map_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb([1, 1, 1]));
+        let rgb = Rgb{r: 0, g: 0, b: 0}.map_without_alpha(|s| s + 1);
+        assert_eq!(rgb, Rgb{r: 1, g: 1, b: 1});
     }
 
     macro_rules! test_lossless_conversion {

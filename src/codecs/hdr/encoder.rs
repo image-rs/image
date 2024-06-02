@@ -347,7 +347,7 @@ fn to_rgbe8_test() {
     for &r in &test_values {
         for &g in &test_values {
             for &b in &test_values {
-                let c1 = Rgb([r, g, b]);
+                let c1 = Rgb{r: r, g: g, b: b};
                 let c2 = to_rgbe8(c1).to_hdr();
                 let rel_dist = relative_dist(c1, c2);
                 // Maximal value is normalized to the range 128..256, thus we have 1/128 precision

@@ -623,8 +623,8 @@ where
 ///
 /// for x in 15..=17 {
 ///     for y in 8..24 {
-///         img.put_pixel(x, y, Rgb([255, 0, 0]));
-///         img.put_pixel(y, x, Rgb([255, 0, 0]));
+///         img.put_pixel(x, y, Rgb{r: 255, g: 0, b: 0});
+///         img.put_pixel(y, x, Rgb{r: 255, g: 0, b: 0});
 ///     }
 /// }
 /// ```
@@ -637,9 +637,9 @@ where
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
 /// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
-///         image::Rgb([0, 0, 0])
+///         image::Rgb{r: 0, g: 0, b: 0}
 ///     } else {
-///         image::Rgb([255, 255, 255])
+///         image::Rgb{r: 255, g: 255, b: 255}
 ///     }
 /// });
 ///
@@ -1541,7 +1541,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
 
-        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
+        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb{r: 255, g: 0, b: 0}));
         assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));
         assert_eq!(a.get_pixel_checked(10, 0), None);
         assert_eq!(a.get_pixel_checked(0, 10), None);
@@ -1562,7 +1562,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = Rgb([42, 0, 0]);
+            *val = Rgb{r: 42, g: 0, b: 0};
         }
         assert_eq!(a.data[0], 42)
     }

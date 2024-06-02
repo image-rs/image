@@ -3,17 +3,16 @@
 // Note copied from the stdlib under MIT license
 
 use num_traits::{Bounded, Num, NumCast};
-pub use pixeli::Pixel;
+use pixeli::{Gray, GrayAlpha, Pixel, Rgb, Rgba};
 use std::ops::AddAssign;
 
-use crate::{
-    color::{Gray, GrayAlpha, Rgb, Rgba},
-    ExtendedColorType,
-};
+use crate::ExtendedColorType;
+
+use self::sealed::Sealed;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
-pub trait EncodableLayout: seals::EncodableLayout {
+pub trait EncodableLayout: Sealed {
     /// Get the bytes of this value.
     fn as_bytes(&self) -> &[u8];
 }
@@ -172,7 +171,7 @@ impl Lerp for f32 {
 
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
-pub trait PixelWithColorType: Pixel + private::Sealed {
+pub trait PixelWithColorType: Pixel + Sealed {
     /// This pixel has the format of one of the predefined `ColorType`s,
     /// such as `Rgb8`, `La16` or `Rgba32F`.
     /// This is needed for automatically detecting
@@ -213,11 +212,12 @@ impl PixelWithColorType for GrayAlpha<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
 }
 
-/// Prevents down-stream users from implementing the `Primitive` trait
-mod private {
-    use crate::color::*;
+/// Private module for supertraits of sealed traits.
+mod sealed {
+    use super::*;
 
     pub trait Sealed {}
+
     impl Sealed for Rgb<u8> {}
     impl Sealed for Rgb<u16> {}
     impl Sealed for Rgb<f32> {}
@@ -231,13 +231,8 @@ mod private {
 
     impl Sealed for Gray<u16> {}
     impl Sealed for GrayAlpha<u16> {}
-}
 
-/// Private module for supertraits of sealed traits.
-mod seals {
-    pub trait EncodableLayout {}
-
-    impl EncodableLayout for [u8] {}
-    impl EncodableLayout for [u16] {}
-    impl EncodableLayout for [f32] {}
+    impl Sealed for [u8] {}
+    impl Sealed for [u16] {}
+    impl Sealed for [f32] {}
 }

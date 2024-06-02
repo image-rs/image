@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Gray, Pixel, Rgb};
+use crate::{ExtendedColorType, GenericImageView, ImageBuffer};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;

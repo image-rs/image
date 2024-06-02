@@ -3,7 +3,7 @@ use std::io::{BufRead, Read, Seek};
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
+use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, RgbaImage};
 
 /// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
 pub struct WebPDecoder<R> {

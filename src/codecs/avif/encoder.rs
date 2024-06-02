@@ -8,7 +8,6 @@ use std::cmp::min;
 use std::io::Write;
 
 use crate::buffer::ConvertBuffer;
-use crate::color::{FromColor, Gray, GrayAlpha, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
@@ -17,6 +16,7 @@ use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Rgb, Rgba};
 use ravif::{Encoder, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
@@ -164,7 +164,7 @@ impl<W: Write> AvifEncoder<W> {
         ) -> Img<&'buf [RGBA8]>
         where
             P: Pixel + 'static,
-            Rgba<u8>: FromColor<P>,
+            Rgba<u8>: FromPixelCommon<P>,
         {
             let (width, height) = image.dimensions();
             // TODO: conversion re-using the target buffer?

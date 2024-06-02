@@ -18,6 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::{DynamicImage, GenericImage, ImageBuffer, RgbaImage};
 use crate::{Limits, RgbaImage};
 
 // http://www.w3.org/TR/PNG-Structure.html

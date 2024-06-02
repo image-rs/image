@@ -1,10 +1,11 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel};
 use std::f64::consts::PI;
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, Primitive};
+use crate::traits::Primitive;
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
@@ -29,7 +30,7 @@ pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<Gray<Component<I>>>,
+    NewPixel: Pixel + FromPixelCommon<Gray<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -49,7 +50,7 @@ pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromColor<GrayAlpha<Component<I>>>,
+    NewPixel: Pixel + FromPixelCommon<GrayAlpha<Component<I>>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -536,7 +537,9 @@ where
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
-        *idx = Gray([color_map.index_of(pixel) as u8])
+        *idx = Gray {
+            gray: color_map.index_of(pixel) as u8,
+        }
     }
     indices
 }

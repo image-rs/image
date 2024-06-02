@@ -10,15 +10,14 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color::{self, IntoColor};
+use crate::color::{self};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
+use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
-use crate::traits::Pixel;
 use crate::ImageReader;
-use crate::{image, Gray, GrayAlpha};
 use crate::{imageops, ExtendedColorType};
 use crate::{Rgb32FImage, Rgba32FImage};
 

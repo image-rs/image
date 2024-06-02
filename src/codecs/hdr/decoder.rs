@@ -3,7 +3,9 @@ use std::io::{self, Read};
 use std::num::{ParseFloatError, ParseIntError};
 use std::{error, fmt};
 
-use crate::color::{ColorType, Rgb};
+use pixeli::Rgb;
+
+use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };

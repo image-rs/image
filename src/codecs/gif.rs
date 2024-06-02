@@ -33,9 +33,10 @@ use std::mem;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
+use pixeli::Rgba;
 
 use crate::animation::{self, Ratio};
-use crate::color::{ColorType, Rgba};
+use crate::color::ColorType;
 use crate::error::LimitError;
 use crate::error::LimitErrorKind;
 use crate::error::{

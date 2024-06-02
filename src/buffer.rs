@@ -1,18 +1,18 @@
 //! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
+use pixeli::Pixel;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::{FromColor, Gray, GrayAlpha, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 use crate::math::Rect;
-use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
+use crate::traits::{EncodableLayout, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::DynamicImage;
 
@@ -32,7 +32,7 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_slice(v))
+        self.chunks.next().map(|v| <P as Pixel>::from_components(v))
     }
 
     #[inline(always)]
@@ -57,7 +57,9 @@ where
 {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
-        self.chunks.next_back().map(|v| <P as Pixel>::from_slice(v))
+        self.chunks
+            .next_back()
+            .map(|v| <P as Pixel>::from_components(v))
     }
 }
 
@@ -96,7 +98,7 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_slice_mut(v))
+        self.chunks.next().map(|v| <P as Pixel>::from_components(v))
     }
 
     #[inline(always)]
@@ -123,7 +125,7 @@ where
     fn next_back(&mut self) -> Option<&'a mut P> {
         self.chunks
             .next_back()
-            .map(|v| <P as Pixel>::from_slice_mut(v))
+            .map(|v| <P as Pixel>::from_components(v))
     }
 }
 
@@ -1488,7 +1490,6 @@ mod test {
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::ImageFormat;
-    use crate::{Gray, GrayAlpha, Pixel, Rgb, Rgba};
     use num_traits::Zero;
 
     #[test]

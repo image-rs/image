@@ -120,11 +120,13 @@ impl ColorType {
 }
 
 fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
-    use zune_core::colorspace::ColorSpace::*;
     match orig {
-        RGB | RGBA | Gray | GrayAlpha => orig,
+        ZuneColorSpace::RGB
+        | ZuneColorSpace::RGBA
+        | ZuneColorSpace::Gray
+        | ZuneColorSpace::GrayAlpha => orig,
         // the rest is not supported by `image` so it will be converted to RGB during decoding
-        _ => RGB,
+        _ => ZuneColorSpace::RGB,
     }
 }
 

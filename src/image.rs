@@ -1277,25 +1277,25 @@ mod tests {
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
-        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
-        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
+        target.put_pixel(0, 0, Rgba{r: 255u8, g: 0, b: 0, a: 255});
+        assert!(*target.get_pixel(0, 0) == Rgba{r: 255, g: 0, b: 0, a: 255});
+        target.blend_pixel(0, 0, Rgba{r: 0, g: 255, b: 0, a: 255});
+        assert!(*target.get_pixel(0, 0) == Rgba{r: 0, g: 255, b: 0, a: 255});
 
         // Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
+        target.blend_pixel(0, 0, Rgba{r: 255, g: 0, b: 0, a: 127});
+        assert!(*target.get_pixel(0, 0) == Rgba{r: 127, g: 127, b: 0, a: 255});
 
         // Blending two alpha channels
-        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+        target.put_pixel(0, 0, Rgba{r: 0, g: 255, b: 0, a: 127});
+        target.blend_pixel(0, 0, Rgba{r: 255, g: 0, b: 0, a: 127});
+        assert!(*target.get_pixel(0, 0) == Rgba{r: 169, g: 85, b: 0, a: 190});
     }
 
     #[test]
     fn test_in_bounds() {
         let mut target = ImageBuffer::new(2, 2);
-        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
+        target.put_pixel(0, 0, Rgba{r: 255u8, g: 0, b: 0, a: 255});
 
         assert!(target.in_bounds(0, 0));
         assert!(target.in_bounds(1, 0));
@@ -1310,7 +1310,7 @@ mod tests {
     #[test]
     fn test_can_subimage_clone_nonmut() {
         let mut source = ImageBuffer::new(3, 3);
-        source.put_pixel(1, 1, Rgba([255u8, 0, 0, 255]));
+        source.put_pixel(1, 1, Rgba{r: 255u8, g: 0, b: 0, a: 255});
 
         // A non-mutable copy of the source image
         let source = source.clone();
@@ -1323,15 +1323,15 @@ mod tests {
 
     #[test]
     fn test_can_nest_views() {
-        let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let mut source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
 
         {
             let mut sub1 = source.sub_image(0, 0, 2, 2);
             let mut sub2 = sub1.sub_image(1, 1, 1, 1);
-            sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
+            sub2.put_pixel(0, 0, Rgba{r: 0, g: 0, b: 0, a: 0});
         }
 
-        assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
+        assert_eq!(*source.get_pixel(1, 1), Rgba{r: 0, g: 0, b: 0, a: 0});
 
         let view1 = source.view(0, 0, 2, 2);
         assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
@@ -1343,48 +1343,48 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_view_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(1, 1, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_coordinates_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(3, 3, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_width_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(1, 1, 3, 2);
     }
 
     #[test]
     #[should_panic]
     fn test_view_height_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(1, 1, 2, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_x_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(3, 1, 3, 3);
     }
 
     #[test]
     #[should_panic]
     fn test_view_y_out_of_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(1, 3, 3, 3);
     }
 
     #[test]
     fn test_view_in_bounds() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         source.view(0, 0, 3, 3);
         source.view(1, 1, 2, 2);
         source.view(2, 2, 0, 0);
@@ -1392,7 +1392,7 @@ mod tests {
 
     #[test]
     fn test_copy_sub_image() {
-        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let source = ImageBuffer::from_pixel(3, 3, Rgba{r: 255u8, g: 0, b: 0, a: 255});
         let view = source.view(0, 0, 3, 3);
         let _view2 = view;
         view.to_image();

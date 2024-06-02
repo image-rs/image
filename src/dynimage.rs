@@ -1245,7 +1245,7 @@ mod test {
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
         use crate::image::{GenericImage, GenericImageView};
-        img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
+        img.put_pixel(0, 0, crate::color::Rgba{r: 255, g: 0, b: 0, a: 100});
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(
             img.grayscale().get_pixel(0, 0),

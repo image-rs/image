@@ -418,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_apply_with_alpha_rgba() {
-        let mut rgba = Rgba([0, 0, 0, 0]);
+        let mut rgba = Rgba{r: 0, g: 0, b: 0, a: 0};
         rgba.apply_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
     }
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_map_with_alpha_rgba() {
-        let rgba = Rgba([0, 0, 0, 0]).map_with_alpha(|s| s, |_| 0xFF);
+        let rgba = Rgba{r: 0, g: 0, b: 0, a: 0}.map_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
     }
 
@@ -494,9 +494,9 @@ mod tests {
 
     #[test]
     fn test_apply_without_alpha_rgba() {
-        let mut rgba = Rgba([0, 0, 0, 0]);
+        let mut rgba = Rgba{r: 0, g: 0, b: 0, a: 0};
         rgba.apply_without_alpha(|s| s + 1);
-        assert_eq!(rgba, Rgba([1, 1, 1, 0]));
+        assert_eq!(rgba, Rgba{r: 1, g: 1, b: 1, a: 0});
     }
 
     #[test]
@@ -508,8 +508,8 @@ mod tests {
 
     #[test]
     fn test_map_without_alpha_rgba() {
-        let rgba = Rgba([0, 0, 0, 0]).map_without_alpha(|s| s + 1);
-        assert_eq!(rgba, Rgba([1, 1, 1, 0]));
+        let rgba = Rgba{r: 0, g: 0, b: 0, a: 0}.map_without_alpha(|s| s + 1);
+        assert_eq!(rgba, Rgba{r: 1, g: 1, b: 1, a: 0});
     }
 
     #[test]

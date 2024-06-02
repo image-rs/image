@@ -1,7 +1,7 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
-use pixeli::{Gray, GrayAlpha, Rgba};
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Rgba};
 
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
@@ -658,25 +658,29 @@ impl DynamicImage {
         match *self {
             DynamicImage::ImageGray8(ref p) => DynamicImage::ImageGray8(p.clone()),
             DynamicImage::ImageGrayAlpha8(ref p) => {
-                DynamicImage::ImageGrayAlpha8(imageops::grayscale_alpha(p))
+                DynamicImage::ImageGrayAlpha8(imageops::convert_generic_image(p))
             }
-            DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageGray8(imageops::grayscale(p)),
+            DynamicImage::ImageRgb8(ref p) => {
+                DynamicImage::ImageGray8(imageops::convert_generic_image(p))
+            }
             DynamicImage::ImageRgba8(ref p) => {
-                DynamicImage::ImageGrayAlpha8(imageops::grayscale_alpha(p))
+                DynamicImage::ImageGrayAlpha8(imageops::convert_generic_image(p))
             }
             DynamicImage::ImageGray16(ref p) => DynamicImage::ImageGray16(p.clone()),
             DynamicImage::ImageGrayAlpha16(ref p) => {
-                DynamicImage::ImageGrayAlpha16(imageops::grayscale_alpha(p))
+                DynamicImage::ImageGrayAlpha16(imageops::convert_generic_image(p))
             }
-            DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageGray16(imageops::grayscale(p)),
+            DynamicImage::ImageRgb16(ref p) => {
+                DynamicImage::ImageGray16(imageops::convert_generic_image(p))
+            }
             DynamicImage::ImageRgba16(ref p) => {
-                DynamicImage::ImageGrayAlpha16(imageops::grayscale_alpha(p))
+                DynamicImage::ImageGrayAlpha16(imageops::convert_generic_image(p))
             }
             DynamicImage::ImageRgb32F(ref p) => {
-                DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p))
+                DynamicImage::ImageRgb32F(imageops::convert_generic_image(p))
             }
             DynamicImage::ImageRgba32F(ref p) => {
-                DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
+                DynamicImage::ImageRgba32F(imageops::convert_generic_image(p))
             }
         }
     }
@@ -975,7 +979,7 @@ impl GenericImageView for DynamicImage {
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> Rgba<u8> {
-        dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
+        dynamic_map!(*self, ref p, Rgba::from_pixel_common(*p.get_pixel(x, y)))
     }
 }
 
@@ -983,8 +987,12 @@ impl GenericImageView for DynamicImage {
 impl GenericImage for DynamicImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Rgba<u8>) {
         match *self {
-            DynamicImage::ImageGray8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageGrayAlpha8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
+            DynamicImage::ImageGray8(ref mut p) => {
+                p.put_pixel(x, y, Gray::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageGrayAlpha8(ref mut p) => {
+                p.put_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
+            }
             DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
             DynamicImage::ImageGray16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),

@@ -24,6 +24,7 @@ pub use self::sample::{
 };
 
 /// Color operations
+#[allow(deprecated)]
 pub use self::colorops::{
     brighten, contrast, convert_generic_image, dither, grayscale, grayscale_alpha,
     grayscale_with_type, grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel,

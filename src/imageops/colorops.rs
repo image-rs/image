@@ -1,7 +1,7 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent};
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent, Rgba};
 use std::f64::consts::PI;
 
 use crate::color::Invert;
@@ -135,10 +135,11 @@ where
 pub fn contrast_in_place<I>(image: &mut I, contrast: f32)
 where
     I: GenericImage,
+    <I as GenericImageView>::Pixel: Pixel<SelfType<<I::Pixel as Pixel>::Component> = I::Pixel>,
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Component::COMPONENT_MAX;
+    let max = <<I::Pixel as Pixel>::Component as PixelComponent>::COMPONENT_MAX;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -232,6 +233,8 @@ where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + 'static,
     S: PixelComponent + 'static,
+    Rgba<f64>: FromPixelCommon<P>,
+    P: FromPixelCommon<Rgba<f64>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -257,27 +260,19 @@ where
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
 
-        #[allow(deprecated)]
-        let vec = p
-            .map_components(|x| NumCast::from(x).unwrap())
-            .component_array();
+        let p = Rgba::<f64>::from_pixel_common(p);
 
-        let r = vec.0;
-        let g = vec.1;
-        let b = vec.2;
+        let new_r = matrix[0] * p.r + matrix[1] * p.g + matrix[2] * p.b;
+        let new_g = matrix[3] * p.r + matrix[4] * p.g + matrix[5] * p.b;
+        let new_b = matrix[6] * p.r + matrix[7] * p.g + matrix[8] * p.b;
 
-        let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-        let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-        let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-        let max = 255f64;
+        let outpixel = P::from_pixel_common(Rgba {
+            r: new_r,
+            g: new_g,
+            b: new_b,
+            a: p.a,
+        });
 
-        #[allow(deprecated)]
-        let outpixel = Pixel::from_channels(
-            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-        );
         *pixel = outpixel;
     }
     out
@@ -292,6 +287,8 @@ where
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
+    Rgba<f64>: FromPixelCommon<<I as GenericImageView>::Pixel>,
+    <I as GenericImageView>::Pixel: FromPixelCommon<Rgba<f64>>,
 {
     let (width, height) = image.dimensions();
 
@@ -317,34 +314,20 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+            let p = image.get_pixel(x, y);
 
-            #[allow(deprecated)]
-            let (k1, k2, k3, k4) = pixel.channels4();
+            let p = Rgba::<f64>::from_pixel_common(p);
 
-            let vec: (f64, f64, f64, f64) = (
-                NumCast::from(k1).unwrap(),
-                NumCast::from(k2).unwrap(),
-                NumCast::from(k3).unwrap(),
-                NumCast::from(k4).unwrap(),
-            );
+            let new_r = matrix[0] * p.r + matrix[1] * p.g + matrix[2] * p.b;
+            let new_g = matrix[3] * p.r + matrix[4] * p.g + matrix[5] * p.b;
+            let new_b = matrix[6] * p.r + matrix[7] * p.g + matrix[8] * p.b;
 
-            let r = vec.0;
-            let g = vec.1;
-            let b = vec.2;
-
-            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
-
-            #[allow(deprecated)]
-            let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-            );
+            let outpixel = <I as GenericImageView>::Pixel::from_pixel_common(Rgba {
+                r: new_r,
+                g: new_g,
+                b: new_b,
+                a: p.a,
+            });
 
             image.put_pixel(x, y, outpixel);
         }
@@ -409,8 +392,7 @@ impl ColorMap for BiLevel {
 
     #[inline(always)]
     fn index_of(&self, color: &Gray<u8>) -> usize {
-        let luma = color.0;
-        if luma[0] > 127 {
+        if color.gray > 127 {
             1
         } else {
             0
@@ -420,8 +402,8 @@ impl ColorMap for BiLevel {
     #[inline(always)]
     fn lookup(&self, idx: usize) -> Option<Self::Color> {
         match idx {
-            0 => Some([0].into()),
-            1 => Some([255].into()),
+            0 => Some(Gray { gray: u8::MIN }),
+            1 => Some(Gray { gray: u8::MAX }),
             _ => None,
         }
     }
@@ -434,8 +416,7 @@ impl ColorMap for BiLevel {
     #[inline(always)]
     fn map_color(&self, color: &mut Gray<u8>) {
         let new_color = 0xFF * self.index_of(color) as u8;
-        let luma = &mut color.0;
-        luma[0] = new_color;
+        color.gray = new_color;
     }
 }
 
@@ -466,13 +447,16 @@ impl ColorMap for color_quant::NeuQuant {
 
 /// Floyd-Steinberg error diffusion
 fn diffuse_err<P: Pixel<Component = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
-    for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
-        *c = match <i16 as From<_>>::from(*c) + e * factor / 16 {
-            val if val < 0 => 0,
-            val if val > 0xFF => 0xFF,
-            val => val as u8,
-        }
-    }
+    *pixel = P::from_components(
+        error
+            .into_iter()
+            .zip(pixel.component_array().into_iter())
+            .map(|(e, c)| match <i16 as From<_>>::from(c) + e * factor / 16 {
+                val if val < 0 => 0,
+                val if val > 0xFF => 0xFF,
+                val => val as u8,
+            }),
+    );
 }
 
 macro_rules! do_dithering(
@@ -481,9 +465,9 @@ macro_rules! do_dithering(
             let old_pixel = $image[($x, $y)];
             let new_pixel = $image.get_pixel_mut($x, $y);
             $map.map_color(new_pixel);
-            for ((e, &old), &new) in $err.iter_mut()
-                                        .zip(old_pixel.channels().iter())
-                                        .zip(new_pixel.channels().iter())
+            for ((e, old), new) in $err.iter_mut()
+                                        .zip(old_pixel.component_array().into_iter())
+                                        .zip(new_pixel.component_array().into_iter())
             {
                 *e = <i16 as From<_>>::from(old) - <i16 as From<_>>::from(new)
             }
@@ -602,7 +586,7 @@ mod test {
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        assert_pixels_eq!(&grayscale(&image), &expected);
+        assert_pixels_eq!(&convert_generic_image(&image), &expected);
     }
 
     #[test]

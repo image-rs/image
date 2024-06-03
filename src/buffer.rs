@@ -1,6 +1,6 @@
 //! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, Rgb, Rgba};
+use pixeli::{ContiguousPixel, FromPixelCommon, Gray, GrayAlpha, Pixel, Rgb, Rgba};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
@@ -24,15 +24,18 @@ where
     chunks: ChunksExact<'a, P::Component>,
 }
 
-impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P>
+impl<'a, P: 'a> Iterator for Pixels<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     type Item = &'a P;
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_components(v))
+        self.chunks
+            .next()
+            .map(|v| <P as ContiguousPixel>::from_component_slice_ref(v))
     }
 
     #[inline(always)]
@@ -42,8 +45,9 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> ExactSizeIterator for Pixels<'a, P>
+impl<'a, P: 'a> ExactSizeIterator for Pixels<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     fn len(&self) -> usize {
@@ -51,15 +55,16 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P>
+impl<'a, P: 'a> DoubleEndedIterator for Pixels<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
         self.chunks
             .next_back()
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_ref(v))
     }
 }
 
@@ -90,15 +95,18 @@ where
     chunks: ChunksExactMut<'a, P::Component>,
 }
 
-impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P>
+impl<'a, P: 'a> Iterator for PixelsMut<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     type Item = &'a mut P;
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_components(v))
+        self.chunks
+            .next()
+            .map(|v| <P as ContiguousPixel>::from_component_slice_mut(v))
     }
 
     #[inline(always)]
@@ -108,8 +116,9 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> ExactSizeIterator for PixelsMut<'a, P>
+impl<'a, P: 'a> ExactSizeIterator for PixelsMut<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     fn len(&self) -> usize {
@@ -117,20 +126,22 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
+impl<'a, P: 'a> DoubleEndedIterator for PixelsMut<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut P> {
         self.chunks
             .next_back()
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_mut(v))
     }
 }
 
-impl<P: Pixel> fmt::Debug for PixelsMut<'_, P>
+impl<P> fmt::Debug for PixelsMut<'_, P>
 where
+    P: ContiguousPixel,
     P::Component: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -339,8 +350,9 @@ where
     width: u32,
 }
 
-impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P>
+impl<'a, P: 'a> Iterator for EnumeratePixels<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     type Item = (u32, u32, &'a P);
@@ -363,8 +375,9 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixels<'a, P>
+impl<'a, P: 'a> ExactSizeIterator for EnumeratePixels<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     fn len(&self) -> usize {
@@ -477,8 +490,9 @@ where
     width: u32,
 }
 
-impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P>
+impl<'a, P: 'a> Iterator for EnumeratePixelsMut<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     type Item = (u32, u32, &'a mut P);
@@ -501,8 +515,9 @@ where
     }
 }
 
-impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixelsMut<'a, P>
+impl<'a, P: 'a> ExactSizeIterator for EnumeratePixelsMut<'a, P>
 where
+    P: ContiguousPixel,
     P::Component: 'a,
 {
     fn len(&self) -> usize {
@@ -510,8 +525,9 @@ where
     }
 }
 
-impl<P: Pixel> fmt::Debug for EnumeratePixelsMut<'_, P>
+impl<P> fmt::Debug for EnumeratePixelsMut<'_, P>
 where
+    P: ContiguousPixel,
     P::Component: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -665,7 +681,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
 // generic implementation, shared along all image buffers
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]>,
 {
     /// Constructs a buffer from a generic container
@@ -775,13 +791,15 @@ where
                 (x, y),
                 (self.width, self.height)
             ),
-            Some(pixel_indices) => <P as Pixel>::from_components(self.data[pixel_indices]),
+            Some(pixel_indices) => {
+                <P as ContiguousPixel>::from_component_slice_ref(&self.data[pixel_indices])
+            }
         }
     }
 
     /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
     /// the index is out of the bounds `(width, height)`.
-    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<P> {
+    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
         if x >= self.width {
             return None;
         }
@@ -793,7 +811,7 @@ where
 
         self.data
             .get(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_components(pixel_indices))
+            .map(|pixel_indices| <P as ContiguousPixel>::from_component_slice_ref(pixel_indices))
     }
 
     /// Test that the image fits inside the buffer.
@@ -887,7 +905,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]> + DerefMut,
 {
     // TODO: choose name under which to expose.
@@ -953,7 +971,9 @@ where
                 (x, y),
                 (self.width, self.height)
             ),
-            Some(pixel_indices) => <P as Pixel>::from_components(self.data[pixel_indices]),
+            Some(pixel_indices) => {
+                <P as ContiguousPixel>::from_component_slice_mut(&mut self.data[pixel_indices])
+            }
         }
     }
 
@@ -971,7 +991,7 @@ where
 
         self.data
             .get_mut(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_components(pixel_indices))
+            .map(|pixel_indices| <P as ContiguousPixel>::from_component_slice_mut(pixel_indices))
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -988,7 +1008,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     [P::Component]: EncodableLayout,
     Container: Deref<Target = [P::Component]>,
 {
@@ -1012,7 +1032,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     [P::Component]: EncodableLayout,
     Container: Deref<Target = [P::Component]>,
 {
@@ -1040,7 +1060,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     [P::Component]: EncodableLayout,
     Container: Deref<Target = [P::Component]>,
 {
@@ -1067,7 +1087,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     [P::Component]: EncodableLayout,
     Container: Deref<Target = [P::Component]>,
 {
@@ -1126,7 +1146,7 @@ where
 
 impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]>,
 {
     type Output = P;
@@ -1138,7 +1158,7 @@ where
 
 impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]> + DerefMut,
 {
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
@@ -1169,7 +1189,7 @@ where
 
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]> + Deref,
 {
     type Pixel = P;
@@ -1186,13 +1206,13 @@ where
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let indices = self.pixel_indices_unchecked(x, y);
-        *<P as Pixel>::from_components(self.data.get_unchecked(indices))
+        <P as Pixel>::from_components(self.data.get_unchecked(indices).into_iter().copied())
     }
 }
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: ContiguousPixel,
     Container: Deref<Target = [P::Component]> + DerefMut,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
@@ -1262,7 +1282,10 @@ where
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel> ImageBuffer<P, Vec<P::Component>> {
+impl<P> ImageBuffer<P, Vec<P::Component>>
+where
+    P: ContiguousPixel,
+{
     /// Creates a new image buffer based on a `Vec<P::Component>`.
     ///
     /// all the pixels of this image have a value of zero, regardless of the data type or number of channels.
@@ -1541,7 +1564,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
 
-        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb{r: 255, g: 0, b: 0}));
+        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb { r: 255, g: 0, b: 0 }));
         assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));
         assert_eq!(a.get_pixel_checked(10, 0), None);
         assert_eq!(a.get_pixel_checked(0, 10), None);
@@ -1549,7 +1572,11 @@ mod test {
         assert_eq!(a.get_pixel_mut_checked(0, 10), None);
 
         // From image/issues/1672
-        const WHITE: Rgb<u8> = Rgb{r: 255_u8, g: 255, b: 255};
+        const WHITE: Rgb<u8> = Rgb {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+        };
         let mut a = RgbImage::new(2, 1);
         a.put_pixel(1, 0, WHITE);
 
@@ -1562,7 +1589,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = Rgb{r: 42, g: 0, b: 0};
+            *val = Rgb { r: 42, g: 0, b: 0 };
         }
         assert_eq!(a.data[0], 42)
     }

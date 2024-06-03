@@ -1,7 +1,7 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent, Rgba};
+use pixeli::{ContiguousPixel, FromPixelCommon, Gray, GrayAlpha, Pixel, PixelComponent, Rgba};
 use std::f64::consts::PI;
 
 use crate::color::Invert;
@@ -41,7 +41,7 @@ pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
+    NewPixel: ContiguousPixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
 {
     convert_generic_image::<NewPixel, I>(image)
 }
@@ -52,7 +52,7 @@ pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
-    NewPixel: Pixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
+    NewPixel: ContiguousPixel + FromPixelCommon<<I as GenericImageView>::Pixel>,
 {
     convert_generic_image::<NewPixel, I>(image)
 }
@@ -62,7 +62,7 @@ pub fn convert_generic_image<NewPixel, I>(
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>
 where
     I: GenericImageView,
-    NewPixel: Pixel + FromPixelCommon<I::Pixel>,
+    NewPixel: ContiguousPixel + FromPixelCommon<I::Pixel>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -101,7 +101,7 @@ where
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S, SelfType<S> = P> + 'static,
+    P: Pixel<Component = S, SelfType<S> = P> + ContiguousPixel + 'static,
     S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
@@ -171,7 +171,7 @@ where
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + 'static,
     S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
@@ -231,7 +231,7 @@ where
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + 'static,
     S: PixelComponent + 'static,
     Rgba<f64>: FromPixelCommon<P>,
     P: FromPixelCommon<Rgba<f64>>,
@@ -480,7 +480,7 @@ macro_rules! do_dithering(
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Component = u8> + 'static,
+    Pix: Pixel<Component = u8> + ContiguousPixel + 'static,
 {
     let (width, height) = image.dimensions();
     let mut err: [i16; 3] = [0; 3];
@@ -521,7 +521,7 @@ pub fn index_colors<Pix, Map>(
 ) -> ImageBuffer<Gray<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Component = u8> + 'static,
+    Pix: Pixel<Component = u8> + ContiguousPixel + 'static,
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {

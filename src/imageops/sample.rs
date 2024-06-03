@@ -6,7 +6,7 @@
 use std::f32;
 
 use num_traits::{NumCast, Zero};
-use pixeli::{Enlargeable, Pixel, PixelComponent};
+use pixeli::{ContiguousPixel, Enlargeable, FromPixelCommon, Pixel, PixelComponent, Rgba};
 
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
@@ -197,7 +197,7 @@ fn horizontal_sample<P>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<P::Component>>
 where
-    P: Pixel,
+    P: ContiguousPixel + FromPixelCommon<Rgba<f32>>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
@@ -244,20 +244,23 @@ where
         ws.iter_mut().for_each(|w| *w /= sum);
 
         for y in 0..height {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut t = Rgba::<f32> {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            };
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
-                let vec = p.component_array();
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
+                t.r += p.r * w;
+                t.g += p.g * w;
+                t.b += p.b * w;
+                t.a += p.a * w;
             }
 
-            let t = Pixel::from_components(t);
+            let t = P::from_pixel_common(t);
 
             out.put_pixel(outx, y, t);
         }

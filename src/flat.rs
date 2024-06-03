@@ -48,7 +48,7 @@ use std::{cmp, error, fmt};
 use num_traits::Zero;
 use pixeli::{ContiguousPixel, Pixel};
 
-use crate::color::ColorType;
+use crate::color::{Blend, ColorType};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
@@ -1409,7 +1409,7 @@ where
                 *to = image[index];
             });
 
-        P::from_components(&buffer[..channels])
+        *P::from_component_slice_ref(&buffer[..channels])
     }
 }
 
@@ -1443,13 +1443,13 @@ where
                 *to = image[index];
             });
 
-        *P::from_slice(&buffer[..channels])
+        *P::from_component_slice_ref(&buffer[..channels])
     }
 }
 
 impl<Buffer, P> GenericImage for ViewMut<Buffer, P>
 where
-    P: ContiguousPixel,
+    P: ContiguousPixel + Blend,
     Buffer: AsMut<[P::Component]> + AsRef<[P::Component]>,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
@@ -1460,7 +1460,7 @@ where
         let base_index = self.inner.in_bounds_index(0, x, y);
         let channel_count = <P as Pixel>::COMPONENT_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
-        P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
+        P::from_component_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }
 
     #[allow(deprecated)]

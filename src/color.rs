@@ -1,4 +1,4 @@
-use num_traits::{NumCast, Zero};
+use num_traits::NumCast;
 use pixeli::{Gray, GrayAlpha, PixelComponent, Rgb, Rgba};
 
 /// An enumeration over supported color types and bit depths
@@ -252,8 +252,8 @@ impl<T: PixelComponent> Blend for GrayAlpha<T> {
     fn blend(&mut self, other: &GrayAlpha<T>) {
         let max_t = T::COMPONENT_MAX;
         let max_t = max_t.to_f32().unwrap();
-        let (bg_luma, bg_a) = (self.0[0], self.0[1]);
-        let (fg_luma, fg_a) = (other.0[0], other.0[1]);
+        let (bg_luma, bg_a) = (self.gray, self.a);
+        let (fg_luma, fg_a) = (other.gray, other.a);
 
         let (bg_luma, bg_a) = (
             bg_luma.to_f32().unwrap() / max_t,
@@ -291,10 +291,10 @@ impl<T: PixelComponent> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
-        if other.0[3].is_zero() {
+        if other.a.is_zero() {
             return;
         }
-        if other.0[3] == T::COMPONENT_MAX {
+        if other.a == T::COMPONENT_MAX {
             *self = *other;
             return;
         }
@@ -302,8 +302,8 @@ impl<T: PixelComponent> Blend for Rgba<T> {
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
         let max_t = T::COMPONENT_MAX;
         let max_t = max_t.to_f32().unwrap();
-        let (bg_r, bg_g, bg_b, bg_a) = (self.0[0], self.0[1], self.0[2], self.0[3]);
-        let (fg_r, fg_g, fg_b, fg_a) = (other.0[0], other.0[1], other.0[2], other.0[3]);
+        let (bg_r, bg_g, bg_b, bg_a) = (self.r, self.g, self.b, self.a);
+        let (fg_r, fg_g, fg_b, fg_a) = (other.r, other.g, other.b, other.a);
         let (bg_r, bg_g, bg_b, bg_a) = (
             bg_r.to_f32().unwrap() / max_t,
             bg_g.to_f32().unwrap() / max_t,
@@ -376,26 +376,21 @@ impl<T: PixelComponent> Invert for GrayAlpha<T> {
 
 impl<T: PixelComponent> Invert for Gray<T> {
     fn invert(&mut self) {
-        let l = self.0;
-
-        let max = T::COMPONENT_MAX;
-        let l1 = max - l[0];
-
-        *self = Gray { gray: l1 }
+        *self = Gray {
+            gray: T::COMPONENT_MAX - self.gray,
+        }
     }
 }
 
 impl<T: PixelComponent> Invert for Rgba<T> {
     fn invert(&mut self) {
-        let rgba = self.0;
-
         let max = T::COMPONENT_MAX;
 
         *self = Rgba {
-            r: max - rgba[0],
-            g: max - rgba[1],
-            b: max - rgba[2],
-            a: rgba[3],
+            r: max - self.r,
+            g: max - self.g,
+            b: max - self.b,
+            a: self.a,
         }
     }
 }
@@ -415,6 +410,7 @@ impl<T: PixelComponent> Invert for Rgb<T> {
 #[cfg(test)]
 mod tests {
     use super::{Gray, GrayAlpha, Rgb, Rgba};
+    use pixeli::Pixel;
 
     #[test]
     fn test_apply_with_alpha_rgba() {
@@ -425,7 +421,15 @@ mod tests {
             a: 0,
         };
         rgba.apply_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(rgba, Rgba{r:0, g:0, b:0, a:0xFF});
+        assert_eq!(
+            rgba,
+            Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0xFF
+            }
+        );
     }
 
     #[test]
@@ -444,7 +448,15 @@ mod tests {
             a: 0,
         }
         .map_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(rgba, Rgba{r:0, g:0, b:0, a:0xFF});
+        assert_eq!(
+            rgba,
+            Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0xFF
+            }
+        );
     }
 
     #[test]
@@ -455,26 +467,38 @@ mod tests {
 
     #[test]
     fn test_blend_luma_alpha() {
-        let a = &mut GrayAlpha{gray: 255_u8, a: 255};
-        let b = GrayAlpha{gray: 255_u8, a: 255};
+        let a = &mut GrayAlpha {
+            gray: 255_u8,
+            a: 255,
+        };
+        let b = GrayAlpha {
+            gray: 255_u8,
+            a: 255,
+        };
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha{gray: 255_u8, a: 0};
-        let b = GrayAlpha{gray: 255_u8, a: 255};
+        let a = &mut GrayAlpha { gray: 255_u8, a: 0 };
+        let b = GrayAlpha {
+            gray: 255_u8,
+            a: 255,
+        };
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha{gray: 255_u8, a: 255};
-        let b = GrayAlpha{gray: 255_u8, a: 0};
+        let a = &mut GrayAlpha {
+            gray: 255_u8,
+            a: 255,
+        };
+        let b = GrayAlpha { gray: 255_u8, a: 0 };
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha{gray: 255_u8, a: 0};
-        let b = GrayAlpha{gray: 255_u8, a: 0};
+        let a = &mut GrayAlpha { gray: 255_u8, a: 0 };
+        let b = GrayAlpha { gray: 255_u8, a: 0 };
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 0);
@@ -482,23 +506,63 @@ mod tests {
 
     #[test]
     fn test_blend_rgba() {
-        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 255};
-        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 255};
+        let a = &mut Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
+        let b = Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 0};
-        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 255};
+        let a = &mut Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 0,
+        };
+        let b = Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 255};
-        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 0};
+        let a = &mut Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
+        let b = Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 0,
+        };
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 0};
-        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 0};
+        let a = &mut Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 0,
+        };
+        let b = Rgba {
+            r: 255_u8,
+            g: 255,
+            b: 255,
+            a: 0,
+        };
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
     }
@@ -579,7 +643,7 @@ mod tests {
     fn accuracy_conversion() {
         use super::{Gray, Rgb};
         let pixel = Rgb::from([13, 13, 13]);
-        let Gray([luma]) = pixel.to_luma();
+        let Gray { gray: luma } = pixel.to_luma();
         assert_eq!(luma, 13);
     }
 }

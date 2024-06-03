@@ -1,7 +1,7 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Rgba};
+use pixeli::{FromPixelCommon, Gray, GrayAlpha, Rgb, Rgba};
 
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
@@ -993,37 +993,57 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageGrayAlpha8(ref mut p) => {
                 p.put_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
             }
-            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, Rgb::from_pixel_common(pixel)),
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
-            DynamicImage::ImageGray16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageGrayAlpha16(ref mut p) => {
-                p.put_pixel(x, y, pixel.to_luma_alpha().into_color())
+            DynamicImage::ImageGray16(ref mut p) => {
+                p.put_pixel(x, y, Gray::from_pixel_common(pixel))
             }
-            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageGrayAlpha16(ref mut p) => {
+                p.put_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, Rgb::from_pixel_common(pixel)),
+            DynamicImage::ImageRgba16(ref mut p) => {
+                p.put_pixel(x, y, Rgba::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageRgb32F(ref mut p) => {
+                p.put_pixel(x, y, Rgb::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageRgba32F(ref mut p) => {
+                p.put_pixel(x, y, Rgba::from_pixel_common(pixel))
+            }
         }
     }
 
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Rgba<u8>) {
         match *self {
-            DynamicImage::ImageGray8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageGrayAlpha8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageGray8(ref mut p) => {
+                p.blend_pixel(x, y, Gray::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageGrayAlpha8(ref mut p) => {
+                p.blend_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageRgb8(ref mut p) => {
+                p.blend_pixel(x, y, Rgb::from_pixel_common(pixel))
+            }
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
             DynamicImage::ImageGray16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma().into_color())
+                p.blend_pixel(x, y, Gray::from_pixel_common(pixel))
             }
             DynamicImage::ImageGrayAlpha16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
+                p.blend_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
             }
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageRgb16(ref mut p) => {
+                p.blend_pixel(x, y, Rgb::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageRgba16(ref mut p) => {
+                p.blend_pixel(x, y, Rgba::from_pixel_common(pixel))
+            }
             DynamicImage::ImageRgb32F(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_rgb().into_color())
+                p.blend_pixel(x, y, Rgb::from_pixel_common(pixel))
             }
-            DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageRgba32F(ref mut p) => {
+                p.blend_pixel(x, y, Rgba::from_pixel_common(pixel))
+            }
         }
     }
 

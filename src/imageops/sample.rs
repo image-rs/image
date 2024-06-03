@@ -5,8 +5,10 @@
 
 use std::f32;
 
-use num_traits::{NumCast, Zero};
-use pixeli::{ContiguousPixel, Enlargeable, FromPixelCommon, Pixel, PixelComponent, Rgba};
+use num_traits::Zero;
+use pixeli::{
+    ContiguousPixel, Enlargeable, FromComponentCommon, FromPixelCommon, Pixel, PixelComponent, Rgba,
+};
 
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
@@ -203,8 +205,6 @@ where
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(P::Component::COMPONENT_MAX).unwrap();
-    let min: f32 = NumCast::from(P::Component::COMPONENT_MIN).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -270,11 +270,11 @@ where
 }
 
 /// Linearly sample from an image using coordinates in [0, 1].
-pub fn sample_bilinear<P: Pixel>(
-    img: &impl GenericImageView<Pixel = P>,
-    u: f32,
-    v: f32,
-) -> Option<P> {
+pub fn sample_bilinear<P>(img: &impl GenericImageView<Pixel = P>, u: f32, v: f32) -> Option<P>
+where
+    P: ContiguousPixel,
+    f32: FromComponentCommon<P::Component>,
+{
     if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
         return None;
     }
@@ -338,11 +338,12 @@ pub fn interpolate_nearest<P: Pixel>(
 }
 
 /// Linearly sample from an image using coordinates in [0, w-1] and [0, h-1].
-pub fn interpolate_bilinear<P: Pixel>(
-    img: &impl GenericImageView<Pixel = P>,
-    x: f32,
-    y: f32,
-) -> Option<P> {
+pub fn interpolate_bilinear<P>(img: &impl GenericImageView<Pixel = P>, x: f32, y: f32) -> Option<P>
+where
+    P: Pixel,
+    f32: FromComponentCommon<P::Component>,
+    P::Component: FromComponentCommon<f32>,
+{
     // assumption needed for correctness of pixel creation
     assert!(P::COMPONENT_COUNT <= 4);
 
@@ -374,15 +375,15 @@ pub fn interpolate_bilinear<P: Pixel>(
     // so just store as many items as necessary,
     // because there's not a simple way to be generic over all of them.
     let mut compute = |u: u32, v: u32, i| {
-        let s = img.get_pixel(u, v);
-        for (j, c) in s.channels().iter().enumerate() {
-            sxx[j][i] = c.to_f32().unwrap();
+        let p = img.get_pixel(u, v);
+        for (j, c) in p.component_array().into_iter().enumerate() {
+            sxx[j][i] = f32::from_component_common(c);
         }
-        s
+        p
     };
 
     // hacky reuse since cannot construct a generic Pixel
-    let mut out: P = compute(uf, vf, 0);
+    let out: P = compute(uf, vf, 0);
     compute(uf, vc, 1);
     compute(uc, vf, 2);
     compute(uc, vc, 3);
@@ -403,21 +404,19 @@ pub fn interpolate_bilinear<P: Pixel>(
     debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
     // hack to see if primitive is an integer or a float
-    let is_float = P::Component::COMPONENT_MAX.to_f32().unwrap() == 1.0;
+    let is_float = f32::from_component_common(P::Component::COMPONENT_MAX) == 1.0;
 
-    for (i, c) in out.channels_mut().iter_mut().enumerate() {
+    let out = P::from_components(out.component_array().into_iter().enumerate().map(|(i, _)| {
         let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
         // this rounding may introduce quantization errors,
         // Specifically what is meant is that many samples may deviate
         // from the mean value of the originals, but it's not possible to fix that.
-        *c = <P::Component as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
-            if v < 0.0 {
-                P::Component::COMPONENT_MIN
-            } else {
-                P::Component::COMPONENT_MAX
-            }
-        });
-    }
+        <P::Component as FromComponentCommon<f32>>::from_component_common(if is_float {
+            v
+        } else {
+            v.round()
+        })
+    }));
 
     Some(out)
 }
@@ -431,6 +430,8 @@ pub fn interpolate_bilinear<P: Pixel>(
 fn vertical_sample<I, P>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
+    P: ContiguousPixel,
+    Rgba<f32>: FromPixelCommon<P>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
@@ -467,29 +468,22 @@ where
         ws.iter_mut().for_each(|w| *w /= sum);
 
         for x in 0..width {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut t = Rgba::<f32> {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            };
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
+                let p = Rgba::<f32>::from_pixel_common(p);
 
-                #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
+                t.r += p.r * w;
+                t.g += p.g * w;
+                t.b += p.b * w;
+                t.a += p.a * w;
             }
-
-            #[allow(deprecated)]
-            // This is not necessarily Rgba.
-            let t = P::from_components(t);
 
             out.put_pixel(x, outy, t);
         }
@@ -515,13 +509,15 @@ impl<S: Enlargeable> ThumbnailSum<S> {
         <S::Larger as NumCast>::from(val).unwrap()
     }
 
-    fn add_pixel<P: Pixel<Component = S>>(&mut self, pixel: P) {
-        #[allow(deprecated)]
-        let pixel = pixel.channels4();
-        self.0 += Self::sample_val(pixel.0);
-        self.1 += Self::sample_val(pixel.1);
-        self.2 += Self::sample_val(pixel.2);
-        self.3 += Self::sample_val(pixel.3);
+    fn add_pixel<P>(&mut self, pixel: P)
+    where
+        P: Pixel<Component = S>,
+    {
+        let pixel = pixel.component_array();
+        self.0 += Self::sample_val(pixel[0]);
+        self.1 += Self::sample_val(pixel[1]);
+        self.2 += Self::sample_val(pixel[2]);
+        self.3 += Self::sample_val(pixel[3]);
     }
 }
 
@@ -540,8 +536,10 @@ impl<S: Enlargeable> ThumbnailSum<S> {
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + 'static,
     S: PixelComponent + Enlargeable + 'static,
+    S: FromComponentCommon<f32>,
+    f32: FromComponentCommon<S::Larger>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
@@ -610,8 +608,7 @@ where
                 )
             };
 
-            #[allow(deprecated)]
-            let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
+            let pixel = P::from_components([avg.0, avg.1, avg.2, avg.3]);
             out.put_pixel(outx, outy, pixel);
         }
     }
@@ -663,6 +660,8 @@ where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
+    S: FromComponentCommon<f32>,
+    f32: FromComponentCommon<S::Larger>,
 {
     let fract = fraction_horizontal;
 
@@ -681,10 +680,10 @@ where
     let fact_left = (1. - fract) / ((top - bottom) as f32);
 
     let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| {
-        <S as NumCast>::from(
-            fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap(),
+        S::from_component_common(
+            fact_left * f32::from_component_common(leftv)
+                + fact_right * f32::from_component_common(rightv),
         )
-        .expect("Average sample value should fit into sample type")
     };
 
     (
@@ -707,6 +706,8 @@ where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
+    S: FromComponentCommon<f32>,
+    f32: FromComponentCommon<S::Larger>,
 {
     let fract = fraction_vertical;
 
@@ -725,8 +726,10 @@ where
     let fact_bot = (1. - fract) / ((right - left) as f32);
 
     let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| {
-        <S as NumCast>::from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
-            .expect("Average sample value should fit into sample type")
+        S::from_component_common(
+            fact_bot * f32::from_component_common(botv)
+                + fact_top * f32::from_component_common(topv),
+        )
     };
 
     (
@@ -744,20 +747,18 @@ fn thumbnail_sample_fraction_both<I, P, S>(
     fraction_vertical: f32,
     bottom: u32,
     fraction_horizontal: f32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
+    S: FromComponentCommon<f32>,
+    f32: FromComponentCommon<S>,
 {
-    #[allow(deprecated)]
-    let k_bl = image.get_pixel(left, bottom).channels4();
-    #[allow(deprecated)]
-    let k_tl = image.get_pixel(left, bottom + 1).channels4();
-    #[allow(deprecated)]
-    let k_br = image.get_pixel(left + 1, bottom).channels4();
-    #[allow(deprecated)]
-    let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
+    let k_bl = image.get_pixel(left, bottom);
+    let k_tl = image.get_pixel(left, bottom + 1);
+    let k_br = image.get_pixel(left + 1, bottom);
+    let k_tr = image.get_pixel(left + 1, bottom + 1);
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
@@ -767,21 +768,23 @@ where
     let fact_br = (1. - frac_v) * frac_h;
     let fact_bl = (1. - frac_v) * (1. - frac_h);
 
+    let to_f32 = |x| f32::from_component_common(x);
     let mix = |br: S, tr: S, bl: S, tl: S| {
-        <S as NumCast>::from(
-            fact_br * br.to_f32().unwrap()
-                + fact_tr * tr.to_f32().unwrap()
-                + fact_bl * bl.to_f32().unwrap()
-                + fact_tl * tl.to_f32().unwrap(),
+        S::from_component_common(
+            fact_br * to_f32(br)
+                + fact_tr * to_f32(tr)
+                + fact_bl * to_f32(bl)
+                + fact_tl * to_f32(tl),
         )
-        .expect("Average sample value should fit into sample type")
     };
 
-    (
-        mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
-        mix(k_br.1, k_tr.1, k_bl.1, k_tl.1),
-        mix(k_br.2, k_tr.2, k_bl.2, k_tl.2),
-        mix(k_br.3, k_tr.3, k_bl.3, k_tl.3),
+    P::from_components(
+        k_br.component_array()
+            .into_iter()
+            .zip(k_tr.component_array())
+            .zip(k_bl.component_array())
+            .zip(k_tl.component_array())
+            .map(|(((k_br, k_tr), k_bl), k_tl)| mix(k_br, k_tr, k_bl, k_tl)),
     )
 }
 
@@ -821,7 +824,7 @@ where
 
     for y in 1..height - 1 {
         for x in 1..width - 1 {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut t = [0.0; usize::from(P::COMPONENT_COUNT)];
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first

@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
 
-use pixeli::{Gray, Pixel, Rgb};
+use pixeli::{FromComponentCommon, FromPixelCommon, Gray, Pixel, PixelComponent, Rgb};
 
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
@@ -773,17 +773,19 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 }
 
 #[inline]
-fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
-    let [r, g, b] = pixel.to_rgb().0;
-    let max: f32 = P::Component::COMPONENT_MAX.to_f32().unwrap();
-    let r: f32 = r.to_f32().unwrap();
-    let g: f32 = g.to_f32().unwrap();
-    let b: f32 = b.to_f32().unwrap();
+fn rgb_to_ycbcr<P>(pixel: P) -> (u8, u8, u8)
+where
+    P: Pixel,
+    Rgb<f32>: FromPixelCommon<P>,
+    f32: FromComponentCommon<P::Component>,
+{
+    let p = Rgb::from_pixel_common(pixel);
+    let max: f32 = f32::from_component_common(<P::Component as PixelComponent>::COMPONENT_MAX);
 
     // Coefficients from JPEG File Interchange Format (Version 1.02), multiplied for 255 maximum.
-    let y = 76.245 / max * r + 149.685 / max * g + 29.07 / max * b;
-    let cb = -43.0185 / max * r - 84.4815 / max * g + 127.5 / max * b + 128.;
-    let cr = 127.5 / max * r - 106.7685 / max * g - 20.7315 / max * b + 128.;
+    let y = 76.245 / max * p.r + 149.685 / max * p.g + 29.07 / max * p.b;
+    let cb = -43.0185 / max * p.r - 84.4815 / max * p.g + 127.5 / max * p.b + 128.;
+    let cr = 127.5 / max * p.r - 106.7685 / max * p.g - 20.7315 / max * p.b + 128.;
 
     (y as u8, cb as u8, cr as u8)
 }
@@ -806,7 +808,10 @@ fn copy_blocks_ycbcr<I: GenericImageView>(
     yb: &mut [u8; 64],
     cbb: &mut [u8; 64],
     crb: &mut [u8; 64],
-) {
+) where
+    f32: FromComponentCommon<<<I as GenericImageView>::Pixel as Pixel>::Component>,
+    Rgb<f32>: FromPixelCommon<I::Pixel>,
+{
     for y in 0..8 {
         for x in 0..8 {
             let pixel = pixel_at_or_near(source, x + x0, y + y0);

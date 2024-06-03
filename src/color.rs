@@ -455,26 +455,26 @@ mod tests {
 
     #[test]
     fn test_blend_luma_alpha() {
-        let a = &mut GrayAlpha([255_u8, 255]);
-        let b = GrayAlpha([255_u8, 255]);
+        let a = &mut GrayAlpha{gray: 255_u8, a: 255};
+        let b = GrayAlpha{gray: 255_u8, a: 255};
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha([255_u8, 0]);
-        let b = GrayAlpha([255_u8, 255]);
+        let a = &mut GrayAlpha{gray: 255_u8, a: 0};
+        let b = GrayAlpha{gray: 255_u8, a: 255};
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha([255_u8, 255]);
-        let b = GrayAlpha([255_u8, 0]);
+        let a = &mut GrayAlpha{gray: 255_u8, a: 255};
+        let b = GrayAlpha{gray: 255_u8, a: 0};
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 255);
 
-        let a = &mut GrayAlpha([255_u8, 0]);
-        let b = GrayAlpha([255_u8, 0]);
+        let a = &mut GrayAlpha{gray: 255_u8, a: 0};
+        let b = GrayAlpha{gray: 255_u8, a: 0};
         a.blend(&b);
         assert_eq!(a.0[0], 255);
         assert_eq!(a.0[1], 0);

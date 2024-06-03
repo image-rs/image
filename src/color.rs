@@ -425,7 +425,7 @@ mod tests {
             a: 0,
         };
         rgba.apply_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
+        assert_eq!(rgba, Rgba{r:0, g:0, b:0, a:0xFF});
     }
 
     #[test]
@@ -444,7 +444,7 @@ mod tests {
             a: 0,
         }
         .map_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(rgba, Rgba([0, 0, 0, 0xFF]));
+        assert_eq!(rgba, Rgba{r:0, g:0, b:0, a:0xFF});
     }
 
     #[test]

@@ -342,7 +342,7 @@ mod test {
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, ImageBuffer};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -458,8 +458,11 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: Rgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
-            Rgba([next_random(), next_random(), next_random(), next_random()])
+        let generated_image: Rgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| Rgba {
+            r: next_random(),
+            g: next_random(),
+            b: next_random(),
+            a: next_random(),
         });
 
         let mut bytes = vec![];
@@ -499,8 +502,10 @@ mod test {
 
         assert_eq!(rgba.dimensions(), rgb.dimensions());
 
-        for (Rgb(rgb), Rgba(rgba)) in rgb.pixels().zip(rgba.pixels()) {
-            assert_eq!(rgb, &rgba[..3]);
+        for (Rgb { r1, g1, b1 }, Rgba { r2, g2, b2, .. }) in rgb.pixels().zip(rgba.pixels()) {
+            assert_eq!(r1, r2);
+            assert_eq!(g1, g2);
+            assert_eq!(b1, b2);
         }
     }
 

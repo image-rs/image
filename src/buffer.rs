@@ -1228,7 +1228,8 @@ where
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let indices = self.pixel_indices_unchecked(x, y);
         let pixel_data = self.data.get_unchecked_mut(indices);
-        *pixel_data = pixel.component_array();
+        let pixel_mut = P::from_component_slice_mut(pixel_data);
+        *pixel_mut = pixel;
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
@@ -1399,7 +1400,7 @@ impl GrayImage {
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Component, which
 // will then be FromType::Component.
-impl<Container, FromType: Pixel, ToType: Pixel>
+impl<Container, FromType: ContiguousPixel, ToType: ContiguousPixel>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Component>>> for ImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Component]>,
@@ -1422,7 +1423,7 @@ where
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Component>> =
             ImageBuffer::new(self.width, self.height);
         for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
-            to.from_color(from)
+            *to = ToType::from_pixel_common(*from)
         }
         buffer
     }
@@ -1514,7 +1515,7 @@ mod test {
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use num_traits::Zero;
-    use pixeli::Gray;
+    use pixeli::{Gray, Pixel};
 
     #[test]
     /// Tests if image buffers from slices work

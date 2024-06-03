@@ -46,7 +46,7 @@ use std::ops::{Deref, Index, IndexMut};
 use std::{cmp, error, fmt};
 
 use num_traits::Zero;
-use pixeli::Pixel;
+use pixeli::{ContiguousPixel, Pixel};
 
 use crate::color::ColorType;
 use crate::error::{
@@ -774,7 +774,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// not release any allocation.
     pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
     where
-        P: Pixel + 'static,
+        P: ContiguousPixel + 'static,
         P::Component: 'static,
         Buffer: Deref<Target = [P::Component]>,
     {
@@ -925,7 +925,7 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 }
 
-impl<'buf, Component> FlatSamples<&'buf [Component]> {
+impl<'buf, Component, const N: usize> FlatSamples<[Component; N]> {
     /// Create a monocolor image from a single pixel.
     ///
     /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
@@ -948,10 +948,10 @@ impl<'buf, Component> FlatSamples<&'buf [Component]> {
     /// ```
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
-        P: Pixel<Component = Component>,
+        P: Pixel<Component = Component, ComponentArray<Component> = [Component; N]>,
     {
         FlatSamples {
-            samples: pixel.channels(),
+            samples: pixel.component_array(),
             layout: SampleLayout {
                 channels: P::COMPONENT_COUNT,
                 channel_stride: 1,
@@ -1379,8 +1379,9 @@ where
     }
 }
 
-impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
+impl<Buffer, P> GenericImageView for View<Buffer, P>
 where
+    P: ContiguousPixel,
     Buffer: AsRef<[P::Component]>,
 {
     type Pixel = P;
@@ -1408,12 +1409,13 @@ where
                 *to = image[index];
             });
 
-        *P::from_slice(&buffer[..channels])
+        P::from_components(&buffer[..channels])
     }
 }
 
-impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
+impl<Buffer, P> GenericImageView for ViewMut<Buffer, P>
 where
+    P: ContiguousPixel,
     Buffer: AsMut<[P::Component]> + AsRef<[P::Component]>,
 {
     type Pixel = P;
@@ -1445,8 +1447,9 @@ where
     }
 }
 
-impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
+impl<Buffer, P> GenericImage for ViewMut<Buffer, P>
 where
+    P: ContiguousPixel,
     Buffer: AsMut<[P::Component]> + AsRef<[P::Component]>,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {

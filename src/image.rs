@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
-use pixeli::{Pixel, PixelComponent};
+use pixeli::{ContiguousPixel, Pixel, PixelComponent};
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -821,7 +821,7 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 /// ```
 pub trait GenericImageView {
     /// The type of pixel.
-    type Pixel: Pixel;
+    type Pixel: ContiguousPixel;
 
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);

@@ -1549,7 +1549,7 @@ mod test {
         assert_eq!(a.get_pixel_mut_checked(0, 10), None);
 
         // From image/issues/1672
-        const WHITE: Rgb<u8> = Rgb([255_u8, 255, 255]);
+        const WHITE: Rgb<u8> = Rgb{r: 255_u8, g: 255, b: 255};
         let mut a = RgbImage::new(2, 1);
         a.put_pixel(1, 0, WHITE);
 

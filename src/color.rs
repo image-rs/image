@@ -482,23 +482,23 @@ mod tests {
 
     #[test]
     fn test_blend_rgba() {
-        let a = &mut Rgba([255_u8, 255, 255, 255]);
-        let b = Rgba([255_u8, 255, 255, 255]);
+        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 255};
+        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 255};
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba([255_u8, 255, 255, 0]);
-        let b = Rgba([255_u8, 255, 255, 255]);
+        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 0};
+        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 255};
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba([255_u8, 255, 255, 255]);
-        let b = Rgba([255_u8, 255, 255, 0]);
+        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 255};
+        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 0};
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 255]);
 
-        let a = &mut Rgba([255_u8, 255, 255, 0]);
-        let b = Rgba([255_u8, 255, 255, 0]);
+        let a = &mut Rgba{r: 255_u8, g: 255, b: 255, a: 0};
+        let b = Rgba{r: 255_u8, g: 255, b: 255, a: 0};
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
     }

@@ -22,12 +22,12 @@ categories = ["multimedia::images", "multimedia::encoding", "encoding"]
 exclude = ["src/png/testdata/*", "examples/*", "tests/*"]
 
 include = [
-    "/LICENSE-APACHE",
-    "/LICENSE-MIT",
-    "/README.md",
-    "/CHANGES.md",
-    "/src/",
-    "/benches/",
+	"/LICENSE-APACHE",
+	"/LICENSE-MIT",
+	"/README.md",
+	"/CHANGES.md",
+	"/src/",
+	"/benches/",
 ]
 
 [package.metadata.docs.rs]
@@ -35,10 +35,12 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
+bytemuck = { version = "1.8.0", features = [
+	"extern_crate_alloc",
+] } # includes cast_vec
 byteorder-lite = "0.1.0"
 num-traits = { version = "0.2.0" }
-pixeli = {path = "../pixeli"}
+pixeli = "0.2.0"
 
 # Optional dependencies
 color_quant = { version = "1.1", optional = true }
@@ -68,7 +70,23 @@ criterion = "0.5.0"
 default = ["rayon", "default-formats"]
 
 # Format features
-default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
+default-formats = [
+	"avif",
+	"bmp",
+	"dds",
+	"exr",
+	"ff",
+	"gif",
+	"hdr",
+	"ico",
+	"jpeg",
+	"png",
+	"pnm",
+	"qoi",
+	"tga",
+	"tiff",
+	"webp",
+]
 avif = ["dep:ravif", "dep:rgb"]
 bmp = []
 dds = []
@@ -87,10 +105,17 @@ webp = ["dep:image-webp"]
 
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading
-nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
+nasm = [
+	"ravif?/asm",
+] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization
-avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d
-benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
+avif-native = [
+	"dep:mp4parse",
+	"dep:dcv-color-primitives",
+	"dep:dav1d",
+] # Enable native dependency libdav1d
+benchmarks = [
+] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 
 [[bench]]
 path = "benches/decode.rs"

@@ -1415,6 +1415,18 @@ mod test {
     }
 
     #[test]
+    fn test_grayscale_gray32f() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_gray32f(1, 1));
+        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Gray32F));
+    }
+
+    #[test]
+    fn test_grayscale_grayalpha32f() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_grayalpha32f(1, 1));
+        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::GrayAlpha32F));
+    }
+
+    #[test]
     fn test_dynamic_image_default_implementation() {
         // Test that structs wrapping a DynamicImage are able to auto-derive the Default trait
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).

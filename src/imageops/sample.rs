@@ -1163,7 +1163,8 @@ mod tests {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_sample_bilinear(b: &mut test::Bencher) {
-        use crate::Rgba;
+        use pixeli::Rgba;
+
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
             (0, 0) => Rgba {
                 r: 255,

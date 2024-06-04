@@ -460,7 +460,8 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use crate::{Rgb, RgbImage};
+    use crate::RgbImage;
+    use pixeli::{Pixel, Rgb};
 
     const S: u32 = 1024;
 
@@ -491,7 +492,7 @@ mod benchmarks {
     fn pixel_func() -> Rgb<u8> {
         use std::collections::hash_map::RandomState;
         use std::hash::{BuildHasher, Hasher};
-        Rgb(std::array::from_fn(|_| {
+        Rgb::from_components(std::array::from_fn::<_, 3, _>(|_| {
             RandomState::new().build_hasher().finish() as u8
         }))
     }

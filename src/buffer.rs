@@ -1795,16 +1795,15 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use super::{ConvertBuffer, GrayImage, ImageBuffer, RgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
+            p.r = 255;
+            p.g = 23;
+            p.b = 42;
         }
         assert!(a.data[0] != 0);
         b.iter(|| {
@@ -1820,10 +1819,9 @@ mod benchmarks {
     fn image_access_row_by_row(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
+            p.r = 255;
+            p.g = 23;
+            p.b = 42;
         }
 
         b.iter(move || {
@@ -1832,9 +1830,9 @@ mod benchmarks {
             for y in 0..1000 {
                 for x in 0..1000 {
                     let pixel = image.get_pixel(x, y);
-                    sum = sum.wrapping_add(pixel[0] as usize);
-                    sum = sum.wrapping_add(pixel[1] as usize);
-                    sum = sum.wrapping_add(pixel[2] as usize);
+                    sum = sum.wrapping_add(pixel.r as usize);
+                    sum = sum.wrapping_add(pixel.g as usize);
+                    sum = sum.wrapping_add(pixel.b as usize);
                 }
             }
             test::black_box(sum)
@@ -1847,10 +1845,9 @@ mod benchmarks {
     fn image_access_col_by_col(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
+            p.r = 255;
+            p.g = 23;
+            p.b = 42;
         }
 
         b.iter(move || {
@@ -1859,9 +1856,9 @@ mod benchmarks {
             for x in 0..1000 {
                 for y in 0..1000 {
                     let pixel = image.get_pixel(x, y);
-                    sum = sum.wrapping_add(pixel[0] as usize);
-                    sum = sum.wrapping_add(pixel[1] as usize);
-                    sum = sum.wrapping_add(pixel[2] as usize);
+                    sum = sum.wrapping_add(pixel.r as usize);
+                    sum = sum.wrapping_add(pixel.g as usize);
+                    sum = sum.wrapping_add(pixel.b as usize);
                 }
             }
             test::black_box(sum)

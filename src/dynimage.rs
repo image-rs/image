@@ -9,8 +9,8 @@ use crate::codecs::gif;
 use crate::codecs::png;
 
 use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+    ConvertBuffer, Gray16Image, Gray32FImage, GrayAlpha16Image, GrayAlpha32FImage, GrayAlphaImage,
+    GrayImage, ImageBuffer, Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
@@ -78,6 +78,12 @@ pub enum DynamicImage {
 
     /// Each pixel in this image is 32-bit float Rgb with alpha
     ImageRgba32F(Rgba32FImage),
+
+    /// Each pixel in this image is 32-bit float Gray
+    ImageGray32F(Gray32FImage),
+
+    /// Each pixel in this image is 32-bit float Gray with alpha
+    ImageGrayAlpha32F(GrayAlpha32FImage),
 }
 
 macro_rules! dynamic_map(
@@ -94,6 +100,8 @@ macro_rules! dynamic_map(
                 ImageRgba16($image) => ImageRgba16($action),
                 ImageRgb32F($image) => ImageRgb32F($action),
                 ImageRgba32F($image) => ImageRgba32F($action),
+                ImageGray32F($image) => ImageGray32F($action),
+                ImageGrayAlpha32F($image) => ImageGrayAlpha32F($action),
             }
         });
 
@@ -109,6 +117,8 @@ macro_rules! dynamic_map(
                 DynamicImage::ImageRgba16($image) => $action,
                 DynamicImage::ImageRgb32F($image) => $action,
                 DynamicImage::ImageRgba32F($image) => $action,
+                DynamicImage::ImageGray32F($image) => $action,
+                DynamicImage::ImageGrayAlpha32F($image) => $action,
             }
         );
 );
@@ -151,6 +161,8 @@ impl DynamicImage {
             Rgba16 => Self::new_rgba16(w, h),
             Rgb32F => Self::new_rgb32f(w, h),
             Rgba32F => Self::new_rgba32f(w, h),
+            Gray32F => Self::new_gray32f(w, h),
+            GrayAlpha32F => Self::new_grayalpha32f(w, h),
         }
     }
 
@@ -204,6 +216,16 @@ impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
     pub fn new_rgba32f(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba32F(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of RGB pixels.
+    pub fn new_gray32f(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageGray32F(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of RGBA pixels.
+    pub fn new_grayalpha32f(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageGrayAlpha32F(ImageBuffer::new(w, h))
     }
 
     /// Decodes an encoded image into a dynamic image.
@@ -638,6 +660,8 @@ impl DynamicImage {
             DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
             DynamicImage::ImageRgb32F(_) => color::ColorType::Rgb32F,
             DynamicImage::ImageRgba32F(_) => color::ColorType::Rgba32F,
+            DynamicImage::ImageGray32F(_) => color::ColorType::Rgb32F,
+            DynamicImage::ImageGrayAlpha32F(_) => color::ColorType::Rgba32F,
         }
     }
 
@@ -652,8 +676,6 @@ impl DynamicImage {
     }
 
     /// Return a grayscale version of this image.
-    /// Returns `Gray` images in most cases. However, for `f32` images,
-    /// this will return a grayscale `Rgb/Rgba` image instead.
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageGray8(ref p) => DynamicImage::ImageGray8(p.clone()),
@@ -677,11 +699,13 @@ impl DynamicImage {
                 DynamicImage::ImageGrayAlpha16(imageops::convert_generic_image(p))
             }
             DynamicImage::ImageRgb32F(ref p) => {
-                DynamicImage::ImageRgb32F(imageops::convert_generic_image(p))
+                DynamicImage::ImageGray32F(imageops::convert_generic_image(p))
             }
             DynamicImage::ImageRgba32F(ref p) => {
-                DynamicImage::ImageRgba32F(imageops::convert_generic_image(p))
+                DynamicImage::ImageGrayAlpha32F(imageops::convert_generic_image(p))
             }
+            DynamicImage::ImageGray32F(ref p) => DynamicImage::ImageGray32F(p.clone()),
+            DynamicImage::ImageGrayAlpha32F(ref p) => DynamicImage::ImageGrayAlpha32F(p.clone()),
         }
     }
 
@@ -1011,6 +1035,12 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgba32F(ref mut p) => {
                 p.put_pixel(x, y, Rgba::from_pixel_common(pixel))
             }
+            DynamicImage::ImageGray32F(ref mut p) => {
+                p.put_pixel(x, y, Gray::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageGrayAlpha32F(ref mut p) => {
+                p.put_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
+            }
         }
     }
 
@@ -1043,6 +1073,12 @@ impl GenericImage for DynamicImage {
             }
             DynamicImage::ImageRgba32F(ref mut p) => {
                 p.blend_pixel(x, y, Rgba::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageGray32F(ref mut p) => {
+                p.blend_pixel(x, y, Gray::from_pixel_common(pixel))
+            }
+            DynamicImage::ImageGrayAlpha32F(ref mut p) => {
+                p.blend_pixel(x, y, GrayAlpha::from_pixel_common(pixel))
             }
         }
     }
@@ -1103,6 +1139,16 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
         color::ColorType::Rgba32F => {
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
+        }
+
+        color::ColorType::Gray32F => {
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageGray32F)
+        }
+
+        color::ColorType::GrayAlpha32F => {
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageGrayAlpha32F)
         }
 
         color::ColorType::L16 => {
@@ -1295,7 +1341,8 @@ mod test {
                 g: 54,
                 b: 54,
                 a: expected_alpha
-            }
+            },
+            "alpha_discarded={alpha_discarded}"
         );
     }
 

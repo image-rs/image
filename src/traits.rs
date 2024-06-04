@@ -110,11 +110,18 @@ impl PixelWithColorType for Gray<u8> {
 impl PixelWithColorType for Gray<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
 }
+impl PixelWithColorType for Gray<f32> {
+    const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Gray32F;
+}
+
 impl PixelWithColorType for GrayAlpha<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
 }
 impl PixelWithColorType for GrayAlpha<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
+}
+impl PixelWithColorType for GrayAlpha<f32> {
+    const COLOR_TYPE: ExtendedColorType = ExtendedColorType::GrayAlpha32F;
 }
 
 /// Private module for supertraits of sealed traits.
@@ -132,10 +139,12 @@ mod sealed {
     impl Sealed for Rgba<f32> {}
 
     impl Sealed for Gray<u8> {}
-    impl Sealed for GrayAlpha<u8> {}
-
     impl Sealed for Gray<u16> {}
+    impl Sealed for Gray<f32> {}
+
+    impl Sealed for GrayAlpha<u8> {}
     impl Sealed for GrayAlpha<u16> {}
+    impl Sealed for GrayAlpha<f32> {}
 
     impl Sealed for [u8] {}
     impl Sealed for [u16] {}

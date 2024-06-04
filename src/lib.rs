@@ -144,6 +144,8 @@ pub use crate::image::{
 };
 
 pub use crate::buffer_::{
+    Gray32FImage,
+    GrayAlpha32FImage,
     GrayAlphaImage,
     GrayImage,
     // Image types

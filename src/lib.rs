@@ -128,6 +128,8 @@ extern crate quickcheck;
 
 pub use crate::color::{Blend, ColorType, ExtendedColorType, Invert};
 
+pub use pixeli;
+
 pub use crate::error::{ImageError, ImageResult};
 
 pub use crate::image::{

@@ -243,7 +243,7 @@ impl From<ColorType> for ExtendedColorType {
 }
 
 /// Blends a color inter another one
-pub(crate) trait Blend {
+pub trait Blend {
     /// Blends a color in-place.
     fn blend(&mut self, other: &Self);
 }
@@ -358,7 +358,7 @@ impl<T: PixelComponent> Blend for Rgb<T> {
 }
 
 /// Invert a color
-pub(crate) trait Invert {
+pub trait Invert {
     /// Inverts a color in-place.
     fn invert(&mut self);
 }
@@ -409,61 +409,10 @@ impl<T: PixelComponent> Invert for Rgb<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::color::Blend;
+
     use super::{Gray, GrayAlpha, Rgb, Rgba};
     use pixeli::Pixel;
-
-    #[test]
-    fn test_apply_with_alpha_rgba() {
-        let mut rgba = Rgba {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-        };
-        rgba.apply_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(
-            rgba,
-            Rgba {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0xFF
-            }
-        );
-    }
-
-    #[test]
-    fn test_apply_with_alpha_rgb() {
-        let mut rgb = Rgb { r: 0, g: 0, b: 0 };
-        rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb { r: 0, g: 0, b: 0 });
-    }
-
-    #[test]
-    fn test_map_with_alpha_rgba() {
-        let rgba = Rgba {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-        }
-        .map_with_alpha(|s| s, |_| 0xFF);
-        assert_eq!(
-            rgba,
-            Rgba {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0xFF
-            }
-        );
-    }
-
-    #[test]
-    fn test_map_with_alpha_rgb() {
-        let rgb = Rgb { r: 0, g: 0, b: 0 }.map_with_alpha(|s| s, |_| panic!("bug"));
-        assert_eq!(rgb, Rgb { r: 0, g: 0, b: 0 });
-    }
 
     #[test]
     fn test_blend_luma_alpha() {
@@ -476,8 +425,8 @@ mod tests {
             a: 255,
         };
         a.blend(&b);
-        assert_eq!(a.0[0], 255);
-        assert_eq!(a.0[1], 255);
+        assert_eq!(a.gray, 255);
+        assert_eq!(a.a, 255);
 
         let a = &mut GrayAlpha { gray: 255_u8, a: 0 };
         let b = GrayAlpha {
@@ -485,8 +434,8 @@ mod tests {
             a: 255,
         };
         a.blend(&b);
-        assert_eq!(a.0[0], 255);
-        assert_eq!(a.0[1], 255);
+        assert_eq!(a.gray, 255);
+        assert_eq!(a.a, 255);
 
         let a = &mut GrayAlpha {
             gray: 255_u8,
@@ -494,14 +443,14 @@ mod tests {
         };
         let b = GrayAlpha { gray: 255_u8, a: 0 };
         a.blend(&b);
-        assert_eq!(a.0[0], 255);
-        assert_eq!(a.0[1], 255);
+        assert_eq!(a.gray, 255);
+        assert_eq!(a.a, 255);
 
         let a = &mut GrayAlpha { gray: 255_u8, a: 0 };
         let b = GrayAlpha { gray: 255_u8, a: 0 };
         a.blend(&b);
-        assert_eq!(a.0[0], 255);
-        assert_eq!(a.0[1], 0);
+        assert_eq!(a.gray, 255);
+        assert_eq!(a.a, 0);
     }
 
     #[test]

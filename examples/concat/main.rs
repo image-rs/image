@@ -1,4 +1,5 @@
-use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, PixelComponent};
+use image::{GenericImage, GenericImageView, ImageBuffer};
+use pixeli::Pixel;
 
 /// Example showcasing a generic implementation of image concatenation.
 ///

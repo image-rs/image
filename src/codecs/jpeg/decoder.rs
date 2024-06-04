@@ -105,14 +105,13 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 impl ColorType {
     fn from_jpeg(colorspace: ZuneColorSpace) -> ColorType {
         let colorspace = to_supported_color_space(colorspace);
-        use zune_core::colorspace::ColorSpace::*;
         match colorspace {
             // As of zune-jpeg 0.3.13 the output is always 8-bit,
             // but support for 16-bit JPEG might be added in the future.
-            RGB => ColorType::Rgb8,
-            RGBA => ColorType::Rgba8,
-            Gray => ColorType::L8,
-            GrayAlpha => ColorType::La8,
+            ZuneColorSpace::RGB => ColorType::Rgb8,
+            ZuneColorSpace::RGBA => ColorType::Rgba8,
+            ZuneColorSpace::Luma => ColorType::L8,
+            ZuneColorSpace::LumaA => ColorType::La8,
             // to_supported_color_space() doesn't return any of the other variants
             _ => unreachable!(),
         }
@@ -123,8 +122,8 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     match orig {
         ZuneColorSpace::RGB
         | ZuneColorSpace::RGBA
-        | ZuneColorSpace::Gray
-        | ZuneColorSpace::GrayAlpha => orig,
+        | ZuneColorSpace::Luma
+        | ZuneColorSpace::LumaA => orig,
         // the rest is not supported by `image` so it will be converted to RGB during decoding
         _ => ZuneColorSpace::RGB,
     }

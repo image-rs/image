@@ -264,12 +264,13 @@ pub fn flip_vertical_in_place<I: GenericImage>(image: &mut I) {
 
 #[cfg(test)]
 mod test {
+    use pixeli::Pixel;
+
     use super::{
         flip_horizontal, flip_horizontal_in_place, flip_vertical, flip_vertical_in_place,
         rotate180, rotate180_in_place, rotate270, rotate90,
     };
     use crate::image::GenericImage;
-    use crate::traits::Pixel;
     use crate::{GrayImage, ImageBuffer};
 
     macro_rules! assert_pixels_eq {

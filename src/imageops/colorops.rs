@@ -57,6 +57,7 @@ where
     convert_generic_image::<NewPixel, I>(image)
 }
 
+/// Convert the supplied image to an image with a different pixel type.
 pub fn convert_generic_image<NewPixel, I>(
     image: &I,
 ) -> ImageBuffer<NewPixel, Vec<NewPixel::Component>>

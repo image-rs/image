@@ -334,6 +334,8 @@ fn to_image_err(exr_error: Error) -> ImageError {
 
 #[cfg(test)]
 mod test {
+    use pixeli::{Rgb, Rgba};
+
     use super::*;
 
     use std::fs::File;
@@ -479,8 +481,10 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: Rgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
-            Rgb([next_random(), next_random(), next_random()])
+        let generated_image: Rgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| Rgb {
+            r: next_random(),
+            g: next_random(),
+            b: next_random(),
         });
 
         let mut bytes = vec![];
@@ -502,7 +506,20 @@ mod test {
 
         assert_eq!(rgba.dimensions(), rgb.dimensions());
 
-        for (Rgb { r1, g1, b1 }, Rgba { r2, g2, b2, .. }) in rgb.pixels().zip(rgba.pixels()) {
+        for (
+            Rgb {
+                r: r1,
+                g: g1,
+                b: b1,
+            },
+            Rgba {
+                r: r2,
+                g: g2,
+                b: b2,
+                ..
+            },
+        ) in rgb.pixels().zip(rgba.pixels())
+        {
             assert_eq!(r1, r2);
             assert_eq!(g1, g2);
             assert_eq!(b1, b2);

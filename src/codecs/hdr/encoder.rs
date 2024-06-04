@@ -1,4 +1,4 @@
-use pixeli::Rgb;
+use pixeli::{Pixel, Rgb};
 
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
@@ -278,8 +278,7 @@ fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
 
 /// Converts ```Rgb<f32>``` into ```Rgbe8Pixel```
 pub(crate) fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
-    let pix = pix.0;
-    let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
+    let mx = f32::max(pix.r, f32::max(pix.g, pix.b));
     if mx <= 0.0 {
         Rgbe8Pixel { c: [0, 0, 0], e: 0 }
     } else {
@@ -287,7 +286,7 @@ pub(crate) fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
         let exp = mx.log2().floor() as i32 + 1;
         let mul = f32::powi(2.0, exp);
         let mut conv = [0u8; 3];
-        for (cv, &sv) in conv.iter_mut().zip(pix.iter()) {
+        for (cv, sv) in conv.iter_mut().zip(pix.component_array()) {
             *cv = f32::trunc(sv / mul * 256.0) as u8;
         }
         Rgbe8Pixel {
@@ -326,14 +325,16 @@ fn to_rgbe8_test() {
     }
     fn relative_dist(a: Rgb<f32>, b: Rgb<f32>) -> f32 {
         // maximal difference divided by maximal value
-        let max_diff =
-            a.0.iter()
-                .zip(b.0.iter())
-                .fold(0.0, |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
-        let max_val =
-            a.0.iter()
-                .chain(b.0.iter())
-                .fold(0.0, |maxv, &a| f32::max(maxv, a));
+        let max_diff = a
+            .component_array()
+            .into_iter()
+            .zip(b.component_array())
+            .fold(0.0, |diff, (a, b)| f32::max(diff, (a - b).abs()));
+        let max_val = a
+            .component_array()
+            .into_iter()
+            .chain(b.component_array())
+            .fold(0.0, |maxv, a| f32::max(maxv, a));
         if max_val == 0.0 {
             0.0
         } else {
@@ -347,7 +348,7 @@ fn to_rgbe8_test() {
     for &r in &test_values {
         for &g in &test_values {
             for &b in &test_values {
-                let c1 = Rgb{r: r, g: g, b: b};
+                let c1 = Rgb { r, g, b };
                 let c2 = to_rgbe8(c1).to_hdr();
                 let rel_dist = relative_dist(c1, c2);
                 // Maximal value is normalized to the range 128..256, thus we have 1/128 precision

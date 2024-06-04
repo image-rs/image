@@ -1,10 +1,21 @@
-use image::{Pixel, Rgba, RgbaImage};
+use image::RgbaImage;
+use pixeli::Rgba;
 
 fn main() {
     let mut img = RgbaImage::new(100, 100);
 
-    let start = Rgba::from_slice(&[0, 128, 0, 0]);
-    let end = Rgba::from_slice(&[255, 255, 255, 255]);
+    let start = Rgba {
+        r: 0,
+        g: 128,
+        b: 0,
+        a: 0,
+    };
+    let end = Rgba {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
 
     image::imageops::vertical_gradient(&mut img, start, end);
     img.save("vertical_gradient.png").unwrap();

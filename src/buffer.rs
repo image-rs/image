@@ -7,6 +7,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
+use crate::color::Blend;
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
@@ -1212,7 +1213,7 @@ where
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where
-    P: ContiguousPixel,
+    P: ContiguousPixel + Blend,
     Container: Deref<Target = [P::Component]> + DerefMut,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
@@ -1515,6 +1516,9 @@ mod test {
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use num_traits::Zero;
+    use pixeli::GrayAlpha;
+    use pixeli::Rgb;
+    use pixeli::Rgba;
     use pixeli::{Gray, Pixel};
 
     #[test]

@@ -1,7 +1,7 @@
 use pixeli::{ContiguousPixel, Pixel};
 use rayon::iter::plumbing::*;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice};
+use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 

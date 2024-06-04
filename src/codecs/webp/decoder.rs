@@ -29,7 +29,7 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
     /// Sets the background color if the image is an extended and animated webp.
     pub fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
         self.inner
-            .set_background_color(color.0)
+            .set_background_color(color.into())
             .map_err(ImageError::from_webp_decode)
     }
 }

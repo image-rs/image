@@ -10,6 +10,7 @@ use pixeli::{
     ContiguousPixel, Enlargeable, FromComponentCommon, FromPixelCommon, Pixel, PixelComponent, Rgba,
 };
 
+use crate::color::Blend;
 use crate::image::{GenericImage, GenericImageView};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
@@ -870,7 +871,7 @@ where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Component: 'static,
     Rgba<f32>: FromPixelCommon<I::Pixel>,
-    I::Pixel: FromPixelCommon<Rgba<f32>>,
+    I::Pixel: FromPixelCommon<Rgba<f32>> + Blend,
 {
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {

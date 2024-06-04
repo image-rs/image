@@ -485,6 +485,9 @@ impl<W: Write> JpegEncoder<W> {
     pub fn encode_image<I: GenericImageView>(&mut self, image: &I) -> ImageResult<()>
     where
         I::Pixel: PixelWithColorType,
+        Gray<u8>: FromPixelCommon<I::Pixel>,
+        Rgb<f32>: FromPixelCommon<I::Pixel>,
+        f32: FromComponentCommon<<I::Pixel as Pixel>::Component>,
     {
         let n = I::Pixel::COMPONENT_COUNT;
         let color_type = I::Pixel::COLOR_TYPE;
@@ -576,7 +579,10 @@ impl<W: Write> JpegEncoder<W> {
         Ok(())
     }
 
-    fn encode_gray<I: GenericImageView>(&mut self, image: &I) -> io::Result<()> {
+    fn encode_gray<I: GenericImageView>(&mut self, image: &I) -> io::Result<()>
+    where
+        Gray<u8>: FromPixelCommon<I::Pixel>,
+    {
         let mut yblock = [0u8; 64];
         let mut y_dcprev = 0;
         let mut dct_yblock = [0i32; 64];
@@ -604,7 +610,11 @@ impl<W: Write> JpegEncoder<W> {
         Ok(())
     }
 
-    fn encode_rgb<I: GenericImageView>(&mut self, image: &I) -> io::Result<()> {
+    fn encode_rgb<I: GenericImageView>(&mut self, image: &I) -> io::Result<()>
+    where
+        f32: FromComponentCommon<<I::Pixel as Pixel>::Component>,
+        Rgb<f32>: FromPixelCommon<I::Pixel>,
+    {
         let mut y_dcprev = 0;
         let mut cb_dcprev = 0;
         let mut cr_dcprev = 0;
@@ -809,7 +819,7 @@ fn copy_blocks_ycbcr<I: GenericImageView>(
     cbb: &mut [u8; 64],
     crb: &mut [u8; 64],
 ) where
-    f32: FromComponentCommon<<<I as GenericImageView>::Pixel as Pixel>::Component>,
+    f32: FromComponentCommon<<I::Pixel as Pixel>::Component>,
     Rgb<f32>: FromPixelCommon<I::Pixel>,
 {
     for y in 0..8 {
@@ -824,12 +834,14 @@ fn copy_blocks_ycbcr<I: GenericImageView>(
     }
 }
 
-fn copy_blocks_gray<I: GenericImageView>(source: &I, x0: u32, y0: u32, gb: &mut [u8; 64]) {
+fn copy_blocks_gray<I: GenericImageView>(source: &I, x0: u32, y0: u32, gb: &mut [u8; 64])
+where
+    Gray<u8>: FromPixelCommon<I::Pixel>,
+{
     for y in 0..8 {
         for x in 0..8 {
             let pixel = pixel_at_or_near(source, x0 + x, y0 + y);
-            let [luma] = pixel.to_luma().0;
-            gb[(y * 8 + x) as usize] = luma.to_u8().unwrap();
+            gb[(y * 8 + x) as usize] = Gray::<u8>::from_pixel_common(pixel).gray;
         }
     }
 }

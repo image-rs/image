@@ -326,7 +326,8 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
 
         for (i, rgb) in img.into_iter().enumerate() {
-            buf[(i * 12)..][..12].copy_from_slice(rgb.component_array());
+            buf[(i * 12)..][..12]
+                .copy_from_slice(bytemuck::cast_slice(rgb.component_array().as_slice()));
         }
 
         Ok(())

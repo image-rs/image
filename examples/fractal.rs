@@ -1,4 +1,6 @@
 //! An example of generating julia fractals.
+
+use pixeli::Rgb;
 extern crate image;
 extern crate num_complex;
 
@@ -16,7 +18,7 @@ fn main() {
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
         let r = (0.3 * x as f32) as u8;
         let b = (0.3 * y as f32) as u8;
-        *pixel = image::Rgb([r, 0, b]);
+        *pixel = Rgb { r, g: 0, b };
     }
 
     // A redundant loop to demonstrate reading image data
@@ -35,8 +37,11 @@ fn main() {
             }
 
             let pixel = imgbuf.get_pixel_mut(x, y);
-            let data = (*pixel as image::Rgb<u8>).0;
-            *pixel = image::Rgb([data[0], i as u8, data[2]]);
+            *pixel = Rgb {
+                r: pixel.r,
+                g: i as u8,
+                b: pixel.b,
+            };
         }
     }
 

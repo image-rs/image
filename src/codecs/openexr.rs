@@ -439,7 +439,11 @@ mod test {
             assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
             for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
-                for (expected, found) in expected.component_array().into_iter().zip(found.component_array()) {
+                for (expected, found) in expected
+                    .component_array()
+                    .into_iter()
+                    .zip(found.component_array())
+                {
                     // the large tolerance seems to be caused by
                     // the RGBE u8x4 pixel quantization of the hdr image format
                     assert!(

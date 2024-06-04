@@ -6,7 +6,7 @@
 use std::io::Cursor;
 
 use image::ImageBuffer;
-use pixeli::Rgba;
+use image::pixeli::Rgba;
 #[macro_use]
 extern crate libfuzzer_sys;
 extern crate image;

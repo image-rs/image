@@ -1057,7 +1057,7 @@ mod tests {
     fn test_sample_bilinear_correctness() {
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
             (0, 0) => Rgba {
-                r: 255,
+                r: 255_u8,
                 g: 0,
                 b: 0,
                 a: 0,

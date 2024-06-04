@@ -361,7 +361,8 @@ pub trait ColorMap {
 /// # Examples
 /// ```
 /// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
-/// use image::{ImageBuffer, Gray};
+/// use image::ImageBuffer;
+/// use pixeli::Gray;
 ///
 /// let (w, h) = (16, 16);
 /// // Create an image with a smooth horizontal gradient from black (0) to white (255).
@@ -372,7 +373,7 @@ pub trait ColorMap {
 /// let palletized = index_colors(&gray, &cmap);
 /// let mapped = ImageBuffer::from_fn(w, h, |x, y| {
 ///     let p = palletized.get_pixel(x, y);
-///     cmap.lookup(p.0[0] as usize)
+///     cmap.lookup(p.gray as usize)
 ///         .expect("indexed color out-of-range")
 /// });
 /// // Create an black and white image of expected output.

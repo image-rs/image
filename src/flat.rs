@@ -9,7 +9,7 @@
 //! ```no_run
 //! use std::ptr;
 //! use std::slice;
-//! use image::Rgb;
+//! use pixeli::Rgb;
 //! use image::flat::{FlatSamples, SampleLayout};
 //! use image::imageops::thumbnail;
 //!
@@ -935,7 +935,8 @@ impl<'buf, Component, const N: usize> FlatSamples<[Component; N]> {
     ///
     /// ```
     /// # fn paint_something<T>(_: T) {}
-    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
+    /// use image::{flat::FlatSamples, GenericImage, RgbImage};
+    /// use pixeli::Rgb;
     ///
     /// let background = Rgb{r: 20, g: 20, b: 20};
     /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
@@ -1195,7 +1196,7 @@ where
     ///
     /// ```
     /// # use image::RgbImage;
-    /// # use image::Rgb;
+    /// # use pixeli::Rgb;
     /// let mut buffer = RgbImage::new(480, 640).into_flat_samples();
     /// let view = buffer.as_view_with_mut_samples::<Rgb<u8>>().unwrap();
     ///

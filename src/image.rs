@@ -814,7 +814,8 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 /// Trait to inspect an image.
 ///
 /// ```
-/// use image::{GenericImageView, Rgb, RgbImage};
+/// use image::{GenericImageView, RgbImage};
+/// use pixeli::Rgb;
 ///
 /// let buffer = RgbImage::new(10, 10);
 /// let image: &dyn GenericImageView<Pixel=Rgb<u8>> = &buffer;

@@ -248,7 +248,7 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{RgbaImage};
+/// use image::RgbaImage;
 ///
 /// let mut img = RgbaImage::new(1920, 1080);
 /// let tile = image::open("tile.png").unwrap();
@@ -275,13 +275,14 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{Rgba, RgbaImage, Pixel};
+/// use image::RgbaImage;
+/// use pixeli::{Rgba, Pixel};
 ///
 /// let mut img = RgbaImage::new(100, 100);
-/// let start = Rgba::from_slice(&[0, 128, 0, 0]);
-/// let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// let start = Rgba{r:0, g:128, b:0, a:0};
+/// let end = Rgba{r:255, g:255, b:255, a:255};
 ///
-/// image::imageops::vertical_gradient(&mut img, start, end);
+/// image::imageops::vertical_gradient(&mut img, &start, &end);
 /// img.save("vertical_gradient.png").unwrap();
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
@@ -314,13 +315,14 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{Rgba, RgbaImage, Pixel};
+/// use image::RgbaImage;
+/// use pixeli::{Rgba, Pixel};
 ///
 /// let mut img = RgbaImage::new(100, 100);
-/// let start = Rgba::from_slice(&[0, 128, 0, 0]);
-/// let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// let start = Rgba{r:0, g:128, b:0, a:0};
+/// let end = Rgba{r:255, g:255, b:255, a:255};
 ///
-/// image::imageops::horizontal_gradient(&mut img, start, end);
+/// image::imageops::horizontal_gradient(&mut img, &start, &end);
 /// img.save("horizontal_gradient.png").unwrap();
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where

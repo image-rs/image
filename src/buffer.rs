@@ -634,7 +634,8 @@ where
 /// Create a simple canvas and paint a small cross.
 ///
 /// ```
-/// use image::{RgbImage, Rgb};
+/// use image::RgbImage;
+/// use pixeli::Rgb;
 ///
 /// let mut img = RgbImage::new(32, 32);
 ///
@@ -654,9 +655,9 @@ where
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
 /// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
-///         image::Rgb{r: 0, g: 0, b: 0}
+///         pixeli::Rgb{r: 0, g: 0, b: 0}
 ///     } else {
-///         image::Rgb{r: 255, g: 255, b: 255}
+///         pixeli::Rgb{r: 255, g: 255, b: 255}
 ///     }
 /// });
 ///

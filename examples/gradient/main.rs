@@ -17,11 +17,11 @@ fn main() {
         a: 255,
     };
 
-    image::imageops::vertical_gradient(&mut img, start, end);
+    image::imageops::vertical_gradient(&mut img, &start, &end);
     img.save("vertical_gradient.png").unwrap();
-    image::imageops::vertical_gradient(&mut img, end, start);
+    image::imageops::vertical_gradient(&mut img, &end, &start);
     img.save("vertical_gradient_reverse.png").unwrap();
 
-    image::imageops::horizontal_gradient(&mut img, start, end);
+    image::imageops::horizontal_gradient(&mut img, &start, &end);
     img.save("horizontal_gradient.png").unwrap();
 }

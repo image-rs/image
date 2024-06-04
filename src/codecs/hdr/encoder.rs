@@ -334,7 +334,7 @@ fn to_rgbe8_test() {
             .component_array()
             .into_iter()
             .chain(b.component_array())
-            .fold(0.0, |maxv, a| f32::max(maxv, a));
+            .fold(0.0, f32::max);
         if max_val == 0.0 {
             0.0
         } else {

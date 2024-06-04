@@ -1,5 +1,5 @@
-use image::{GenericImage, GenericImageView, ImageBuffer};
-use pixeli::Pixel;
+use image::{Blend, GenericImage, GenericImageView, ImageBuffer};
+use pixeli::{ContiguousPixel, Pixel, PixelComponent};
 
 /// Example showcasing a generic implementation of image concatenation.
 ///
@@ -21,7 +21,7 @@ fn main() {
 fn h_concat<I, P, S>(images: &[I]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + Blend + 'static,
     S: PixelComponent + 'static,
 {
     // The final width is the sum of all images width.

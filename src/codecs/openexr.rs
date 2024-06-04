@@ -334,7 +334,7 @@ fn to_image_err(exr_error: Error) -> ImageError {
 
 #[cfg(test)]
 mod test {
-    use pixeli::{Rgb, Rgba};
+    use pixeli::{Pixel, Rgb, Rgba};
 
     use super::*;
 
@@ -439,7 +439,7 @@ mod test {
             assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
             for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
-                for (expected, found) in expected.0.iter().zip(found.0.iter()) {
+                for (expected, found) in expected.component_array().into_iter().zip(found.component_array()) {
                     // the large tolerance seems to be caused by
                     // the RGBE u8x4 pixel quantization of the hdr image format
                     assert!(

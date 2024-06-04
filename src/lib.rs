@@ -126,7 +126,7 @@ extern crate test;
 #[macro_use]
 extern crate quickcheck;
 
-pub use crate::color::{ColorType, ExtendedColorType};
+pub use crate::color::{Blend, ColorType, ExtendedColorType, Invert};
 
 pub use crate::error::{ImageError, ImageResult};
 

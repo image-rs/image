@@ -411,7 +411,7 @@ impl<T: PixelComponent> Invert for Rgb<T> {
 mod tests {
     use crate::color::Blend;
 
-    use super::{Gray, GrayAlpha, Rgb, Rgba};
+    use super::{GrayAlpha, Rgba};
     use pixeli::Pixel;
 
     #[test]
@@ -468,7 +468,7 @@ mod tests {
             a: 255,
         };
         a.blend(&b);
-        assert_eq!(a.0, [255, 255, 255, 255]);
+        assert_eq!(a.component_array(), [255, 255, 255, 255]);
 
         let a = &mut Rgba {
             r: 255_u8,
@@ -483,7 +483,7 @@ mod tests {
             a: 255,
         };
         a.blend(&b);
-        assert_eq!(a.0, [255, 255, 255, 255]);
+        assert_eq!(a.component_array(), [255, 255, 255, 255]);
 
         let a = &mut Rgba {
             r: 255_u8,
@@ -498,7 +498,7 @@ mod tests {
             a: 0,
         };
         a.blend(&b);
-        assert_eq!(a.0, [255, 255, 255, 255]);
+        assert_eq!(a.component_array(), [255, 255, 255, 255]);
 
         let a = &mut Rgba {
             r: 255_u8,
@@ -513,86 +513,6 @@ mod tests {
             a: 0,
         };
         a.blend(&b);
-        assert_eq!(a.0, [255, 255, 255, 0]);
-    }
-
-    #[test]
-    fn test_apply_without_alpha_rgba() {
-        let mut rgba = Rgba {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-        };
-        rgba.apply_without_alpha(|s| s + 1);
-        assert_eq!(
-            rgba,
-            Rgba {
-                r: 1,
-                g: 1,
-                b: 1,
-                a: 0
-            }
-        );
-    }
-
-    #[test]
-    fn test_apply_without_alpha_rgb() {
-        let mut rgb = Rgb { r: 0, g: 0, b: 0 };
-        rgb.apply_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb { r: 1, g: 1, b: 1 });
-    }
-
-    #[test]
-    fn test_map_without_alpha_rgba() {
-        let rgba = Rgba {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-        }
-        .map_without_alpha(|s| s + 1);
-        assert_eq!(
-            rgba,
-            Rgba {
-                r: 1,
-                g: 1,
-                b: 1,
-                a: 0
-            }
-        );
-    }
-
-    #[test]
-    fn test_map_without_alpha_rgb() {
-        let rgb = Rgb { r: 0, g: 0, b: 0 }.map_without_alpha(|s| s + 1);
-        assert_eq!(rgb, Rgb { r: 1, g: 1, b: 1 });
-    }
-
-    macro_rules! test_lossless_conversion {
-        ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Component::COMPONENT_MAX >> 2;
-                <$a as Pixel>::COMPONENT_COUNT as usize]
-                .into();
-            let b: $b = a.into_color();
-            let c: $c = b.into_color();
-            assert_eq!(a.channels(), c.channels());
-        };
-    }
-
-    #[test]
-    fn test_lossless_conversions() {
-        test_lossless_conversion!(Gray<u8>, Gray<u16>, Gray<u8>);
-        test_lossless_conversion!(GrayAlpha<u8>, GrayAlpha<u16>, GrayAlpha<u8>);
-        test_lossless_conversion!(Rgb<u8>, Rgb<u16>, Rgb<u8>);
-        test_lossless_conversion!(Rgba<u8>, Rgba<u16>, Rgba<u8>);
-    }
-
-    #[test]
-    fn accuracy_conversion() {
-        use super::{Gray, Rgb};
-        let pixel = Rgb::from([13, 13, 13]);
-        let Gray { gray: luma } = pixel.to_luma();
-        assert_eq!(luma, 13);
+        assert_eq!(a.component_array(), [255, 255, 255, 0]);
     }
 }

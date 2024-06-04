@@ -841,7 +841,7 @@ where
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
                 for (t, c) in t.iter_mut().zip(p.component_array()) {
-                    *t = *t + k * f32::from_component_common(c)
+                    *t += k * f32::from_component_common(c)
                 }
             }
 
@@ -991,7 +991,7 @@ where
 mod tests {
     use super::{resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
-    use pixeli::Rgba;
+    use pixeli::{Pixel, Rgba};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1382,11 +1382,10 @@ mod tests {
             let resized = resize(image, 16, 16, filter);
             let cropped = crop_imm(&resized, 5, 5, 6, 6).to_image();
             for pixel in cropped.pixels() {
-                let alpha = pixel.0[3];
                 assert!(
-                    alpha != 254 && alpha != 253,
+                    pixel.a != 254 && pixel.a != 253,
                     "alpha value: {}, {:?}",
-                    alpha,
+                    pixel.a,
                     filter
                 );
             }

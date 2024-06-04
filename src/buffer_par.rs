@@ -432,7 +432,7 @@ mod test {
     #[test]
     fn iter_parity() {
         let mut image1 = RgbImage::from_fn(17, 29, |x, y| {
-            Rgb::from_components(std::array::from_fn(|i| {
+            Rgb::from(std::array::from_fn::<_, 3, _>(|i| {
                 ((x + y * 98 + i as u32 * 27) % 255) as u8
             }))
         });

@@ -451,7 +451,7 @@ fn diffuse_err<P: Pixel<Component = u8>>(pixel: &mut P, error: [i16; 3], factor:
     *pixel = P::from_components(
         error
             .into_iter()
-            .zip(pixel.component_array().into_iter())
+            .zip(pixel.component_array())
             .map(|(e, c)| match <i16 as From<_>>::from(c) + e * factor / 16 {
                 val if val < 0 => 0,
                 val if val > 0xFF => 0xFF,
@@ -587,7 +587,7 @@ mod test {
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
-        assert_pixels_eq!(&convert_generic_image(&image), &expected);
+        assert_pixels_eq!(&convert_generic_image::<Gray<u8>, _>(&image), &expected);
     }
 
     #[test]

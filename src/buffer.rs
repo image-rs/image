@@ -1207,7 +1207,7 @@ where
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let indices = self.pixel_indices_unchecked(x, y);
-        <P as Pixel>::from_components(self.data.get_unchecked(indices).into_iter().copied())
+        <P as Pixel>::from_components(self.data.get_unchecked(indices).iter().copied())
     }
 }
 
@@ -1561,13 +1561,13 @@ mod test {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
         }
-        assert_eq!(a.get_pixel(0, 1)[0], 255)
+        assert_eq!(a.get_pixel(0, 1).r, 255)
     }
 
     #[test]
     fn get_pixel_checked() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
-        a.get_pixel_mut_checked(0, 1).unwrap()[0] = 255;
+        a.get_pixel_mut_checked(0, 1).unwrap().r = 255;
 
         assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb { r: 255, g: 0, b: 0 }));
         assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));

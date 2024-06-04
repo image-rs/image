@@ -1,7 +1,7 @@
-use pixeli::Pixel;
+use pixeli::{ContiguousPixel, Pixel};
 use rayon::iter::plumbing::*;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};
+use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
@@ -19,7 +19,7 @@ where
 
 impl<'a, P> ParallelIterator for PixelsPar<'a, P>
 where
-    P: Pixel + Sync + 'a,
+    P: ContiguousPixel + Sync + 'a,
     P::Component: Sync + 'a,
 {
     type Item = &'a P;
@@ -29,7 +29,7 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_ref(v))
             .drive_unindexed(consumer)
     }
 
@@ -40,12 +40,12 @@ where
 
 impl<'a, P> IndexedParallelIterator for PixelsPar<'a, P>
 where
-    P: Pixel + Sync + 'a,
+    P: ContiguousPixel + Sync + 'a,
     P::Component: Sync + 'a,
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_ref(v))
             .drive(consumer)
     }
 
@@ -55,7 +55,7 @@ where
 
     fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_ref(v))
             .with_producer(callback)
     }
 }
@@ -83,7 +83,7 @@ where
 
 impl<'a, P> ParallelIterator for PixelsMutPar<'a, P>
 where
-    P: Pixel + Send + Sync + 'a,
+    P: ContiguousPixel + Send + Sync + 'a,
     P::Component: Send + Sync + 'a,
 {
     type Item = &'a mut P;
@@ -93,7 +93,7 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_mut(v))
             .drive_unindexed(consumer)
     }
 
@@ -104,12 +104,12 @@ where
 
 impl<'a, P> IndexedParallelIterator for PixelsMutPar<'a, P>
 where
-    P: Pixel + Send + Sync + 'a,
+    P: ContiguousPixel + Send + Sync + 'a,
     P::Component: Send + Sync + 'a,
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_mut(v))
             .drive(consumer)
     }
 
@@ -119,7 +119,7 @@ where
 
     fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
         self.chunks
-            .map(|v| <P as Pixel>::from_components(v))
+            .map(|v| <P as ContiguousPixel>::from_component_slice_mut(v))
             .with_producer(callback)
     }
 }
@@ -149,7 +149,7 @@ where
 
 impl<'a, P> ParallelIterator for EnumeratePixelsPar<'a, P>
 where
-    P: Pixel + Sync + 'a,
+    P: ContiguousPixel + Sync + 'a,
     P::Component: Sync + 'a,
 {
     type Item = (u32, u32, &'a P);
@@ -177,7 +177,7 @@ where
 
 impl<'a, P> IndexedParallelIterator for EnumeratePixelsPar<'a, P>
 where
-    P: Pixel + Sync + 'a,
+    P: ContiguousPixel + Sync + 'a,
     P::Component: Sync + 'a,
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
@@ -236,7 +236,7 @@ where
 
 impl<'a, P> ParallelIterator for EnumeratePixelsMutPar<'a, P>
 where
-    P: Pixel + Send + Sync + 'a,
+    P: ContiguousPixel + Send + Sync + 'a,
     P::Component: Send + Sync + 'a,
 {
     type Item = (u32, u32, &'a mut P);
@@ -264,7 +264,7 @@ where
 
 impl<'a, P> IndexedParallelIterator for EnumeratePixelsMutPar<'a, P>
 where
-    P: Pixel + Send + Sync + 'a,
+    P: ContiguousPixel + Send + Sync + 'a,
     P::Component: Send + Sync + 'a,
 {
     fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
@@ -313,7 +313,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + Sync,
+    P: ContiguousPixel + Sync,
     P::Component: Sync,
     Container: Deref<Target = [P::Component]>,
 {
@@ -343,7 +343,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + Send + Sync,
+    P: ContiguousPixel + Send + Sync,
     P::Component: Send + Sync,
     Container: Deref<Target = [P::Component]> + DerefMut,
 {
@@ -374,7 +374,7 @@ where
 
 impl<P> ImageBuffer<P, Vec<P::Component>>
 where
-    P: Pixel + Send + Sync,
+    P: ContiguousPixel + Send + Sync,
     P::Component: Send + Sync,
 {
     /// Constructs a new ImageBuffer by repeated application of the supplied function,

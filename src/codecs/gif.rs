@@ -337,8 +337,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             previous: &mut Rgba<u8>,
             current: &mut Rgba<u8>,
         ) {
-            let pixel_alpha = current.channels()[3];
-            if pixel_alpha == 0 {
+            if current.a == 0 {
                 *current = *previous;
             }
 

@@ -274,6 +274,7 @@ pub fn sample_bilinear<P>(img: &impl GenericImageView<Pixel = P>, u: f32, v: f32
 where
     P: ContiguousPixel,
     f32: FromComponentCommon<P::Component>,
+    P::Component: FromComponentCommon<f32>,
 {
     if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
         return None;
@@ -495,7 +496,11 @@ where
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
 struct ThumbnailSum<S: Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
 
-impl<S: Enlargeable> ThumbnailSum<S> {
+impl<S> ThumbnailSum<S>
+where
+    S: Enlargeable,
+    S::Larger: FromComponentCommon<S>,
+{
     fn zeroed() -> Self {
         ThumbnailSum(
             S::Larger::zero(),
@@ -506,18 +511,18 @@ impl<S: Enlargeable> ThumbnailSum<S> {
     }
 
     fn sample_val(val: S) -> S::Larger {
-        <S::Larger as NumCast>::from(val).unwrap()
+        S::Larger::from_component_common(val)
     }
 
     fn add_pixel<P>(&mut self, pixel: P)
     where
         P: Pixel<Component = S>,
     {
-        let pixel = pixel.component_array();
-        self.0 += Self::sample_val(pixel[0]);
-        self.1 += Self::sample_val(pixel[1]);
-        self.2 += Self::sample_val(pixel[2]);
-        self.3 += Self::sample_val(pixel[3]);
+        let mut iter = pixel.component_array().into_iter();
+        self.0 += Self::sample_val(iter.next().unwrap());
+        self.1 += Self::sample_val(iter.next().unwrap());
+        self.2 += Self::sample_val(iter.next().unwrap());
+        self.3 += Self::sample_val(iter.next().unwrap());
     }
 }
 
@@ -537,9 +542,12 @@ pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBu
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S> + ContiguousPixel + 'static,
-    S: PixelComponent + Enlargeable + 'static,
-    S: FromComponentCommon<f32>,
+    S: PixelComponent + Enlargeable + FromComponentCommon<f32> + 'static,
     f32: FromComponentCommon<S::Larger>,
+    S::Larger: FromComponentCommon<S>,
+    S::Larger: FromComponentCommon<u32>,
+    S: FromComponentCommon<f32>,
+    f32: FromComponentCommon<S>,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
@@ -564,7 +572,7 @@ where
             let left = clamp(leftf.ceil() as u32, 0, width - 1);
             let right = clamp(rightf.ceil() as u32, left, width);
 
-            let avg = if bottom != top && left != right {
+            let pixel = if bottom != top && left != right {
                 thumbnail_sample_block(image, left, right, bottom, top)
             } else if bottom != top {
                 // && left == right
@@ -599,7 +607,7 @@ where
                 let fraction_horizontal = (topf.fract() + bottomf.fract()) / 2.;
                 let fraction_vertical = (leftf.fract() + rightf.fract()) / 2.;
 
-                thumbnail_sample_fraction_both(
+                thumbnail_sample_fraction_both::<_, _, S>(
                     image,
                     right - 1,
                     fraction_horizontal,
@@ -608,7 +616,6 @@ where
                 )
             };
 
-            let pixel = P::from_components([avg.0, avg.1, avg.2, avg.3]);
             out.put_pixel(outx, outy, pixel);
         }
     }
@@ -617,17 +624,13 @@ where
 }
 
 /// Get a pixel for a thumbnail where the input window encloses at least a full pixel.
-fn thumbnail_sample_block<I, P, S>(
-    image: &I,
-    left: u32,
-    right: u32,
-    bottom: u32,
-    top: u32,
-) -> (S, S, S, S)
+fn thumbnail_sample_block<I, P, S>(image: &I, left: u32, right: u32, bottom: u32, top: u32) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
+    S::Larger: FromComponentCommon<S>,
+    S::Larger: FromComponentCommon<u32>,
 {
     let mut sum = ThumbnailSum::zeroed();
 
@@ -638,14 +641,14 @@ where
         }
     }
 
-    let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
-    let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
-    (
+    let n = S::Larger::from_component_common((right - left) * (top - bottom));
+    let round = n / S::Larger::from_component_common(2);
+    P::from_components([
         S::clamp_from((sum.0 + round) / n),
         S::clamp_from((sum.1 + round) / n),
         S::clamp_from((sum.2 + round) / n),
         S::clamp_from((sum.3 + round) / n),
-    )
+    ])
 }
 
 /// Get a thumbnail pixel where the input window encloses at least a vertical pixel.
@@ -655,13 +658,14 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
     fraction_horizontal: f32,
     bottom: u32,
     top: u32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
     S: FromComponentCommon<f32>,
     f32: FromComponentCommon<S::Larger>,
+    S::Larger: FromComponentCommon<S>,
 {
     let fract = fraction_horizontal;
 
@@ -686,12 +690,12 @@ where
         )
     };
 
-    (
+    P::from_components([
         mix_left_and_right(sum_left.0, sum_right.0),
         mix_left_and_right(sum_left.1, sum_right.1),
         mix_left_and_right(sum_left.2, sum_right.2),
         mix_left_and_right(sum_left.3, sum_right.3),
-    )
+    ])
 }
 
 /// Get a thumbnail pixel where the input window encloses at least a horizontal pixel.
@@ -701,13 +705,14 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
     right: u32,
     bottom: u32,
     fraction_vertical: f32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Component = S>,
     S: PixelComponent + Enlargeable,
     S: FromComponentCommon<f32>,
     f32: FromComponentCommon<S::Larger>,
+    S::Larger: FromComponentCommon<S>,
 {
     let fract = fraction_vertical;
 
@@ -732,12 +737,12 @@ where
         )
     };
 
-    (
+    P::from_components([
         mix_bot_and_top(sum_bot.0, sum_top.0),
         mix_bot_and_top(sum_bot.1, sum_top.1),
         mix_bot_and_top(sum_bot.2, sum_top.2),
         mix_bot_and_top(sum_bot.3, sum_top.3),
-    )
+    ])
 }
 
 /// Get a single pixel for a thumbnail where the input window does not enclose any full pixel.
@@ -793,8 +798,10 @@ where
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + 'static,
     S: PixelComponent + 'static,
+    f32: FromComponentCommon<S>,
+    P::Component: FromComponentCommon<f32>,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -813,56 +820,37 @@ where
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::COMPONENT_MAX;
-    let max: f32 = NumCast::from(max).unwrap();
-
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         x if x == 0.0 => 1.0,
         sum => sum,
     };
-    let sum = (sum, sum, sum, sum);
+    let sum = [sum, sum, sum, sum];
 
     for y in 1..height - 1 {
         for x in 1..width - 1 {
-            let mut t = [0.0; usize::from(P::COMPONENT_COUNT)];
+            let mut t = vec![0.0; usize::from(P::COMPONENT_COUNT)];
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let k = (k, k, k, k);
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
-                #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * k.0;
-                t.1 += vec.1 * k.1;
-                t.2 += vec.2 * k.2;
-                t.3 += vec.3 * k.3;
+                for (t, c) in t.iter_mut().zip(p.component_array()) {
+                    *t = *t + k * f32::from_component_common(c)
+                }
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
-
-            #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
+            let outpixel = P::from_components(
+                t.into_iter()
+                    .zip(sum)
+                    .map(|(t, sum)| P::Component::from_component_common(t / sum)),
             );
 
-            out.put_pixel(x, y, t);
+            out.put_pixel(x, y, outpixel);
         }
     }
 
@@ -881,6 +869,8 @@ pub fn resize<I: GenericImageView>(
 where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Component: 'static,
+    Rgba<f32>: FromPixelCommon<I::Pixel>,
+    I::Pixel: FromPixelCommon<Rgba<f32>>,
 {
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
@@ -925,6 +915,8 @@ pub fn blur<I: GenericImageView>(
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Component>>
 where
     I::Pixel: 'static,
+    Rgba<f32>: FromPixelCommon<I::Pixel>,
+    I::Pixel: FromPixelCommon<Rgba<f32>>,
 {
     let sigma = if sigma <= 0.0 { 1.0 } else { sigma };
 
@@ -950,13 +942,17 @@ where
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Component = S> + 'static,
+    P: Pixel<Component = S> + ContiguousPixel + 'static,
     S: PixelComponent + 'static,
+    Rgba<f32>: FromPixelCommon<I::Pixel>,
+    I::Pixel: FromPixelCommon<Rgba<f32>>,
+    i32: FromComponentCommon<S>,
+    P::Component: FromComponentCommon<i32>,
 {
     let mut tmp = blur(image, sigma);
 
     let max = S::COMPONENT_MAX;
-    let max: i32 = NumCast::from(max).unwrap();
+    let max: i32 = i32::from_component_common(max);
     let (width, height) = image.dimensions();
 
     for y in 0..height {
@@ -964,22 +960,26 @@ where
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 
-            let p = a.map2(b, |c, d| {
-                let ic: i32 = NumCast::from(c).unwrap();
-                let id: i32 = NumCast::from(d).unwrap();
+            let new_components = a
+                .component_array()
+                .into_iter()
+                .zip(b.component_array())
+                .map(|(a, b)| {
+                    let ia: i32 = i32::from_component_common(a);
+                    let ib: i32 = i32::from_component_common(b);
 
-                let diff = ic - id;
+                    let diff = ia - ib;
 
-                if diff.abs() > threshold {
-                    let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
+                    if diff.abs() > threshold {
+                        let e = clamp(ia + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
 
-                    NumCast::from(e).unwrap()
-                } else {
-                    c
-                }
-            });
+                        P::Component::from_component_common(e)
+                    } else {
+                        a
+                    }
+                });
 
-            *b = p;
+            *b = P::from_components(new_components);
         }
     }
 

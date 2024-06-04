@@ -16,7 +16,7 @@ use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
-use pixeli::{FromPixelCommon, Gray, GrayAlpha, Pixel, Rgb, Rgba};
+use pixeli::{ContiguousPixel, FromPixelCommon, Gray, GrayAlpha, Rgb, Rgba};
 use ravif::{Encoder, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
@@ -145,7 +145,7 @@ impl<W: Write> AvifEncoder<W> {
         color: ExtendedColorType,
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
-        fn try_from_raw<P: Pixel + 'static>(
+        fn try_from_raw<P: ContiguousPixel + 'static>(
             data: &[P::Component],
             width: u32,
             height: u32,
@@ -163,7 +163,7 @@ impl<W: Write> AvifEncoder<W> {
             image: ImageBuffer<P, &[P::Component]>,
         ) -> Img<&'buf [RGBA8]>
         where
-            P: Pixel + 'static,
+            P: ContiguousPixel + 'static,
             Rgba<u8>: FromPixelCommon<P>,
         {
             let (width, height) = image.dimensions();

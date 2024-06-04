@@ -3,6 +3,7 @@ use std::cmp;
 
 use pixeli::{Pixel, PixelComponent};
 
+use crate::color::Blend;
 use crate::image::{GenericImage, GenericImageView, SubImage};
 use crate::traits::Lerp;
 
@@ -223,6 +224,7 @@ pub fn overlay<I, J>(bottom: &mut I, top: &J, x: i64, y: i64)
 where
     I: GenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
+    I::Pixel: Blend,
 {
     let bottom_dims = bottom.dimensions();
     let top_dims = top.dimensions();
@@ -258,6 +260,7 @@ pub fn tile<I, J>(bottom: &mut I, top: &J)
 where
     I: GenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
+    I::Pixel: Blend,
 {
     for x in (0..bottom.width()).step_by(top.width() as usize) {
         for y in (0..bottom.height()).step_by(top.height() as usize) {
@@ -287,11 +290,17 @@ where
     S: PixelComponent + Lerp + 'static,
 {
     for y in 0..img.height() {
-        let pixel = start.map2(stop, |a, b| {
-            let y = <S::Ratio as num_traits::NumCast>::from(y).unwrap();
-            let height = <S::Ratio as num_traits::NumCast>::from(img.height() - 1).unwrap();
-            S::lerp(a, b, y / height)
-        });
+        let pixel = P::from_components(
+            start
+                .component_array()
+                .into_iter()
+                .zip(stop.component_array())
+                .map(|(a, b)| {
+                    let y = <S::Ratio as num_traits::NumCast>::from(y).unwrap();
+                    let height = <S::Ratio as num_traits::NumCast>::from(img.height() - 1).unwrap();
+                    S::lerp(a, b, y / height)
+                }),
+        );
 
         for x in 0..img.width() {
             img.put_pixel(x, y, pixel);
@@ -320,11 +329,17 @@ where
     S: PixelComponent + Lerp + 'static,
 {
     for x in 0..img.width() {
-        let pixel = start.map2(stop, |a, b| {
-            let x = <S::Ratio as num_traits::NumCast>::from(x).unwrap();
-            let width = <S::Ratio as num_traits::NumCast>::from(img.width() - 1).unwrap();
-            S::lerp(a, b, x / width)
-        });
+        let pixel = P::from_components(
+            start
+                .component_array()
+                .into_iter()
+                .zip(stop.component_array())
+                .map(|(a, b)| {
+                    let x = <S::Ratio as num_traits::NumCast>::from(x).unwrap();
+                    let width = <S::Ratio as num_traits::NumCast>::from(img.width() - 1).unwrap();
+                    S::lerp(a, b, x / width)
+                }),
+        );
 
         for y in 0..img.height() {
             img.put_pixel(x, y, pixel);

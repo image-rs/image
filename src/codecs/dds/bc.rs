@@ -16,14 +16,17 @@ pub(crate) fn decode_bc1_block(block_bytes: [u8; 8]) -> [[u8; 4]; 16] {
 
     let mut pixels: [[u8; 4]; 16] = Default::default();
 
+    fn to_rgba(rgb: [u8; 3]) -> [u8; 4] {
+        [rgb[0], rgb[1], rgb[2], 255]
+    }
     let (c2, c3) = if color0_u16 > color1_u16 {
         (
-            c0_bgr.blend_rgba8(c1_bgr, 1.0 / 3.0),
-            c0_bgr.blend_rgba8(c1_bgr, 2.0 / 3.0),
+            to_rgba(c0_bgr.one_third_color_rgb8(c1_bgr)),
+            to_rgba(c0_bgr.two_third_color_rgb8(c1_bgr)),
         )
     } else {
         (
-            c0_bgr.blend_rgba8(c1_bgr, 1.0 / 2.0),
+            to_rgba(c0_bgr.mid_color_rgb8(c1_bgr)),
             [0, 0, 0, 0], // transparent
         )
     };

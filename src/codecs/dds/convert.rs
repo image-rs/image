@@ -28,7 +28,39 @@ impl B5G6R5 {
         [r, g, b, 255]
     }
 
-    pub(crate) fn blend_rgb8(self, color_1: Self, blend: f32) -> [u8; 3] {
+    pub(crate) fn one_third_color_rgb8(self, color: Self) -> [u8; 3] {
+        let r = self.r5 * 2 + color.r5;
+        let g = self.g6 * 2 + color.g6;
+        let b = self.b5 * 2 + color.b5;
+
+        let r = ((r * 351 + 61) >> 7) as u8;
+        let g = ((g as u32 * 2763 + 1039) >> 11) as u8;
+        let b = ((b * 351 + 61) >> 7) as u8;
+        [r, g, b]
+    }
+    pub(crate) fn two_third_color_rgb8(self, color: Self) -> [u8; 3] {
+        let r = self.r5 + color.r5 * 2;
+        let g = self.g6 + color.g6 * 2;
+        let b = self.b5 + color.b5 * 2;
+
+        let r = ((r * 351 + 61) >> 7) as u8;
+        let g = ((g as u32 * 2763 + 1039) >> 11) as u8;
+        let b = ((b * 351 + 61) >> 7) as u8;
+        [r, g, b]
+    }
+    pub(crate) fn mid_color_rgb8(self, color: Self) -> [u8; 3] {
+        let r = self.r5 + color.r5;
+        let g = self.g6 + color.g6;
+        let b = self.b5 + color.b5;
+
+        let r = ((r * 1053 + 125) >> 8) as u8;
+        let g = ((g as u32 * 4145 + 1019) >> 11) as u8;
+        let b = ((b * 1053 + 125) >> 8) as u8;
+        [r, g, b]
+    }
+
+    #[allow(unused)] // used in tests
+    fn blend_rgb8(self, color_1: Self, blend: f32) -> [u8; 3] {
         let blend0 = 1.0 - blend;
         let r =
             ((self.r5 as f32 * blend0 + color_1.r5 as f32 * blend) * 255.0 / 31.0).round() as u8;
@@ -37,11 +69,6 @@ impl B5G6R5 {
         let b =
             ((self.b5 as f32 * blend0 + color_1.b5 as f32 * blend) * 255.0 / 31.0).round() as u8;
         [r, g, b]
-    }
-    #[inline(always)]
-    pub(crate) fn blend_rgba8(self, color_1: Self, blend: f32) -> [u8; 4] {
-        let [r, g, b] = self.blend_rgb8(color_1, blend);
-        [r, g, b, 255]
     }
 }
 
@@ -248,6 +275,30 @@ mod test {
             let xi: i16 = bytemuck::cast(x);
             let expected = ((xi.max(-32767) as f64 / 32767.0 + 1.0) / 2.0 * 65535.0).round() as u16;
             assert_eq!(super::snorm16_to_unorm16(x), expected);
+        }
+    }
+
+    #[test]
+    fn b5g6r5_color_interpolation() {
+        // this test isn't exhaustive for performance reasons, but it should be good enough
+        for x in (0..65535u16).step_by(15) {
+            let color = super::B5G6R5::from_u16(x);
+            for y in (0..65535u16).step_by(314) {
+                let color_1 = super::B5G6R5::from_u16(y);
+
+                assert_eq!(
+                    color.mid_color_rgb8(color_1),
+                    color.blend_rgb8(color_1, 1.0 / 2.0)
+                );
+                assert_eq!(
+                    color.one_third_color_rgb8(color_1),
+                    color.blend_rgb8(color_1, 1.0 / 3.0)
+                );
+                assert_eq!(
+                    color.two_third_color_rgb8(color_1),
+                    color.blend_rgb8(color_1, 2.0 / 3.0)
+                );
+            }
         }
     }
 }

@@ -209,8 +209,8 @@ fn dxgi_format_to_supported(dxgi_format: DxgiFormat) -> Option<SupportedFormat> 
         DxgiFormat::BC4_SNORM => Some(SupportedFormat::BC4_SNORM),
         DxgiFormat::BC5_TYPELESS | DxgiFormat::BC5_UNORM => Some(SupportedFormat::BC5_UNORM),
         DxgiFormat::BC5_SNORM => Some(SupportedFormat::BC5_SNORM),
-        // DxgiFormat::BC6H_TYPELESS | DxgiFormat::BC6H_UF16 => Some(SupportedFormat::BC6H_UF16),
-        // DxgiFormat::BC6H_SF16 => Some(SupportedFormat::BC6H_SF16),
+        DxgiFormat::BC6H_TYPELESS | DxgiFormat::BC6H_UF16 => Some(SupportedFormat::BC6H_UF16),
+        DxgiFormat::BC6H_SF16 => Some(SupportedFormat::BC6H_SF16),
         DxgiFormat::BC7_TYPELESS | DxgiFormat::BC7_UNORM | DxgiFormat::BC7_UNORM_SRGB => {
             Some(SupportedFormat::BC7_UNORM)
         }

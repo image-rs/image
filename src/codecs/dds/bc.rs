@@ -233,7 +233,25 @@ pub(crate) fn decode_bc5_signed_block(block_bytes: [u8; 16]) -> [[u8; 3]; 16] {
     pixels
 }
 
+/// Decodes a BC6 block into 16 RGB pixels.
+pub(crate) fn decode_bc6_unsigned_block(block_bytes: [u8; 16]) -> [[f32; 3]; 16] {
+    let mut pixels: [[f32; 3]; 16] = Default::default();
+    let pixel_buf = bytemuck::cast_slice_mut(pixels.as_mut_slice());
+    bcdec_rs::bc6h_float(block_bytes.as_slice(), pixel_buf, 12, false);
+    pixels
+}
+/// Decodes a BC6 block into 16 RGB pixels.
+pub(crate) fn decode_bc6_signed_block(block_bytes: [u8; 16]) -> [[f32; 3]; 16] {
+    let mut pixels: [[f32; 3]; 16] = Default::default();
+    let pixel_buf = bytemuck::cast_slice_mut(pixels.as_mut_slice());
+    bcdec_rs::bc6h_float(block_bytes.as_slice(), pixel_buf, 12, true);
+    pixels
+}
+
 /// Decodes a BC7 block into 16 RGBA pixels.
 pub(crate) fn decode_bc7_block(block_bytes: [u8; 16]) -> [[u8; 4]; 16] {
-    todo!()
+    let mut pixels: [[u8; 4]; 16] = Default::default();
+    let pixel_buf = bytemuck::cast_slice_mut(pixels.as_mut_slice());
+    bcdec_rs::bc7(block_bytes.as_slice(), pixel_buf, 16);
+    pixels
 }

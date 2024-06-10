@@ -7,7 +7,7 @@ use crate::{ImageDecoder, ImageError, ImageFormat, ImageResult};
 use super::bc::{
     decode_bc1_block, decode_bc2_block, decode_bc3_block, decode_bc4_signed_block,
     decode_bc4_unsigned_block, decode_bc5_signed_block, decode_bc5_unsigned_block,
-    decode_bc7_block,
+    decode_bc6_signed_block, decode_bc6_unsigned_block, decode_bc7_block,
 };
 use super::convert::{
     f10_to_f32, f11_to_f32, f16_to_f32, snorm16_to_unorm16, snorm8_to_unorm8, x10_to_x16, x1_to_x8,
@@ -62,6 +62,8 @@ pub(crate) enum SupportedFormat {
     BC4_SNORM,
     BC5_UNORM,
     BC5_SNORM,
+    BC6H_UF16,
+    BC6H_SF16,
     BC7_UNORM,
 }
 
@@ -100,7 +102,9 @@ impl SupportedFormat {
             | Self::R16G16_FLOAT
             | Self::R32_FLOAT
             | Self::R32G32_FLOAT
-            | Self::R32G32B32_FLOAT => ColorType::Rgb32F,
+            | Self::R32G32B32_FLOAT
+            | Self::BC6H_SF16
+            | Self::BC6H_UF16 => ColorType::Rgb32F,
             Self::R16G16B16A16_FLOAT
             | Self::R32G32B32A32_FLOAT
             | Self::R10G10B10_XR_BIAS_A2_UNORM => ColorType::Rgba32F,
@@ -166,6 +170,8 @@ impl SupportedFormat {
             | Self::BC3_UNORM
             | Self::BC5_UNORM
             | Self::BC5_SNORM
+            | Self::BC6H_SF16
+            | Self::BC6H_UF16
             | Self::BC7_UNORM => {
                 // 16 bytes per one 4x4 block
                 let blocks_x = div_ceil(size.width, 4);
@@ -230,6 +236,8 @@ impl SupportedFormat {
             Self::BC4_SNORM => decode_BC4_SNORM(r, size, buf),
             Self::BC5_UNORM => decode_BC5_UNORM(r, size, buf),
             Self::BC5_SNORM => decode_BC5_SNORM(r, size, buf),
+            Self::BC6H_UF16 => decode_BC6H_UF16(r, size, buf),
+            Self::BC6H_SF16 => decode_BC6H_SF16(r, size, buf),
             Self::BC7_UNORM => decode_BC7_UNORM(r, size, buf),
         }
     }
@@ -359,7 +367,7 @@ impl<R: Read> DX10Decoder<R> {
                         }
                     }
                     (3, 4) => {
-                        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(2)) {
+                        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(4)) {
                             dst[0] = src[0];
                             dst[1] = src[1];
                             dst[2] = src[2];
@@ -1077,9 +1085,27 @@ fn decode_BC5_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult
 fn decode_BC5_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_4x4_block(r, size, buf, ColorType::Rgb8, decode_bc5_signed_block)
 }
+fn floats_to_bytes(floats: [f32; 3]) -> [u8; 12] {
+    let [r, g, b] = floats.map(|f| f.to_ne_bytes());
+    [
+        r[0], r[1], r[2], r[3], g[0], g[1], g[2], g[3], b[0], b[1], b[2], b[3],
+    ]
+}
+#[allow(non_snake_case)]
+fn decode_BC6H_UF16(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
+    by_4x4_block(r, size, buf, ColorType::Rgb32F, |block_bytes| {
+        decode_bc6_unsigned_block(block_bytes).map(floats_to_bytes)
+    })
+}
+#[allow(non_snake_case)]
+fn decode_BC6H_SF16(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
+    by_4x4_block(r, size, buf, ColorType::Rgb32F, |block_bytes| {
+        decode_bc6_signed_block(block_bytes).map(floats_to_bytes)
+    })
+}
 #[allow(non_snake_case)]
 fn decode_BC7_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_4x4_block(r, size, buf, ColorType::Rgb8, decode_bc7_block)
+    by_4x4_block(r, size, buf, ColorType::Rgba8, decode_bc7_block)
 }
 
 fn fix_endian_u16(buf: &mut [u8]) {

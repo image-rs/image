@@ -49,37 +49,21 @@ impl B5G6R5 {
 pub(crate) fn x5_to_x8(x: u16) -> u8 {
     debug_assert!(x < 32);
 
-    // This is equivalent to: (x as f64 / 31.0 * 255.0).round() as u8
-    // Here's how it works:
-    //   (x as f64 / 31.0 * 255.0).round() as u8
-    // We only deal with positive numbers, so we can rewrite x.round() as (x + 0.5).floor()
-    //   (x as f64 / 31.0 * 255.0 + 0.5).floor() as u8
-    // Multiplication is commutative
-    //   ((x as f64 * 255.0) / 31.0 + 0.5).floor() as u8
-    // Move + 0.5 inside the denominator
-    //   ((x as f64 * 255.0 + 0.5*31.0) / 31.0).floor() as u8
-    // Expand the fraction by 2
-    //   ((x as f64 * 255.0 * 2.0 + 31.0) / (31.0 * 2.0)).floor() as u8
-    // Realize that we have integers everywhere.
-    //   ((x * 510 + 31) as f64 / 62_f64).floor() as u8
-    // The last trick that we can replace (a as f64/b as f64).floor() with just
-    // (a as uN / b as uN), because integer division is a floor division.
-    //   ((x * 510 + 31) / 62) as u8
-    ((x * 510 + 31) / 62) as u8
+    // These constants were found using a brute force search.
+    ((x * 527 + 23) >> 6) as u8
 }
 #[inline(always)]
 pub(crate) fn x6_to_x8(x: u16) -> u8 {
     debug_assert!(x < 64);
 
-    // see x5_to_x8 for an explanation
-    ((x * 510 + 63) / 126) as u8
+    // These constants were found using a brute force search.
+    ((x * 259 + 33) >> 6) as u8
 }
 #[inline(always)]
 pub(crate) fn x4_to_x8(x: u16) -> u8 {
     debug_assert!(x < 16);
 
-    // see x5_to_x8 for an explanation
-    ((x * 510 + 15) / 30) as u8
+    (x * 17) as u8
 }
 #[inline(always)]
 pub(crate) fn x1_to_x8(x: u16) -> u8 {
@@ -96,15 +80,14 @@ pub(crate) fn x1_to_x8(x: u16) -> u8 {
 pub(crate) fn x2_to_x16(x: u32) -> u16 {
     debug_assert!(x < 4);
 
-    // see x5_to_x8 for an explanation
-    ((x * 131070 + 3) / 6) as u16
+    (x * 21845) as u16
 }
 #[inline(always)]
 pub(crate) fn x10_to_x16(x: u32) -> u16 {
     debug_assert!(x < 1024);
 
-    // see x5_to_x8 for an explanation
-    ((x * 131070 + 1023) / 2046) as u16
+    // These constants were found using a brute force search.
+    ((x * 1049585 + 8165) >> 14) as u16
 }
 
 #[inline(always)]
@@ -115,20 +98,17 @@ pub(crate) fn snorm8_to_unorm8(x: u8) -> u8 {
     //
     // We start with `y = x.wrapping_add(128).saturating_sub(1)`. This maps
     // [-128, 127] to [0, 254] and correctly maps both -128 and -127 to 0.
-    // So now, we only have to map the interval [0, 254] to [0, 255]. This is
-    // done with the same tricks used in x5_to_x8:
-    //   (y as f64 / 254.0 * 255.0).round() as u8
-    //   (y as f64 * 255.0 / 254.0 + 0.5).floor() as u8
-    //   ((y as f64 * 255.0 + 127.0) / 254.0).floor() as u8
-    //   ((y * 255 + 127) / 254) as u8
     let y = x.wrapping_add(128).saturating_sub(1) as u16;
-    ((y * 255 + 127) / 254) as u8
+
+    // So now, we only have to map the interval [0, 254] to [0, 255].
+    // As above, these constants were found using a brute force search.
+    ((y * 129 + 1) >> 7) as u8
 }
 #[inline(always)]
 pub(crate) fn snorm16_to_unorm16(x: u16) -> u16 {
     // Same as above, just 16 bits.
     let y = x.wrapping_add(32768).saturating_sub(1) as u32;
-    ((y * 65535 + 32767) / 65534) as u16
+    ((y * 32769 + 1) >> 15) as u16
 }
 
 pub(crate) fn f16_to_f32(half: u16) -> f32 {

@@ -37,6 +37,17 @@ impl<R: Read> DdsDecoder<R> {
 
         let header = Header::from_reader(&mut r)?;
 
+        // Don't allow empty images. Decoders should be allowed to assume that
+        // the image has at least one pixel.
+        if header.width == 0 || header.height == 0 {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Dds.into(),
+                    UnsupportedErrorKind::GenericFeature("Empty images are not supported".into()),
+                ),
+            ));
+        }
+
         // Don't allow images that are too large.
         // Doing this check here prevents overflows later on.
         const MAX_SIZE: u32 = 1 << 24;

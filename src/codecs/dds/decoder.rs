@@ -179,6 +179,11 @@ impl SupportedFormat {
     ///
     /// `buf` is assumed to be aligned to the color type.
     fn read_surface(&self, r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
+        if size.is_empty() {
+            // ensure that decoders don't have to deal with empty images
+            return Ok(());
+        }
+
         match self {
             // uncompressed formats
             Self::R8G8B8_UNORM => decode_R8G8B8_UNORM(r, size, buf),
@@ -456,6 +461,10 @@ struct Size {
     height: usize,
 }
 impl Size {
+    fn is_empty(&self) -> bool {
+        self.width == 0 || self.height == 0
+    }
+
     fn check(self, buf: &[u8], color: ColorType) {
         let total_bytes = self
             .width

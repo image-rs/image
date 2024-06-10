@@ -2,7 +2,7 @@ use std::io::Read;
 
 use byteorder_lite::{LittleEndian, ReadBytesExt};
 
-use crate::error::{ImageError, ImageResult};
+use crate::error::ImageResult;
 
 use super::error::DecoderError;
 
@@ -14,11 +14,11 @@ pub(crate) struct Header {
     pub(crate) flags: Flags,
     pub(crate) height: u32,
     pub(crate) width: u32,
-    pub(crate) pitch_or_linear_size: u32,
-    pub(crate) depth: u32,
+    pub(crate) _pitch_or_linear_size: u32,
+    pub(crate) _depth: u32,
     pub(crate) mipmap_count: u32,
     pub(crate) pixel_format: PixelFormat,
-    pub(crate) caps: Caps,
+    pub(crate) _caps: Caps,
     pub(crate) caps2: Caps2,
     pub(crate) dx10: Option<DX10Header>,
 }
@@ -66,11 +66,11 @@ impl Header {
             flags,
             height,
             width,
-            pitch_or_linear_size,
-            depth,
+            _pitch_or_linear_size: pitch_or_linear_size,
+            _depth: depth,
             mipmap_count,
             pixel_format,
-            caps,
+            _caps: caps,
             caps2,
             dx10,
         })
@@ -90,10 +90,6 @@ where
     Self: Sized + Copy,
 {
     fn bits(self) -> u32;
-
-    fn none(self) -> bool {
-        self.bits() == 0
-    }
 
     /// Returns true if all flags are set.
     fn has_bits(self, flag: u32) -> bool {
@@ -327,14 +323,14 @@ impl std::ops::BitOr for PixelFormatFlags {
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct DX10Header {
     pub(crate) dxgi_format: DxgiFormat,
-    pub(crate) resource_dimension: ResourceDimension,
-    pub(crate) misc_flag: u32,
-    pub(crate) array_size: u32,
-    pub(crate) misc_flags_2: u32,
+    pub(crate) _resource_dimension: ResourceDimension,
+    pub(crate) _misc_flag: u32,
+    pub(crate) _array_size: u32,
+    pub(crate) _misc_flags_2: u32,
 }
 
 impl DX10Header {
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let dxgi_format = r.read_u32::<LittleEndian>()?;
         let resource_dimension = r.read_u32::<LittleEndian>()?;
         let misc_flag = r.read_u32::<LittleEndian>()?;
@@ -372,10 +368,10 @@ impl DX10Header {
 
         let dx10_header = Self {
             dxgi_format,
-            resource_dimension,
-            misc_flag,
-            array_size,
-            misc_flags_2,
+            _resource_dimension: resource_dimension,
+            _misc_flag: misc_flag,
+            _array_size: array_size,
+            _misc_flags_2: misc_flags_2,
         };
 
         Ok(dx10_header)

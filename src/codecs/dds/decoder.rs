@@ -1,5 +1,6 @@
 use std::io::Read;
 
+use crate::codecs::dds::convert::div_ceil;
 use crate::color::ColorType;
 use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::{ImageDecoder, ImageError, ImageFormat, ImageResult};
@@ -1174,23 +1175,5 @@ fn fix_endian_u32(buf: &mut [u8]) {
             buf.swap(i, i + 3);
             buf.swap(i + 1, i + 2);
         }
-    }
-}
-
-// We can't use std's div_ceil because of the MSRV
-fn div_ceil<T>(a: T, b: T) -> T
-where
-    T: Copy
-        + From<u8>
-        + PartialEq
-        + std::ops::Add<T, Output = T>
-        + std::ops::Div<T, Output = T>
-        + std::ops::Rem<T, Output = T>,
-{
-    let d = a / b;
-    if a % b != 0_u8.into() {
-        d + 1_u8.into()
-    } else {
-        d
     }
 }

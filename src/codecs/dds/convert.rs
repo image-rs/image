@@ -1,3 +1,5 @@
+use num_traits::Unsigned;
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct B5G6R5 {
     r5: u16,
@@ -193,6 +195,37 @@ pub(crate) fn f10_to_f32(half: u16) -> f32 {
     val
 }
 
+/// Computes `(a as f64 / b as f64).ceil() as T`.
+///
+/// We can't use std's div_ceil because of the MSRV
+#[inline(always)]
+pub(crate) fn div_ceil<T>(a: T, b: T) -> T
+where
+    T: Copy
+        + From<u8>
+        + PartialEq
+        + std::ops::Add<T, Output = T>
+        + std::ops::Div<T, Output = T>
+        + std::ops::Rem<T, Output = T>
+        + Unsigned,
+{
+    let d = a / b;
+    if a % b != 0_u8.into() {
+        d + 1_u8.into()
+    } else {
+        d
+    }
+}
+
+/// Computes `(a as f64 / b as f64).round() as T`.
+#[inline(always)]
+pub(crate) fn div_round<T>(a: T, b: T) -> T
+where
+    T: Copy + From<u8> + std::ops::Add<T, Output = T> + std::ops::Div<T, Output = T> + Unsigned,
+{
+    (a + b / 2.into()) / b
+}
+
 #[cfg(test)]
 mod test {
     #[test]
@@ -298,6 +331,25 @@ mod test {
                     color.two_third_color_rgb8(color_1),
                     color.blend_rgb8(color_1, 2.0 / 3.0)
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn div_ceil() {
+        for a in 0..32 {
+            for b in 1..32 {
+                let expected = (a as f64 / b as f64).ceil() as u8;
+                assert_eq!(super::div_ceil(a, b), expected, "a={}, b={}", a, b);
+            }
+        }
+    }
+    #[test]
+    fn div_round() {
+        for a in 0..32 {
+            for b in 1..32 {
+                let expected = (a as f64 / b as f64).round() as u8;
+                assert_eq!(super::div_round(a, b), expected, "a={}, b={}", a, b);
             }
         }
     }

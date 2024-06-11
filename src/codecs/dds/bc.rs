@@ -1,4 +1,4 @@
-use crate::codecs::dds::convert::snorm8_to_unorm8;
+use crate::codecs::dds::convert::{div_round, snorm8_to_unorm8};
 
 use super::convert::{x4_to_x8, B5G6R5};
 
@@ -96,40 +96,26 @@ pub(crate) fn decode_bc4_unsigned_block(block_bytes: [u8; 8]) -> [[u8; 1]; 16] {
     let c0 = block_bytes[0];
     let c1 = block_bytes[1];
 
+    let c0_16 = c0 as u16;
+    let c1_16 = c1 as u16;
+
     let (c2, c3, c4, c5, c6, c7) = if c0 > c1 {
         // 6 interpolated colors
-
-        #[inline(always)]
-        fn interpolate(c0: u8, c1: u8, c1_factor: u16) -> u8 {
-            // Same tricks as in x5_to_x8
-            //   round(c0*(7-f) + c1*f / 7)
-            //   floor(c0*(7-f) + c1*f / 7 + 0.5)
-            //   floor((c0*(7-f) + c1*f + 7/2) / 7)
-            //   floor((c0*(7-f)*2 + c1*f*2 + 7) / 14)
-            //   (c0*(7-f)*2 + c1*f*2 + 7) / 14
-            ((c0 as u16 * (7 - c1_factor) * 2 + c1 as u16 * c1_factor * 2 + 7) / 14) as u8
-        }
         (
-            interpolate(c0, c1, 1),
-            interpolate(c0, c1, 2),
-            interpolate(c0, c1, 3),
-            interpolate(c0, c1, 4),
-            interpolate(c0, c1, 5),
-            interpolate(c0, c1, 6),
+            div_round(c0_16 * 6 + c1_16, 7) as u8,
+            div_round(c0_16 * 5 + c1_16 * 2, 7) as u8,
+            div_round(c0_16 * 4 + c1_16 * 3, 7) as u8,
+            div_round(c0_16 * 3 + c1_16 * 4, 7) as u8,
+            div_round(c0_16 * 2 + c1_16 * 5, 7) as u8,
+            div_round(c0_16 + c1_16 * 6, 7) as u8,
         )
     } else {
         // 4 interpolated colors
-
-        #[inline(always)]
-        fn interpolate(c0: u8, c1: u8, c1_factor: u16) -> u8 {
-            // See above
-            ((c0 as u16 * (5 - c1_factor) * 2 + c1 as u16 * c1_factor * 2 + 5) / 10) as u8
-        }
         (
-            interpolate(c0, c1, 1),
-            interpolate(c0, c1, 2),
-            interpolate(c0, c1, 3),
-            interpolate(c0, c1, 4),
+            div_round(c0_16 * 4 + c1_16, 5) as u8,
+            div_round(c0_16 * 3 + c1_16 * 2, 5) as u8,
+            div_round(c0_16 * 2 + c1_16 * 3, 5) as u8,
+            div_round(c0_16 + c1_16 * 4, 5) as u8,
             0,
             255,
         )

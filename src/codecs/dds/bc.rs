@@ -146,11 +146,12 @@ pub(crate) fn decode_bc4_signed_block(block_bytes: [u8; 8]) -> [[u8; 1]; 16] {
     let c1 = snorm8_to_unorm8(red1);
 
     // exact f32 values of c0 and c1
-    let c0_f = red0.wrapping_add(128).saturating_sub(1) as f32 / 254.0 * 255.0;
-    let c1_f = red1.wrapping_add(128).saturating_sub(1) as f32 / 254.0 * 255.0;
+    const CONVERSION_FACTOR: f32 = 255.0 / 254.0;
+    let c0_f = red0.wrapping_add(128).saturating_sub(1) as f32 * CONVERSION_FACTOR;
+    let c1_f = red1.wrapping_add(128).saturating_sub(1) as f32 * CONVERSION_FACTOR;
 
     fn interpolate(red0: f32, red1: f32, blend: f32) -> u8 {
-        (red0 * (1.0 - blend) + red1 * blend).round() as u8
+        (red0 * (1.0 - blend) + red1 * blend + 0.5) as u8
     }
     let (c2, c3, c4, c5, c6, c7) = if c0 > c1 {
         // 6 interpolated colors

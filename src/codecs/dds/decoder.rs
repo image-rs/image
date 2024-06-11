@@ -508,96 +508,84 @@ impl Size {
 }
 
 #[inline(always)]
-fn by_row_8<const N: usize>(
+fn by_row_8<const N: usize, const M: usize>(
     r: &mut dyn Read,
     size: Size,
     buf: &mut [u8],
     color: ColorType,
-    process_pixel: impl Fn(&mut [u8], [u8; N]),
+    process_pixel: impl Fn([u8; N]) -> [u8; M],
 ) -> ImageResult<()>
 where
     [u8; N]: bytemuck::Pod,
+    [u8; M]: bytemuck::Pod,
 {
+    assert_eq!(color.bytes_per_pixel() as usize, M);
     size.check(buf, color);
-    let bytes_per_pixel = color.bytes_per_pixel() as usize;
+
+    let buf: &mut [[u8; M]] = bytemuck::cast_slice_mut(buf);
 
     let mut row = vec![[0u8; N]; size.width];
-    for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
+    for buf in buf.chunks_exact_mut(size.width) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
-        for (i, pixel) in row.iter().enumerate() {
-            let buf_i = i * bytes_per_pixel;
-            process_pixel(&mut buf[buf_i..(buf_i + bytes_per_pixel)], *pixel);
+        for (pixel, out) in row.iter().zip(buf) {
+            *out = process_pixel(*pixel);
         }
     }
     Ok(())
 }
 #[inline(always)]
-fn by_row_16<const N: usize>(
+fn by_row_16<const N: usize, const M: usize>(
     r: &mut dyn Read,
     size: Size,
     buf: &mut [u8],
     color: ColorType,
-    process_pixel: impl Fn(&mut [u16], [u16; N]),
+    process_pixel: impl Fn([u16; N]) -> [u16; M],
 ) -> ImageResult<()>
 where
     [[u8; 2]; N]: bytemuck::Pod,
+    [u16; M]: bytemuck::Pod + Default,
 {
     size.check(buf, color);
     let bytes_per_pixel = color.bytes_per_pixel() as usize;
-    assert!(
-        bytes_per_pixel % 2 == 0,
-        "bytes_per_pixel must be a multiple of 2"
-    );
-    let shorts_per_pixel = bytes_per_pixel / 2;
+    assert_eq!(bytes_per_pixel, M * 2);
 
     let mut row = vec![[[0_u8; 2]; N]; size.width];
-    let mut aligned_buf: Option<Vec<u16>> = None;
+    let mut aligned_buf: Option<Vec<[u16; M]>> = None;
     for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
 
         write_to_aligned_buffer(buf, &mut aligned_buf, |buf| {
-            for (i, pixel) in row.iter().enumerate() {
-                let buf_i = i * shorts_per_pixel;
-                process_pixel(
-                    &mut buf[buf_i..(buf_i + shorts_per_pixel)],
-                    pixel.map(u16::from_le_bytes),
-                );
+            for (pixel, out) in row.iter().zip(buf) {
+                *out = process_pixel(pixel.map(u16::from_le_bytes));
             }
         });
     }
     Ok(())
 }
 #[inline(always)]
-fn by_row_32<const N: usize>(
+fn by_row_32<const N: usize, const M: usize>(
     r: &mut dyn Read,
     size: Size,
     buf: &mut [u8],
     color: ColorType,
-    process_pixel: impl Fn(&mut [u32], [u32; N]),
+    process_pixel: impl Fn([u32; N]) -> [u32; M],
 ) -> ImageResult<()>
 where
     [[u8; 4]; N]: bytemuck::Pod,
+    [u32; M]: bytemuck::Pod + Default,
 {
     size.check(buf, color);
     let bytes_per_pixel = color.bytes_per_pixel() as usize;
-    assert!(
-        bytes_per_pixel % 4 == 0,
-        "bytes_per_pixel must be a multiple of 4"
-    );
-    let ints_per_pixel = bytes_per_pixel / 4;
+    assert_eq!(bytes_per_pixel, M * 4);
 
     let mut row = vec![[[0u8; 4]; N]; size.width];
-    let mut aligned_buf: Option<Vec<u32>> = None;
+    let mut aligned_buf: Option<Vec<[u32; M]>> = None;
     for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
 
         write_to_aligned_buffer(buf, &mut aligned_buf, |buf| {
-            for (i, pixel) in row.iter().enumerate() {
-                let buf_i = i * ints_per_pixel;
-                process_pixel(
-                    &mut buf[buf_i..(buf_i + ints_per_pixel)],
-                    pixel.map(u32::from_le_bytes),
-                );
+            for (pixel, out) in row.iter().zip(buf) {
+                *out = process_pixel(pixel.map(u32::from_le_bytes));
             }
         });
     }
@@ -644,11 +632,7 @@ fn decode_R8G8B8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageRes
 }
 #[allow(non_snake_case)]
 fn decode_B8G8R8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb8, |buf, [b, g, r]| {
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = b;
-    })
+    by_row_8(r, size, buf, ColorType::Rgb8, |[b, g, r]| [r, g, b])
 }
 #[allow(non_snake_case)]
 fn decode_R8G8B8A8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
@@ -679,48 +663,40 @@ fn decode_B8G8R8A8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageR
 }
 #[allow(non_snake_case)]
 fn decode_B8G8R8X8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb8, |buf, [b, g, r, _x]| {
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = b;
-    })
+    by_row_8(r, size, buf, ColorType::Rgb8, |[b, g, r, _x]| [r, g, b])
 }
 #[allow(non_snake_case)]
 fn decode_B5G6R5_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb8, |buf, bytes| {
-        let [r, g, b] = B5G6R5::from_le_bytes(bytes).to_rgb8();
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = b;
+    by_row_8(r, size, buf, ColorType::Rgb8, |bytes| {
+        B5G6R5::from_le_bytes(bytes).to_rgb8()
     })
 }
 #[allow(non_snake_case)]
 fn decode_B5G5R5A1_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgba8, |buf, bytes| {
+    by_row_8(r, size, buf, ColorType::Rgba8, |bytes| {
         let bgra = u16::from_le_bytes(bytes);
         let b5 = bgra & 0x1F;
         let g5 = (bgra >> 5) & 0x1F;
         let r5 = (bgra >> 10) & 0x1F;
         let a1 = (bgra >> 15) & 0x1;
 
-        buf[0] = x5_to_x8(r5);
-        buf[1] = x5_to_x8(g5);
-        buf[2] = x5_to_x8(b5);
-        buf[3] = x1_to_x8(a1);
+        [x5_to_x8(r5), x5_to_x8(g5), x5_to_x8(b5), x1_to_x8(a1)]
     })
 }
 #[allow(non_snake_case)]
 fn decode_B4G4R4A4_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgba8, |buf, [low, high]| {
+    by_row_8(r, size, buf, ColorType::Rgba8, |[low, high]| {
         let b4 = low & 0xF;
         let g4 = (low >> 4) & 0xF;
         let r4 = high & 0xF;
         let a4 = (high >> 4) & 0xF;
 
-        buf[0] = x4_to_x8(r4 as u16);
-        buf[1] = x4_to_x8(g4 as u16);
-        buf[2] = x4_to_x8(b4 as u16);
-        buf[3] = x4_to_x8(a4 as u16);
+        [
+            x4_to_x8(r4 as u16),
+            x4_to_x8(g4 as u16),
+            x4_to_x8(b4 as u16),
+            x4_to_x8(a4 as u16),
+        ]
     })
 }
 #[allow(non_snake_case)]
@@ -740,26 +716,17 @@ fn decode_R8_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<
 }
 #[allow(non_snake_case)]
 fn decode_R8G8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb8, |buf, [r, g]| {
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = 0;
-    })
+    by_row_8(r, size, buf, ColorType::Rgb8, |[r, g]| [r, g, 0])
 }
 #[allow(non_snake_case)]
 fn decode_R8G8_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb8, |buf, [r, g]| {
-        buf[0] = snorm8_to_unorm8(r);
-        buf[1] = snorm8_to_unorm8(g);
-        buf[2] = 128;
+    by_row_8(r, size, buf, ColorType::Rgb8, |[r, g]| {
+        [snorm8_to_unorm8(r), snorm8_to_unorm8(g), 128]
     })
 }
 #[allow(non_snake_case)]
 fn decode_A8_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::La8, |buf, [a]| {
-        buf[0] = 0;
-        buf[1] = a;
-    })
+    by_row_8(r, size, buf, ColorType::La8, |[a]| [0, a])
 }
 
 #[allow(non_snake_case)]
@@ -784,62 +751,59 @@ fn decode_R16G16B16A16_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> Im
 }
 #[allow(non_snake_case)]
 fn decode_R16G16_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_16(r, size, buf, ColorType::Rgb16, |buf, [r, g]| {
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = 0;
-    })
+    by_row_16(r, size, buf, ColorType::Rgb16, |[r, g]| [r, g, 0])
 }
 #[allow(non_snake_case)]
 fn decode_R10G10B10A2_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_16(r, size, buf, ColorType::Rgba16, |buf, [low, high]| {
+    by_row_16(r, size, buf, ColorType::Rgba16, |[low, high]| {
         let rgba: u32 = (high as u32) << 16 | low as u32;
         let r10 = rgba & 0x3FF;
         let g10 = (rgba >> 10) & 0x3FF;
         let b10 = (rgba >> 20) & 0x3FF;
         let a2 = (rgba >> 30) & 0x3;
 
-        buf[0] = x10_to_x16(r10);
-        buf[1] = x10_to_x16(g10);
-        buf[2] = x10_to_x16(b10);
-        buf[3] = x2_to_x16(a2);
+        [
+            x10_to_x16(r10),
+            x10_to_x16(g10),
+            x10_to_x16(b10),
+            x2_to_x16(a2),
+        ]
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_16(r, size, buf, ColorType::L16, |buf, [r]| {
-        buf[0] = snorm16_to_unorm16(r);
-    })
+    by_row_16(r, size, buf, ColorType::L16, |[r]| [snorm16_to_unorm16(r)])
 }
 #[allow(non_snake_case)]
 fn decode_R16G16B16A16_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_16(r, size, buf, ColorType::Rgba16, |buf, [r, g, b, a]| {
-        buf[0] = snorm16_to_unorm16(r);
-        buf[1] = snorm16_to_unorm16(g);
-        buf[2] = snorm16_to_unorm16(b);
-        buf[3] = snorm16_to_unorm16(a);
+    by_row_16(r, size, buf, ColorType::Rgba16, |[r, g, b, a]| {
+        [
+            snorm16_to_unorm16(r),
+            snorm16_to_unorm16(g),
+            snorm16_to_unorm16(b),
+            snorm16_to_unorm16(a),
+        ]
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16G16_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_16(r, size, buf, ColorType::Rgb16, |buf, [r, g]| {
-        buf[0] = snorm16_to_unorm16(r);
-        buf[1] = snorm16_to_unorm16(g);
-        buf[2] = 32768;
+    by_row_16(r, size, buf, ColorType::Rgb16, |[r, g]| {
+        [snorm16_to_unorm16(r), snorm16_to_unorm16(g), 32768]
     })
 }
 
 #[allow(non_snake_case)]
 fn decode_R11G11B10_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_32(r, size, buf, ColorType::Rgb32F, |buf, [rgb]| {
-        buf[0] = f11_to_f32((rgb & 0x7FF) as u16).to_bits();
-        buf[1] = f11_to_f32(((rgb >> 11) & 0x7FF) as u16).to_bits();
-        buf[2] = f10_to_f32(((rgb >> 22) & 0x3FF) as u16).to_bits();
+    by_row_32(r, size, buf, ColorType::Rgb32F, |[rgb]| {
+        let r = f11_to_f32((rgb & 0x7FF) as u16).to_bits();
+        let g = f11_to_f32(((rgb >> 11) & 0x7FF) as u16).to_bits();
+        let b = f10_to_f32(((rgb >> 22) & 0x3FF) as u16).to_bits();
+        [r, g, b]
     })
 }
 #[allow(non_snake_case)]
 fn decode_R9G9B9E5_SHAREDEXP(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_32(r, size, buf, ColorType::Rgb32F, |buf, [rgb]| {
+    by_row_32(r, size, buf, ColorType::Rgb32F, |[rgb]| {
         let r_mant = rgb & 0x1FF;
         let g_mant = (rgb >> 9) & 0x1FF;
         let b_mant = (rgb >> 18) & 0x1FF;
@@ -863,9 +827,7 @@ fn decode_R9G9B9E5_SHAREDEXP(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> Im
         let g = to_f32(exp, g_mant).to_bits();
         let b = to_f32(exp, b_mant).to_bits();
 
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = b;
+        [r, g, b]
     })
 }
 #[allow(non_snake_case)]
@@ -874,7 +836,7 @@ fn decode_R10G10B10_XR_BIAS_A2_UNORM(
     size: Size,
     buf: &mut [u8],
 ) -> ImageResult<()> {
-    by_row_32(r, size, buf, ColorType::Rgba32F, |buf, [rgba]| {
+    by_row_32(r, size, buf, ColorType::Rgba32F, |[rgba]| {
         // Do not ask me why, but this format is really weird. This is what
         // the docs say about it:
         //   A four-component, 32-bit 2.8-biased fixed-point format that supports
@@ -903,56 +865,48 @@ fn decode_R10G10B10_XR_BIAS_A2_UNORM(
         let g = to_f32(g_fixed).to_bits();
         let b = to_f32(b_fixed).to_bits();
 
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = b;
-        buf[3] = (a_2 as f32 / 3.0).to_bits();
+        [r, g, b, (a_2 as f32 / 3.0).to_bits()]
     })
 }
 
 #[allow(non_snake_case)]
 fn decode_R16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb32F, |buf, bytes| {
+    by_row_8(r, size, buf, ColorType::Rgb32F, |bytes| {
         let r = f16_to_f32(u16::from_le_bytes(bytes));
-        buf.copy_from_slice(bytemuck::cast_slice(&[r, r, r]));
+        let pixels: [u8; 12] = bytemuck::cast([r, r, r]);
+        pixels
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16G16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb32F, |buf, bytes: [u8; 4]| {
+    by_row_8(r, size, buf, ColorType::Rgb32F, |bytes: [u8; 4]| {
         let [r, g] = bytemuck::cast(bytes);
         let r = f16_to_f32(u16::from_le_bytes(r));
         let g = f16_to_f32(u16::from_le_bytes(g));
-        buf.copy_from_slice(bytemuck::cast_slice(&[r, g, 0.0]));
+        let pixels: [u8; 12] = bytemuck::cast([r, g, 0.0]);
+        pixels
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16G16B16A16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgba32F, |buf, bytes: [u8; 8]| {
+    by_row_8(r, size, buf, ColorType::Rgba32F, |bytes: [u8; 8]| {
         let [r, g, b, a] = bytemuck::cast(bytes);
         let r = f16_to_f32(u16::from_le_bytes(r));
         let g = f16_to_f32(u16::from_le_bytes(g));
         let b = f16_to_f32(u16::from_le_bytes(b));
         let a = f16_to_f32(u16::from_le_bytes(a));
-        buf.copy_from_slice(bytemuck::cast_slice(&[r, g, b, a]));
+        let pixels: [u8; 16] = bytemuck::cast([r, g, b, a]);
+        pixels
     })
 }
 
 #[allow(non_snake_case)]
 fn decode_R32_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_32(r, size, buf, ColorType::Rgb32F, |buf, [r]| {
-        buf[0] = r;
-        buf[1] = r;
-        buf[2] = r;
-    })
+    by_row_32(r, size, buf, ColorType::Rgb32F, |[r]| [r, r, r])
 }
 #[allow(non_snake_case)]
 fn decode_R32G32_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_32(r, size, buf, ColorType::Rgb32F, |buf, [r, g]| {
-        buf[0] = r;
-        buf[1] = g;
-        buf[2] = 0;
-    })
+    by_row_32(r, size, buf, ColorType::Rgb32F, |[r, g]| [r, g, 0])
 }
 #[allow(non_snake_case)]
 fn decode_R32G32B32_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {

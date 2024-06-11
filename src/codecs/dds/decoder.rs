@@ -284,10 +284,19 @@ impl<R: Read> DX10Decoder<R> {
 
         match surface_color {
             ColorType::L8 | ColorType::La8 | ColorType::Rgb8 | ColorType::Rgba8 => {
-                todo!()
+                let mut temp_buf = vec![0u8; w * h * surface_channels];
+
+                #[allow(clippy::needless_range_loop)]
+                for face_index in 0..6 {
+                    self.read_surface(bytemuck::cast_slice_mut(temp_buf.as_mut()))?;
+                    self.skip_mips()?;
+
+                    let offset = face_offsets[face_index];
+                    self.write_cube_face(cube_buf, &temp_buf, offset, 0xFF)?;
+                }
             }
             ColorType::L16 | ColorType::La16 | ColorType::Rgb16 | ColorType::Rgba16 => {
-                let buf: &mut [u16] = bytemuck::cast_slice_mut(cube_buf);
+                let buf: &mut [[u8; 2]] = bytemuck::cast_slice_mut(cube_buf);
                 let mut temp_buf = vec![0u16; w * h * surface_channels];
 
                 #[allow(clippy::needless_range_loop)]
@@ -296,11 +305,16 @@ impl<R: Read> DX10Decoder<R> {
                     self.skip_mips()?;
 
                     let offset = face_offsets[face_index];
-                    self.write_cube_face(buf, &temp_buf, offset, 0xFFFF)?;
+                    self.write_cube_face(
+                        buf,
+                        bytemuck::cast_slice(&temp_buf),
+                        offset,
+                        [0xFF, 0xFF],
+                    )?;
                 }
             }
             ColorType::Rgb32F | ColorType::Rgba32F => {
-                let buf: &mut [f32] = bytemuck::cast_slice_mut(cube_buf);
+                let buf: &mut [[u8; 4]] = bytemuck::cast_slice_mut(cube_buf);
                 let mut temp_buf = vec![0.0_f32; w * h * surface_channels];
 
                 #[allow(clippy::needless_range_loop)]
@@ -309,7 +323,12 @@ impl<R: Read> DX10Decoder<R> {
                     self.skip_mips()?;
 
                     let offset = face_offsets[face_index];
-                    self.write_cube_face(buf, &temp_buf, offset, 1.0)?;
+                    self.write_cube_face(
+                        buf,
+                        bytemuck::cast_slice(&temp_buf),
+                        offset,
+                        1.0_f32.to_ne_bytes(),
+                    )?;
                 }
             }
             #[allow(unreachable_patterns)]
@@ -328,16 +347,13 @@ impl<R: Read> DX10Decoder<R> {
 
         Ok(())
     }
-    fn write_cube_face<T>(
+    fn write_cube_face<T: Copy>(
         &mut self,
         cube_buf: &mut [T],
         surface_buf: &[T],
         face_offset: (usize, usize),
         alpha: T,
-    ) -> ImageResult<()>
-    where
-        T: Default + Copy + bytemuck::Pod,
-    {
+    ) -> ImageResult<()> {
         let w = self.width as usize;
         let h = self.height as usize;
 
@@ -357,7 +373,7 @@ impl<R: Read> DX10Decoder<R> {
 
             if surface_channels == cube_channels {
                 // just copy the line
-                dst.copy_from_slice(bytemuck::cast_slice(src));
+                dst.copy_from_slice(src);
             } else {
                 match (surface_channels, cube_channels) {
                     (1, 2) => {
@@ -494,7 +510,7 @@ impl Size {
 fn by_row_8<const N: usize>(
     r: &mut dyn Read,
     size: Size,
-    mut buf: &mut [u8],
+    buf: &mut [u8],
     color: ColorType,
     process_pixel: impl Fn(&mut [u8], [u8; N]),
 ) -> ImageResult<()>
@@ -505,13 +521,12 @@ where
     let bytes_per_pixel = color.bytes_per_pixel() as usize;
 
     let mut row = vec![[0u8; N]; size.width];
-    for _ in 0..size.height {
+    for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
         for (i, pixel) in row.iter().enumerate() {
             let buf_i = i * bytes_per_pixel;
             process_pixel(&mut buf[buf_i..(buf_i + bytes_per_pixel)], *pixel);
         }
-        buf = &mut buf[(size.width * bytes_per_pixel)..];
     }
     Ok(())
 }
@@ -534,19 +549,20 @@ where
     );
     let shorts_per_pixel = bytes_per_pixel / 2;
 
-    let mut buf: &mut [u16] = bytemuck::cast_slice_mut(buf);
-
     let mut row = vec![[[0_u8; 2]; N]; size.width];
-    for _ in 0..size.height {
+    let mut aligned_buf: Option<Vec<u16>> = None;
+    for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
-        for (i, pixel) in row.iter().enumerate() {
-            let buf_i = i * shorts_per_pixel;
-            process_pixel(
-                &mut buf[buf_i..(buf_i + shorts_per_pixel)],
-                pixel.map(u16::from_le_bytes),
-            );
-        }
-        buf = &mut buf[(size.width * shorts_per_pixel)..];
+
+        write_to_aligned_buffer(buf, &mut aligned_buf, |buf| {
+            for (i, pixel) in row.iter().enumerate() {
+                let buf_i = i * shorts_per_pixel;
+                process_pixel(
+                    &mut buf[buf_i..(buf_i + shorts_per_pixel)],
+                    pixel.map(u16::from_le_bytes),
+                );
+            }
+        });
     }
     Ok(())
 }
@@ -569,21 +585,53 @@ where
     );
     let ints_per_pixel = bytes_per_pixel / 4;
 
-    let mut buf: &mut [u32] = bytemuck::cast_slice_mut(buf);
-
     let mut row = vec![[[0u8; 4]; N]; size.width];
-    for _ in 0..size.height {
+    let mut aligned_buf: Option<Vec<u32>> = None;
+    for buf in buf.chunks_exact_mut(size.width * bytes_per_pixel) {
         r.read_exact(bytemuck::cast_slice_mut(row.as_mut()))?;
-        for (i, pixel) in row.iter().enumerate() {
-            let buf_i = i * ints_per_pixel;
-            process_pixel(
-                &mut buf[buf_i..(buf_i + ints_per_pixel)],
-                pixel.map(u32::from_le_bytes),
-            );
-        }
-        buf = &mut buf[(size.width * ints_per_pixel)..];
+
+        write_to_aligned_buffer(buf, &mut aligned_buf, |buf| {
+            for (i, pixel) in row.iter().enumerate() {
+                let buf_i = i * ints_per_pixel;
+                process_pixel(
+                    &mut buf[buf_i..(buf_i + ints_per_pixel)],
+                    pixel.map(u32::from_le_bytes),
+                );
+            }
+        });
     }
     Ok(())
+}
+fn write_to_aligned_buffer<T>(
+    buf: &mut [u8],
+    temp_buf: &mut Option<Vec<T>>,
+    write: impl FnOnce(&mut [T]),
+) where
+    T: bytemuck::Pod + Default + Copy,
+{
+    if let Ok(buf) = bytemuck::try_cast_slice_mut(buf) {
+        // the buffer is aligned already
+        write(buf);
+    } else {
+        // use a temporary buffer and copy over
+        let size = std::mem::size_of::<T>();
+        assert_eq!(buf.len() % size, 0);
+        let len = buf.len() / size;
+
+        let temp = if let Some(temp) = temp_buf {
+            assert_eq!(temp.len(), len);
+            temp
+        } else {
+            let temp = vec![T::default(); len];
+            *temp_buf = Some(temp);
+            // we just assigned a value, so unwrap is okay
+            temp_buf.as_mut().unwrap()
+        };
+
+        write(temp);
+
+        buf.copy_from_slice(bytemuck::cast_slice(temp));
+    }
 }
 
 #[allow(non_snake_case)]
@@ -937,6 +985,7 @@ fn by_row_8_sub_sample(
     const BYTES_PER_PIXEL: usize = 3;
 
     let row_pixels = div_ceil(size.width, 2);
+    assert_ne!(row_pixels, 0);
 
     let mut row = vec![[0u8; 4]; row_pixels];
     for _ in 0..size.height {

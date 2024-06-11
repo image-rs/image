@@ -375,13 +375,21 @@ pub trait Pixel: Copy + Clone {
     /// of this pixel and ```other``` pairwise.
     fn map2_without_alpha<F>(&self, other: &Self, f: F) -> Self
     where
-        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel,
+    {
+        let mut this = *self;
+        this.apply2_with_alpha(other, f, |x, _| x);
+        this
+    }
 
     /// Apply the function ```f``` to each channel except the alpha channel,
     /// of this pixel and ```other``` pairwise. Works in place.
     fn apply2_without_alpha<F>(&mut self, other: &Self, f: F)
     where
-        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel,
+    {
+        self.apply2_with_alpha(other, f, |x, _| x);
+    }
 
     /// Invert this pixel
     fn invert(&mut self);

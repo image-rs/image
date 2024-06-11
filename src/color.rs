@@ -389,19 +389,6 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         }
     }
 
-    fn map2_without_alpha<F>(&self, other: &Self, f: F) -> $ident<T> where F: FnMut(T, T) -> T {
-        let mut this = (*self).clone();
-        this.apply2_without_alpha(other, f);
-        this
-    }
-
-    fn apply2_without_alpha<F>(&mut self, other: &$ident<T>, mut f: F) where F: FnMut(T, T) -> T {
-        const ALPHA: usize = $channels - $alphas;
-        for (a, &b) in self.0[..ALPHA].iter_mut().zip(other.0[..ALPHA].iter()) {
-            *a = f(*a, b)
-        }
-    }
-
     fn invert(&mut self) {
         Invert::invert(self)
     }

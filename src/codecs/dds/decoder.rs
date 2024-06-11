@@ -11,8 +11,8 @@ use super::bc::{
     decode_bc6_signed_block, decode_bc6_unsigned_block, decode_bc7_block,
 };
 use super::convert::{
-    f10_to_f32, f11_to_f32, f16_to_f32, snorm16_to_unorm16, snorm8_to_unorm8, x10_to_x16, x1_to_x8,
-    x2_to_x16, x4_to_x8, x5_to_x8, B5G6R5,
+    f10_to_f32, f11_to_f32, f16_to_f32, float3_to_bytes, float4_to_bytes, snorm16_to_unorm16,
+    snorm8_to_unorm8, x10_to_x16, x1_to_x8, x2_to_x16, x4_to_x8, x5_to_x8, B5G6R5,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -871,32 +871,25 @@ fn decode_R10G10B10_XR_BIAS_A2_UNORM(
 
 #[allow(non_snake_case)]
 fn decode_R16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
-    by_row_8(r, size, buf, ColorType::Rgb32F, |bytes| {
+    by_row_8(r, size, buf, ColorType::Rgb32F, |bytes: [u8; 2]| {
         let r = f16_to_f32(u16::from_le_bytes(bytes));
-        let pixels: [u8; 12] = bytemuck::cast([r, r, r]);
-        pixels
+        float3_to_bytes([r, r, r])
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16G16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_row_8(r, size, buf, ColorType::Rgb32F, |bytes: [u8; 4]| {
-        let [r, g] = bytemuck::cast(bytes);
-        let r = f16_to_f32(u16::from_le_bytes(r));
-        let g = f16_to_f32(u16::from_le_bytes(g));
-        let pixels: [u8; 12] = bytemuck::cast([r, g, 0.0]);
-        pixels
+        let shorts: [[u8; 2]; 2] = bytemuck::cast(bytes);
+        let [r, g] = shorts.map(u16::from_le_bytes).map(f16_to_f32);
+        float3_to_bytes([r, g, 0.0])
     })
 }
 #[allow(non_snake_case)]
 fn decode_R16G16B16A16_FLOAT(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_row_8(r, size, buf, ColorType::Rgba32F, |bytes: [u8; 8]| {
-        let [r, g, b, a] = bytemuck::cast(bytes);
-        let r = f16_to_f32(u16::from_le_bytes(r));
-        let g = f16_to_f32(u16::from_le_bytes(g));
-        let b = f16_to_f32(u16::from_le_bytes(b));
-        let a = f16_to_f32(u16::from_le_bytes(a));
-        let pixels: [u8; 16] = bytemuck::cast([r, g, b, a]);
-        pixels
+        let shorts: [[u8; 2]; 4] = bytemuck::cast(bytes);
+        let floats = shorts.map(u16::from_le_bytes).map(f16_to_f32);
+        float4_to_bytes(floats)
     })
 }
 
@@ -1089,22 +1082,16 @@ fn decode_BC5_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult
 fn decode_BC5_SNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_4x4_block(r, size, buf, ColorType::Rgb8, decode_bc5_signed_block)
 }
-fn floats_to_bytes(floats: [f32; 3]) -> [u8; 12] {
-    let [r, g, b] = floats.map(|f| f.to_ne_bytes());
-    [
-        r[0], r[1], r[2], r[3], g[0], g[1], g[2], g[3], b[0], b[1], b[2], b[3],
-    ]
-}
 #[allow(non_snake_case)]
 fn decode_BC6H_UF16(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_4x4_block(r, size, buf, ColorType::Rgb32F, |block_bytes| {
-        decode_bc6_unsigned_block(block_bytes).map(floats_to_bytes)
+        decode_bc6_unsigned_block(block_bytes).map(float3_to_bytes)
     })
 }
 #[allow(non_snake_case)]
 fn decode_BC6H_SF16(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageResult<()> {
     by_4x4_block(r, size, buf, ColorType::Rgb32F, |block_bytes| {
-        decode_bc6_signed_block(block_bytes).map(floats_to_bytes)
+        decode_bc6_signed_block(block_bytes).map(float3_to_bytes)
     })
 }
 #[allow(non_snake_case)]

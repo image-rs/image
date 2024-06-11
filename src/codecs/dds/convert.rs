@@ -226,6 +226,13 @@ where
     (a + b / 2.into()) / b
 }
 
+pub(crate) fn float3_to_bytes(floats: [f32; 3]) -> [u8; 12] {
+    bytemuck::cast(floats)
+}
+pub(crate) fn float4_to_bytes(floats: [f32; 4]) -> [u8; 16] {
+    bytemuck::cast(floats)
+}
+
 #[cfg(test)]
 mod test {
     #[test]

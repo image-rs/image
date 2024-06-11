@@ -150,9 +150,9 @@ pub(crate) fn f16_to_f32(half: u16) -> f32 {
     } else if exp != 31 {
         (mant as f32 + 1024_f32) * 2.0_f32.powi(exp as i32 - 25)
     } else if mant == 0 {
-        ::std::f32::INFINITY
+        f32::INFINITY
     } else {
-        ::std::f32::NAN
+        f32::NAN
     };
     if half & 0x8000 != 0 {
         -val
@@ -170,9 +170,9 @@ pub(crate) fn f11_to_f32(half: u16) -> f32 {
     } else if exp != 31 {
         (mant as f32 + 64_f32) * 2.0_f32.powi(exp as i32 - 21)
     } else if mant == 0 {
-        ::std::f32::INFINITY
+        f32::INFINITY
     } else {
-        ::std::f32::NAN
+        f32::NAN
     };
     // no sign bit
     val
@@ -187,9 +187,9 @@ pub(crate) fn f10_to_f32(half: u16) -> f32 {
     } else if exp != 31 {
         (mant as f32 + 32_f32) * 2.0_f32.powi(exp as i32 - 20)
     } else if mant == 0 {
-        ::std::f32::INFINITY
+        f32::INFINITY
     } else {
-        ::std::f32::NAN
+        f32::NAN
     };
     // no sign bit
     val

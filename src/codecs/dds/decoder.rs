@@ -817,9 +817,9 @@ fn decode_R9G9B9E5_SHAREDEXP(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> Im
             } else if e5 != 31 {
                 m9 as f32 * 2.0_f32.powi(e5 as i32 - 24)
             } else if m9 == 0 {
-                ::std::f32::INFINITY
+                f32::INFINITY
             } else {
-                ::std::f32::NAN
+                f32::NAN
             }
         }
 

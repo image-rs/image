@@ -249,8 +249,8 @@ pub(crate) struct DX10Decoder<R: Read> {
     pub(crate) height: u32,
     pub(crate) format: SupportedFormat,
     pub(crate) cube: bool,
-    /// The number of mipmap levels excluding the top level.
-    pub(crate) mip_count: u8,
+    /// The number of mipmap levels including the top level.
+    pub(crate) mip_count: u32,
     pub(crate) inner: R,
 }
 
@@ -410,19 +410,18 @@ impl<R: Read> DX10Decoder<R> {
     }
 
     fn skip_mips(&mut self) -> ImageResult<()> {
-        if self.mip_count == 0 {
+        if self.mip_count < 2 {
             // no mips
             return Ok(());
         }
 
-        let mut size = Size {
+        let size = Size {
             width: self.width as usize,
             height: self.height as usize,
         };
         let mut total_bytes = 0;
-        for _ in 0..self.mip_count {
-            size = size.mip_down();
-            total_bytes += self.format.get_surface_bytes(size);
+        for level in 1..self.mip_count {
+            total_bytes += self.format.get_surface_bytes(size.get_mip(level));
         }
 
         // since rust does not have a way to skip bytes, we need a buffer to read into
@@ -499,11 +498,11 @@ impl Size {
         assert_eq!(buf.len(), total_bytes);
     }
 
-    fn mip_down(self) -> Self {
-        // https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dds-file-layout-for-textures
-        let width = div_ceil(self.width, 2);
-        let height = div_ceil(self.height, 2);
-        Self { width, height }
+    fn get_mip(self, level: u32) -> Self {
+        Self {
+            width: (self.width >> level).max(1),
+            height: (self.height >> level).max(1),
+        }
     }
 }
 

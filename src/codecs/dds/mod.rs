@@ -19,7 +19,7 @@ use crate::image::{ImageDecoder, ImageFormat};
 
 use decoder::{DX10Decoder, SupportedFormat};
 use error::DecoderError;
-use header::{BitFlags, Caps2, DxgiFormat, Flags, Header, PixelFormat, PixelFormatFlags};
+use header::{BitFlags, Caps, Caps2, DxgiFormat, Flags, Header, PixelFormat, PixelFormatFlags};
 
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
@@ -85,11 +85,14 @@ impl<R: Read> DdsDecoder<R> {
         if let Some(format) = format {
             let cube = header.caps2.has_bits(Caps2::CUBEMAP)
                 && header.caps2.has_bits(Caps2::CUBEMAP_ALL_FACES);
-            let mip_count = if header.flags.has_bits(Flags::MIPMAP_COUNT) && header.mipmap_count > 1
+            let mip_count = if (header.flags.has_bits(Flags::MIPMAP_COUNT)
+                || header.caps.has_bits(Caps::COMPLEX)
+                || header.caps.has_bits(Caps::MIPMAP))
+                && header.mipmap_count >= 1
             {
-                (header.mipmap_count - 1) as u8
+                header.mipmap_count
             } else {
-                0
+                1
             };
 
             let decoder = DX10Decoder {

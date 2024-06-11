@@ -18,7 +18,7 @@ pub(crate) struct Header {
     pub(crate) _depth: u32,
     pub(crate) mipmap_count: u32,
     pub(crate) pixel_format: PixelFormat,
-    pub(crate) _caps: Caps,
+    pub(crate) caps: Caps,
     pub(crate) caps2: Caps2,
     pub(crate) dx10: Option<DX10Header>,
 }
@@ -70,7 +70,7 @@ impl Header {
             _depth: depth,
             mipmap_count,
             pixel_format,
-            _caps: caps,
+            caps,
             caps2,
             dx10,
         })

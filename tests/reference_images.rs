@@ -34,7 +34,7 @@ where
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            func(&base, path, decoder)
+            func(&base, path, decoder);
         }
     }
 }
@@ -45,7 +45,7 @@ fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
         println!("render_images {}", path.display());
         let img = match image::open(&path) {
-            Ok(DynamicImage::ImageRgb32F(_)) | Ok(DynamicImage::ImageRgba32F(_)) => {
+            Ok(DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_)) => {
                 println!("Skipping {} - HDR codec is not enabled", path.display());
                 return;
             }
@@ -57,7 +57,7 @@ fn render_images() {
                 println!("UNSUPPORTED {}: {}", path.display(), e);
                 return;
             }
-            Err(err) => panic!("decoding of {:?} failed with: {}", path, err),
+            Err(err) => panic!("decoding of {path:?} failed with: {err}"),
         };
         let mut crc = Crc32::new();
         crc.update(img.as_bytes());
@@ -78,7 +78,7 @@ fn render_images() {
             crc.finalize(),
         ));
         img.save(out_path).unwrap();
-    })
+    });
 }
 
 /// Describes a single test case of `check_references`.
@@ -201,7 +201,7 @@ fn check_references() {
                         Ok(decoder) => decoder,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!("decoding of {:?} failed with: {}", img_path, err)
+                            panic!("decoding of {img_path:?} failed with: {err}")
                         }
                     };
 
@@ -209,7 +209,7 @@ fn check_references() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!("collecting frames of {:?} failed with: {}", img_path, err)
+                            panic!("collecting frames of {img_path:?} failed with: {err}")
                         }
                     };
 
@@ -229,7 +229,7 @@ fn check_references() {
                         Ok(decoder) => decoder.apng().unwrap(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!("decoding of {:?} failed with: {}", img_path, err)
+                            panic!("decoding of {img_path:?} failed with: {err}")
                         }
                     };
 
@@ -237,7 +237,7 @@ fn check_references() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!("collecting frames of {:?} failed with: {}", img_path, err)
+                            panic!("collecting frames of {img_path:?} failed with: {err}")
                         }
                     };
 
@@ -262,7 +262,7 @@ fn check_references() {
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
                     Err(image::ImageError::Unsupported(_)) => return,
-                    Err(err) => panic!("decoding of {:?} failed with: {}", img_path, err),
+                    Err(err) => panic!("decoding of {img_path:?} failed with: {err}"),
                 };
             }
         }
@@ -297,19 +297,19 @@ fn check_references() {
             hasher.finalize()
         };
 
-        if test_crc_actual != case.crc {
-            panic!(
-                "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
-                img_path.display(),
-                case.crc,
-                test_crc_actual
-            );
-        }
+        assert!(
+            test_crc_actual == case.crc,
+            "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
+            img_path.display(),
+            case.crc,
+            test_crc_actual
+        );
 
-        if ref_img.as_bytes() != test_img.as_bytes() {
-            panic!("Reference rendering does not match.");
-        }
-    })
+        assert!(
+            ref_img.as_bytes() == test_img.as_bytes(),
+            "Reference rendering does not match."
+        );
+    });
 }
 
 #[cfg(feature = "hdr")]
@@ -358,9 +358,10 @@ fn check_hdr_references() {
             .iter()
             .rev()
         {
-            match *c {
-                Normal(name) => ref_path.push(name),
-                _ => panic!(),
+            if let Normal(name) = *c {
+                ref_path.push(name)
+            } else {
+                panic!()
             }
         }
         ref_path.set_extension("raw");

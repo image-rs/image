@@ -68,7 +68,7 @@ impl<W: Write> HdrEncoder<W> {
         w.write_all(b"\n")?;
         w.write_all(b"# Rust HDR encoder\n")?;
         w.write_all(b"FORMAT=32-bit_rle_rgbe\n\n")?;
-        w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
+        w.write_all(format!("-Y {height} +X {width}\n").as_bytes())?;
 
         if !(8..=32_768).contains(&width) {
             for pixel in flattened_rgbe_pixels {

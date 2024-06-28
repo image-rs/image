@@ -155,9 +155,10 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
                 // therefore data is too small, so it is invalid.
                 .unwrap_or(true);
 
-            if has_invalid_size_or_overflowed {
-                panic!("byte buffer not large enough for the specified dimensions and f32 pixels");
-            }
+            assert!(
+                !has_invalid_size_or_overflowed,
+                "byte buffer not large enough for the specified dimensions and f32 pixels"
+            )
         }
 
         let result = read()
@@ -273,10 +274,7 @@ fn write_buffer(
         unsupported_color_type => {
             return Err(ImageError::Encoding(EncodingError::new(
                 ImageFormatHint::Exact(ImageFormat::OpenExr),
-                format!(
-                    "writing color type {:?} not yet supported",
-                    unsupported_color_type
-                ),
+                format!("writing color type {unsupported_color_type:?} not yet supported"),
             )))
         }
     }

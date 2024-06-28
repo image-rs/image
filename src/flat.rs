@@ -141,6 +141,7 @@ impl SampleLayout {
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `height` direction would be larger than `usize::MAX`. On other platforms
     /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    #[must_use]
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let height_stride = (channels as usize).checked_mul(width as usize).expect(
             "Row major packed image can not be described because it does not fit into memory",
@@ -171,6 +172,7 @@ impl SampleLayout {
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `width` direction would be larger than `usize::MAX`. On other platforms
     /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    #[must_use]
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let width_stride = (channels as usize).checked_mul(height as usize).expect(
             "Column major packed image can not be described because it does not fit into memory",
@@ -189,6 +191,7 @@ impl SampleLayout {
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
     /// increasing.
+    #[must_use]
     pub fn strides_cwh(&self) -> (usize, usize, usize) {
         (self.channel_stride, self.width_stride, self.height_stride)
     }
@@ -197,6 +200,7 @@ impl SampleLayout {
     ///
     /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
     /// before width and height.
+    #[must_use]
     pub fn extents(&self) -> (usize, usize, usize) {
         (
             self.channels as usize,
@@ -209,6 +213,7 @@ impl SampleLayout {
     ///
     /// This function should be used whenever working with image coordinates opposed to buffer
     /// coordinates. The only difference compared to `extents` is the output type.
+    #[must_use]
     pub fn bounds(&self) -> (u8, u32, u32) {
         (self.channels, self.width, self.height)
     }
@@ -264,6 +269,7 @@ impl SampleLayout {
     /// This time 'one-past-the-end' is not even simply the largest stride times the extent of its
     /// dimension. That still points inside the image because `height*height_stride = 4` but also
     /// `index_of(1, 2) = 4`.
+    #[must_use]
     pub fn min_length(&self) -> Option<usize> {
         if self.width == 0 || self.height == 0 || self.channels == 0 {
             return Some(0);
@@ -274,8 +280,9 @@ impl SampleLayout {
     }
 
     /// Check if a buffer of length `len` is large enough.
+    #[must_use]
     pub fn fits(&self, len: usize) -> bool {
-        self.min_length().map(|min| len >= min).unwrap_or(false)
+        self.min_length().map_or(false, |min| len >= min)
     }
 
     /// The extents of this array, in order of increasing strides.
@@ -300,6 +307,7 @@ impl SampleLayout {
     /// If this is not the case, it would always be safe to allow mutable access to two different
     /// samples at the same time. Otherwise, this operation would need additional checks. When one
     /// dimension overflows `usize` with its stride we also consider this aliasing.
+    #[must_use]
     pub fn has_aliased_samples(&self) -> bool {
         let grouped = self.increasing_stride_dims();
         let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
@@ -330,6 +338,7 @@ impl SampleLayout {
     /// checks can all be done in constant time and will not inspect the buffer content. You can
     /// perform these checks yourself when the conversion is not required at this moment but maybe
     /// still performed later.
+    #[must_use]
     pub fn is_normal(&self, form: NormalForm) -> bool {
         if self.has_aliased_samples() {
             return false;
@@ -385,6 +394,7 @@ impl SampleLayout {
     /// An in-bound coordinate does not yet guarantee that the corresponding calculation of a
     /// buffer index does not overflow. However, if such a buffer large enough to hold all samples
     /// actually exists in memory, this property of course follows.
+    #[must_use]
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
         channel < self.channels && x < self.width && y < self.height
     }
@@ -392,6 +402,7 @@ impl SampleLayout {
     /// Resolve the index of a particular sample.
     ///
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
+    #[must_use]
     pub fn index(&self, channel: u8, x: u32, y: u32) -> Option<usize> {
         if !self.in_bounds(channel, x, y) {
             return None;
@@ -405,6 +416,7 @@ impl SampleLayout {
     /// The 'check' is for overflow during index calculation, not that it is contained in the
     /// image. Two samples may return the same index, even when one of them is out of bounds. This
     /// happens when all strides are `0`, i.e. the image is an arbitrarily large monochrome image.
+    #[must_use]
     pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
         let idx_c = channel.checked_mul(self.channel_stride);
         let idx_x = x.checked_mul(self.width_stride);
@@ -429,6 +441,7 @@ impl SampleLayout {
     ///
     /// Behavior is *unspecified* if the index is out of bounds or this sample layout would require
     /// a buffer larger than `isize::MAX` bytes.
+    #[must_use]
     pub fn in_bounds_index(&self, c: u8, x: u32, y: u32) -> usize {
         let (c_stride, x_stride, y_stride) = self.strides_cwh();
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
@@ -921,7 +934,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// created by the shrinking operation. Shrinking could also lead to an non-aliasing image when
     /// samples had aliased each other before.
     pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
-        self.layout.shrink_to(channels, width, height)
+        self.layout.shrink_to(channels, width, height);
     }
 }
 
@@ -1043,7 +1056,7 @@ pub enum Error {
     /// care about the value of the alpha channel even though you need `Rgba`.
     ChannelCountMismatch(u8, u8),
 
-    /// Deprecated - ChannelCountMismatch is used instead
+    /// Deprecated - `ChannelCountMismatch` is used instead
     WrongColor(ColorType),
 }
 
@@ -1184,7 +1197,7 @@ where
     /// Note that you can not change the number of channels as an intrinsic property of `P`.
     pub fn shrink_to(&mut self, width: u32, height: u32) {
         let channels = self.inner.layout.channels;
-        self.inner.shrink_to(channels, width, height)
+        self.inner.shrink_to(channels, width, height);
     }
 
     /// Try to convert this into an image with mutable pixels.
@@ -1313,7 +1326,7 @@ where
     /// Note that you can not change the number of channels as an intrinsic property of `P`.
     pub fn shrink_to(&mut self, width: u32, height: u32) {
         let channels = self.inner.layout.channels;
-        self.inner.shrink_to(channels, width, height)
+        self.inner.shrink_to(channels, width, height);
     }
 }
 
@@ -1519,16 +1532,12 @@ impl fmt::Display for Error {
                     NormalForm::Unaliased => "not have any aliasing channels",
                 }
             ),
-            Error::ChannelCountMismatch(layout_channels, pixel_channels) => write!(
-                f,
-                "The channel count of the chosen pixel (={}) does agree with the layout (={})",
-                pixel_channels, layout_channels
-            ),
-            Error::WrongColor(color) => write!(
-                f,
-                "The chosen color type does not match the hint {:?}",
-                color
-            ),
+            Error::ChannelCountMismatch(layout_channels, pixel_channels) => {
+                write!(f, "The channel count of the chosen pixel (={pixel_channels}) does agree with the layout (={layout_channels})")
+            }
+            Error::WrongColor(color) => {
+                write!(f, "The chosen color type does not match the hint {color:?}")
+            }
         }
     }
 }

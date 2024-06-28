@@ -22,7 +22,7 @@ pub struct LimitSupport {}
 /// rely on these limits being supported. For strict limits, the library makes a stronger
 /// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered
 /// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit, it
-/// *must* fail with [error::LimitErrorKind::Unsupported].
+/// *must* fail with [`error::LimitErrorKind::Unsupported`].
 ///
 /// The only currently supported strict limits are the `max_image_width` and `max_image_height`
 /// limits, but more will be added in the future. [`LimitSupport`] will default to support
@@ -61,6 +61,7 @@ impl Default for Limits {
 
 impl Limits {
     /// Disable all limits.
+    #[must_use]
     pub fn no_limits() -> Limits {
         Limits {
             max_image_width: None,
@@ -140,8 +141,8 @@ impl Limits {
         color_type: ColorType,
     ) -> ImageResult<()> {
         self.check_dimensions(width, height)?;
-        let in_memory_size = (width as u64)
-            .saturating_mul(height as u64)
+        let in_memory_size = u64::from(width)
+            .saturating_mul(u64::from(height))
             .saturating_mul(color_type.bytes_per_pixel().into());
         self.reserve(in_memory_size)?;
         Ok(())

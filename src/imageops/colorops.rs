@@ -355,12 +355,12 @@ pub trait ColorMap {
     /// in the color map.
     fn index_of(&self, color: &Self::Color) -> usize;
     /// Looks up color by index in the color map.  If `idx` is out of range for the color map, or
-    /// ColorMap doesn't implement `lookup` `None` is returned.
+    /// `ColorMap` doesn't implement `lookup` `None` is returned.
     fn lookup(&self, index: usize) -> Option<Self::Color> {
         let _ = index;
         None
     }
-    /// Determine if this implementation of ColorMap overrides the default `lookup`.
+    /// Determine if this implementation of `ColorMap` overrides the default `lookup`.
     fn has_lookup(&self) -> bool {
         false
     }
@@ -422,7 +422,7 @@ impl ColorMap for BiLevel {
         }
     }
 
-    /// Indicate NeuQuant implements `lookup`.
+    /// Indicate `NeuQuant` implements `lookup`.
     fn has_lookup(&self) -> bool {
         true
     }
@@ -537,7 +537,7 @@ where
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
-        *idx = Luma([color_map.index_of(pixel) as u8])
+        *idx = Luma([color_map.index_of(pixel) as u8]);
     }
     indices
 }

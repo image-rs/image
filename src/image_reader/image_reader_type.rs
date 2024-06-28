@@ -134,7 +134,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// Makes a decoder.
     ///
     /// For all formats except PNG, the limits are ignored and can be set with
-    /// ImageDecoder::set_limits after calling this function. PNG is handled specially because that
+    /// `ImageDecoder::set_limits` after calling this function. PNG is handled specially because that
     /// decoder has a different API which does not allow setting limits after construction.
     fn make_decoder(
         format: ImageFormat,

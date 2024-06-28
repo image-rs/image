@@ -16,8 +16,8 @@ pub(crate) fn resize_dimensions(
     nheight: u32,
     fill: bool,
 ) -> (u32, u32) {
-    let wratio = nwidth as f64 / width as f64;
-    let hratio = nheight as f64 / height as f64;
+    let wratio = f64::from(nwidth) / f64::from(width);
+    let hratio = f64::from(nheight) / f64::from(height);
 
     let ratio = if fill {
         f64::max(wratio, hratio)
@@ -25,15 +25,15 @@ pub(crate) fn resize_dimensions(
         f64::min(wratio, hratio)
     };
 
-    let nw = max((width as f64 * ratio).round() as u64, 1);
-    let nh = max((height as f64 * ratio).round() as u64, 1);
+    let nw = max((f64::from(width) * ratio).round() as u64, 1);
+    let nh = max((f64::from(height) * ratio).round() as u64, 1);
 
     if nw > u64::from(u32::MAX) {
-        let ratio = u32::MAX as f64 / width as f64;
-        (u32::MAX, max((height as f64 * ratio).round() as u32, 1))
+        let ratio = f64::from(u32::MAX) / f64::from(width);
+        (u32::MAX, max((f64::from(height) * ratio).round() as u32, 1))
     } else if nh > u64::from(u32::MAX) {
-        let ratio = u32::MAX as f64 / height as f64;
-        (max((width as f64 * ratio).round() as u32, 1), u32::MAX)
+        let ratio = f64::from(u32::MAX) / f64::from(height);
+        (max((f64::from(width) * ratio).round() as u32, 1), u32::MAX)
     } else {
         (nw as u32, nh as u32)
     }

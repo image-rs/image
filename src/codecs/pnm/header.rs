@@ -149,6 +149,7 @@ impl ArbitraryTuplType {
 
 impl PnmSubtype {
     /// Get the two magic constant bytes corresponding to this format subtype.
+    #[must_use]
     pub fn magic_constant(self) -> &'static [u8; 2] {
         match self {
             PnmSubtype::Bitmap(SampleEncoding::Ascii) => b"P1",
@@ -162,6 +163,7 @@ impl PnmSubtype {
     }
 
     /// Whether samples are stored as binary or as decimal ascii
+    #[must_use]
     pub fn sample_encoding(self) -> SampleEncoding {
         match self {
             PnmSubtype::ArbitraryMap => SampleEncoding::Binary,
@@ -174,6 +176,7 @@ impl PnmSubtype {
 
 impl PnmHeader {
     /// Retrieve the format subtype from which the header was created.
+    #[must_use]
     pub fn subtype(&self) -> PnmSubtype {
         match self.decoded {
             HeaderRecord::Bitmap(BitmapHeader { encoding, .. }) => PnmSubtype::Bitmap(encoding),
@@ -184,6 +187,7 @@ impl PnmHeader {
     }
 
     /// The width of the image this header is for.
+    #[must_use]
     pub fn width(&self) -> u32 {
         match self.decoded {
             HeaderRecord::Bitmap(BitmapHeader { width, .. }) => width,
@@ -194,6 +198,7 @@ impl PnmHeader {
     }
 
     /// The height of the image this header is for.
+    #[must_use]
     pub fn height(&self) -> u32 {
         match self.decoded {
             HeaderRecord::Bitmap(BitmapHeader { height, .. }) => height,
@@ -204,6 +209,7 @@ impl PnmHeader {
     }
 
     /// The biggest value a sample can have. In other words, the colour resolution.
+    #[must_use]
     pub fn maximal_sample(&self) -> u32 {
         match self.decoded {
             HeaderRecord::Bitmap(BitmapHeader { .. }) => 1,
@@ -214,6 +220,7 @@ impl PnmHeader {
     }
 
     /// Retrieve the underlying bitmap header if any
+    #[must_use]
     pub fn as_bitmap(&self) -> Option<&BitmapHeader> {
         match self.decoded {
             HeaderRecord::Bitmap(ref bitmap) => Some(bitmap),
@@ -222,6 +229,7 @@ impl PnmHeader {
     }
 
     /// Retrieve the underlying graymap header if any
+    #[must_use]
     pub fn as_graymap(&self) -> Option<&GraymapHeader> {
         match self.decoded {
             HeaderRecord::Graymap(ref graymap) => Some(graymap),
@@ -230,6 +238,7 @@ impl PnmHeader {
     }
 
     /// Retrieve the underlying pixmap header if any
+    #[must_use]
     pub fn as_pixmap(&self) -> Option<&PixmapHeader> {
         match self.decoded {
             HeaderRecord::Pixmap(ref pixmap) => Some(pixmap),
@@ -238,6 +247,7 @@ impl PnmHeader {
     }
 
     /// Retrieve the underlying arbitrary header if any
+    #[must_use]
     pub fn as_arbitrary(&self) -> Option<&ArbitraryHeader> {
         match self.decoded {
             HeaderRecord::Arbitrary(ref arbitrary) => Some(arbitrary),
@@ -261,7 +271,7 @@ impl PnmHeader {
                         height,
                     }),
                 ..
-            } => writeln!(writer, "\n{} {}", width, height),
+            } => writeln!(writer, "\n{width} {height}"),
             PnmHeader {
                 decoded:
                     HeaderRecord::Graymap(GraymapHeader {
@@ -271,7 +281,7 @@ impl PnmHeader {
                         maxwhite,
                     }),
                 ..
-            } => writeln!(writer, "\n{} {} {}", width, height, maxwhite),
+            } => writeln!(writer, "\n{width} {height} {maxwhite}"),
             PnmHeader {
                 decoded:
                     HeaderRecord::Pixmap(PixmapHeader {
@@ -281,7 +291,7 @@ impl PnmHeader {
                         maxval,
                     }),
                 ..
-            } => writeln!(writer, "\n{} {} {}", width, height, maxval),
+            } => writeln!(writer, "\n{width} {height} {maxval}"),
             PnmHeader {
                 decoded:
                     HeaderRecord::Arbitrary(ArbitraryHeader {

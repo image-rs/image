@@ -14,7 +14,7 @@ jobs:
         features: [""]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
       if: ${{ matrix.rust == '1.57.0' }}
@@ -35,7 +35,7 @@ jobs:
         features: ["", "benchmarks"]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
@@ -48,7 +48,7 @@ jobs:
   powerpc_cross:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: add_cross_target
       run: |
         rustup target add powerpc-unknown-linux-gnu
@@ -56,7 +56,7 @@ jobs:
   test_all:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - run: rustup default stable
     - name: test
       run: >
@@ -64,7 +64,7 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable

@@ -1395,6 +1395,7 @@ mod test {
         // Test that structs wrapping a DynamicImage are able to auto-derive the Default trait
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
+        #[allow(dead_code)]
         struct Foo {
             _image: super::DynamicImage,
         }

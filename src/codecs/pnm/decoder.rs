@@ -1,6 +1,7 @@
 use std::error;
 use std::fmt::{self, Display};
 use std::io::{self, Read};
+use std::mem::size_of;
 use std::num::ParseIntError;
 use std::str::{self, FromStr};
 

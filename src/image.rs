@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use std::ffi::OsStr;
 use std::io::{self, Write};
+use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 

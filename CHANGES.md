@@ -7,6 +7,20 @@
 
 ## Changes
 
+### Version 0.25.2
+
+Features:
+- Added the HDR encoder to supported formats in generic write methods with the
+  `hdr` feature enabled.
+- When cloing `ImageBuffer` and `DynamicImage` the existing buffer will now be
+  reused if possible.
+- Added `image::ImageReader` as an alias.
+
+Bug fixes:
+- Removed test data included in the crate archive.
+- The WebP animation decoder stops when reaching the indicate frame count.
+- Format support gated on the `exr` feature now compiles in isolation.
+
 ### Version 0.25.1
 
 Bug fixes:

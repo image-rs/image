@@ -384,11 +384,13 @@ impl DynamicImage {
     ///
     /// Note: this method does *not* modify the object,
     /// and its signature will be replaced with `crop_imm()`'s in the 0.24 release
+    #[must_use]
     pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
     }
 
     /// Return a cut-out of this image delimited by the bounding rectangle.
+    #[must_use]
     pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::crop_imm(p, x, y, width, height).to_image())
     }
@@ -653,6 +655,7 @@ impl DynamicImage {
     /// Return a grayscale version of this image.
     /// Returns `Luma` images in most cases. However, for `f32` images,
     /// this will return a grayscale `Rgb/Rgba` image instead.
+    #[must_use]
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
@@ -690,6 +693,7 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
+    #[must_use]
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         if (nwidth, nheight) == self.dimensions() {
             return self.clone();
@@ -703,6 +707,7 @@ impl DynamicImage {
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
     /// `nwidth` and `nheight` are the new image's dimensions
+    #[must_use]
     pub fn resize_exact(
         &self,
         nwidth: u32,
@@ -720,6 +725,7 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    #[must_use]
     pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
@@ -732,6 +738,7 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    #[must_use]
     pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
     }
@@ -742,6 +749,7 @@ impl DynamicImage {
     /// within the larger (relative to aspect ratio) of the bounds
     /// specified by `nwidth` and `nheight`, then cropped to
     /// fit within the other bound.
+    #[must_use]
     pub fn resize_to_fill(
         &self,
         nwidth: u32,
@@ -765,6 +773,7 @@ impl DynamicImage {
 
     /// Performs a Gaussian blur on this image.
     /// `sigma` is a measure of how much to blur by.
+    #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
@@ -774,11 +783,13 @@ impl DynamicImage {
     /// `threshold` is a control of how much to sharpen.
     ///
     /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
+    #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
 
     /// Filters this image with the specified 3x3 kernel.
+    #[must_use]
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         if kernel.len() != 9 {
             panic!("filter must be 3 x 3")
@@ -790,6 +801,7 @@ impl DynamicImage {
     /// Adjust the contrast of this image.
     /// `contrast` is the amount to adjust the contrast by.
     /// Negative values decrease the contrast and positive values increase the contrast.
+    #[must_use]
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }
@@ -797,6 +809,7 @@ impl DynamicImage {
     /// Brighten the pixels of this image.
     /// `value` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.
+    #[must_use]
     pub fn brighten(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
     }
@@ -805,31 +818,37 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
+    #[must_use]
     pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
     }
 
     /// Flip this image vertically
+    #[must_use]
     pub fn flipv(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
     }
 
     /// Flip this image horizontally
+    #[must_use]
     pub fn fliph(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
     }
 
     /// Rotate this image 90 degrees clockwise.
+    #[must_use]
     pub fn rotate90(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate90(p))
     }
 
     /// Rotate this image 180 degrees clockwise.
+    #[must_use]
     pub fn rotate180(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))
     }
 
     /// Rotate this image 270 degrees clockwise.
+    #[must_use]
     pub fn rotate270(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }

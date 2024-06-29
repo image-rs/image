@@ -377,7 +377,7 @@ where
     P: Pixel + Send + Sync,
     P::Subpixel: Send + Sync,
 {
-    /// Constructs a new ImageBuffer by repeated application of the supplied function,
+    /// Constructs a new `ImageBuffer` by repeated application of the supplied function,
     /// utilizing multi-threading via `rayon`.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.

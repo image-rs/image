@@ -5,10 +5,8 @@
 use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
-use crate::{
-    color::{Luma, LumaA, Rgb, Rgba},
-    ExtendedColorType,
-};
+use crate::color::{Luma, LumaA, Rgb, Rgba};
+use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -70,7 +68,7 @@ declare_primitive!(i64: (Self::MIN)..Self::MAX);
 declare_primitive!(f32: (0.0)..1.0);
 declare_primitive!(f64: (0.0)..1.0);
 
-/// An Enlargable::Larger value should be enough to calculate
+/// An `Enlargable::Larger` value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
 pub trait Enlargeable: Sized + Bounded + NumCast {
     type Larger: Copy + NumCast + Num + PartialOrd<Self::Larger> + Clone + Bounded + AddAssign;

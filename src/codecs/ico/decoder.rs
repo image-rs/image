@@ -24,7 +24,7 @@ enum DecoderError {
 
     /// The entry is in PNG format and specified a length that is shorter than PNG header.
     PngShorterThanHeader,
-    /// The enclosed PNG is not in RGBA, which is invalid: https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/.
+    /// The enclosed PNG is not in RGBA, which is invalid: <https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473>/.
     PngNotRgba,
 
     /// The entry is in BMP format and specified a data size that is not correct for the image and optional mask data.
@@ -63,8 +63,7 @@ impl fmt::Display for DecoderError {
                 entry,
                 image,
             } => f.write_fmt(format_args!(
-                "Entry{:?} and {}{:?} dimensions do not match!",
-                entry, format, image
+                "Entry{entry:?} and {format}{image:?} dimensions do not match!"
             )),
         }
     }

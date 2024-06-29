@@ -195,7 +195,7 @@ impl<R: Read> TgaDecoder<R> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
             let mut result = 0usize;
-            for byte in bytes.iter() {
+            for byte in bytes {
                 result = result << 8 | *byte as usize;
             }
             result

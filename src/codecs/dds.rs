@@ -46,25 +46,25 @@ impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DecoderError::PixelFormatSizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS PixelFormat size: {}", s))
+                f.write_fmt(format_args!("Invalid DDS PixelFormat size: {s}"))
             }
             DecoderError::HeaderSizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS header size: {}", s))
+                f.write_fmt(format_args!("Invalid DDS header size: {s}"))
             }
             DecoderError::HeaderFlagsInvalid(fs) => {
-                f.write_fmt(format_args!("Invalid DDS header flags: {:#010X}", fs))
+                f.write_fmt(format_args!("Invalid DDS header flags: {fs:#010X}"))
             }
             DecoderError::DxgiFormatInvalid(df) => {
-                f.write_fmt(format_args!("Invalid DDS DXGI format: {}", df))
+                f.write_fmt(format_args!("Invalid DDS DXGI format: {df}"))
             }
             DecoderError::ResourceDimensionInvalid(d) => {
-                f.write_fmt(format_args!("Invalid DDS resource dimension: {}", d))
+                f.write_fmt(format_args!("Invalid DDS resource dimension: {d}"))
             }
             DecoderError::Dx10FlagsInvalid(fs) => {
-                f.write_fmt(format_args!("Invalid DDS DX10 header flags: {:#010X}", fs))
+                f.write_fmt(format_args!("Invalid DDS DX10 header flags: {fs:#010X}"))
             }
             DecoderError::Dx10ArraySizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS DX10 array size: {}", s))
+                f.write_fmt(format_args!("Invalid DDS DX10 array size: {s}"))
             }
             DecoderError::DdsSignatureInvalid => f.write_str("DDS signature not found"),
         }
@@ -146,7 +146,7 @@ impl Header {
         }
 
         const REQUIRED_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x1000;
-        const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x800000;
+        const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x0080_0000;
         let flags = r.read_u32::<LittleEndian>()?;
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
             return Err(DecoderError::HeaderFlagsInvalid(flags).into());
@@ -288,10 +288,7 @@ impl<R: Read> DdsDecoder<R> {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Dds.into(),
-                            UnsupportedErrorKind::GenericFeature(format!(
-                                "DDS FourCC {:?}",
-                                fourcc
-                            )),
+                            UnsupportedErrorKind::GenericFeature(format!("DDS FourCC {fourcc:?}")),
                         ),
                     ))
                 }

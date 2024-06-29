@@ -644,7 +644,7 @@ where
 /// image::imageops::overlay(&mut img, &on_top, 128, 128);
 /// ```
 ///
-/// Convert an RgbaImage to a GrayImage.
+/// Convert an `RgbaImage` to a `GrayImage`.
 ///
 /// ```no_run
 /// use image::{open, DynamicImage};
@@ -801,7 +801,7 @@ where
     /// the bounds will not overflow.
     fn check_image_fits(width: u32, height: u32, len: usize) -> bool {
         let checked_len = Self::image_buffer_len(width, height);
-        checked_len.map(|min_len| min_len <= len).unwrap_or(false)
+        checked_len.map_or(false, |min_len| min_len <= len)
     }
 
     fn image_buffer_len(width: u32, height: u32) -> Option<usize> {
@@ -980,7 +980,7 @@ where
     #[inline]
     #[track_caller]
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
+        *self.get_pixel_mut(x, y) = pixel;
     }
 }
 
@@ -1198,7 +1198,7 @@ where
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
+        *self.get_pixel_mut(x, y) = pixel;
     }
 
     /// Puts a pixel at location (x, y), ignoring bounds checking.
@@ -1206,14 +1206,14 @@ where
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let indices = self.pixel_indices_unchecked(x, y);
         let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
-        *p = pixel
+        *p = pixel;
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
     ///
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
-        self.get_pixel_mut(x, y).blend(&p)
+        self.get_pixel_mut(x, y).blend(&p);
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
@@ -1268,6 +1268,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
+    #[must_use]
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let size = Self::image_buffer_len(width, height)
             .expect("Buffer length in `ImageBuffer::new` overflows usize");
@@ -1279,7 +1280,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
         }
     }
 
-    /// Constructs a new ImageBuffer by copying a pixel
+    /// Constructs a new `ImageBuffer` by copying a pixel
     ///
     /// # Panics
     ///
@@ -1287,12 +1288,12 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
-            *p = pixel
+            *p = pixel;
         }
         buf
     }
 
-    /// Constructs a new ImageBuffer by repeated application of the supplied function.
+    /// Constructs a new `ImageBuffer` by repeated application of the supplied function.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.
     ///
@@ -1305,13 +1306,14 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y, p) in buf.enumerate_pixels_mut() {
-            *p = f(x, y)
+            *p = f(x, y);
         }
         buf
     }
 
     /// Creates an image buffer out of an existing buffer.
     /// Returns None if the buffer is not big enough.
+    #[must_use]
     pub fn from_vec(
         width: u32,
         height: u32,
@@ -1322,6 +1324,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
 
     /// Consumes the image buffer and returns the underlying data
     /// as an owned buffer
+    #[must_use]
     pub fn into_vec(self) -> Vec<P::Subpixel> {
         self.into_raw()
     }
@@ -1341,6 +1344,7 @@ impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
     /// adjust it's alpha value accordingly.
+    #[must_use]
     pub fn expand_palette(
         self,
         palette: &[(u8, u8, u8)],
@@ -1397,7 +1401,7 @@ where
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);
         for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
-            to.from_color(from)
+            to.from_color(from);
         }
         buffer
     }

@@ -194,16 +194,19 @@ impl UnsupportedError {
     ///
     /// If the operation was not connected to a particular image format then the hint may be
     /// `Unknown`.
+    #[must_use]
     pub fn from_format_and_kind(format: ImageFormatHint, kind: UnsupportedErrorKind) -> Self {
         UnsupportedError { format, kind }
     }
 
     /// Returns the corresponding `UnsupportedErrorKind` of the error.
+    #[must_use]
     pub fn kind(&self) -> UnsupportedErrorKind {
         self.kind.clone()
     }
 
     /// Returns the image format associated with this error.
+    #[must_use]
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
     }
@@ -221,6 +224,7 @@ impl DecodingError {
     /// Create a `DecodingError` for an image format.
     ///
     /// The error will not contain any further information but is very easy to create.
+    #[must_use]
     pub fn from_format_hint(format: ImageFormatHint) -> Self {
         DecodingError {
             format,
@@ -229,6 +233,7 @@ impl DecodingError {
     }
 
     /// Returns the image format associated with this error.
+    #[must_use]
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
     }
@@ -246,6 +251,7 @@ impl EncodingError {
     /// Create an `EncodingError` for an image format.
     ///
     /// The error will not contain any further information but is very easy to create.
+    #[must_use]
     pub fn from_format_hint(format: ImageFormatHint) -> Self {
         EncodingError {
             format,
@@ -254,6 +260,7 @@ impl EncodingError {
     }
 
     /// Return the image format associated with this error.
+    #[must_use]
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
     }
@@ -261,6 +268,7 @@ impl EncodingError {
 
 impl ParameterError {
     /// Construct a `ParameterError` directly from a corresponding kind.
+    #[must_use]
     pub fn from_kind(kind: ParameterErrorKind) -> Self {
         ParameterError {
             kind,
@@ -269,6 +277,7 @@ impl ParameterError {
     }
 
     /// Returns the corresponding `ParameterErrorKind` of the error.
+    #[must_use]
     pub fn kind(&self) -> ParameterErrorKind {
         self.kind.clone()
     }
@@ -276,11 +285,13 @@ impl ParameterError {
 
 impl LimitError {
     /// Construct a generic `LimitError` directly from a corresponding kind.
+    #[must_use]
     pub fn from_kind(kind: LimitErrorKind) -> Self {
         LimitError { kind }
     }
 
     /// Returns the corresponding `LimitErrorKind` of the error.
+    #[must_use]
     pub fn kind(&self) -> LimitErrorKind {
         self.kind.clone()
     }
@@ -353,11 +364,10 @@ impl fmt::Display for UnsupportedError {
             }
             UnsupportedErrorKind::Format(format @ ImageFormatHint::PathExtension(_)) => write!(
                 fmt,
-                "The file extension {} was not recognized as an image format",
-                format,
+                "The file extension {format} was not recognized as an image format",
             ),
             UnsupportedErrorKind::Format(format) => {
-                write!(fmt, "The image format {} is not supported", format,)
+                write!(fmt, "The image format {format} is not supported",)
             }
             UnsupportedErrorKind::Color(color) => write!(
                 fmt,
@@ -367,13 +377,11 @@ impl fmt::Display for UnsupportedError {
             UnsupportedErrorKind::GenericFeature(message) => match &self.format {
                 ImageFormatHint::Unknown => write!(
                     fmt,
-                    "The decoder does not support the format feature {}",
-                    message,
+                    "The decoder does not support the format feature {message}",
                 ),
                 other => write!(
                     fmt,
-                    "The decoder for {} does not support the format features {}",
-                    other, message,
+                    "The decoder for {other} does not support the format features {message}",
                 ),
             },
         }
@@ -395,13 +403,13 @@ impl fmt::Display for ParameterError {
                 "The end the image stream has been reached due to a previous error"
             ),
             ParameterErrorKind::Generic(message) => {
-                write!(fmt, "The parameter is malformed: {}", message,)
+                write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
         }?;
 
         if let Some(underlying) = &self.underlying {
-            write!(fmt, "\n{}", underlying)?;
+            write!(fmt, "\n{underlying}")?;
         }
 
         Ok(())
@@ -480,9 +488,9 @@ impl Error for LimitError {}
 impl fmt::Display for ImageFormatHint {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            ImageFormatHint::Exact(format) => write!(fmt, "{:?}", format),
-            ImageFormatHint::Name(name) => write!(fmt, "`{}`", name),
-            ImageFormatHint::PathExtension(ext) => write!(fmt, "`.{:?}`", ext),
+            ImageFormatHint::Exact(format) => write!(fmt, "{format:?}"),
+            ImageFormatHint::Name(name) => write!(fmt, "`{name}`"),
+            ImageFormatHint::PathExtension(ext) => write!(fmt, "`.{ext:?}`"),
             ImageFormatHint::Unknown => write!(fmt, "`Unknown`"),
         }
     }
@@ -491,11 +499,11 @@ impl fmt::Display for ImageFormatHint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
+    use std::mem::size_of;
 
     #[allow(dead_code)]
     // This will fail to compile if the size of this type is large.
-    const ASSERT_SMALLISH: usize = [0][(mem::size_of::<ImageError>() >= 200) as usize];
+    const ASSERT_SMALLISH: usize = [0][(size_of::<ImageError>() >= 200) as usize];
 
     #[test]
     fn test_send_sync_stability() {

@@ -132,6 +132,7 @@ fn crop_dimms<I: GenericImageView>(
 /// ```
 ///
 /// Proof is the same for height.
+#[must_use]
 pub fn overlay_bounds(
     (bottom_width, bottom_height): (u32, u32),
     (top_width, top_height): (u32, u32),

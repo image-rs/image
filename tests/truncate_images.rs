@@ -32,57 +32,57 @@ where
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            func(path)
+            func(path);
         }
     }
 }
 
 fn truncate_images(decoder: &str) {
     process_images(IMAGE_DIR, Some(decoder), |path| {
-        println!("{:?}", path);
+        println!("{path:?}");
         let fin = fs::File::open(&path).unwrap();
         let max_length = 1000;
         let mut buf = Vec::with_capacity(max_length);
         fin.take(max_length as u64).read_to_end(&mut buf).unwrap();
         for i in (0..buf.len()).step_by(37) {
-            image::load_from_memory(&buf[..i + 1]).ok();
+            image::load_from_memory(&buf[..=i]).ok();
         }
-    })
+    });
 }
 
 #[test]
 fn truncate_tga() {
-    truncate_images("tga")
+    truncate_images("tga");
 }
 
 #[test]
 fn truncate_tiff() {
-    truncate_images("tiff")
+    truncate_images("tiff");
 }
 
 #[test]
 fn truncate_png() {
-    truncate_images("png")
+    truncate_images("png");
 }
 
 #[test]
 fn truncate_gif() {
-    truncate_images("gif")
+    truncate_images("gif");
 }
 
 #[test]
 fn truncate_bmp() {
-    truncate_images("bmp")
+    truncate_images("bmp");
 }
 
 #[test]
 fn truncate_ico() {
-    truncate_images("ico")
+    truncate_images("ico");
 }
 
 #[test]
 fn truncate_jpg() {
-    truncate_images("jpg")
+    truncate_images("jpg");
 }
 
 #[test]

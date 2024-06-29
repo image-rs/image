@@ -285,7 +285,7 @@ fn decode_dxt1_block(source: &[u8], dest: &mut [u8]) {
 }
 
 /// Decode a row of DXT1 data to four rows of RGB data.
-/// source.len() should be a multiple of 8, otherwise this panics.
+/// `source.len()` should be a multiple of 8, otherwise this panics.
 fn decode_dxt1_row(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() % 8 == 0);
     let block_count = source.len() / 8;
@@ -306,7 +306,7 @@ fn decode_dxt1_row(source: &[u8], dest: &mut [u8]) {
 }
 
 /// Decode a row of DXT3 data to four rows of RGBA data.
-/// source.len() should be a multiple of 16, otherwise this panics.
+/// `source.len()` should be a multiple of 16, otherwise this panics.
 fn decode_dxt3_row(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() % 16 == 0);
     let block_count = source.len() / 16;
@@ -327,7 +327,7 @@ fn decode_dxt3_row(source: &[u8], dest: &mut [u8]) {
 }
 
 /// Decode a row of DXT5 data to four rows of RGBA data.
-/// source.len() should be a multiple of 16, otherwise this panics.
+/// `source.len()` should be a multiple of 16, otherwise this panics.
 fn decode_dxt5_row(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() % 16 == 0);
     let block_count = source.len() / 16;

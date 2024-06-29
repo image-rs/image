@@ -38,7 +38,7 @@ fn encode_all(c: &mut Criterion) {
     ];
 
     for definition in BENCH_DEFS {
-        encode_definition(c, definition)
+        encode_definition(c, definition);
     }
 }
 
@@ -55,7 +55,7 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: E
     let im = vec![0; (color.bits_per_pixel() as usize * size as usize + 7) / 8 * size as usize];
 
     group.bench_with_input(
-        BenchmarkId::new(format!("zero-{:?}-rawvec", color), size),
+        BenchmarkId::new(format!("zero-{color:?}-rawvec"), size),
         &im,
         |b, image| {
             let mut v = vec![];
@@ -64,7 +64,7 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: E
         },
     );
     group.bench_with_input(
-        BenchmarkId::new(format!("zero-{:?}-bufvec", color), size),
+        BenchmarkId::new(format!("zero-{color:?}-bufvec"), size),
         &im,
         |b, image| {
             let mut v = vec![];
@@ -73,7 +73,7 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: E
         },
     );
     group.bench_with_input(
-        BenchmarkId::new(format!("zero-{:?}-file", color), size),
+        BenchmarkId::new(format!("zero-{color:?}-file"), size),
         &im,
         |b, image| {
             let file = File::create("temp.bmp").unwrap();

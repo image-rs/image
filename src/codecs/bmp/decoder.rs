@@ -167,38 +167,35 @@ impl fmt::Display for DecoderError {
             DecoderError::BitfieldMaskNonContiguous => f.write_str("Non-contiguous bitfield mask"),
             DecoderError::BitfieldMaskInvalid => f.write_str("Invalid bitfield mask"),
             DecoderError::BitfieldMaskMissing(bb) => {
-                f.write_fmt(format_args!("Missing {}-bit bitfield mask", bb))
+                f.write_fmt(format_args!("Missing {bb}-bit bitfield mask"))
             }
             DecoderError::BitfieldMasksMissing(bb) => {
-                f.write_fmt(format_args!("Missing {}-bit bitfield masks", bb))
+                f.write_fmt(format_args!("Missing {bb}-bit bitfield masks"))
             }
             DecoderError::BmpSignatureInvalid => f.write_str("BMP signature not found"),
             DecoderError::MoreThanOnePlane => f.write_str("More than one plane"),
             DecoderError::InvalidChannelWidth(tp, n) => {
-                f.write_fmt(format_args!("Invalid channel bit count for {}: {}", tp, n))
+                f.write_fmt(format_args!("Invalid channel bit count for {tp}: {n}"))
             }
-            DecoderError::NegativeWidth(w) => f.write_fmt(format_args!("Negative width ({})", w)),
+            DecoderError::NegativeWidth(w) => f.write_fmt(format_args!("Negative width ({w})")),
             DecoderError::ImageTooLarge(w, h) => f.write_fmt(format_args!(
-                "Image too large (one of ({}, {}) > soft limit of {})",
-                w, h, MAX_WIDTH_HEIGHT
+                "Image too large (one of ({w}, {h}) > soft limit of {MAX_WIDTH_HEIGHT})"
             )),
             DecoderError::InvalidHeight => f.write_str("Invalid height"),
             DecoderError::ImageTypeInvalidForTopDown(tp) => f.write_fmt(format_args!(
-                "Invalid image type {} for top-down image.",
-                tp
+                "Invalid image type {tp} for top-down image."
             )),
             DecoderError::ImageTypeUnknown(tp) => {
-                f.write_fmt(format_args!("Unknown image compression type {}", tp))
+                f.write_fmt(format_args!("Unknown image compression type {tp}"))
             }
             DecoderError::HeaderTooSmall(s) => {
-                f.write_fmt(format_args!("Bitmap header too small ({} bytes)", s))
+                f.write_fmt(format_args!("Bitmap header too small ({s} bytes)"))
             }
             DecoderError::PaletteSizeExceeded {
                 colors_used,
                 bit_count,
             } => f.write_fmt(format_args!(
-                "Palette size {} exceeds maximum size for BMP with bit count of {}",
-                colors_used, bit_count
+                "Palette size {colors_used} exceeds maximum size for BMP with bit count of {bit_count}"
             )),
         }
     }
@@ -245,8 +242,7 @@ fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<(
             ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Bmp.into(),
                 UnsupportedErrorKind::GenericFeature(format!(
-                    "Image dimensions ({}x{} w/{} channels) are too large",
-                    width, length, channels
+                    "Image dimensions ({width}x{length} w/{channels} channels) are too large"
                 )),
             ))
         })
@@ -534,7 +530,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     /// Create a new decoder that decodes from the stream ```r``` without first
-    /// reading a BITMAPFILEHEADER. This is useful for decoding the CF_DIB format
+    /// reading a BITMAPFILEHEADER. This is useful for decoding the `CF_DIB` format
     /// directly from the Windows clipboard.
     pub fn new_without_file_header(reader: R) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = Self::new_decoder(reader);
@@ -582,7 +578,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Read BITMAPCOREHEADER https://msdn.microsoft.com/en-us/library/vs/alm/dd183372(v=vs.85).aspx
+    /// Read BITMAPCOREHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183372(v=vs.85).aspx>
     ///
     /// returns Err if any of the values are invalid.
     fn read_bitmap_core_header(&mut self) -> ImageResult<()> {
@@ -614,7 +610,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Read BITMAPINFOHEADER https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx
+    /// Read BITMAPINFOHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx>
     /// or BITMAPV{2|3|4|5}HEADER.
     ///
     /// returns Err if any of the values are invalid.
@@ -803,8 +799,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Bmp.into(),
                             UnsupportedErrorKind::GenericFeature(format!(
-                                "Unknown bitmap header type (size={})",
-                                bmp_header_size
+                                "Unknown bitmap header type (size={bmp_header_size})"
                             )),
                         ),
                     ))

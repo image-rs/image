@@ -118,7 +118,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         _ => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{:?}", format))),
+                UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{format:?}"))),
             ),
         )),
     }

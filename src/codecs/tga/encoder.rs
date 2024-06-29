@@ -18,10 +18,8 @@ enum EncoderError {
 impl fmt::Display for EncoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EncoderError::WidthInvalid(s) => f.write_fmt(format_args!("Invalid TGA width: {}", s)),
-            EncoderError::HeightInvalid(s) => {
-                f.write_fmt(format_args!("Invalid TGA height: {}", s))
-            }
+            EncoderError::WidthInvalid(s) => f.write_fmt(format_args!("Invalid TGA width: {s}")),
+            EncoderError::HeightInvalid(s) => f.write_fmt(format_args!("Invalid TGA height: {s}")),
         }
     }
 }

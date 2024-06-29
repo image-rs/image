@@ -96,7 +96,7 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
         group.bench_function(file_name.to_owned(), |b| {
             b.iter(|| {
                 image::load_from_memory_with_format(&buf, def.format).unwrap();
-            })
+            });
         });
     }
 }

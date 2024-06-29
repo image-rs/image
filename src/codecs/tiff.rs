@@ -36,7 +36,7 @@ impl<R> TiffDecoder<R>
 where
     R: BufRead + Seek,
 {
-    /// Create a new TiffDecoder.
+    /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
@@ -107,8 +107,7 @@ fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Tiff.into(),
                 UnsupportedErrorKind::GenericFeature(format!(
-                    "Unhandled TIFF sample format {:?}",
-                    other
+                    "Unhandled TIFF sample format {other:?}"
                 )),
             ),
         )),
@@ -129,9 +128,9 @@ impl ImageError {
     fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_)
-            | err @ tiff::TiffError::IntSizeError
-            | err @ tiff::TiffError::UsageError(_) => {
+            err @ (tiff::TiffError::FormatError(_)
+            | tiff::TiffError::IntSizeError
+            | tiff::TiffError::UsageError(_)) => {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -149,9 +148,9 @@ impl ImageError {
     fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_)
-            | err @ tiff::TiffError::IntSizeError
-            | err @ tiff::TiffError::UsageError(_) => {
+            err @ (tiff::TiffError::FormatError(_)
+            | tiff::TiffError::IntSizeError
+            | tiff::TiffError::UsageError(_)) => {
                 ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -168,11 +167,15 @@ impl ImageError {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
+#[allow(dead_code)]
+#[deprecated]
 pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+#[allow(deprecated)]
 impl<R> Read for TiffReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
+
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         if self.0.position() == 0 && buf.is_empty() {
             mem::swap(buf, self.0.get_mut());
@@ -285,10 +288,10 @@ pub struct TiffEncoder<W> {
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
-    let c = cmyk[0] as f32;
-    let m = cmyk[1] as f32;
-    let y = cmyk[2] as f32;
-    let kf = 1. - cmyk[3] as f32 / 255.;
+    let c = f32::from(cmyk[0]);
+    let m = f32::from(cmyk[1]);
+    let y = f32::from(cmyk[2]);
+    let kf = 1. - f32::from(cmyk[3]) / 255.;
     [
         ((255. - c) * kf) as u8,
         ((255. - m) * kf) as u8,
@@ -305,7 +308,7 @@ fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<&[u16]> {
         // `Error` and `Display` trait.
         // See <https://github.com/Lokathor/bytemuck/issues/22>.
         ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
-            format!("{:?}", err),
+            format!("{err:?}"),
         )))
     })
 }

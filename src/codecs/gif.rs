@@ -68,7 +68,10 @@ impl<R: Read> GifDecoder<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
+#[allow(dead_code)]
+#[deprecated]
 pub struct GifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+#[allow(deprecated)]
 impl<R> Read for GifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -126,7 +129,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
 
         if frame.left == 0
             && frame.width == width
-            && (frame.top as u64 + frame.height as u64 <= height as u64)
+            && (u64::from(frame.top) + u64::from(frame.height) <= u64::from(height))
         {
             // If the frame matches the logical screen, or, as a more general case,
             // fits into it and touches its left and right borders, then
@@ -585,7 +588,7 @@ impl<W: Write> GifEncoder<W> {
                     .map_err(ImageError::from_encoding)?;
             }
             self.gif_encoder = Some(encoder);
-            gif_encoder = self.gif_encoder.as_mut().unwrap()
+            gif_encoder = self.gif_encoder.as_mut().unwrap();
         }
 
         frame.dispose = DisposalMethod::Background;

@@ -1,8 +1,6 @@
-use std::{
-    fs::{self, File},
-    io::{BufReader, Cursor},
-    path::PathBuf,
-};
+use std::fs::{self, File};
+use std::io::{BufReader, Cursor};
+use std::path::PathBuf;
 
 #[cfg(feature = "webp")]
 use image::{codecs::webp::WebPDecoder, AnimationDecoder};
@@ -33,7 +31,7 @@ where
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            func(path)
+            func(path);
         }
     }
 }
@@ -42,7 +40,7 @@ where
 fn check_regressions() {
     process_images(REGRESSION_DIR, None, |path| {
         let _ = image::open(path);
-    })
+    });
 }
 /// Check that the WEBP frames iterator returns the right amount of frames.
 #[test]

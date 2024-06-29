@@ -52,7 +52,7 @@ impl<R: Read> FarbfeldReader<R> {
         if &magic != b"farbfeld" {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Farbfeld.into(),
-                format!("Invalid magic: {:02x?}", magic),
+                format!("Invalid magic: {magic:02x?}"),
             )));
         }
 
@@ -136,7 +136,7 @@ impl<R: Read + Seek> Seek for FarbfeldReader<R> {
         }
 
         let original_offset = self.current_offset;
-        let end_offset = self.width as u64 * self.height as u64 * 2;
+        let end_offset = u64::from(self.width) * u64::from(self.height) * 2;
         let offset_from_current =
             parse_offset(original_offset, end_offset, pos).ok_or_else(|| {
                 io::Error::new(
@@ -263,7 +263,7 @@ impl<W: Write> FarbfeldEncoder<W> {
     /// Panics if `width * height * 8 != data.len()`.
     #[track_caller]
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
-        let expected_buffer_len = (width as u64 * height as u64).saturating_mul(8);
+        let expected_buffer_len = (u64::from(width) * u64::from(height)).saturating_mul(8);
         assert_eq!(
             expected_buffer_len,
             data.len() as u64,

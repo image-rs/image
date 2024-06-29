@@ -1,5 +1,3 @@
-extern crate crc32fast;
-
 use std::convert::TryInto;
 use std::error;
 use std::fmt;

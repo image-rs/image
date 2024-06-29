@@ -1,9 +1,5 @@
 #![allow(non_upper_case_globals)]
 
-extern crate getopts;
-extern crate glob;
-extern crate png;
-
 use std::env;
 use std::fs::File;
 use std::io;

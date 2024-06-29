@@ -1,6 +1,6 @@
 #![no_main]
-#[macro_use] extern crate libfuzzer_sys;
-extern crate png;
+
+use libfuzzer_sys::fuzz_target;
 
 #[inline(always)]
 fn png_decode(data: &[u8]) -> Result<(Option<png::OutputInfo>, Vec<u8>), ()> {

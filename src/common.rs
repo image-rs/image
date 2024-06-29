@@ -704,7 +704,7 @@ impl BytesPerPixel {
     }
 }
 
-bitflags! {
+bitflags::bitflags! {
     /// Output transformations
     ///
     /// Many flags from libpng are not yet supported. A PR discussing/adding them would be nice.

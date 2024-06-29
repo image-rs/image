@@ -3,6 +3,7 @@
 name = "png-fuzz"
 version = "0.0.1"
 authors = ["Automatically generated"]
+edition = "2018"
 publish = false
 
 [package.metadata]

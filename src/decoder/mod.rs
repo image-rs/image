@@ -3,7 +3,7 @@ pub(crate) mod transform;
 mod zlib;
 
 pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
-use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
+use self::stream::{FormatErrorInner, CHUNK_BUFFER_SIZE};
 use self::transform::{create_transform_fn, TransformFn};
 
 use std::io::{BufRead, BufReader, Read};
@@ -148,7 +148,7 @@ impl<R: Read> Decoder<R> {
 
         Decoder {
             read_decoder: ReadDecoder {
-                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
+                reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
                 decoder,
                 at_eof: false,
             },
@@ -163,7 +163,7 @@ impl<R: Read> Decoder<R> {
 
         Decoder {
             read_decoder: ReadDecoder {
-                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
+                reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
                 decoder,
                 at_eof: false,
             },

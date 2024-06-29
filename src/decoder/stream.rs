@@ -17,7 +17,7 @@ use crate::traits::ReadBytesExt;
 use crate::Limits;
 
 /// TODO check if these size are reasonable
-pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
+pub const CHUNK_BUFFER_SIZE: usize = 32 * 1024;
 
 /// Determines if checksum checks should be disabled globally.
 ///
@@ -312,7 +312,7 @@ impl fmt::Display for FormatError {
                 "Transparency chunk found for color type {:?}.",
                 color_type
             ),
-            InvalidBitDepth(nr) => write!(fmt, "Invalid dispose operation {}.", nr),
+            InvalidBitDepth(nr) => write!(fmt, "Invalid bit depth {}.", nr),
             InvalidColorType(nr) => write!(fmt, "Invalid color type {}.", nr),
             InvalidDisposeOp(nr) => write!(fmt, "Invalid dispose op {}.", nr),
             InvalidBlendOp(nr) => write!(fmt, "Invalid blend op {}.", nr),
@@ -325,7 +325,10 @@ impl fmt::Display for FormatError {
             InvalidSignature => write!(fmt, "Invalid PNG signature."),
             UnexpectedEof => write!(fmt, "Unexpected end of data before image end."),
             UnexpectedEndOfChunk => write!(fmt, "Unexpected end of data within a chunk."),
-            NoMoreImageData => write!(fmt, "IDAT or fDAT chunk is has not enough data for image."),
+            NoMoreImageData => write!(
+                fmt,
+                "IDAT or fDAT chunk does not have enough data for image."
+            ),
             CorruptFlateStream { err } => {
                 write!(fmt, "Corrupt deflate stream. ")?;
                 write!(fmt, "{:?}", err)
@@ -1497,7 +1500,7 @@ impl Default for ChunkState {
             type_: ChunkType([0; 4]),
             crc: Crc32::new(),
             remaining: 0,
-            raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
+            raw_bytes: Vec::with_capacity(CHUNK_BUFFER_SIZE),
         }
     }
 }
@@ -1937,7 +1940,7 @@ mod tests {
                 panic!("No fcTL (2nd frame)");
             };
             // The sequence number is taken from the `fcTL` chunk that comes before the two `fdAT`
-            // chunks.  Note that sequence numbers inside `fdAT` chunks are not publically exposed
+            // chunks.  Note that sequence numbers inside `fdAT` chunks are not publicly exposed
             // (but they are still checked when decoding to verify that they are sequential).
             assert_eq!(frame_control.sequence_number, 1);
         }

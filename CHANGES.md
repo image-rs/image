@@ -19,7 +19,7 @@
 * Added `new_with_info` constructor for encoder.
 * Removed hard-coded memory limits.
 * No longer allow zero sized images.
-* Added `Reader::finish` to read all the auxillary chunks that comes after the
+* Added `Reader::finish` to read all the auxiliary chunks that comes after the
   image.
 
 ## 0.17.10

@@ -73,7 +73,7 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
-    // TODO improve performance by resusing allocations from decoder
+    // TODO improve performance by reusing allocations from decoder
     use png::Decoded::*;
     let mut t = term::stdout()
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not open terminal"))?;
@@ -248,7 +248,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             }
                             print!(
                                 " at offset {:#07x}, length {}",
-                                pos - 4, // substract chunk name length
+                                pos - 4, // subtract chunk name length
                                 len
                             )
                         }

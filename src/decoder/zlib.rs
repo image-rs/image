@@ -1,4 +1,4 @@
-use super::{stream::FormatErrorInner, DecodingError, CHUNCK_BUFFER_SIZE};
+use super::{stream::FormatErrorInner, DecodingError, CHUNK_BUFFER_SIZE};
 
 use fdeflate::Decompressor;
 
@@ -166,7 +166,7 @@ impl ZlibStream {
         let current_len = self.out_buffer.len();
         let desired_len = self
             .out_pos
-            .saturating_add(CHUNCK_BUFFER_SIZE)
+            .saturating_add(CHUNK_BUFFER_SIZE)
             .min(self.max_total_output);
         if current_len >= desired_len {
             return;
@@ -182,7 +182,7 @@ impl ZlibStream {
         // allocation is valid and that any cursor within it will be valid.
         len
             // This keeps the buffer size a power-of-two, required by miniz_oxide.
-            .saturating_add(CHUNCK_BUFFER_SIZE.max(len))
+            .saturating_add(CHUNK_BUFFER_SIZE.max(len))
             // Ensure all buffer indices are valid cursor positions.
             // Note: both cut off and zero extension give correct results.
             .min(u64::MAX as usize)

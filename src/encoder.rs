@@ -333,7 +333,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// If the denominator is 0, it is to be treated as if it were 100
     /// (that is, the numerator then specifies 1/100ths of a second).
-    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// If the value of the numerator is 0 the decoder should render the next frame
     /// as quickly as possible, though viewers may impose a reasonable lower bound.
     ///
     /// The default value is 0 for both the numerator and denominator.
@@ -846,7 +846,7 @@ impl<W: Write> Writer<W> {
     ///
     /// If the denominator is 0, it is to be treated as if it were 100
     /// (that is, the numerator then specifies 1/100ths of a second).
-    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// If the value of the numerator is 0 the decoder should render the next frame
     /// as quickly as possible, though viewers may impose a reasonable lower bound.
     ///
     /// This method will return an error if the image is not animated.
@@ -1393,7 +1393,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     ///
     /// If the denominator is 0, it is to be treated as if it were 100
     /// (that is, the numerator then specifies 1/100ths of a second).
-    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// If the value of the numerator is 0 the decoder should render the next frame
     /// as quickly as possible, though viewers may impose a reasonable lower bound.
     ///
     /// This method will return an error if the image is not animated.

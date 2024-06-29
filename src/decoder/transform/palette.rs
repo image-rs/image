@@ -1,4 +1,4 @@
-//! Helpers for taking a slice of indeces (indices into `PLTE` and/or `trNS`
+//! Helpers for taking a slice of indices (indices into `PLTE` and/or `trNS`
 //! entries) and transforming this into RGB or RGBA output.
 //!
 //! # Memoization

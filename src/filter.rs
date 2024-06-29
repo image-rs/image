@@ -15,7 +15,7 @@ mod simd {
 
     /// This is an equivalent of the `PaethPredictor` function from
     /// [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Filters.html#Filter-type-4-Paeth)
-    /// except that it simultaenously calculates the predictor for all SIMD lanes.
+    /// except that it simultaneously calculates the predictor for all SIMD lanes.
     /// Mapping between parameter names and pixel positions can be found in
     /// [a diagram here](https://www.w3.org/TR/png/#filter-byte-positions).
     ///
@@ -777,7 +777,7 @@ fn filter_internal(
 ) -> FilterType {
     use self::FilterType::*;
 
-    // This value was chosen experimentally based on what acheived the best performance. The
+    // This value was chosen experimentally based on what achieved the best performance. The
     // Rust compiler does auto-vectorization, and 32-bytes per loop iteration seems to enable
     // the fastest code when doing so.
     const CHUNK_SIZE: usize = 32;

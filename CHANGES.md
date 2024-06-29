@@ -6,6 +6,8 @@
 - The color space information of pixels is not clearly communicated.
 
 ## Changes
+- Added Float32 RGB and RGBA image encoding/decoding support for TIFF.
+- Implemented serialization/deserialization for DynamicImage using PNG for uint images, and TIFF for float32 images. The TIFF images are further compressed using Zlib::Deflate to reduce size. The PNG or TIFF-encoded images are stored internally as base64 encoded strings.
 
 ### Version 0.25.1
 

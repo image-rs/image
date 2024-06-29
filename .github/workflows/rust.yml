@@ -68,6 +68,10 @@ jobs:
     # an emulated mips system. NOTE: you can also use this approach to test for
     # big endian locally.
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "false"
+      RUSTC_WRAPPER: ""  
     strategy:
       fail-fast: false
       matrix:
@@ -78,8 +82,6 @@ jobs:
         uses: baptiste0928/cargo-install@v2
         with:
           crate: cross
-      - name: Cache Cargo Dependencies
-        uses: mozilla-actions/sccache-action@v0.0.5
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker
       - name: Cross-Run Tests using QEMU

@@ -1,7 +1,6 @@
 #![no_main]
-extern crate libfuzzer_sys;
+
 use libfuzzer_sys::fuzz_target;
-extern crate png;
 
 use std::mem::discriminant;
 use std::io::{BufRead, Read, Result};

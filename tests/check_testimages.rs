@@ -1,7 +1,3 @@
-extern crate crc32fast;
-extern crate glob;
-extern crate png;
-
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;

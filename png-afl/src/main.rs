@@ -1,9 +1,5 @@
 #![forbid(unsafe_code)]
 
-#[macro_use]
-extern crate afl;
-extern crate png;
-
 #[inline(always)]
 fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
     let decoder = png::Decoder::new(data);
@@ -22,7 +18,7 @@ fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
 }
 
 fn main() {
-    fuzz!(|data: &[u8]| {
+    afl::fuzz!(|data: &[u8]| {
         let _ = png_decode(&data);
     });
 }

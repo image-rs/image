@@ -1,8 +1,7 @@
 #![no_main]
 
+use libfuzzer_sys::fuzz_target;
 use png::{FilterType, ColorType, BitDepth};
-#[macro_use] extern crate libfuzzer_sys;
-extern crate png;
 
 fuzz_target!(|data: (u8, u8, u8, u8, u8, Vec<u8>, Vec<u8>)| {
     if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, data.4, &data.5, &data.6) {

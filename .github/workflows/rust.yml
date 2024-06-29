@@ -195,7 +195,7 @@ jobs:
     env:
       CARGO_INCREMENTAL: 0
       SCCACHE_GHA_ENABLED: "false"
-      RUSTC_WRAPPER: "rustc"
+      RUSTC_WRAPPER: ""
     steps:
       - uses: actions/checkout@v4
       - name: Cache Cargo Dependencies

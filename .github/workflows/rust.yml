@@ -192,6 +192,10 @@ jobs:
 
   cargo-deny:
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "false"
+      RUSTC_WRAPPER: "rustc"
     steps:
       - uses: actions/checkout@v4
       - name: Cache Cargo Dependencies

@@ -652,9 +652,9 @@ impl<W: Write> Writer<W> {
         }
     }
 
-    const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+    const MAX_IDAT_CHUNK_LEN: u32 = u32::MAX >> 1;
     #[allow(non_upper_case_globals)]
-    const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
+    const MAX_fdAT_CHUNK_LEN: u32 = (u32::MAX >> 1) - 4;
 
     /// Writes the next image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
@@ -1119,7 +1119,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //
         // TODO (maybe): find a way to hold two chunks at a time if `usize`
         //               is 64 bits.
-        const CAP: usize = std::u32::MAX as usize >> 1;
+        const CAP: usize = u32::MAX as usize >> 1;
         let curr_chunk = if writer.images_written == 0 {
             chunk::IDAT
         } else {

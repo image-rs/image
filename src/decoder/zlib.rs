@@ -185,10 +185,10 @@ impl ZlibStream {
             .saturating_add(CHUNCK_BUFFER_SIZE.max(len))
             // Ensure all buffer indices are valid cursor positions.
             // Note: both cut off and zero extension give correct results.
-            .min(u64::max_value() as usize)
+            .min(u64::MAX as usize)
             // Ensure the allocation request is valid.
             // TODO: maximum allocation limits?
-            .min(isize::max_value() as usize)
+            .min(isize::MAX as usize)
             // Don't unnecessarily allocate more than `max_total_output`.
             .min(self.max_total_output)
     }

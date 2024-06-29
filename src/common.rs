@@ -343,7 +343,7 @@ impl ScaledFloat {
 
     /// Gets whether the value is within the clamped range of this type.
     pub fn in_range(value: f32) -> bool {
-        value >= 0.0 && (value * Self::SCALING).floor() <= std::u32::MAX as f32
+        value >= 0.0 && (value * Self::SCALING).floor() <= u32::MAX as f32
     }
 
     /// Gets whether the value can be exactly converted in round-trip.

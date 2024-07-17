@@ -54,7 +54,7 @@ fn check_webp_frames_regressions() {
         .join("*.webp");
     let pattern = &*format!("{}", path.display());
     for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        let bytes = fs::read(path).unwrap();
+        let bytes = fs::read(&path).unwrap();
         let cursor = Cursor::new(&bytes);
         let frame_count = image_webp::WebPDecoder::new(cursor.clone())
             .unwrap()
@@ -62,8 +62,18 @@ fn check_webp_frames_regressions() {
         let decoder = WebPDecoder::new(cursor).unwrap();
         // The `take` guards against a potentially infinitely running iterator.
         // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.
-        let actual_frame_count = decoder.into_frames().take(frame_count + 1).count();
-        assert_eq!(actual_frame_count, frame_count);
+        // We then check that each frame has been decoded successfully.
+        let decoded_frames_count = decoder
+            .into_frames()
+            .take(frame_count + 1)
+            .enumerate()
+            .inspect(|(frame_index, frame_res)| {
+                if let Err(e) = frame_res {
+                    panic!("Error decoding {path:?} frame {}: {e:?}", frame_index + 1);
+                }
+            })
+            .count();
+        assert_eq!(frame_count, decoded_frames_count);
     }
 }
 

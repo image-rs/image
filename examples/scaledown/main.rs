@@ -36,7 +36,7 @@ fn main() {
         let timer = Instant::now();
         let scaled = img.resize(400, 400, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
-        let mut output = File::create(&format!("test-{name}.png")).unwrap();
+        let mut output = File::create(format!("test-{name}.png")).unwrap();
         scaled.write_to(&mut output, ImageFormat::Png).unwrap();
     }
 

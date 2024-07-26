@@ -55,7 +55,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 
     /// Returns the raw [Exif](https://en.wikipedia.org/wiki/Exif) chunk, if it is present.
     /// A third-party crate such as [`kamadak-exif`](https://docs.rs/kamadak-exif/) is required to actually parse it.
-    pub fn exif(&mut self) -> ImageResult<Option<Vec<u8>>> {
+    pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         Ok(decoder.exif().cloned())

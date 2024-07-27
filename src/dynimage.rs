@@ -878,10 +878,20 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
     }
 
+    /// Flip this image vertically in place
+    pub fn flipv_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::flip_vertical_in_place(p))
+    }
+
     /// Flip this image horizontally
     #[must_use]
     pub fn fliph(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
+    }
+
+    /// Flip this image horizontally in place
+    pub fn fliph_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::flip_horizontal_in_place(p))
     }
 
     /// Rotate this image 90 degrees clockwise.

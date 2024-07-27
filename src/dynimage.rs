@@ -890,13 +890,13 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate90(p))
     }
 
-    /// Rotate this image 180 degrees clockwise.
+    /// Rotate this image 180 degrees.
     #[must_use]
     pub fn rotate180(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))
     }
 
-    /// Rotate this image 180 degrees clockwise in place.
+    /// Rotate this image 180 degrees in place.
     pub fn rotate180_in_place(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::rotate180_in_place(p))
     }

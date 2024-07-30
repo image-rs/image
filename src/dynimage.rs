@@ -917,6 +917,43 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
+    /// Applies the [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html) to the image.
+    ///
+    /// Orientation is specified in the Exif metadata, and is often written by cameras.
+    /// It is expressed as an integer in the range 1..=8; passing other values will return an error.
+    ///
+    /// Due to an implementation detail, orientations 5..=8 copy the image internally.
+    /// This operation should become truly in-place in the future.
+    pub fn apply_exif_orientation_in_place(&mut self, orientation: u8) -> Result<(), ImageError> {
+        // Verified against `convert -auto-orient`
+        let image = self;
+        match orientation {
+            1 => Ok(()), // no transformations needed
+            2 => Ok(image.fliph_in_place()),
+            3 => Ok(image.rotate180_in_place()),
+            4 => Ok(image.flipv_in_place()),
+            5 => {
+                let mut new_image = image.rotate90();
+                new_image.fliph_in_place();
+                *image = new_image;
+                Ok(())
+            }
+            6 => Ok(*image = image.rotate90()),
+            7 => {
+                let mut new_image = image.rotate270();
+                new_image.fliph_in_place();
+                *image = new_image;
+                Ok(())
+            }
+            8 => Ok(*image = image.rotate270()),
+            0 | 9.. => {
+                return Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::Generic(format!("Invalid exif orientation: {orientation}")),
+                )))
+            }
+        }
+    }
+
     /// Encode this image and write it to ```w```.
     ///
     /// Assumes the writer is buffered. In most cases,

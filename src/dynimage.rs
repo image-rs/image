@@ -923,7 +923,6 @@ impl DynamicImage {
     /// It is expressed as an integer in the range 1..=8; passing other values will return an error.
     ///
     /// Due to an implementation detail, orientations 5..=8 copy the image internally.
-    /// This operation should become truly in-place in the future.
     pub fn apply_exif_orientation_in_place(&mut self, orientation: u8) -> Result<(), ImageError> {
         // Verified against `convert -auto-orient`
         let image = self;

@@ -690,12 +690,7 @@ fn decode_B4G4R4A4_UNORM(r: &mut dyn Read, size: Size, buf: &mut [u8]) -> ImageR
         let r4 = high & 0xF;
         let a4 = (high >> 4) & 0xF;
 
-        [
-            x4_to_x8(r4 as u16),
-            x4_to_x8(g4 as u16),
-            x4_to_x8(b4 as u16),
-            x4_to_x8(a4 as u16),
-        ]
+        [x4_to_x8(r4), x4_to_x8(g4), x4_to_x8(b4), x4_to_x8(a4)]
     })
 }
 #[allow(non_snake_case)]

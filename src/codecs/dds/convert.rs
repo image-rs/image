@@ -89,10 +89,10 @@ pub(crate) fn x6_to_x8(x: u16) -> u8 {
     ((x * 259 + 33) >> 6) as u8
 }
 #[inline(always)]
-pub(crate) fn x4_to_x8(x: u16) -> u8 {
+pub(crate) fn x4_to_x8(x: u8) -> u8 {
     debug_assert!(x < 16);
 
-    (x * 17) as u8
+    x * 17
 }
 #[inline(always)]
 pub(crate) fn x1_to_x8(x: u16) -> u8 {

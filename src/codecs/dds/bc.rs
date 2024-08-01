@@ -62,7 +62,7 @@ pub(crate) fn decode_bc2_block(block_bytes: [u8; 16]) -> [[u8; 4]; 16] {
             alpha_byte_low & 0xF,
             alpha_byte_low >> 4,
         ]
-        .map(|a4| x4_to_x8(a4 as u16));
+        .map(x4_to_x8);
 
         for (j, &alpha) in alpha.iter().enumerate() {
             pixels[i * 4 + j][3] = alpha;

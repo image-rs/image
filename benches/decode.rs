@@ -34,6 +34,16 @@ fn load_all(c: &mut Criterion) {
             format: ImageFormat::Gif,
         },
         BenchDef {
+            dir: &["dds", "bc"],
+            files: &["DX10 BC4_UNORM.dds", "DX10 BC4_SNORM.dds"],
+            format: ImageFormat::Dds,
+        },
+        BenchDef {
+            dir: &["dds", "uncompressed"],
+            files: &["DX10 B5G5R5A1_UNORM.dds", "DX10 B5G6R5_UNORM.dds"],
+            format: ImageFormat::Dds,
+        },
+        BenchDef {
             dir: &["hdr", "images"],
             files: &["image1.hdr", "rgbr4x4.hdr"],
             format: ImageFormat::Hdr,

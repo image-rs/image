@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::BufRead;
 
 use byteorder_lite::{LittleEndian, ReadBytesExt};
 
@@ -24,7 +24,7 @@ pub(crate) struct Header {
 }
 
 impl Header {
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+    pub(crate) fn from_reader(r: &mut dyn BufRead) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
             return Err(DecoderError::HeaderSizeInvalid(size).into());
@@ -235,7 +235,7 @@ pub(crate) struct PixelFormat {
 }
 
 impl PixelFormat {
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+    fn from_reader(r: &mut dyn BufRead) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
             return Err(DecoderError::PixelFormatSizeInvalid(size).into());
@@ -331,7 +331,7 @@ pub(crate) struct DX10Header {
 }
 
 impl DX10Header {
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+    fn from_reader(r: &mut dyn BufRead) -> ImageResult<Self> {
         let dxgi_format = r.read_u32::<LittleEndian>()?;
         let resource_dimension = r.read_u32::<LittleEndian>()?;
         let misc_flag = r.read_u32::<LittleEndian>()?;

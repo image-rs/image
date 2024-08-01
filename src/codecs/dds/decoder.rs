@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 
 use crate::codecs::dds::convert::div_ceil;
 use crate::color::ColorType;
@@ -244,7 +244,7 @@ impl SupportedFormat {
     }
 }
 
-pub(crate) struct DX10Decoder<R: Read> {
+pub(crate) struct DX10Decoder<R> {
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) format: SupportedFormat,
@@ -254,7 +254,7 @@ pub(crate) struct DX10Decoder<R: Read> {
     pub(crate) inner: R,
 }
 
-impl<R: Read> DX10Decoder<R> {
+impl<R: Read + Seek> DX10Decoder<R> {
     pub(crate) fn get_cube_size(width: u32, height: u32) -> Option<(u32, u32)> {
         Some((width.checked_mul(4)?, height.checked_mul(3)?))
     }
@@ -424,13 +424,7 @@ impl<R: Read> DX10Decoder<R> {
             total_bytes += self.format.get_surface_bytes(size.get_mip(level));
         }
 
-        // since rust does not have a way to skip bytes, we need a buffer to read into
-        let mut buf = vec![0u8; 4096];
-        while total_bytes > 0 {
-            let bytes_to_read = total_bytes.min(buf.len());
-            self.inner.read_exact(&mut buf[..bytes_to_read])?;
-            total_bytes -= bytes_to_read;
-        }
+        self.inner.seek(SeekFrom::Current(total_bytes as i64))?;
 
         Ok(())
     }
@@ -448,7 +442,7 @@ impl<R: Read> DX10Decoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for DX10Decoder<R> {
+impl<R: Read + Seek> ImageDecoder for DX10Decoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         if self.cube {
             Self::get_cube_size(self.width, self.height).expect("cube size should fit within u32")

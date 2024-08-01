@@ -1,74 +1,18 @@
 use crate::codecs::dds::convert::{div_round, snorm8_to_unorm8};
 
-use super::convert::{x4_to_x8, B5G6R5};
-
 /// Decodes a BC1 block into 16 RGBA pixels.
 pub(crate) fn decode_bc1_block(block_bytes: [u8; 8]) -> [[u8; 4]; 16] {
-    // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression#bc1
-    let color0_u16 = u16::from_le_bytes([block_bytes[0], block_bytes[1]]);
-    let color1_u16 = u16::from_le_bytes([block_bytes[2], block_bytes[3]]);
-
-    let c0_bgr = B5G6R5::from_u16(color0_u16);
-    let c1_bgr = B5G6R5::from_u16(color1_u16);
-
-    let c0 = c0_bgr.to_rgba8();
-    let c1 = c1_bgr.to_rgba8();
-
     let mut pixels: [[u8; 4]; 16] = Default::default();
-
-    fn to_rgba(rgb: [u8; 3]) -> [u8; 4] {
-        [rgb[0], rgb[1], rgb[2], 255]
-    }
-    let (c2, c3) = if color0_u16 > color1_u16 {
-        (
-            to_rgba(c0_bgr.one_third_color_rgb8(c1_bgr)),
-            to_rgba(c0_bgr.two_third_color_rgb8(c1_bgr)),
-        )
-    } else {
-        (
-            to_rgba(c0_bgr.mid_color_rgb8(c1_bgr)),
-            [0, 0, 0, 0], // transparent
-        )
-    };
-
-    let lut = [c0, c1, c2, c3];
-    let indexes = u32::from_le_bytes([
-        block_bytes[4],
-        block_bytes[5],
-        block_bytes[6],
-        block_bytes[7],
-    ]);
-    for (i, pixel) in pixels.iter_mut().enumerate() {
-        let index = (indexes >> (i * 2)) & 0b11;
-        *pixel = lut[index as usize];
-    }
-
+    let pixel_buf = bytemuck::cast_slice_mut(pixels.as_mut_slice());
+    bcdec_rs::bc1(&block_bytes, pixel_buf, 4 * 4);
     pixels
 }
 
 /// Decodes a BC2 block into 16 RGBA pixels.
 pub(crate) fn decode_bc2_block(block_bytes: [u8; 16]) -> [[u8; 4]; 16] {
-    // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression#bc2
-    let alpha_bytes: [u8; 8] = block_bytes[0..8].try_into().unwrap();
-    let bc1_bytes: [u8; 8] = block_bytes[8..16].try_into().unwrap();
-    let mut pixels = decode_bc1_block(bc1_bytes);
-
-    for i in 0..4 {
-        let alpha_byte_high = alpha_bytes[i * 2];
-        let alpha_byte_low = alpha_bytes[i * 2 + 1];
-        let alpha = [
-            alpha_byte_high & 0xF,
-            alpha_byte_high >> 4,
-            alpha_byte_low & 0xF,
-            alpha_byte_low >> 4,
-        ]
-        .map(x4_to_x8);
-
-        for (j, &alpha) in alpha.iter().enumerate() {
-            pixels[i * 4 + j][3] = alpha;
-        }
-    }
-
+    let mut pixels: [[u8; 4]; 16] = Default::default();
+    let pixel_buf = bytemuck::cast_slice_mut(pixels.as_mut_slice());
+    bcdec_rs::bc2(&block_bytes, pixel_buf, 4 * 4);
     pixels
 }
 

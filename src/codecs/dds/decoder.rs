@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::mem::size_of;
 
 use crate::codecs::dds::convert::div_ceil;
 use crate::color::ColorType;
@@ -602,7 +603,7 @@ fn write_to_aligned_buffer<T>(
         write(buf);
     } else {
         // use a temporary buffer and copy over
-        let size = std::mem::size_of::<T>();
+        let size = size_of::<T>();
         assert_eq!(buf.len() % size, 0);
         let len = buf.len() / size;
 

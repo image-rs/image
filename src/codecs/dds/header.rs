@@ -280,6 +280,7 @@ impl PixelFormatFlags {
             | Self::YUV.0
             | Self::LUMINANCE.0
             | Self::PAL8.0
+            | Self::PAL8A.0
             | Self::SNORM.0,
     );
 
@@ -384,6 +385,8 @@ impl DX10Header {
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct DxgiFormat(u8);
 impl DxgiFormat {
+    #![allow(dead_code)]
+
     fn from_u32(format: u32) -> Option<Self> {
         if format <= 132 {
             Some(Self(format as u8))

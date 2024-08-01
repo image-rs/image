@@ -12,7 +12,7 @@ mod error;
 mod format;
 mod header;
 
-use std::io::{BufRead, Read, Seek};
+use std::io::{BufRead, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
@@ -32,7 +32,7 @@ impl<R> DdsDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(mut r: R) -> ImageResult<Self>
     where
-        R: BufRead + Seek,
+        R: BufRead,
     {
         let mut magic = [0; 4];
         r.read_exact(&mut magic)?;
@@ -142,7 +142,7 @@ impl<R> DdsDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for DdsDecoder<R> {
+impl<R: Read> ImageDecoder for DdsDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()
     }
@@ -178,6 +178,6 @@ mod test {
             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
         ];
 
-        assert!(DdsDecoder::new(std::io::Cursor::new(&header[..])).is_err());
+        assert!(DdsDecoder::new(&header[..]).is_err());
     }
 }

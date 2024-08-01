@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
 
 use crate::codecs::dds::convert::div_ceil;
 use crate::color::ColorType;
@@ -254,7 +254,7 @@ pub(crate) struct DX10Decoder<R> {
     pub(crate) inner: R,
 }
 
-impl<R: Read + Seek> DX10Decoder<R> {
+impl<R: Read> DX10Decoder<R> {
     pub(crate) fn get_cube_size(width: u32, height: u32) -> Option<(u32, u32)> {
         Some((width.checked_mul(4)?, height.checked_mul(3)?))
     }
@@ -424,7 +424,13 @@ impl<R: Read + Seek> DX10Decoder<R> {
             total_bytes += self.format.get_surface_bytes(size.get_mip(level));
         }
 
-        self.inner.seek(SeekFrom::Current(total_bytes as i64))?;
+        if total_bytes > 0 {
+            // skip this many bytes
+            std::io::copy(
+                &mut self.inner.by_ref().take(total_bytes as u64),
+                &mut std::io::sink(),
+            )?;
+        }
 
         Ok(())
     }
@@ -442,7 +448,7 @@ impl<R: Read + Seek> DX10Decoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for DX10Decoder<R> {
+impl<R: Read> ImageDecoder for DX10Decoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         if self.cube {
             Self::get_cube_size(self.width, self.height).expect("cube size should fit within u32")

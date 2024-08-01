@@ -6,6 +6,7 @@
 use std::borrow::Cow;
 use std::cmp::min;
 use std::io::Write;
+use std::mem::size_of;
 
 use crate::buffer::ConvertBuffer;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
@@ -187,12 +188,12 @@ impl<W: Write> AvifEncoder<W> {
                 Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
                     // Sad, but let's allocate.
                     // bytemuck checks alignment _before_ slop but size mismatch before this..
-                    if buf.len() % std::mem::size_of::<Channel>() != 0 {
+                    if buf.len() % size_of::<Channel>() != 0 {
                         Err(ImageError::Parameter(ParameterError::from_kind(
                             ParameterErrorKind::DimensionMismatch,
                         )))
                     } else {
-                        let len = buf.len() / std::mem::size_of::<Channel>();
+                        let len = buf.len() / size_of::<Channel>();
                         let mut data = vec![Channel::zero(); len];
                         let view = try_cast_slice_mut::<_, u8>(data.as_mut_slice()).unwrap();
                         view.copy_from_slice(buf);
@@ -202,7 +203,7 @@ impl<W: Write> AvifEncoder<W> {
                 Err(err) => {
                     // Are you trying to encode a ZST??
                     Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(format!("{:?}", err)),
+                        ParameterErrorKind::Generic(format!("{err:?}")),
                     )))
                 }
             }

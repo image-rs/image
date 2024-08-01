@@ -57,8 +57,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             return Err(ImageError::IoError(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "Unsupported color type {:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8).",
-                    c
+                    "Unsupported color type {c:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8)."
                 ),
             )));
         }
@@ -130,7 +129,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             self.writer.write_u32::<LittleEndian>(0xff << 8)?; // green mask
             self.writer.write_u32::<LittleEndian>(0xff)?; // blue mask
             self.writer.write_u32::<LittleEndian>(0xff << 24)?; // alpha mask
-            self.writer.write_u32::<LittleEndian>(0x73524742)?; // colorspace - sRGB
+            self.writer.write_u32::<LittleEndian>(0x7352_4742)?; // colorspace - sRGB
 
             // endpoints (3x3) and gamma (3)
             for _ in 0..12 {
@@ -143,10 +142,10 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             ExtendedColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
             ExtendedColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
             ExtendedColorType::L8 => {
-                self.encode_gray(image, width, height, row_pad_size, 1, palette)?
+                self.encode_gray(image, width, height, row_pad_size, 1, palette)?;
             }
             ExtendedColorType::La8 => {
-                self.encode_gray(image, width, height, row_pad_size, 2, palette)?
+                self.encode_gray(image, width, height, row_pad_size, 2, palette)?;
             }
             _ => {
                 return Err(ImageError::IoError(io::Error::new(
@@ -287,10 +286,7 @@ impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
 }
 
 fn get_unsupported_error_message(c: ExtendedColorType) -> String {
-    format!(
-        "Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).",
-        c
-    )
+    format!("Unsupported color type {c:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).")
 }
 
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).

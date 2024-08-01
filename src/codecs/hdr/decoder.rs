@@ -49,26 +49,23 @@ impl fmt::Display for DecoderError {
             DecoderError::TruncatedHeader => f.write_str("EOF in header"),
             DecoderError::TruncatedDimensions => f.write_str("EOF in dimensions line"),
             DecoderError::UnparsableF32(line, pe) => {
-                f.write_fmt(format_args!("Cannot parse {} value as f32: {}", line, pe))
+                f.write_fmt(format_args!("Cannot parse {line} value as f32: {pe}"))
             }
             DecoderError::UnparsableU32(line, pe) => {
-                f.write_fmt(format_args!("Cannot parse {} value as u32: {}", line, pe))
+                f.write_fmt(format_args!("Cannot parse {line} value as u32: {pe}"))
             }
             DecoderError::LineTooShort(line) => {
-                f.write_fmt(format_args!("Not enough numbers in {}", line))
+                f.write_fmt(format_args!("Not enough numbers in {line}"))
             }
             DecoderError::ExtraneousColorcorrNumbers => f.write_str("Extra numbers in COLORCORR"),
             DecoderError::DimensionsLineTooShort(elements, expected) => f.write_fmt(format_args!(
-                "Dimensions line too short: have {} elements, expected {}",
-                elements, expected
+                "Dimensions line too short: have {elements} elements, expected {expected}"
             )),
             DecoderError::DimensionsLineTooLong(expected) => f.write_fmt(format_args!(
-                "Dimensions line too long, expected {} elements",
-                expected
+                "Dimensions line too long, expected {expected} elements"
             )),
             DecoderError::WrongScanlineLength(len, expected) => f.write_fmt(format_args!(
-                "Wrong length of decoded scanline: got {}, expected {}",
-                len, expected
+                "Wrong length of decoded scanline: got {len}, expected {expected}"
             )),
             DecoderError::FirstPixelRlMarker => {
                 f.write_str("First pixel of a scanline shouldn't be run length marker")
@@ -163,7 +160,7 @@ impl Rgbe8Pixel {
 
 impl<R: Read> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream ```r```
-    /// if the header is valid, creates HdrDecoder
+    /// if the header is valid, creates `HdrDecoder`
     /// strict mode is enabled
     pub fn new(reader: R) -> ImageResult<Self> {
         HdrDecoder::with_strictness(reader, true)
@@ -241,8 +238,7 @@ impl<R: Read> HdrDecoder<R> {
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Hdr.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
-                        "Image dimensions ({}x{}) are too large",
-                        width, height
+                        "Image dimensions ({width}x{height}) are too large"
                     )),
                 ),
             ));
@@ -518,7 +514,9 @@ impl HdrMetadata {
             Some((key, val)) => self
                 .custom_attributes
                 .push((key.to_owned(), val.to_owned())),
-            None => self.custom_attributes.push(("".into(), line.to_owned())),
+            None => self
+                .custom_attributes
+                .push((String::new(), line.to_owned())),
         }
         // parse known attributes
         match maybe_key_value {

@@ -154,7 +154,7 @@ impl ImageError {
         match err {
             Unsupported(desc) => ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Jpeg.into(),
-                UnsupportedErrorKind::GenericFeature(format!("{:?}", desc)),
+                UnsupportedErrorKind::GenericFeature(format!("{desc:?}")),
             )),
             LargeDimensions(_) => ImageError::Limits(LimitError::from_kind(
                 crate::error::LimitErrorKind::DimensionError,

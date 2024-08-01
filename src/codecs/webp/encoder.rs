@@ -2,10 +2,8 @@
 
 use std::io::Write;
 
-use crate::{
-    error::{EncodingError, UnsupportedError, UnsupportedErrorKind},
-    ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult,
-};
+use crate::error::{EncodingError, UnsupportedError, UnsupportedErrorKind};
+use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
 pub struct WebPEncoder<W> {

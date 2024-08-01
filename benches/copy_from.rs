@@ -6,7 +6,7 @@ pub fn bench_copy_from(c: &mut Criterion) {
     let mut dst = ImageBuffer::from_pixel(2048, 2048, Rgba([0u8, 0, 0, 255]));
 
     c.bench_function("copy_from", |b| {
-        b.iter(|| dst.copy_from(black_box(&src), 0, 0))
+        b.iter(|| dst.copy_from(black_box(&src), 0, 0));
     });
 }
 

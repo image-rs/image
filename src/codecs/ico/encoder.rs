@@ -46,8 +46,7 @@ impl<'a> IcoFrame<'a> {
         if !(1..=256).contains(&width) {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(format!(
-                    "the image width must be `1..=256`, instead width {} was provided",
-                    width,
+                    "the image width must be `1..=256`, instead width {width} was provided",
                 )),
             )));
         }
@@ -55,8 +54,7 @@ impl<'a> IcoFrame<'a> {
         if !(1..=256).contains(&height) {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(format!(
-                    "the image height must be `1..=256`, instead height {} was provided",
-                    height,
+                    "the image height must be `1..=256`, instead height {height} was provided",
                 )),
             )));
         }

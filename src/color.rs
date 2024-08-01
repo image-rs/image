@@ -34,6 +34,7 @@ pub enum ColorType {
 
 impl ColorType {
     /// Returns the number of bytes contained in a pixel of `ColorType` ```c```
+    #[must_use]
     pub fn bytes_per_pixel(self) -> u8 {
         match self {
             ColorType::L8 => 1,
@@ -48,6 +49,7 @@ impl ColorType {
     }
 
     /// Returns if there is an alpha channel.
+    #[must_use]
     pub fn has_alpha(self) -> bool {
         use ColorType::*;
         match self {
@@ -57,6 +59,7 @@ impl ColorType {
     }
 
     /// Returns false if the color scheme is grayscale, true otherwise.
+    #[must_use]
     pub fn has_color(self) -> bool {
         use ColorType::*;
         match self {
@@ -67,11 +70,13 @@ impl ColorType {
 
     /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
     /// a multiple of 8).
+    #[must_use]
     pub fn bits_per_pixel(self) -> u16 {
         <u16 as From<u8>>::from(self.bytes_per_pixel()) * 8
     }
 
     /// Returns the number of color channels that make up this pixel
+    #[must_use]
     pub fn channel_count(self) -> u8 {
         let e: ExtendedColorType = self.into();
         e.channel_count()
@@ -156,6 +161,7 @@ impl ExtendedColorType {
     ///
     /// Note that the `Unknown` variant returns a value of `1` since pixels can only be treated as
     /// an opaque datum by the library.
+    #[must_use]
     pub fn channel_count(self) -> u8 {
         match self {
             ExtendedColorType::A8
@@ -189,6 +195,7 @@ impl ExtendedColorType {
     }
 
     /// Returns the number of bits per pixel for this color type.
+    #[must_use]
     pub fn bits_per_pixel(&self) -> u16 {
         match *self {
             ExtendedColorType::A8 => 8,
@@ -541,7 +548,7 @@ where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &LumaA<S>) {
-        self.channels_mut()[0] = T::from_primitive(other.channels()[0])
+        self.channels_mut()[0] = T::from_primitive(other.channels()[0]);
     }
 }
 
@@ -764,13 +771,13 @@ impl<T: Primitive> Blend for LumaA<T> {
         *self = LumaA([
             NumCast::from(max_t * out_luma).unwrap(),
             NumCast::from(max_t * alpha_final).unwrap(),
-        ])
+        ]);
     }
 }
 
 impl<T: Primitive> Blend for Luma<T> {
     fn blend(&mut self, other: &Luma<T>) {
-        *self = *other
+        *self = *other;
     }
 }
 
@@ -834,13 +841,13 @@ impl<T: Primitive> Blend for Rgba<T> {
             NumCast::from(max_t * out_g).unwrap(),
             NumCast::from(max_t * out_b).unwrap(),
             NumCast::from(max_t * alpha_final).unwrap(),
-        ])
+        ]);
     }
 }
 
 impl<T: Primitive> Blend for Rgb<T> {
     fn blend(&mut self, other: &Rgb<T>) {
-        *self = *other
+        *self = *other;
     }
 }
 
@@ -855,7 +862,7 @@ impl<T: Primitive> Invert for LumaA<T> {
         let l = self.0;
         let max = T::DEFAULT_MAX_VALUE;
 
-        *self = LumaA([max - l[0], l[1]])
+        *self = LumaA([max - l[0], l[1]]);
     }
 }
 
@@ -866,7 +873,7 @@ impl<T: Primitive> Invert for Luma<T> {
         let max = T::DEFAULT_MAX_VALUE;
         let l1 = max - l[0];
 
-        *self = Luma([l1])
+        *self = Luma([l1]);
     }
 }
 
@@ -876,7 +883,7 @@ impl<T: Primitive> Invert for Rgba<T> {
 
         let max = T::DEFAULT_MAX_VALUE;
 
-        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
+        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]]);
     }
 }
 
@@ -890,7 +897,7 @@ impl<T: Primitive> Invert for Rgb<T> {
         let g1 = max - rgb[1];
         let b1 = max - rgb[2];
 
-        *self = Rgb([r1, g1, b1])
+        *self = Rgb([r1, g1, b1]);
     }
 }
 

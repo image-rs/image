@@ -219,9 +219,7 @@ impl<W: Write> BitWriter<W> {
     fn huffman_encode(&mut self, val: u8, table: &[(u8, u16); 256]) -> io::Result<()> {
         let (size, code) = table[val as usize];
 
-        if size > 16 {
-            panic!("bad huffman value");
-        }
+        assert!(size <= 16, "bad huffman value");
 
         self.write_bits(code, size)
     }
@@ -316,6 +314,7 @@ impl PixelDensity {
     /// Creates the most common pixel density type:
     /// the horizontal and the vertical density are equal,
     /// and measured in pixels per inch.
+    #[must_use]
     pub fn dpi(density: u16) -> Self {
         PixelDensity {
             density: (density, density),
@@ -401,7 +400,7 @@ impl<W: Write> JpegEncoder<W> {
         tables.iter_mut().for_each(|t| {
             t.iter_mut().for_each(|v| {
                 *v = clamp((u32::from(*v) * scale + 50) / 100, 1, u32::from(u8::MAX)) as u8;
-            })
+            });
         });
 
         JpegEncoder {
@@ -696,7 +695,7 @@ fn build_frame_header(
     m.extend_from_slice(&width.to_be_bytes());
     m.push(components.len() as u8);
 
-    for &comp in components.iter() {
+    for &comp in components {
         let hv = (comp.h << 4) | comp.v;
         m.extend_from_slice(&[comp.id, hv, comp.tq]);
     }
@@ -707,7 +706,7 @@ fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
 
     m.push(components.len() as u8);
 
-    for &comp in components.iter() {
+    for &comp in components {
         let tables = (comp.dc_table << 4) | comp.ac_table;
         m.extend_from_slice(&[comp.id, tables]);
     }

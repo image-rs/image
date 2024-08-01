@@ -79,7 +79,7 @@ enum TupleEncoding<'a> {
 }
 
 impl<W: Write> PnmEncoder<W> {
-    /// Create new PnmEncoder from the `writer`.
+    /// Create new `PnmEncoder` from the `writer`.
     ///
     /// The encoded images will have some `pnm` format. If more control over the image type is
     /// required, use either one of `with_subtype` or `with_header`. For more information on the
@@ -238,15 +238,16 @@ impl<W: Write> PnmEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PnmSubtype::Bitmap(encoding), ExtendedColorType::L8)
-            | (PnmSubtype::Bitmap(encoding), ExtendedColorType::L1) => PnmHeader {
-                decoded: HeaderRecord::Bitmap(BitmapHeader {
-                    encoding,
-                    width,
-                    height,
-                }),
-                encoded: None,
-            },
+            (PnmSubtype::Bitmap(encoding), ExtendedColorType::L8 | ExtendedColorType::L1) => {
+                PnmHeader {
+                    decoded: HeaderRecord::Bitmap(BitmapHeader {
+                        encoding,
+                        height,
+                        width,
+                    }),
+                    encoded: None,
+                }
+            }
             (_, _) => {
                 return Err(ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::Generic(
@@ -423,8 +424,7 @@ impl<'a> CheckedDimensions<'a> {
                 _ if depth != components => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::Generic(format!(
-                            "Depth mismatch: header {} vs. color {}",
-                            depth, components
+                            "Depth mismatch: header {depth} vs. color {components}"
                         )),
                     )))
                 }
@@ -530,7 +530,7 @@ impl<'a> SampleWriter<'a> {
     {
         let mut auto_break_writer = AutoBreak::new(self.0, 70);
         for value in samples {
-            write!(auto_break_writer, "{} ", value)?;
+            write!(auto_break_writer, "{value} ")?;
         }
         auto_break_writer.flush()
     }
@@ -553,11 +553,11 @@ impl<'a> SampleWriter<'a> {
                     // Black pixels are encoded as 1s
                     if let Some(&v) = byte_bits.get(i) {
                         if v == V::default() {
-                            byte |= 1u8 << (7 - i)
+                            byte |= 1u8 << (7 - i);
                         }
                     }
                 }
-                line_buffer.push(byte)
+                line_buffer.push(byte);
             }
             self.0.write_all(line_buffer.as_slice())?;
             line_buffer.clear();

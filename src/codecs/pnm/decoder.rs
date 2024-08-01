@@ -1,6 +1,7 @@
 use std::error;
 use std::fmt::{self, Display};
 use std::io::{self, Read};
+use std::mem::size_of;
 use std::num::ParseIntError;
 use std::str::{self, FromStr};
 
@@ -87,11 +88,11 @@ impl Display for DecoderError {
                 magic[0], magic[1]
             )),
             DecoderError::UnparsableValue(src, data, err) => {
-                f.write_fmt(format_args!("Error parsing {:?} as {}: {}", data, src, err))
+                f.write_fmt(format_args!("Error parsing {data:?} as {src}: {err}"))
             }
 
             DecoderError::NonAsciiByteInHeader(c) => {
-                f.write_fmt(format_args!("Non-ASCII character {:#04X?} in header", c))
+                f.write_fmt(format_args!("Non-ASCII character {c:#04X?} in header"))
             }
             DecoderError::NonAsciiLineInPamHeader => f.write_str("Non-ASCII line in PAM header"),
             DecoderError::NonAsciiSample => {
@@ -99,17 +100,15 @@ impl Display for DecoderError {
             }
 
             DecoderError::NotNewlineAfterP7Magic(c) => f.write_fmt(format_args!(
-                "Expected newline after P7 magic, got {:#04X?}",
-                c
+                "Expected newline after P7 magic, got {c:#04X?}"
             )),
             DecoderError::UnexpectedPnmHeaderEnd => f.write_str("Unexpected end of PNM header"),
 
             DecoderError::HeaderLineDuplicated(line) => {
-                f.write_fmt(format_args!("Duplicate {} line", line))
+                f.write_fmt(format_args!("Duplicate {line} line"))
             }
             DecoderError::HeaderLineUnknown(identifier) => f.write_fmt(format_args!(
-                "Unknown header line with identifier {:?}",
-                identifier
+                "Unknown header line with identifier {identifier:?}"
             )),
             DecoderError::HeaderLineMissing {
                 height,
@@ -117,19 +116,17 @@ impl Display for DecoderError {
                 depth,
                 maxval,
             } => f.write_fmt(format_args!(
-                "Missing header line: have height={:?}, width={:?}, depth={:?}, maxval={:?}",
-                height, width, depth, maxval
+                "Missing header line: have height={height:?}, width={width:?}, depth={depth:?}, maxval={maxval:?}"
             )),
 
             DecoderError::InputTooShort => {
                 f.write_str("Not enough data was provided to the Decoder to decode the image")
             }
             DecoderError::UnexpectedByteInRaster(c) => f.write_fmt(format_args!(
-                "Unexpected character {:#04X?} within sample raster",
-                c
+                "Unexpected character {c:#04X?} within sample raster"
             )),
             DecoderError::SampleOutOfBounds(val) => {
-                f.write_fmt(format_args!("Sample value {} outside of bounds", val))
+                f.write_fmt(format_args!("Sample value {val} outside of bounds"))
             }
             DecoderError::MaxvalZero => f.write_str("Image MAXVAL is zero"),
             DecoderError::MaxvalTooBig(maxval) => {
@@ -235,7 +232,7 @@ trait Sample {
 
     /// Representation size in bytes
     fn sample_size() -> u32 {
-        std::mem::size_of::<Self::Representation>() as u32
+        size_of::<Self::Representation>() as u32
     }
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         Ok((width * height * samples * Self::sample_size()) as usize)
@@ -386,7 +383,7 @@ trait HeaderReader: Read {
 
         for (_, byte) in mark_comments.filter(|e| e.0) {
             match byte {
-                Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => {
+                Ok(b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ') => {
                     if !bytes.is_empty() {
                         break; // We're done as we already have some content
                     }
@@ -442,8 +439,8 @@ trait HeaderReader: Read {
         let height = self.read_next_u32()?;
         Ok(BitmapHeader {
             encoding,
-            width,
             height,
+            width,
         })
     }
 
@@ -469,8 +466,8 @@ trait HeaderReader: Read {
         let maxval = self.read_next_u32()?;
         Ok(PixmapHeader {
             encoding,
-            width,
             height,
+            width,
             maxval,
         })
     }
@@ -667,12 +664,12 @@ impl<R: Read> PnmDecoder<R> {
 
             if S::sample_size() == 1 {
                 buf.iter_mut().for_each(|v| {
-                    *v = (*v as f32 * factor).round() as u8;
-                })
+                    *v = (f32::from(*v) * factor).round() as u8;
+                });
             } else if S::sample_size() == 2 {
                 for chunk in buf.chunks_exact_mut(2) {
                     let v = NativeEndian::read_u16(chunk);
-                    NativeEndian::write_u16(chunk, (v as f32 * factor).round() as u16);
+                    NativeEndian::write_u16(chunk, (f32::from(v) * factor).round() as u16);
                 }
             }
         }
@@ -698,8 +695,8 @@ where
 
     let token = reader
         .bytes()
-        .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
-        .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
+        .skip_while(|v| v.as_ref().ok().map_or(false, is_separator))
+        .take_while(|v| v.as_ref().ok().map_or(false, |c| !is_separator(c)))
         .collect::<Result<Vec<u8>, _>>()?;
 
     if !token.is_ascii() {
@@ -760,13 +757,13 @@ impl Sample for PbmBit {
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         let count = width * samples;
-        let linelen = (count / 8) + ((count % 8) != 0) as u32;
+        let linelen = (count / 8) + u32::from((count % 8) != 0);
         Ok((linelen * height) as usize)
     }
 
     fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
-        for b in expanded.iter_mut() {
+        for b in &mut expanded {
             *b = !*b;
         }
         output_buf.copy_from_slice(&expanded);
@@ -917,7 +914,7 @@ impl DecodableImageHeader for ArbitraryHeader {
             Some(ArbitraryTuplType::Custom(ref custom)) => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Pnm.into(),
-                    UnsupportedErrorKind::GenericFeature(format!("Tuple type {:?}", custom)),
+                    UnsupportedErrorKind::GenericFeature(format!("Tuple type {custom:?}")),
                 ),
             )),
             None => Err(DecoderError::TupleTypeUnrecognised.into()),
@@ -1065,7 +1062,7 @@ ENDHDR
     fn pbm_binary() {
         // The data contains two rows of the image (each line is padded to the full byte). For
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
-        let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100_u8, 0b10110111]].concat();
+        let pbmbinary = [&b"P4 6 2\n"[..], &[0b0110_1100_u8, 0b1011_0111]].concat();
         let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);

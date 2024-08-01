@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use std::ffi::OsStr;
 use std::io::{self, Write};
+use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
@@ -89,7 +90,7 @@ impl ImageFormat {
             Some(match ext.as_str() {
                 "avif" => ImageFormat::Avif,
                 "jpg" | "jpeg" => ImageFormat::Jpeg,
-                "png" => ImageFormat::Png,
+                "png" | "apng" => ImageFormat::Png,
                 "gif" => ImageFormat::Gif,
                 "webp" => ImageFormat::WebP,
                 "tif" | "tiff" => ImageFormat::Tiff,
@@ -201,6 +202,7 @@ impl ImageFormat {
     /// let mime_type = ImageFormat::Png.to_mime_type();
     /// assert_eq!(mime_type, "image/png");
     /// ```
+    #[must_use]
     pub fn to_mime_type(&self) -> &'static str {
         match self {
             ImageFormat::Avif => "image/avif",
@@ -226,8 +228,9 @@ impl ImageFormat {
         }
     }
 
-    /// Return if the ImageFormat can be decoded by the lib.
+    /// Return if the `ImageFormat` can be decoded by the lib.
     #[inline]
+    #[must_use]
     pub fn can_read(&self) -> bool {
         // Needs to be updated once a new variant's decoder is added to free_functions.rs::load
         match self {
@@ -249,8 +252,9 @@ impl ImageFormat {
         }
     }
 
-    /// Return if the ImageFormat can be encoded by the lib.
+    /// Return if the `ImageFormat` can be encoded by the lib.
     #[inline]
+    #[must_use]
     pub fn can_write(&self) -> bool {
         // Needs to be updated once a new variant's encoder is added to free_functions.rs::save_buffer_with_format_impl
         match self {
@@ -281,6 +285,7 @@ impl ImageFormat {
     ///
     /// The method name `extensions` remains reserved for introducing another method in the future
     /// that yields a slice of `OsStr` which is blocked by several features of const evaluation.
+    #[must_use]
     pub fn extensions_str(self) -> &'static [&'static str] {
         match self {
             ImageFormat::Png => &["png"],
@@ -302,8 +307,9 @@ impl ImageFormat {
         }
     }
 
-    /// Return the ImageFormats which are enabled for reading.
+    /// Return the `ImageFormat`s which are enabled for reading.
     #[inline]
+    #[must_use]
     pub fn reading_enabled(&self) -> bool {
         match self {
             ImageFormat::Png => cfg!(feature = "png"),
@@ -324,8 +330,9 @@ impl ImageFormat {
         }
     }
 
-    /// Return the ImageFormats which are enabled for writing.
+    /// Return the `ImageFormat`s which are enabled for writing.
     #[inline]
+    #[must_use]
     pub fn writing_enabled(&self) -> bool {
         match self {
             ImageFormat::Gif => cfg!(feature = "gif"),
@@ -346,7 +353,7 @@ impl ImageFormat {
         }
     }
 
-    /// Return all ImageFormats
+    /// Return all `ImageFormat`s
     pub fn all() -> impl Iterator<Item = ImageFormat> {
         [
             ImageFormat::Gif,
@@ -383,9 +390,9 @@ pub(crate) struct ImageReadBuffer {
     offset: u64,
 }
 impl ImageReadBuffer {
-    /// Create a new ImageReadBuffer.
+    /// Create a new `ImageReadBuffer`.
     ///
-    /// Panics if scanline_bytes doesn't fit into a usize, because that would mean reading anything
+    /// Panics if `scanline_bytes` doesn't fit into a usize, because that would mean reading anything
     /// from the image would take more RAM than the entire virtual address space. In other words,
     /// actually using this struct would instantly OOM so just get it out of the way now.
     #[allow(dead_code)]
@@ -481,13 +488,12 @@ where
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
     let total_bytes = width * height * bytes_per_pixel;
 
-    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
-        panic!(
-            "output buffer too short\n expected `{}`, provided `{}`",
-            total_bytes,
-            buf.len()
-        );
-    }
+    assert!(
+        buf.len() >= usize::try_from(total_bytes).unwrap_or(usize::MAX),
+        "output buffer too short\n expected `{}`, provided `{}`",
+        total_bytes,
+        buf.len()
+    );
 
     let mut current_scanline = 0;
     let mut tmp = Vec::new();
@@ -597,7 +603,7 @@ where
         )));
     }
 
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
@@ -625,9 +631,9 @@ pub trait ImageDecoder {
     /// Returns the total number of bytes in the decoded image.
     ///
     /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. The returned value may exceed usize::MAX, in
+    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
     /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into. If, however, the size does not fit in a u64 then u64::MAX is returned.
+    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
         let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
@@ -644,7 +650,7 @@ pub trait ImageDecoder {
     ///
     /// # Panics
     ///
-    /// This function panics if buf.len() != self.total_bytes().
+    /// This function panics if `buf.len() != self.total_bytes()`.
     ///
     /// # Examples
     ///
@@ -741,7 +747,7 @@ pub trait ImageDecoderRect: ImageDecoder {
     ) -> ImageResult<()>;
 }
 
-/// AnimationDecoder trait
+/// `AnimationDecoder` trait
 pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
@@ -887,8 +893,8 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        assert!(x as u64 + width as u64 <= self.width() as u64);
-        assert!(y as u64 + height as u64 <= self.height() as u64);
+        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
+        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
     }
 }
@@ -1029,13 +1035,13 @@ pub trait GenericImage: GenericImageView {
 
     /// Returns a mutable subimage that is a view into this image.
     /// If you want an immutable subimage instead, use [`GenericImageView::view`]
-    /// The coordinates set the position of the top left corner of the SubImage.
+    /// The coordinates set the position of the top left corner of the `SubImage`.
     fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self>
     where
         Self: Sized,
     {
-        assert!(x as u64 + width as u64 <= self.width() as u64);
-        assert!(y as u64 + height as u64 <= self.height() as u64);
+        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
+        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
     }
 }
@@ -1087,7 +1093,7 @@ type DerefSubpixel<I> = <DerefPixel<I> as Pixel>::Subpixel;
 
 impl<I> SubImage<I> {
     /// Construct a new subimage
-    /// The coordinates set the position of the top left corner of the SubImage.
+    /// The coordinates set the position of the top left corner of the `SubImage`.
     pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
             inner: SubImageInner {
@@ -1113,14 +1119,14 @@ impl<I> SubImage<I> {
         (self.inner.xoffset, self.inner.yoffset)
     }
 
-    /// Convert this subimage to an ImageBuffer
+    /// Convert this subimage to an `ImageBuffer`
     pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
         I: Deref,
         I::Target: GenericImageView + 'static,
     {
         let mut out = ImageBuffer::new(self.inner.xstride, self.inner.ystride);
-        let borrowed = self.inner.image.deref();
+        let borrowed = &*self.inner.image;
 
         for y in 0..self.inner.ystride {
             for x in 0..self.inner.xstride {
@@ -1159,8 +1165,8 @@ where
     /// ```
     pub fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&I::Target> {
         use crate::GenericImageView as _;
-        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
-        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
+        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
+        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
         let x = self.inner.xoffset.saturating_add(x);
         let y = self.inner.yoffset.saturating_add(y);
         SubImage::new(&*self.inner.image, x, y, width, height)
@@ -1187,8 +1193,8 @@ where
         width: u32,
         height: u32,
     ) -> SubImage<&mut I::Target> {
-        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
-        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
+        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
+        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
         let x = self.inner.xoffset.saturating_add(x);
         let y = self.inner.yoffset.saturating_add(y);
         SubImage::new(&mut *self.inner.image, x, y, width, height)
@@ -1248,13 +1254,13 @@ where
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
-            .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
+            .put_pixel(x + self.xoffset, y + self.yoffset, pixel);
     }
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
-            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
+            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
     }
 }
 
@@ -1776,7 +1782,7 @@ mod tests {
                 ColorType::Rgb8
             }
             fn dimensions(&self) -> (u32, u32) {
-                (0xffffffff, 0xffffffff)
+                (0xffff_ffff, 0xffff_ffff)
             }
             fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()

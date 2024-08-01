@@ -7,6 +7,27 @@
 
 ## Changes
 
+### Version 0.25.2
+
+Features:
+- Added the HDR encoder to supported formats in generic write methods with the
+  `hdr` feature enabled. Supports 32-bit float RGB color only, for now.
+- When cloning `ImageBuffer`, `DynamicImage` and `Frame` the existing buffer
+  will now be reused if possible.
+- Added `image::ImageReader` as an alias.
+- Implement `ImageEncoder` for `HdrEncoder`.
+
+Structural changes
+- Switch from `byteorder` to `byteorder-lite`, consolidating some casting
+  unsafety to `bytemuck`.
+- Many methods on `DynamicImage` and buffers gained `#[must_use]` indications.
+
+Bug fixes:
+- Removed test data included in the crate archive.
+- The WebP animation decoder stops when reaching the indicate frame count.
+- Fixed bugs in the `bmp` decoder.
+- Format support gated on the `exr` feature now compiles in isolation.
+
 ### Version 0.25.1
 
 Bug fixes:

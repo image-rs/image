@@ -129,7 +129,7 @@ impl<R: BufRead + Seek> PngDecoder<R> {
             .reader
             .info()
             .source_gamma
-            .map(|x| x.into_scaled() as f64 / 100000.0))
+            .map(|x| f64::from(x.into_scaled()) / 100_000.0))
     }
 
     /// Turn this into an iterator over the animation frames.
@@ -192,7 +192,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             1 => (), // No reodering necessary for u8
             2 => buf.chunks_exact_mut(2).for_each(|c| {
                 let v = BigEndian::read_u16(c);
-                NativeEndian::write_u16(c, v)
+                NativeEndian::write_u16(c, v);
             }),
             _ => unreachable!(),
         }
@@ -597,7 +597,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     /// Write a PNG image with the specified width, height, and color type.
     ///
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
-    /// native endian. PngEncoder will automatically convert to big endian as required by the
+    /// native endian. `PngEncoder` will automatically convert to big endian as required by the
     /// underlying PNG format.
     #[track_caller]
     fn write_image(
@@ -671,11 +671,9 @@ impl ImageError {
 impl fmt::Display for BadPngRepresentation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::ColorType(color_type) => write!(
-                f,
-                "The color {:?} can not be represented in PNG.",
-                color_type
-            ),
+            Self::ColorType(color_type) => {
+                write!(f, "The color {color_type:?} can not be represented in PNG.")
+            }
         }
     }
 }

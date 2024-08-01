@@ -2,7 +2,7 @@ use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
 
 /// Example showcasing a generic implementation of image concatenation.
 ///
-/// The example images are coming from https://placeholder.com/
+/// The example images are coming from <https://placeholder.com>/
 ///
 /// Run from the root of the repository with:
 /// cargo run --release --example concat

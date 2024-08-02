@@ -13,7 +13,7 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`]:
+//! Load images using [`ImageReader`](crate::image_reader::ImageReader):
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
@@ -111,6 +111,7 @@
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
+#![allow(redundant_explicit_links)]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]

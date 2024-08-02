@@ -953,6 +953,8 @@ where
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
+/// Use [crate::imageops::fast_blur()] for a faster but less
+/// accurate version.
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,

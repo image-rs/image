@@ -158,6 +158,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly-2024-07-01
     - name: build
       run: |
         echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0

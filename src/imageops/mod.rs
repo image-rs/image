@@ -31,7 +31,10 @@ mod affine;
 // Public only because of Rust bug:
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
+mod fast_blur;
 mod sample;
+
+pub use fast_blur::fast_blur;
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
@@ -482,5 +485,19 @@ mod tests {
     fn test_blur_zero() {
         let image = RgbaImage::new(50, 50);
         let _ = super::blur(&image, 0.0);
+    }
+
+    #[test]
+    /// Test blur doesn't panick when passed 0.0
+    fn test_fast_blur_zero() {
+        let image = RgbaImage::new(50, 50);
+        let _ = super::fast_blur(&image, -1.0);
+    }
+
+    #[test]
+    /// Test blur doesn't panick when passed negative numbers
+    fn test_fast_blur_negative() {
+        let image = RgbaImage::new(50, 50);
+        let _ = super::fast_blur(&image, -1.0);
     }
 }

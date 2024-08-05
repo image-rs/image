@@ -104,3 +104,13 @@ harness = false
 [[bench]]
 name = "copy_from"
 harness = false
+
+[[bench]]
+path = "benches/fast_blur.rs"
+name = "fast_blur"
+harness = false
+
+[[bench]]
+path = "benches/blur.rs"
+name = "blur"
+harness = false

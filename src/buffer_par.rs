@@ -1,3 +1,4 @@
+#![allow(exported_private_dependencies)]
 use rayon::iter::plumbing::*;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};

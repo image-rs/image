@@ -2,6 +2,8 @@
 
 use std::iter::repeat;
 
+pub(crate) mod packed_color;
+
 #[inline(always)]
 pub(crate) fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, mut func: F)
 where

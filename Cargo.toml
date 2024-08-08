@@ -49,9 +49,9 @@ image-webp = { version = "0.1.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.6", optional = true }
 qoi = { version = "0.4", optional = true }
-ravif = { version = "0.11.2", default-features = false, optional = true }
+ravif = { version = "0.11.3", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
-rgb = { version = "0.8.25", optional = true }
+rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.9.0", optional = true }
 zune-core = { version = "0.4.12", default-features = false, optional = true }
 zune-jpeg = { version = "0.4.13", optional = true }

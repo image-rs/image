@@ -398,7 +398,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     pub fn new(w: W) -> TiffEncoder<W> {
         TiffEncoder {
             w,
-            comp: Compressor::default(),
+            comp: Compressor::Deflate(Deflate::default()),
         }
     }
 

@@ -315,7 +315,7 @@ impl ImageFormat {
             ImageFormat::Bmp => cfg!(feature = "bmp"),
             ImageFormat::Ico => cfg!(feature = "ico"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
-            ImageFormat::OpenExr => cfg!(feature = "openexr"),
+            ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Pnm => cfg!(feature = "pnm"),
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
@@ -339,7 +339,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::WebP => cfg!(feature = "webp"),
-            ImageFormat::OpenExr => cfg!(feature = "openexr"),
+            ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Dds => false,
             ImageFormat::Hdr => false,
@@ -597,7 +597,7 @@ where
         )));
     }
 
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }

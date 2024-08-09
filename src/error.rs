@@ -491,11 +491,10 @@ impl fmt::Display for ImageFormatHint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
 
     #[allow(dead_code)]
     // This will fail to compile if the size of this type is large.
-    const ASSERT_SMALLISH: usize = [0][(mem::size_of::<ImageError>() >= 200) as usize];
+    const ASSERT_SMALLISH: usize = [0][(size_of::<ImageError>() >= 200) as usize];
 
     #[test]
     fn test_send_sync_stability() {

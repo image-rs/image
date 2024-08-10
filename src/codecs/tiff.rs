@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
-use tiff::encoder::compression::{Compressor, Deflate, Lzw, Packbits, Uncompressed};
+use tiff::encoder::compression::{Compressor, Deflate, DeflateLevel, Lzw, Packbits, Uncompressed};
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -315,6 +315,60 @@ pub struct TiffEncoder<W> {
     comp: Compressor,
 }
 
+/// Compression types supported by the TIFF format
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CompressionType {
+    /// No compression
+    Uncompressed,
+    /// LZW compression
+    Lzw,
+    /// Deflate compression
+    Deflate(TiffDeflateLevel),
+    /// Bit packing compression
+    Packbits,
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        CompressionType::Deflate(Default::default())
+    }
+}
+
+/// The level of compression used by the Deflate algorithm.
+/// It allows trading compression ratio for compression speed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[non_exhaustive]
+pub enum TiffDeflateLevel {
+    /// The fastest possible compression mode.
+    Fast = 1,
+    /// The conserative choice between speed and ratio.
+    #[default]
+    Balanced = 6,
+    /// The best compression available with Deflate.
+    Best = 9,
+}
+
+impl From<TiffDeflateLevel> for DeflateLevel {
+    fn from(val: TiffDeflateLevel) -> Self {
+        match val {
+            TiffDeflateLevel::Fast => DeflateLevel::Fast,
+            TiffDeflateLevel::Balanced => DeflateLevel::Balanced,
+            TiffDeflateLevel::Best => DeflateLevel::Best,
+        }
+    }
+}
+
+impl From<CompressionType> for Compressor {
+    fn from(compression: CompressionType) -> Compressor {
+        match compression {
+            CompressionType::Uncompressed => Compressor::Uncompressed(Default::default()),
+            CompressionType::Lzw => Compressor::Lzw(Default::default()),
+            CompressionType::Deflate(lvl) => Compressor::Deflate(Deflate::with_level(lvl.into())),
+            CompressionType::Packbits => Compressor::Packbits(Default::default()),
+        }
+    }
+}
+
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
     let c = cmyk[0] as f32;
     let m = cmyk[1] as f32;
@@ -396,16 +450,22 @@ fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<DtypeContainer<u16>> {
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder {
-            w,
-            comp: Compressor::default(),
-        }
+        let comp = CompressionType::default().into();
+        TiffEncoder { w, comp }
     }
 
-    /// Set the image compression setting
-    pub fn with_compression(mut self, comp: Compressor) -> Self {
-        self.comp = comp;
-        self
+    /// Create a new encoder that writes its output to `w` with `CompressionType` `compression`.
+    ///
+    /// It is best to view the options as a _hint_ to the implementation on the smallest or fastest
+    /// option for encoding a particular image. That is, using options that map directly to a TIFF
+    /// image parameter will use this parameter where possible. But variants that have no direct
+    /// mapping may be interpreted differently in minor versions. The exact output is expressly
+    /// __not__ part of the SemVer stability guarantee.
+    pub fn new_with_compression(w: W, comp: CompressionType) -> Self {
+        TiffEncoder {
+            w,
+            comp: comp.into(),
+        }
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.

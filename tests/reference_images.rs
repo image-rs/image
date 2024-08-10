@@ -42,7 +42,7 @@ where
 #[cfg(feature = "tiff")]
 #[test]
 fn compress_deflate() {
-    use image::codecs::tiff::TiffEncoder;
+    use image::codecs::tiff::{CompressionType, TiffDeflateLevel, TiffEncoder};
 
     process_images(IMAGE_DIR, Some("tiff"), |base, path, _| {
         println!("compress_images {}", path.display());
@@ -64,8 +64,9 @@ fn compress_deflate() {
         out_path.push("deflate");
         std::fs::create_dir_all(&out_path).unwrap();
         out_path.push(path.file_name().unwrap());
-        let encoder = TiffEncoder::new(fs::File::create(&out_path).unwrap()).with_compression(
-            tiff::encoder::Compression::Deflate(tiff::encoder::DeflateLevel::Balanced),
+        let encoder = TiffEncoder::new_with_compression(
+            fs::File::create(&out_path).unwrap(),
+            CompressionType::Deflate(TiffDeflateLevel::Balanced),
         );
         img.write_with_encoder(encoder).unwrap();
     })
@@ -74,7 +75,7 @@ fn compress_deflate() {
 #[cfg(feature = "tiff")]
 #[test]
 fn compress_lzw() {
-    use image::codecs::tiff::TiffEncoder;
+    use image::codecs::tiff::{CompressionType, TiffEncoder};
 
     process_images(IMAGE_DIR, Some("tiff"), |base, path, _| {
         println!("compress_images {}", path.display());
@@ -96,8 +97,10 @@ fn compress_lzw() {
         out_path.push("lzw");
         std::fs::create_dir_all(&out_path).unwrap();
         out_path.push(path.file_name().unwrap());
-        let encoder = TiffEncoder::new(fs::File::create(&out_path).unwrap())
-            .with_compression(tiff::encoder::Compression::Lzw);
+        let encoder = TiffEncoder::new_with_compression(
+            fs::File::create(&out_path).unwrap(),
+            CompressionType::Lzw,
+        );
         img.write_with_encoder(encoder).unwrap();
     })
 }

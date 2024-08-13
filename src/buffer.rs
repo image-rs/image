@@ -1566,7 +1566,7 @@ mod test {
             let val = a.pixels_mut().next().unwrap();
             *val = Rgb([42, 0, 0]);
         }
-        assert_eq!(a.data[0], 42)
+        assert_eq!(a.data[0], 42);
     }
 
     #[test]

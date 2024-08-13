@@ -663,9 +663,9 @@ impl<R: Read> PnmDecoder<R> {
             let factor = target_sample_max as f32 / current_sample_max as f32;
 
             if S::sample_size() == 1 {
-                buf.iter_mut().for_each(|v| {
+                for v in buf.iter_mut() {
                     *v = (f32::from(*v) * factor).round() as u8;
-                });
+                }
             } else if S::sample_size() == 2 {
                 for chunk in buf.chunks_exact_mut(2) {
                     let v = NativeEndian::read_u16(chunk);

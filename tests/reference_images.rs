@@ -359,7 +359,7 @@ fn check_hdr_references() {
             .rev()
         {
             if let Normal(name) = *c {
-                ref_path.push(name)
+                ref_path.push(name);
             } else {
                 panic!()
             }

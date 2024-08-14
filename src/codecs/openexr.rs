@@ -158,7 +158,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             assert!(
                 !has_invalid_size_or_overflowed,
                 "byte buffer not large enough for the specified dimensions and f32 pixels"
-            )
+            );
         }
 
         let result = read()

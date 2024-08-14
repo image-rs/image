@@ -1799,7 +1799,7 @@ mod tests {
 
     #[test]
     fn all() {
-        let all_formats: HashSet<ImageFormat> = HashSet::from_iter(ImageFormat::all());
+        let all_formats: HashSet<ImageFormat> = ImageFormat::all().collect();
         assert!(all_formats.contains(&ImageFormat::Avif));
         assert!(all_formats.contains(&ImageFormat::Gif));
         assert!(all_formats.contains(&ImageFormat::Bmp));

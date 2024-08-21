@@ -403,8 +403,10 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixels")
             .field("pixels", &self.pixels)
-            .field("x", &self.x_front)
-            .field("y", &self.y_front)
+            .field("x_front", &self.x_front)
+            .field("y_front", &self.y_front)
+            .field("x_back", &self.x_back)
+            .field("y_back", &self.y_back)
             .field("width", &self.width)
             .finish()
     }
@@ -501,7 +503,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRows")
             .field("rows", &self.rows)
-            .field("y", &self.y_front)
+            .field("y_front", &self.y_front)
+            .field("y_back", &self.y_back)
             .field("width", &self.width)
             .finish()
     }
@@ -575,8 +578,10 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixelsMut")
             .field("pixels", &self.pixels)
-            .field("x", &self.x_front)
-            .field("y", &self.y_front)
+            .field("x_front", &self.x_front)
+            .field("y_front", &self.y_front)
+            .field("x_back", &self.x_back)
+            .field("y_back", &self.y_back)
             .field("width", &self.width)
             .finish()
     }
@@ -664,7 +669,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRowsMut")
             .field("rows", &self.rows)
-            .field("y", &self.y_front)
+            .field("y_front", &self.y_front)
+            .field("y_back", &self.y_back)
             .field("width", &self.width)
             .finish()
     }

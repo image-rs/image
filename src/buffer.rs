@@ -332,8 +332,10 @@ where
     <P as Pixel>::Subpixel: 'a,
 {
     pixels: Pixels<'a, P>,
-    x: u32,
-    y: u32,
+    x_front: u32,
+    y_front: u32,
+    x_back: u32,
+    y_back: u32,
     width: u32,
 }
 
@@ -345,12 +347,12 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a P)> {
-        if self.x >= self.width {
-            self.x = 0;
-            self.y += 1;
+        if self.x_front >= self.width {
+            self.x_front = 0;
+            self.y_front += 1;
         }
-        let (x, y) = (self.x, self.y);
-        self.x += 1;
+        let (x, y) = (self.x_front, self.y_front);
+        self.x_front += 1;
         self.pixels.next().map(|p| (x, y, p))
     }
 
@@ -370,6 +372,21 @@ where
     }
 }
 
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for EnumeratePixels<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.x_back == 0 {
+            self.x_back = self.width.saturating_sub(1);
+            self.y_back = self.y_back.saturating_sub(1);
+        }
+        let (x, y) = (self.x_back, self.y_back);
+        self.x_back = self.x_back.saturating_sub(1);
+        self.pixels.next().map(|p| (x, y, p))
+    }
+}
+
 impl<P: Pixel> Clone for EnumeratePixels<'_, P> {
     fn clone(&self) -> Self {
         EnumeratePixels {
@@ -386,8 +403,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixels")
             .field("pixels", &self.pixels)
-            .field("x", &self.x)
-            .field("y", &self.y)
+            .field("x", &self.x_front)
+            .field("y", &self.y_front)
             .field("width", &self.width)
             .finish()
     }
@@ -399,7 +416,8 @@ where
     <P as Pixel>::Subpixel: 'a,
 {
     rows: Rows<'a, P>,
-    y: u32,
+    y_front: u32,
+    y_back: u32,
     width: u32,
 }
 
@@ -411,14 +429,16 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, EnumeratePixels<'a, P>)> {
-        let y = self.y;
-        self.y += 1;
+        let y = self.y_front;
+        self.y_front += 1;
         self.rows.next().map(|r| {
             (
                 y,
                 EnumeratePixels {
-                    x: 0,
-                    y,
+                    x_front: 0,
+                    y_front: y,
+                    x_back: self.width.saturating_sub(1),
+                    y_back: y,
                     width: self.width,
                     pixels: r,
                 },
@@ -442,6 +462,29 @@ where
     }
 }
 
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for EnumerateRows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let y = self.y_back;
+        self.y_back = self.y_back.saturating_sub(1);
+        self.rows.next().map(|r| {
+            (
+                y,
+                EnumeratePixels {
+                    x_front: 0,
+                    y_front: y,
+                    x_back: self.width.saturating_sub(1),
+                    y_back: y,
+                    width: self.width,
+                    pixels: r,
+                },
+            )
+        })
+    }
+}
+
 impl<P: Pixel> Clone for EnumerateRows<'_, P> {
     fn clone(&self) -> Self {
         EnumerateRows {
@@ -458,7 +501,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRows")
             .field("rows", &self.rows)
-            .field("y", &self.y)
+            .field("y", &self.y_front)
             .field("width", &self.width)
             .finish()
     }
@@ -470,8 +513,10 @@ where
     <P as Pixel>::Subpixel: 'a,
 {
     pixels: PixelsMut<'a, P>,
-    x: u32,
-    y: u32,
+    x_front: u32,
+    y_front: u32,
+    x_back: u32,
+    y_back: u32,
     width: u32,
 }
 
@@ -483,12 +528,12 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
-        if self.x >= self.width {
-            self.x = 0;
-            self.y += 1;
+        if self.x_front >= self.width {
+            self.x_front = 0;
+            self.y_front += 1;
         }
-        let (x, y) = (self.x, self.y);
-        self.x += 1;
+        let (x, y) = (self.x_front, self.y_front);
+        self.x_front += 1;
         self.pixels.next().map(|p| (x, y, p))
     }
 
@@ -508,6 +553,21 @@ where
     }
 }
 
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for EnumeratePixelsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.x_back == 0 {
+            self.x_back = self.width.saturating_sub(1);
+            self.y_back = self.y_back.saturating_sub(1);
+        }
+        let (x, y) = (self.x_back, self.y_back);
+        self.x_back = self.x_back.saturating_sub(1);
+        self.pixels.next().map(|p| (x, y, p))
+    }
+}
+
 impl<P: Pixel> fmt::Debug for EnumeratePixelsMut<'_, P>
 where
     P::Subpixel: fmt::Debug,
@@ -515,8 +575,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixelsMut")
             .field("pixels", &self.pixels)
-            .field("x", &self.x)
-            .field("y", &self.y)
+            .field("x", &self.x_front)
+            .field("y", &self.y_front)
             .field("width", &self.width)
             .finish()
     }
@@ -528,7 +588,8 @@ where
     <P as Pixel>::Subpixel: 'a,
 {
     rows: RowsMut<'a, P>,
-    y: u32,
+    y_front: u32,
+    y_back: u32,
     width: u32,
 }
 
@@ -540,14 +601,16 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, EnumeratePixelsMut<'a, P>)> {
-        let y = self.y;
-        self.y += 1;
+        let y = self.y_front;
+        self.y_front += 1;
         self.rows.next().map(|r| {
             (
                 y,
                 EnumeratePixelsMut {
-                    x: 0,
-                    y,
+                    x_front: 0,
+                    y_front: y,
+                    x_back: self.width.saturating_sub(1),
+                    y_back: y,
                     width: self.width,
                     pixels: r,
                 },
@@ -571,6 +634,29 @@ where
     }
 }
 
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for EnumerateRowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let y = self.y_back;
+        self.y_back = self.y_back.saturating_sub(1);
+        self.rows.next().map(|r| {
+            (
+                y,
+                EnumeratePixelsMut {
+                    x_front: 0,
+                    y_front: y,
+                    x_back: self.width.saturating_sub(1),
+                    y_back: y,
+                    width: self.width,
+                    pixels: r,
+                },
+            )
+        })
+    }
+}
+
 impl<P: Pixel> fmt::Debug for EnumerateRowsMut<'_, P>
 where
     P::Subpixel: fmt::Debug,
@@ -578,7 +664,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRowsMut")
             .field("rows", &self.rows)
-            .field("y", &self.y)
+            .field("y", &self.y_front)
             .field("width", &self.width)
             .finish()
     }
@@ -742,8 +828,10 @@ where
     pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
         EnumeratePixels {
             pixels: self.pixels(),
-            x: 0,
-            y: 0,
+            x_front: 0,
+            y_front: 0,
+            x_back: self.width.saturating_sub(1),
+            y_back: self.height.saturating_sub(1),
             width: self.width,
         }
     }
@@ -754,7 +842,8 @@ where
     pub fn enumerate_rows(&self) -> EnumerateRows<P> {
         EnumerateRows {
             rows: self.rows(),
-            y: 0,
+            y_front: 0,
+            y_back: self.height.saturating_sub(1),
             width: self.width,
         }
     }
@@ -917,10 +1006,13 @@ where
     /// along with a mutable reference to them.
     pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<P> {
         let width = self.width;
+        let height = self.height;
         EnumeratePixelsMut {
             pixels: self.pixels_mut(),
-            x: 0,
-            y: 0,
+            x_front: 0,
+            y_front: 0,
+            x_back: width.saturating_sub(1),
+            y_back: height.saturating_sub(1),
             width,
         }
     }
@@ -930,9 +1022,11 @@ where
     /// along with a mutable reference to them.
     pub fn enumerate_rows_mut(&mut self) -> EnumerateRowsMut<P> {
         let width = self.width;
+        let height = self.height;
         EnumerateRowsMut {
             rows: self.rows_mut(),
-            y: 0,
+            y_front: 0,
+            y_back: height.saturating_sub(1),
             width,
         }
     }
@@ -1577,6 +1671,10 @@ mod test {
         assert_eq!(image.pixels_mut().count(), 0);
         assert_eq!(image.rows().count(), 0);
         assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels_mut().count(), 0);
+        assert_eq!(image.enumerate_rows().count(), 0);
+        assert_eq!(image.enumerate_rows_mut().count(), 0);
     }
 
     #[test]
@@ -1587,6 +1685,10 @@ mod test {
         assert_eq!(image.pixels_mut().count(), 0);
         assert_eq!(image.rows().count(), 0);
         assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels_mut().count(), 0);
+        assert_eq!(image.enumerate_rows().count(), 0);
+        assert_eq!(image.enumerate_rows_mut().count(), 0);
     }
 
     #[test]
@@ -1597,6 +1699,10 @@ mod test {
         assert_eq!(image.pixels_mut().count(), 0);
         assert_eq!(image.rows().count(), 0);
         assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels().count(), 0);
+        assert_eq!(image.enumerate_pixels_mut().count(), 0);
+        assert_eq!(image.enumerate_rows().count(), 0);
+        assert_eq!(image.enumerate_rows_mut().count(), 0);
     }
 
     #[test]
@@ -1609,7 +1715,61 @@ mod test {
         assert_eq!(image.enumerate_pixels_mut().count(), 1);
 
         assert_eq!(image.rows().count(), 1);
+        assert_eq!(image.enumerate_rows().count(), 1);
         assert_eq!(image.rows_mut().count(), 1);
+        assert_eq!(image.enumerate_rows_mut().count(), 1);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn front_and_back_iter_2x2() {
+        let mut image = RgbImage::new(2, 2);
+
+        let top_left = Rgb([0, 0, 0]);
+        let top_right = Rgb([1, 1, 1]);
+        let bot_left = Rgb([2, 2, 2]);
+        let bot_right = Rgb([3, 3, 3]);
+
+        image.put_pixel(0, 0, top_left);
+        image.put_pixel(1, 0, top_right);
+        image.put_pixel(0, 1, bot_left);
+        image.put_pixel(1, 1, bot_right);
+
+        let enumerated_pixels = [
+            (0, 0, &top_left),
+            (1, 0, &top_right),
+            (0, 1, &bot_left),
+            (1, 1, &bot_right),
+        ];
+        let pixels = enumerated_pixels.map(|(_, _, p)| p);
+
+        let enumerated_rows = [
+            [(0, 0, 0, &top_left), (0, 1, 0, &top_right)],
+            [(1, 0, 1, &bot_right), (1, 1, 1, &bot_left)],
+        ];
+        let rows = enumerated_rows.map(|r| r.map(|(_, _, _, p)| p));
+
+        use itertools::assert_equal;
+
+        assert_equal(image.pixels(), pixels);
+        assert_equal(image.pixels().rev(), pixels.into_iter().rev());
+        assert_equal(image.pixels_mut(), pixels);
+        assert_equal(image.pixels_mut().rev(), pixels.into_iter().rev());
+
+        assert_equal(image.enumerate_pixels(), enumerated_pixels);
+        assert_equal(image.enumerate_pixels().rev(), enumerated_pixels.into_iter().rev());
+        assert_equal(image.enumerate_pixels_mut().map(|(x, y, p)| (x, y, &*p)), enumerated_pixels);
+        assert_equal(image.enumerate_pixels_mut().rev().map(|(x, y, p)| (x, y, &*p)), enumerated_pixels.into_iter().rev());
+
+        assert_equal(image.rows().flatten(), rows.into_iter().flatten());
+        assert_equal(image.rows().rev().flatten(), rows.into_iter().rev().flatten());
+        assert_equal(image.rows_mut().flatten(), rows.into_iter().flatten());
+        assert_equal(image.rows_mut().rev().flatten(), rows.into_iter().rev().flatten());
+
+        assert_equal(image.enumerate_rows().flat_map(|(y1, r)| r.map(move |(x, y2, v)| (y1, x, y2, v))), enumerated_rows.into_iter().flat_map(|x| x.into_iter()));
+        assert_equal(image.enumerate_rows().rev().flat_map(|(y1, r)| r.map(move |(x, y2, v)| (y1, x, y2, v))), enumerated_rows.into_iter().rev().flat_map(|x| x.into_iter()));
+        assert_equal(image.enumerate_rows_mut().flat_map(|(y1, r)| r.map(move |(x, y2, v)| (y1, x, y2, &*v))), enumerated_rows.into_iter().flat_map(|x| x.into_iter()));
+        assert_equal(image.enumerate_rows_mut().rev().flat_map(|(y1, r)| r.map(move |(x, y2, v)| (y1, x, y2, &*v))), enumerated_rows.into_iter().rev().flat_map(|x| x.into_iter()));
     }
 
     #[test]

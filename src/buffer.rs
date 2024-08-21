@@ -377,13 +377,13 @@ where
     P::Subpixel: 'a,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
+        let (x, y) = (self.x_back, self.y_back);
         if self.x_back == 0 {
-            self.x_back = self.width.saturating_sub(1);
+            self.x_back = self.width;
             self.y_back = self.y_back.saturating_sub(1);
         }
-        let (x, y) = (self.x_back, self.y_back);
         self.x_back = self.x_back.saturating_sub(1);
-        self.pixels.next().map(|p| (x, y, p))
+        self.pixels.next_back().map(|p| (x, y, p))
     }
 }
 
@@ -469,7 +469,7 @@ where
     fn next_back(&mut self) -> Option<Self::Item> {
         let y = self.y_back;
         self.y_back = self.y_back.saturating_sub(1);
-        self.rows.next().map(|r| {
+        self.rows.next_back().map(|r| {
             (
                 y,
                 EnumeratePixels {
@@ -558,13 +558,13 @@ where
     P::Subpixel: 'a,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
+        let (x, y) = (self.x_back, self.y_back);
         if self.x_back == 0 {
-            self.x_back = self.width.saturating_sub(1);
+            self.x_back = self.width;
             self.y_back = self.y_back.saturating_sub(1);
         }
-        let (x, y) = (self.x_back, self.y_back);
         self.x_back = self.x_back.saturating_sub(1);
-        self.pixels.next().map(|p| (x, y, p))
+        self.pixels.next_back().map(|p| (x, y, p))
     }
 }
 
@@ -641,7 +641,7 @@ where
     fn next_back(&mut self) -> Option<Self::Item> {
         let y = self.y_back;
         self.y_back = self.y_back.saturating_sub(1);
-        self.rows.next().map(|r| {
+        self.rows.next_back().map(|r| {
             (
                 y,
                 EnumeratePixelsMut {
@@ -1745,7 +1745,7 @@ mod test {
 
         let enumerated_rows = [
             [(0, 0, 0, &top_left), (0, 1, 0, &top_right)],
-            [(1, 0, 1, &bot_right), (1, 1, 1, &bot_left)],
+            [(1, 0, 1, &bot_left), (1, 1, 1, &bot_right)],
         ];
         let rows = enumerated_rows.map(|r| r.map(|(_, _, _, p)| p));
 

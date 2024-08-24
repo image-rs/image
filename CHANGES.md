@@ -1,5 +1,7 @@
 ## Unreleased
 
+* Updated to miniz_oxide 0.8.0.
+
 ## 0.17.13
 
 * Fix `Send` bound on `Reader`.

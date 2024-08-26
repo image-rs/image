@@ -69,6 +69,12 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(decoder.icc_profile())
     }
 
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
+        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
+        Ok(decoder.exif().cloned())
+    }
+
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         let advertised_len = self.total_bytes();
         let actual_len = buf.len() as u64;

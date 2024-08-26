@@ -6,6 +6,23 @@ use crate::error::{EncodingError, UnsupportedError, UnsupportedErrorKind};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
+///
+/// ### Limitations
+///
+/// Right now only **lossless** encoding is supported.
+///
+/// If you need **lossy** encoding, you'll have to use `libwebp`.
+/// Example code for encoding a [`DynamicImage`](crate::DynamicImage) with `libwebp`
+/// via the [`webp`](https://docs.rs/webp/latest/webp/) crate can be found
+/// [here](https://github.com/jaredforth/webp/blob/main/examples/convert.rs).
+///
+/// ### Compression ratio
+///
+/// This encoder reaches compression ratios higher than PNG at a fraction of the encoding time.
+/// However, it does not reach the full potential of lossless WebP for reducing file size.
+///
+/// If you need an even higher compression ratio at the cost of much slower encoding,
+/// please encode the image with `libwebp` as outlined above.
 pub struct WebPEncoder<W> {
     inner: image_webp::WebPEncoder<W>,
 }

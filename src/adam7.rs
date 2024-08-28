@@ -5,7 +5,7 @@
 /// [the Adam7 algorithm](https://en.wikipedia.org/wiki/Adam7_algorithm)
 /// applies to a decoded row.
 ///
-/// See also [Reader::next_interlaced_row].
+/// See also [crate::decoder::Reader::next_interlaced_row].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Adam7Info {
     pub(crate) pass: u8,
@@ -152,21 +152,40 @@ fn expand_adam7_bits(
         .map(move |bits_offset| bits_offset + line_start)
 }
 
-/// Expands an Adam 7 pass
-pub fn expand_pass(img: &mut [u8], stride: usize, scanline: &[u8], info: &Adam7Info, bits_pp: u8) {
-    let bits_pp = bits_pp as usize;
+/// Copies pixels from `interlaced_row` into the right location in `img`.
+///
+/// First bytes of `img` should belong to the top-left corner of the currently decoded frame.
+///
+/// `img_row_stride` specifies an offset in bytes between subsequent rows of `img`.
+/// This can be the width of the current frame being decoded, but this is not required - a bigger
+/// stride may be useful if the frame being decoded is a sub-region of `img`.
+///
+/// `interlaced_row` and `interlace_info` typically come from
+/// [crate::decoder::Reader::next_interlaced_row], but this is not required.  In particular, before
+/// calling `expand_interlaced_row` one may need to expand the decoded row, so that its format and
+/// `bits_per_pixel` matches that of `img`.  Note that in initial Adam7 passes the `interlaced_row`
+/// may contain less pixels that the width of the frame being decoded (e.g. it contains only 1/8th
+/// of pixels in the initial pass).
+pub fn expand_pass(
+    img: &mut [u8],
+    img_row_stride: usize,
+    interlaced_row: &[u8],
+    interlace_info: &Adam7Info,
+    bits_per_pixel: u8,
+) {
+    let bits_pp = bits_per_pixel as usize;
 
-    let bit_indices = expand_adam7_bits(stride, info, bits_pp);
+    let bit_indices = expand_adam7_bits(img_row_stride, interlace_info, bits_pp);
 
     if bits_pp < 8 {
-        for (pos, px) in bit_indices.zip(subbyte_pixels(scanline, bits_pp)) {
+        for (pos, px) in bit_indices.zip(subbyte_pixels(interlaced_row, bits_pp)) {
             let rem = 8 - pos % 8 - bits_pp;
             img[pos / 8] |= px << rem as u8;
         }
     } else {
         let bytes_pp = bits_pp / 8;
 
-        for (bitpos, px) in bit_indices.zip(scanline.chunks(bytes_pp)) {
+        for (bitpos, px) in bit_indices.zip(interlaced_row.chunks(bytes_pp)) {
             for (offset, val) in px.iter().enumerate() {
                 img[bitpos / 8 + offset] = *val;
             }

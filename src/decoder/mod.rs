@@ -554,7 +554,7 @@ impl<R: Read> Reader<R> {
         self.current_start = 0;
         self.prev_start = 0;
         if self.info().interlaced {
-            let width = self.info().width;
+            let stride = self.output_line_size(self.info().width);
             let samples = color_type.samples() as u8;
             let bits_pp = samples * (bit_depth as u8);
             while let Some(InterlacedRow {
@@ -565,7 +565,7 @@ impl<R: Read> Reader<R> {
             {
                 // `unwrap` won't panic, because we checked `self.info().interlaced` above.
                 let adam7info = interlace.get_adam7_info().unwrap();
-                adam7::expand_pass(buf, width, row, &adam7info, bits_pp);
+                adam7::expand_pass(buf, stride, row, &adam7info, bits_pp);
             }
         } else {
             for row in buf

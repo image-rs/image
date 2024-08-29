@@ -148,16 +148,10 @@ fn expand_adam7_bits(
 }
 
 /// Expands an Adam 7 pass
-pub fn expand_pass(
-    img: &mut [u8],
-    width: u32,
-    scanline: &[u8],
-    pass: u8,
-    line_no: u32,
-    bits_pp: u8,
-) {
+pub fn expand_pass(img: &mut [u8], width: u32, scanline: &[u8], info: &Adam7Info, bits_pp: u8) {
     let width = width as usize;
-    let line_no = line_no as usize;
+    let line_no = info.line as usize;
+    let pass = info.pass;
     let bits_pp = bits_pp as usize;
 
     // pass is out of range but don't blow up
@@ -318,56 +312,57 @@ fn test_expand_pass_subbyte() {
     let mut img = [0u8; 8];
     let width = 8;
     let bits_pp = 1;
+    let info = create_adam7_info_for_tests;
 
-    expand_pass(&mut img, width, &[0b10000000], 1, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b10000000], &info(1, 0, width), bits_pp);
     assert_eq!(img, [0b10000000u8, 0, 0, 0, 0, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b10000000], 2, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b10000000], &info(2, 0, width), bits_pp);
     assert_eq!(img, [0b10001000u8, 0, 0, 0, 0, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b11000000], 3, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], &info(3, 0, width), bits_pp);
     assert_eq!(img, [0b10001000u8, 0, 0, 0, 0b10001000, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b11000000], 4, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], &info(4, 0, width), bits_pp);
     assert_eq!(img, [0b10101010u8, 0, 0, 0, 0b10001000, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b11000000], 4, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], &info(4, 1, width), bits_pp);
     assert_eq!(img, [0b10101010u8, 0, 0, 0, 0b10101010, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b11110000], 5, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(5, 0, width), bits_pp);
     assert_eq!(img, [0b10101010u8, 0, 0b10101010, 0, 0b10101010, 0, 0, 0]);
 
-    expand_pass(&mut img, width, &[0b11110000], 5, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(5, 1, width), bits_pp);
     assert_eq!(
         img,
         [0b10101010u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]
     );
 
-    expand_pass(&mut img, width, &[0b11110000], 6, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(6, 0, width), bits_pp);
     assert_eq!(
         img,
         [0b11111111u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]
     );
 
-    expand_pass(&mut img, width, &[0b11110000], 6, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(6, 1, width), bits_pp);
     assert_eq!(
         img,
         [0b11111111u8, 0, 0b11111111, 0, 0b10101010, 0, 0b10101010, 0]
     );
 
-    expand_pass(&mut img, width, &[0b11110000], 6, 2, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(6, 2, width), bits_pp);
     assert_eq!(
         img,
         [0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b10101010, 0]
     );
 
-    expand_pass(&mut img, width, &[0b11110000], 6, 3, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], &info(6, 3, width), bits_pp);
     assert_eq!(
         [0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b11111111, 0],
         img
     );
 
-    expand_pass(&mut img, width, &[0b11111111], 7, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11111111], &info(7, 0, width), bits_pp);
     assert_eq!(
         [
             0b11111111u8,
@@ -382,7 +377,7 @@ fn test_expand_pass_subbyte() {
         img
     );
 
-    expand_pass(&mut img, width, &[0b11111111], 7, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11111111], &info(7, 1, width), bits_pp);
     assert_eq!(
         [
             0b11111111u8,
@@ -397,7 +392,7 @@ fn test_expand_pass_subbyte() {
         img
     );
 
-    expand_pass(&mut img, width, &[0b11111111], 7, 2, bits_pp);
+    expand_pass(&mut img, width, &[0b11111111], &info(7, 2, width), bits_pp);
     assert_eq!(
         [
             0b11111111u8,
@@ -412,7 +407,7 @@ fn test_expand_pass_subbyte() {
         img
     );
 
-    expand_pass(&mut img, width, &[0b11111111], 7, 3, bits_pp);
+    expand_pass(&mut img, width, &[0b11111111], &info(7, 3, width), bits_pp);
     assert_eq!(
         [
             0b11111111u8,
@@ -426,4 +421,18 @@ fn test_expand_pass_subbyte() {
         ],
         img
     );
+}
+
+#[cfg(test)]
+fn create_adam7_info_for_tests(pass: u8, line: u32, img_width: u32) -> Adam7Info {
+    let width = {
+        let img_height = 8;
+        Adam7Iterator::new(img_width, img_height)
+            .filter(|info| info.pass == pass)
+            .map(|info| info.width)
+            .next()
+            .unwrap()
+    };
+
+    Adam7Info { pass, line, width }
 }

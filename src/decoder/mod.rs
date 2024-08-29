@@ -131,6 +131,15 @@ pub enum InterlaceInfo {
     Adam7(adam7::Adam7Info),
 }
 
+impl InterlaceInfo {
+    fn get_adam7_info(&self) -> Option<&adam7::Adam7Info> {
+        match self {
+            InterlaceInfo::Null => None,
+            InterlaceInfo::Adam7(adam7info) => Some(adam7info),
+        }
+    }
+}
+
 /// A row of data without interlace information.
 #[derive(Clone, Copy, Debug)]
 pub struct Row<'data> {
@@ -544,20 +553,19 @@ impl<R: Read> Reader<R> {
         self.data_stream.clear();
         self.current_start = 0;
         self.prev_start = 0;
-        let width = self.info().width;
         if self.info().interlaced {
+            let width = self.info().width;
+            let samples = color_type.samples() as u8;
+            let bits_pp = samples * (bit_depth as u8);
             while let Some(InterlacedRow {
                 data: row,
                 interlace,
                 ..
             }) = self.next_interlaced_row()?
             {
-                let (line, pass) = match interlace {
-                    InterlaceInfo::Adam7(adam7::Adam7Info { line, pass, .. }) => (line, pass),
-                    InterlaceInfo::Null => unreachable!("expected interlace information"),
-                };
-                let samples = color_type.samples() as u8;
-                adam7::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
+                // `unwrap` won't panic, because we checked `self.info().interlaced` above.
+                let adam7info = interlace.get_adam7_info().unwrap();
+                adam7::expand_pass(buf, width, row, &adam7info, bits_pp);
             }
         } else {
             for row in buf

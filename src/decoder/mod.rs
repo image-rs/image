@@ -99,19 +99,26 @@ impl<'data> InterlacedRow<'data> {
         self.data
     }
 
-    pub fn interlace(&self) -> InterlaceInfo {
-        self.interlace
+    pub fn interlace(&self) -> &InterlaceInfo {
+        &self.interlace
     }
 }
 
+/// Describes which interlacing algorithm applies to a decoded row.
+///
 /// PNG (2003) specifies two interlace modes, but reserves future extensions.
+///
+/// See also [Reader::next_interlaced_row].
 #[derive(Clone, Copy, Debug)]
 pub enum InterlaceInfo {
-    /// the null method means no interlacing
+    /// The `null` method means no interlacing.
     Null,
-    /// Adam7 derives its name from doing 7 passes over the image, only decoding a subset of all pixels in each pass.
-    /// The following table shows pictorially what parts of each 8x8 area of the image is found in each pass:
+    /// [The `Adam7` algorithm](https://en.wikipedia.org/wiki/Adam7_algorithm) derives its name
+    /// from doing 7 passes over the image, only decoding a subset of all pixels in each pass.
+    /// The following table shows pictorially what parts of each 8x8 area of the image is found in
+    /// each pass:
     ///
+    /// ```txt
     /// 1 6 4 6 2 6 4 6
     /// 7 7 7 7 7 7 7 7
     /// 5 6 5 6 5 6 5 6
@@ -120,7 +127,8 @@ pub enum InterlaceInfo {
     /// 7 7 7 7 7 7 7 7
     /// 5 6 5 6 5 6 5 6
     /// 7 7 7 7 7 7 7 7
-    Adam7 { pass: u8, line: u32, width: u32 },
+    /// ```
+    Adam7(adam7::Adam7Info),
 }
 
 /// A row of data without interlace information.
@@ -545,7 +553,7 @@ impl<R: Read> Reader<R> {
             }) = self.next_interlaced_row()?
             {
                 let (line, pass) = match interlace {
-                    InterlaceInfo::Adam7 { line, pass, .. } => (line, pass),
+                    InterlaceInfo::Adam7(adam7::Adam7Info { line, pass, .. }) => (line, pass),
                     InterlaceInfo::Null => unreachable!("expected interlace information"),
                 };
                 let samples = color_type.samples() as u8;
@@ -599,7 +607,7 @@ impl<R: Read> Reader<R> {
             None => return Ok(None),
         };
 
-        let width = if let InterlaceInfo::Adam7 { width, .. } = interlace {
+        let width = if let InterlaceInfo::Adam7(adam7::Adam7Info { width, .. }) = interlace {
             width
         } else {
             self.subframe.width
@@ -715,12 +723,12 @@ impl<R: Read> Reader<R> {
         match self.subframe.interlace {
             InterlaceIter::Adam7(ref mut adam7) => {
                 let last_pass = adam7.current_pass();
-                let (pass, line, width) = adam7.next()?;
-                let rowlen = self.info().raw_row_length_from_width(width);
-                if last_pass != pass {
+                let adam7info = adam7.next()?;
+                let rowlen = self.info().raw_row_length_from_width(adam7info.width);
+                if last_pass != adam7info.pass {
                     self.prev_start = self.current_start;
                 }
-                Some((rowlen, InterlaceInfo::Adam7 { pass, line, width }))
+                Some((rowlen, InterlaceInfo::Adam7(adam7info)))
             }
             InterlaceIter::None(ref mut height) => {
                 let _ = height.next()?;

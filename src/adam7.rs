@@ -1,6 +1,19 @@
-//! Utility functions
+//! Utility functions related to handling of
+//! [the Adam7 algorithm](https://en.wikipedia.org/wiki/Adam7_algorithm).
 use std::iter::StepBy;
 use std::ops::Range;
+
+/// Describes which stage of
+/// [the Adam7 algorithm](https://en.wikipedia.org/wiki/Adam7_algorithm)
+/// applies to a decoded row.
+///
+/// See also [Reader::next_interlaced_row].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Adam7Info {
+    pub(crate) pass: u8,
+    pub(crate) line: u32,
+    pub(crate) width: u32,
+}
 
 /// This iterator iterates over the different passes of an image Adam7 encoded
 /// PNG image
@@ -63,14 +76,18 @@ impl Adam7Iterator {
     }
 }
 
-/// Iterates over the (passes, lines, widths)
+/// Iterates over `Adam7Info`s.
 impl Iterator for Adam7Iterator {
-    type Item = (u8, u32, u32);
+    type Item = Adam7Info;
     fn next(&mut self) -> Option<Self::Item> {
         if self.line < self.lines && self.line_width > 0 {
             let this_line = self.line;
             self.line += 1;
-            Some((self.current_pass, this_line, self.line_width))
+            Some(Adam7Info {
+                pass: self.current_pass,
+                line: this_line,
+                width: self.line_width,
+            })
         } else if self.current_pass < 7 {
             self.current_pass += 1;
             self.init_pass();
@@ -179,13 +196,41 @@ fn test_adam7() {
     assert_eq!(
         &*passes,
         &[
-            (1, 0, 1),
-            (4, 0, 1),
-            (5, 0, 2),
-            (6, 0, 2),
-            (6, 1, 2),
-            (7, 0, 4),
-            (7, 1, 4)
+            Adam7Info {
+                pass: 1,
+                line: 0,
+                width: 1
+            },
+            Adam7Info {
+                pass: 4,
+                line: 0,
+                width: 1
+            },
+            Adam7Info {
+                pass: 5,
+                line: 0,
+                width: 2
+            },
+            Adam7Info {
+                pass: 6,
+                line: 0,
+                width: 2
+            },
+            Adam7Info {
+                pass: 6,
+                line: 1,
+                width: 2
+            },
+            Adam7Info {
+                pass: 7,
+                line: 0,
+                width: 4
+            },
+            Adam7Info {
+                pass: 7,
+                line: 1,
+                width: 4
+            }
         ]
     );
 }

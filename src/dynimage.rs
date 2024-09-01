@@ -17,9 +17,9 @@ use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, I
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
-use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
+use crate::{ImageReader, Orientation};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -917,38 +917,33 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Applies the [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html) to the image.
+    /// Applies the specified [Orientation] to the image.
     ///
-    /// Orientation is specified in the Exif metadata, and is often written by cameras.
-    /// It is expressed as an integer in the range 1..=8; passing other values will return an error.
+    /// Note that for some orientations cannot be efficiently applied in-place.
+    /// In that case this function will make a copy of the image internally.
     ///
-    /// Due to an implementation detail, orientations 5..=8 copy the image internally.
-    pub fn apply_exif_orientation_in_place(&mut self, orientation: u8) -> Result<(), ImageError> {
-        // Verified against `convert -auto-orient`
+    /// If this matters to you, please see the documentation on the variants of [Orientation]
+    /// to learn which orientations can and cannot be applied without copying.
+    pub fn apply_orientation(&mut self, orientation: Orientation) -> Result<(), ImageError> {
         let image = self;
         match orientation {
-            1 => Ok(()), // no transformations needed
-            2 => Ok(image.fliph_in_place()),
-            3 => Ok(image.rotate180_in_place()),
-            4 => Ok(image.flipv_in_place()),
-            5 => {
+            Orientation::NoTransforms => Ok(()),
+            Orientation::Rotate90 => Ok(*image = image.rotate90()),
+            Orientation::Rotate180 => Ok(image.rotate180_in_place()),
+            Orientation::Rotate270 => Ok(*image = image.rotate270()),
+            Orientation::FlipH => Ok(image.fliph_in_place()),
+            Orientation::FlipV => Ok(image.flipv_in_place()),
+            Orientation::Rotate90FlipH => {
                 let mut new_image = image.rotate90();
                 new_image.fliph_in_place();
                 *image = new_image;
                 Ok(())
             }
-            6 => Ok(*image = image.rotate90()),
-            7 => {
+            Orientation::Rotate270FlipH => {
                 let mut new_image = image.rotate270();
                 new_image.fliph_in_place();
                 *image = new_image;
                 Ok(())
-            }
-            8 => Ok(*image = image.rotate270()),
-            0 | 9.. => {
-                return Err(ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::Generic(format!("Invalid exif orientation: {orientation}")),
-                )))
             }
         }
     }

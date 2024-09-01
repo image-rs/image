@@ -62,6 +62,12 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .icc_profile()
             .map_err(ImageError::from_webp_decode)
     }
+
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner
+            .exif_metadata()
+            .map_err(ImageError::from_webp_decode)
+    }
 }
 
 impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {

@@ -381,12 +381,13 @@ struct SubframeInfo {
     width: u32,
     height: u32,
     rowlen: usize,
-    interlace: InterlaceInfoIter,
+    current_interlace_info: Option<InterlaceInfo>,
+    interlace_info_iter: InterlaceInfoIter,
     consumed_and_flushed: bool,
 }
 
 /// Denote a frame as given by sequence numbers.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum SubframeIdx {
     /// The initial frame in an IDAT chunk without fcTL chunk applying to it.
     /// Note that this variant precedes `Some` as IDAT frames precede fdAT frames and all fdAT
@@ -439,6 +440,9 @@ impl<R: Read> Reader<R> {
             .ok_or(DecodingError::Format(FormatErrorInner::MissingIhdr.into()))?;
         self.bpp = info.bpp_in_prediction();
         self.subframe = SubframeInfo::new(info);
+        self.data_stream.clear();
+        self.current_start = 0;
+        self.prev_start = 0;
 
         // Allocate output buffer.
         let buflen = self.output_line_size(self.subframe.width);
@@ -503,9 +507,6 @@ impl<R: Read> Reader<R> {
             line_size: self.output_line_size(self.subframe.width),
         };
 
-        self.data_stream.clear();
-        self.current_start = 0;
-        self.prev_start = 0;
         if self.info().interlaced {
             let stride = self.output_line_size(self.info().width);
             let samples = color_type.samples() as u8;
@@ -521,9 +522,15 @@ impl<R: Read> Reader<R> {
                 adam7::expand_pass(buf, stride, row, adam7info, bits_pp);
             }
         } else {
+            let current_interlace_info = self.subframe.current_interlace_info.as_ref();
+            let already_done_rows = current_interlace_info
+                .map(|info| info.line_number())
+                .unwrap_or(self.subframe.height);
+
             for row in buf
                 .chunks_exact_mut(output_info.line_size)
                 .take(self.subframe.height as usize)
+                .skip(already_done_rows as usize)
             {
                 self.next_interlaced_row_impl(self.subframe.rowlen, row)?;
             }
@@ -563,9 +570,9 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(&mut self) -> Result<Option<InterlacedRow>, DecodingError> {
-        let interlace = match self.subframe.interlace.next() {
+        let interlace = match self.subframe.current_interlace_info.as_ref() {
             None => return Ok(None),
-            Some(interlace) => interlace,
+            Some(interlace) => *interlace,
         };
         if interlace.line_number() == 0 {
             self.prev_start = self.current_start;
@@ -634,6 +641,7 @@ impl<R: Read> Reader<R> {
         };
         transform_fn(row, output_buffer, self.info());
 
+        self.subframe.current_interlace_info = self.subframe.interlace_info_iter.next();
         Ok(())
     }
 
@@ -745,7 +753,8 @@ impl SubframeInfo {
             width: 0,
             height: 0,
             rowlen: 0,
-            interlace: InterlaceInfoIter::empty(),
+            current_interlace_info: None,
+            interlace_info_iter: InterlaceInfoIter::empty(),
             consumed_and_flushed: false,
         }
     }
@@ -759,11 +768,14 @@ impl SubframeInfo {
             (info.width, info.height)
         };
 
+        let mut interlace_info_iter = InterlaceInfoIter::new(width, height, info.interlaced);
+        let current_interlace_info = interlace_info_iter.next();
         SubframeInfo {
             width,
             height,
             rowlen: info.raw_row_length_from_width(width),
-            interlace: InterlaceInfoIter::new(width, height, info.interlaced),
+            current_interlace_info,
+            interlace_info_iter,
             consumed_and_flushed: false,
         }
     }

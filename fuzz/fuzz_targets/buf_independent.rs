@@ -3,37 +3,24 @@
 use libfuzzer_sys::fuzz_target;
 
 use std::mem::discriminant;
-use std::io::{BufRead, Read, Result};
+use std::io::{Read, Result};
 
 /// A reader that reads at most `n` bytes.
-struct SmalBuf<R: BufRead> {
+struct SmalBuf<R: Read> {
     inner: R,
     cap: usize,
 }
 
-impl<R: BufRead> SmalBuf<R> {
+impl<R: Read> SmalBuf<R> {
     fn new(inner: R, cap: usize) -> Self {
         SmalBuf { inner, cap }
     }
 }
 
-impl<R: BufRead> Read for SmalBuf<R> {
+impl<R: Read> Read for SmalBuf<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let len = buf.len().min(self.cap);
         self.inner.read(&mut buf[..len])
-    }
-}
-
-impl<R: BufRead> BufRead for SmalBuf<R> {
-    fn fill_buf(&mut self) -> Result<&[u8]> {
-        let buf = self.inner.fill_buf()?;
-        let len = buf.len().min(self.cap);
-        Ok(&buf[..len])
-    }
-
-    fn consume(&mut self, amt: usize) {
-        assert!(amt <= self.cap);
-        self.inner.consume(amt)
     }
 }
 
@@ -48,7 +35,7 @@ fuzz_target!(|data: &[u8]| {
 });
 
 #[inline(always)]
-fn png_compare<R: BufRead, S: BufRead>(reference: png::Decoder<R>, smal: png::Decoder<S>)
+fn png_compare<R: Read, S: Read>(reference: png::Decoder<R>, smal: png::Decoder<S>)
     -> std::result::Result<(), ()>
 {
     let mut smal = Some(smal);

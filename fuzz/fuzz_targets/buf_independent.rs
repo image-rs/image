@@ -2,7 +2,6 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use std::mem::discriminant;
 use std::io::{Read, Result};
 
 /// A reader that reads at most `n` bytes.
@@ -59,8 +58,13 @@ fn png_compare<R: Read, S: Read>(reference: png::Decoder<R>, smal: png::Decoder<
         match (rref, rsmal) {
             (Ok(info), Ok(sinfo)) if ref_data == smal_data => assert_eq!(info, sinfo),
             (Ok(_), Ok(_)) => panic!("Deviating data decoded"),
-            (Err(er), Err(es)) if discriminant(&er) == discriminant(&es) => break Ok(()),
-            (Err(ferr), Err(serr)) => panic!("Deviating errors {:?} vs {:?}", ferr, serr),
+            // All errors are treated as equivalent - it is okay to get different errors depending
+            // on how the input is chunked.  One example is deflating [88, 9, 99, 30, 5, 99] in one
+            // chunk will fill up `ZlibStream.out_buffer` and hold onto the final byte in
+            // `fdeflate`'s state.  But when deflating byte-by-byte, `out_buffer` will be resized
+            // before handling the final byte, leading to `InvalidLiteralLengthCode` being returned
+            // by `fdeflate`.
+            (Err(_), Err(_)) => break Ok(()),
             (Ok(_), Err(err)) => panic!("Small buffer failed {:?}", err),
             (Err(err), Ok(_)) => panic!("Unexpected success: {:?}", err),
         }

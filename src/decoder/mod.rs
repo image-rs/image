@@ -7,7 +7,7 @@ pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
 use self::stream::{FormatErrorInner, CHUNK_BUFFER_SIZE};
 use self::transform::{create_transform_fn, TransformFn};
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::mem;
 
 use crate::adam7::{self, Adam7Info};
@@ -191,9 +191,7 @@ impl<R: Read> Decoder<R> {
         while self.read_decoder.info().is_none() {
             buf.clear();
             if self.read_decoder.decode_next(&mut buf)?.is_none() {
-                return Err(DecodingError::Format(
-                    FormatErrorInner::UnexpectedEof.into(),
-                ));
+                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
             }
         }
         Ok(self.read_decoder.info().unwrap())
@@ -303,9 +301,7 @@ impl<R: Read> ReadDecoder<R> {
             let (consumed, result) = {
                 let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::UnexpectedEof.into(),
-                    ));
+                    return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
                 }
                 self.decoder.update(buf, image_data)?
             };
@@ -323,9 +319,7 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
-                return Err(DecodingError::Format(
-                    FormatErrorInner::UnexpectedEof.into(),
-                ));
+                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
             }
             let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
             self.reader.consume(consumed);
@@ -340,9 +334,7 @@ impl<R: Read> ReadDecoder<R> {
             }
         }
 
-        Err(DecodingError::Format(
-            FormatErrorInner::UnexpectedEof.into(),
-        ))
+        Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()))
     }
 
     fn info(&self) -> Option<&Info<'static>> {
@@ -702,9 +694,7 @@ impl<R: Read> Reader<R> {
         // Read image data until we have at least one full row (but possibly more than one).
         while self.data_stream.len() - self.current_start < rowlen {
             if self.subframe.consumed_and_flushed {
-                return Err(DecodingError::Format(
-                    FormatErrorInner::NoMoreImageData.into(),
-                ));
+                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
             }
 
             // Clear the current buffer before appending more data.
@@ -722,14 +712,7 @@ impl<R: Read> Reader<R> {
                     self.subframe.consumed_and_flushed = true;
                 }
                 None => {
-                    return Err(DecodingError::Format(
-                        if self.data_stream.is_empty() {
-                            FormatErrorInner::NoMoreImageData
-                        } else {
-                            FormatErrorInner::UnexpectedEndOfChunk
-                        }
-                        .into(),
-                    ));
+                    return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
                 }
                 _ => (),
             }

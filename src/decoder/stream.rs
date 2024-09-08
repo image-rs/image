@@ -160,10 +160,6 @@ pub(crate) enum FormatErrorInner {
     },
     /// Not a PNG, the magic signature is missing.
     InvalidSignature,
-    /// End of file, within a chunk event.
-    UnexpectedEof,
-    /// End of file, while expecting more image data.
-    UnexpectedEndOfChunk,
     // Errors of chunk level ordering, missing etc.
     /// Ihdr must occur.
     MissingIhdr,
@@ -232,8 +228,6 @@ pub(crate) enum FormatErrorInner {
     CorruptFlateStream {
         err: fdeflate::DecompressionError,
     },
-    /// The image data chunk was too short for the expected pixel count.
-    NoMoreImageData,
     /// Bad text encoding
     BadTextEncoding(TextDecodingError),
     /// fdAT shorter than 4 bytes
@@ -323,12 +317,6 @@ impl fmt::Display for FormatError {
             UnknownInterlaceMethod(nr) => write!(fmt, "Unknown interlace method {}.", nr),
             BadSubFrameBounds {} => write!(fmt, "Sub frame is out-of-bounds."),
             InvalidSignature => write!(fmt, "Invalid PNG signature."),
-            UnexpectedEof => write!(fmt, "Unexpected end of data before image end."),
-            UnexpectedEndOfChunk => write!(fmt, "Unexpected end of data within a chunk."),
-            NoMoreImageData => write!(
-                fmt,
-                "IDAT or fDAT chunk does not have enough data for image."
-            ),
             CorruptFlateStream { err } => {
                 write!(fmt, "Corrupt deflate stream. ")?;
                 write!(fmt, "{:?}", err)

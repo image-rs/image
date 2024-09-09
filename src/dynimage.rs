@@ -917,7 +917,7 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Applies the specified [Orientation] to the image.
+    /// Rotates and/or flips the image as indicated by [Orientation].
     ///
     /// Note that for some orientations cannot be efficiently applied in-place.
     /// In that case this function will make a copy of the image internally.

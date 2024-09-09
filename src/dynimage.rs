@@ -930,27 +930,24 @@ impl DynamicImage {
     ///
     /// If this matters to you, please see the documentation on the variants of [Orientation]
     /// to learn which orientations can and cannot be applied without copying.
-    pub fn apply_orientation(&mut self, orientation: Orientation) -> Result<(), ImageError> {
-        #![allow(clippy::unit_arg)] // https://github.com/rust-lang/rust-clippy/issues/6521
+    pub fn apply_orientation(&mut self, orientation: Orientation) {
         let image = self;
         match orientation {
-            Orientation::NoTransforms => Ok(()),
-            Orientation::Rotate90 => Ok(*image = image.rotate90()),
-            Orientation::Rotate180 => Ok(image.rotate180_in_place()),
-            Orientation::Rotate270 => Ok(*image = image.rotate270()),
-            Orientation::FlipHorizontal => Ok(image.fliph_in_place()),
-            Orientation::FlipVertical => Ok(image.flipv_in_place()),
+            Orientation::NoTransforms => (),
+            Orientation::Rotate90 => *image = image.rotate90(),
+            Orientation::Rotate180 => image.rotate180_in_place(),
+            Orientation::Rotate270 => *image = image.rotate270(),
+            Orientation::FlipHorizontal => image.fliph_in_place(),
+            Orientation::FlipVertical => image.flipv_in_place(),
             Orientation::Rotate90FlipH => {
                 let mut new_image = image.rotate90();
                 new_image.fliph_in_place();
                 *image = new_image;
-                Ok(())
             }
             Orientation::Rotate270FlipH => {
                 let mut new_image = image.rotate270();
                 new_image.fliph_in_place();
                 *image = new_image;
-                Ok(())
             }
         }
     }

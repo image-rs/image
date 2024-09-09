@@ -879,7 +879,7 @@ impl DynamicImage {
     }
 
     /// Flip this image vertically in place
-    pub fn flipv_in_place(&mut self) {
+    fn flipv_in_place(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::flip_vertical_in_place(p))
     }
 
@@ -890,7 +890,7 @@ impl DynamicImage {
     }
 
     /// Flip this image horizontally in place
-    pub fn fliph_in_place(&mut self) {
+    fn fliph_in_place(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::flip_horizontal_in_place(p))
     }
 
@@ -907,7 +907,7 @@ impl DynamicImage {
     }
 
     /// Rotate this image 180 degrees in place.
-    pub fn rotate180_in_place(&mut self) {
+    fn rotate180_in_place(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::rotate180_in_place(p))
     }
 

@@ -398,9 +398,9 @@ impl<W: Write> JpegEncoder<W> {
 
         let mut tables = vec![STD_LUMA_QTABLE, STD_CHROMA_QTABLE];
         tables.iter_mut().for_each(|t| {
-            t.iter_mut().for_each(|v| {
+            for v in t.iter_mut() {
                 *v = clamp((u32::from(*v) * scale + 50) / 100, 1, u32::from(u8::MAX)) as u8;
-            });
+            }
         });
 
         JpegEncoder {

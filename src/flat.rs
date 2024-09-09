@@ -322,9 +322,8 @@ impl SampleLayout {
             Some(size) => size,
         };
 
-        match max_dim.checked_len() {
-            None => return true,
-            Some(_) => (), // Only want to know this didn't overflow.
+        if max_dim.checked_len().is_none() {
+            return true;
         };
 
         // Each higher dimension must walk over all of one lower dimension.

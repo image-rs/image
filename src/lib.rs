@@ -3,7 +3,7 @@
 //! This crate provides native rust implementations of image encoding and decoding as well as some
 //! basic image manipulation functions. Additional documentation can currently also be found in the
 //! [README.md file which is most easily viewed on
-//! github](https://github.com/image-rs/image/blob/master/README.md).
+//! github](https://github.com/image-rs/image/blob/main/README.md).
 //!
 //! There are two core problems for which this library provides solutions: a unified interface for image
 //! encodings and simple generic buffers for their content. It's possible to use either feature

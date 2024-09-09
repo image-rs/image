@@ -931,8 +931,8 @@ impl DynamicImage {
             Orientation::Rotate90 => Ok(*image = image.rotate90()),
             Orientation::Rotate180 => Ok(image.rotate180_in_place()),
             Orientation::Rotate270 => Ok(*image = image.rotate270()),
-            Orientation::FlipH => Ok(image.fliph_in_place()),
-            Orientation::FlipV => Ok(image.flipv_in_place()),
+            Orientation::FlipHorizontal => Ok(image.fliph_in_place()),
+            Orientation::FlipVertical => Ok(image.flipv_in_place()),
             Orientation::Rotate90FlipH => {
                 let mut new_image = image.rotate90();
                 new_image.fliph_in_place();

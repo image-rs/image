@@ -13,9 +13,9 @@ pub enum Orientation {
     /// Rotate by 90 degrees clockwise.
     Rotate270,
     /// Flip horizontally. Can be performed in-place.
-    FlipH,
+    FlipHorizontal,
     /// Flip vertically. Can be performed in-place.
-    FlipV,
+    FlipVertical,
     /// Rotate by 90 degrees clockwise and flip horizontally.
     Rotate90FlipH,
     /// Rotate by 270 degrees clockwise and flip horizontally.
@@ -27,9 +27,9 @@ impl Orientation {
     pub fn from_exif(exif_orientation: u8) -> Option<Self> {
         match exif_orientation {
             1 => Some(Self::NoTransforms),
-            2 => Some(Self::FlipH),
+            2 => Some(Self::FlipHorizontal),
             3 => Some(Self::Rotate180),
-            4 => Some(Self::FlipV),
+            4 => Some(Self::FlipVertical),
             5 => Some(Self::Rotate90FlipH),
             6 => Some(Self::Rotate90),
             7 => Some(Self::Rotate90FlipH),

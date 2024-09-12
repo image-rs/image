@@ -10,7 +10,7 @@ pub enum Orientation {
     Rotate90,
     /// Rotate by 180 degrees. Can be performed in-place.
     Rotate180,
-    /// Rotate by 90 degrees clockwise.
+    /// Rotate by 270 degrees clockwise. Equivalent to rotating by 90 degrees counter-clockwise.
     Rotate270,
     /// Flip horizontally. Can be performed in-place.
     FlipHorizontal,

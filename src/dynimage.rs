@@ -874,7 +874,7 @@ impl DynamicImage {
 
     /// Flip this image vertically
     ///
-    /// Use [`apply_orientation`] of you want to flip the image in-place instead.
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to flip the image in-place instead.
     #[must_use]
     pub fn flipv(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
@@ -887,7 +887,7 @@ impl DynamicImage {
 
     /// Flip this image horizontally
     ///
-    /// Use [`apply_orientation`] of you want to flip the image in-place.
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to flip the image in-place.
     #[must_use]
     pub fn fliph(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
@@ -906,7 +906,7 @@ impl DynamicImage {
 
     /// Rotate this image 180 degrees.
     ///
-    /// Use [`apply_orientation`] of you want to rotate the image in-place.
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to rotate the image in-place.
     #[must_use]
     pub fn rotate180(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))

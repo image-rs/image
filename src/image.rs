@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind,
+    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::math::Rect;
 use crate::traits::Pixel;
@@ -787,6 +787,25 @@ pub trait ImageEncoder {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()>;
+
+    /// Set the ICC profile to use for the image.
+    ///
+    /// This function is a no-op for formats that don't support ICC profiles.
+    /// For formats that do support ICC profiles, the profile will be embedded
+    /// in the image when it is saved.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the format does not support ICC profiles.
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        let _ = icc_profile;
+        Err(UnsupportedError::from_format_and_kind(
+            ImageFormatHint::Unknown,
+            UnsupportedErrorKind::GenericFeature(
+                "ICC profiles are not supported for this format".into(),
+            ),
+        ))
+    }
 }
 
 /// Immutable pixel iterator

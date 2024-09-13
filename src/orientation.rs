@@ -38,4 +38,17 @@ impl Orientation {
         }
     }
 
+    /// Converts into [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html)
+    pub fn to_exif(self) -> u8 {
+        match self {
+            Self::NoTransforms => 1,
+            Self::FlipHorizontal => 2,
+            Self::Rotate180 => 3,
+            Self::FlipVertical => 4,
+            Self::Rotate90FlipH => 5,
+            Self::Rotate90 => 6,
+            Self::Rotate270FlipH => 7,
+            Self::Rotate270 => 8,
+        }
+    }
 }

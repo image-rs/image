@@ -32,9 +32,10 @@ impl Orientation {
             4 => Some(Self::FlipVertical),
             5 => Some(Self::Rotate90FlipH),
             6 => Some(Self::Rotate90),
-            7 => Some(Self::Rotate90FlipH),
+            7 => Some(Self::Rotate270FlipH),
             8 => Some(Self::Rotate270),
             0 | 9.. => None,
         }
     }
+
 }

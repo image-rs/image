@@ -172,7 +172,7 @@ pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
 pub use crate::dynimage::DynamicImage;
 
 pub use crate::animation::{Delay, Frame, Frames};
-pub use crate::orientation::Orientation;
+pub use crate::metadata::Orientation;
 
 // More detailed error type
 pub mod error;
@@ -290,7 +290,7 @@ mod color;
 mod dynimage;
 mod image;
 mod image_reader;
-mod orientation;
+mod metadata;
 //TODO delete this module after a few releases
 /// deprecated io module the original io module has been renamed to `image_reader`
 pub mod io {

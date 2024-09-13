@@ -17,9 +17,9 @@ use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, I
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
-use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
+use crate::{ImageReader, Orientation};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -873,15 +873,29 @@ impl DynamicImage {
     }
 
     /// Flip this image vertically
+    ///
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to flip the image in-place instead.
     #[must_use]
     pub fn flipv(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
     }
 
+    /// Flip this image vertically in place
+    fn flipv_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::flip_vertical_in_place(p))
+    }
+
     /// Flip this image horizontally
+    ///
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to flip the image in-place.
     #[must_use]
     pub fn fliph(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
+    }
+
+    /// Flip this image horizontally in place
+    fn fliph_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::flip_horizontal_in_place(p))
     }
 
     /// Rotate this image 90 degrees clockwise.
@@ -890,16 +904,52 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate90(p))
     }
 
-    /// Rotate this image 180 degrees clockwise.
+    /// Rotate this image 180 degrees.
+    ///
+    /// Use [`apply_orientation`](Self::apply_orientation) of you want to rotate the image in-place.
     #[must_use]
     pub fn rotate180(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))
+    }
+
+    /// Rotate this image 180 degrees in place.
+    fn rotate180_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::rotate180_in_place(p))
     }
 
     /// Rotate this image 270 degrees clockwise.
     #[must_use]
     pub fn rotate270(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
+    }
+
+    /// Rotates and/or flips the image as indicated by [Orientation].
+    ///
+    /// Note that for some orientations cannot be efficiently applied in-place.
+    /// In that case this function will make a copy of the image internally.
+    ///
+    /// If this matters to you, please see the documentation on the variants of [Orientation]
+    /// to learn which orientations can and cannot be applied without copying.
+    pub fn apply_orientation(&mut self, orientation: Orientation) {
+        let image = self;
+        match orientation {
+            Orientation::NoTransforms => (),
+            Orientation::Rotate90 => *image = image.rotate90(),
+            Orientation::Rotate180 => image.rotate180_in_place(),
+            Orientation::Rotate270 => *image = image.rotate270(),
+            Orientation::FlipHorizontal => image.fliph_in_place(),
+            Orientation::FlipVertical => image.flipv_in_place(),
+            Orientation::Rotate90FlipH => {
+                let mut new_image = image.rotate90();
+                new_image.fliph_in_place();
+                *image = new_image;
+            }
+            Orientation::Rotate270FlipH => {
+                let mut new_image = image.rotate270();
+                new_image.fliph_in_place();
+                *image = new_image;
+            }
+        }
     }
 
     /// Encode this image and write it to ```w```.

@@ -18,8 +18,8 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::{GenericImageView, Limits};
 use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
+use crate::{GenericImageView, Limits};
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
@@ -338,9 +338,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 }
             }
             DisposeOp::Previous => {
-                let (px, py, width, height) = self.dispose_region.expect("The first frame must not set dispose=Previous");
+                let (px, py, width, height) = self
+                    .dispose_region
+                    .expect("The first frame must not set dispose=Previous");
                 let region_previous = previous.sub_image(px, py, width, height);
-                current.copy_from(&region_previous.to_image(), px, py).unwrap();
+                current
+                    .copy_from(&region_previous.to_image(), px, py)
+                    .unwrap();
             }
         }
 

@@ -7,6 +7,13 @@
 
 ## Changes
 
+### Version 0.25.3
+
+Features:
+ - Added `exif_metadata()` to `ImageDecoder` trait and implemented raw Exif chunk extraction for JPEG and WebP decoders.
+ - Added `Orientation` struct that can be created from Exif metadata and `DynamicImage::apply_orientation()` to apply it to an image.
+ - The above two features together can be used to correctly display JPEG images with orientation metadata, e.g. taken by smartphone cameras. However, you still need an external crate to parse the Exif metadata and extract the orientation value, such as `kamadak_exif`.
+
 ### Version 0.25.2
 
 Features:

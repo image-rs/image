@@ -327,7 +327,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                     // FIXME: This is a workaround for the fact that `pixels_mut` is not implemented
                     let pixels: Vec<_> = region_current.pixels().collect();
 
-                    for (x, y, pixel) in &pixels {
+                    for (x, y, _) in &pixels {
                         region_current.put_pixel(*x, *y, Rgba::from([0, 0, 0, 0]));
                     }
                 } else {

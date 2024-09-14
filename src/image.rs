@@ -12,7 +12,7 @@ use crate::error::{
 };
 use crate::math::Rect;
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::{ImageBuffer, Orientation};
 
 use crate::animation::Frames;
 
@@ -634,6 +634,16 @@ pub trait ImageDecoder {
     /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(None)
+    }
+
+    /// Returns the orientation of the image.
+    ///
+    /// This is usually obtained from the Exif metadata, if present. Formats that don't support
+    /// indicating orientation in their image metadata will return `Ok(Orientation::NoTransforms)`.
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        Ok(self.exif_metadata()?
+            .and_then(|chunk| Orientation::from_exif_chunk(&chunk))
+            .unwrap_or(Orientation::NoTransforms))
     }
 
     /// Returns the total number of bytes in the decoded image.

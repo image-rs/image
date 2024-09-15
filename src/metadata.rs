@@ -53,4 +53,23 @@ impl Orientation {
             Self::Rotate270 => 8,
         }
     }
+
+    /// Returns `true` if the specified orientation can be applied to an image in-place,
+    /// without making a copy of the image.
+    ///
+    /// This is relevant if you need to enforce a memory limit,
+    /// since a copy of the image will briefly use additional memory to store the copy.
+    /// The required amount of additional memory is the same as the memory used to store the original image.
+    pub fn applies_in_place(self) -> bool {
+        match self {
+            Orientation::NoTransforms => true,
+            Orientation::Rotate90 => false,
+            Orientation::Rotate180 => true,
+            Orientation::Rotate270 => false,
+            Orientation::FlipHorizontal => true,
+            Orientation::FlipVertical => true,
+            Orientation::Rotate90FlipH => false,
+            Orientation::Rotate270FlipH => false,
+        }
+    }
 }

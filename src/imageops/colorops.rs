@@ -280,6 +280,7 @@ where
 }
 
 /// Hue rotate the supplied image in place.
+///
 /// `value` is the degrees to rotate each pixel by.
 /// 0 and 360 do nothing, the rest rotates by the given degree value.
 /// just like the css webkit filter hue-rotate(180)

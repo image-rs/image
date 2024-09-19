@@ -228,7 +228,7 @@ pub(crate) enum FormatErrorInner {
     /// The subframe is not in bounds of the image.
     /// TODO: fields with relevant data.
     BadSubFrameBounds {},
-    // Errors specific to the IDAT/fDAT chunks.
+    // Errors specific to the IDAT/fdAT chunks.
     /// The compression of the data stream was faulty.
     CorruptFlateStream {
         err: fdeflate::DecompressionError,
@@ -237,6 +237,17 @@ pub(crate) enum FormatErrorInner {
     BadTextEncoding(TextDecodingError),
     /// fdAT shorter than 4 bytes
     FdatShorterThanFourBytes,
+    /// "11.2.4 IDAT Image data" section of the PNG spec says: There may be multiple IDAT chunks;
+    /// if so, they shall appear consecutively with no other intervening chunks.
+    /// `UnexpectedRestartOfDataChunkSequence{kind: IDAT}` indicates that there were "intervening
+    /// chunks".
+    ///
+    /// The APNG spec doesn't directly describe an error similar to `CantInterleaveIdatChunks`,
+    /// but we require that a new sequence of consecutive `fdAT` chunks cannot appear unless we've
+    /// seen an `fcTL` chunk.
+    UnexpectedRestartOfDataChunkSequence {
+        kind: ChunkType,
+    },
 }
 
 impl error::Error for DecodingError {
@@ -276,7 +287,7 @@ impl fmt::Display for FormatError {
             ),
             MissingIhdr => write!(fmt, "IHDR chunk missing"),
             MissingFctl => write!(fmt, "fcTL chunk missing before fdAT chunk."),
-            MissingImageData => write!(fmt, "IDAT or fDAT chunk is missing."),
+            MissingImageData => write!(fmt, "IDAT or fdAT chunk is missing."),
             ChunkBeforeIhdr { kind } => write!(fmt, "{:?} chunk appeared before IHDR chunk", kind),
             AfterIdat { kind } => write!(fmt, "Chunk {:?} is invalid after IDAT chunk.", kind),
             AfterPlte { kind } => write!(fmt, "Chunk {:?} is invalid after PLTE chunk.", kind),
@@ -356,6 +367,9 @@ impl fmt::Display for FormatError {
                 }
             }
             FdatShorterThanFourBytes => write!(fmt, "fdAT chunk shorter than 4 bytes"),
+            UnexpectedRestartOfDataChunkSequence { kind } => {
+                write!(fmt, "Unexpected restart of {:?} chunk sequence", kind)
+            }
         }
     }
 }
@@ -478,6 +492,13 @@ pub struct StreamingDecoder {
     /// Whether we have already seen a start of an IDAT chunk.  (Used to validate chunk ordering -
     /// some chunk types can only appear before or after an IDAT chunk.)
     have_idat: bool,
+    /// Whether we are ready for a start of an `IDAT` chunk sequence.  Initially `true` and set to
+    /// `false` when the first sequence of consecutive `IDAT` chunks ends.
+    ready_for_idat_chunks: bool,
+    /// Whether we are ready for a start of an `fdAT` chunk sequence.  Initially `false`.  Set to
+    /// `true` after encountering an `fcTL` chunk. Set to `false` when a sequence of consecutive
+    /// `fdAT` chunks ends.
+    ready_for_fdat_chunks: bool,
     /// Whether we have already seen an iCCP chunk. Used to prevent parsing of duplicate iCCP chunks.
     have_iccp: bool,
     decode_options: DecodeOptions,
@@ -519,6 +540,8 @@ impl StreamingDecoder {
             current_seq_no: None,
             have_idat: false,
             have_iccp: false,
+            ready_for_idat_chunks: true,
+            ready_for_fdat_chunks: false,
             decode_options,
             limits: Limits { bytes: usize::MAX },
         }
@@ -770,6 +793,8 @@ impl StreamingDecoder {
                     self.current_chunk.type_ = type_str;
                     self.inflater.finish_compressed_chunks(image_data)?;
                     self.inflater.reset();
+                    self.ready_for_idat_chunks = false;
+                    self.ready_for_fdat_chunks = false;
                     self.state = Some(State::U32 {
                         kind,
                         bytes,
@@ -777,15 +802,16 @@ impl StreamingDecoder {
                     });
                     return Ok(Decoded::ImageDataFlushed);
                 }
-                self.current_chunk.type_ = type_str;
-                if !self.decode_options.ignore_crc {
-                    self.current_chunk.crc.reset();
-                    self.current_chunk.crc.update(&type_str.0);
-                }
-                self.current_chunk.remaining = length;
-                self.current_chunk.raw_bytes.clear();
                 self.state = match type_str {
                     chunk::fdAT => {
+                        if !self.ready_for_fdat_chunks {
+                            return Err(DecodingError::Format(
+                                FormatErrorInner::UnexpectedRestartOfDataChunkSequence {
+                                    kind: chunk::fdAT,
+                                }
+                                .into(),
+                            ));
+                        }
                         if length < 4 {
                             return Err(DecodingError::Format(
                                 FormatErrorInner::FdatShorterThanFourBytes.into(),
@@ -794,11 +820,26 @@ impl StreamingDecoder {
                         Some(State::new_u32(U32ValueKind::ApngSequenceNumber))
                     }
                     IDAT => {
+                        if !self.ready_for_idat_chunks {
+                            return Err(DecodingError::Format(
+                                FormatErrorInner::UnexpectedRestartOfDataChunkSequence {
+                                    kind: IDAT,
+                                }
+                                .into(),
+                            ));
+                        }
                         self.have_idat = true;
                         Some(State::ImageData(type_str))
                     }
                     _ => Some(State::ReadChunkData(type_str)),
                 };
+                self.current_chunk.type_ = type_str;
+                if !self.decode_options.ignore_crc {
+                    self.current_chunk.crc.reset();
+                    self.current_chunk.crc.update(&type_str.0);
+                }
+                self.current_chunk.remaining = length;
+                self.current_chunk.raw_bytes.clear();
                 Ok(Decoded::ChunkBegin(length, type_str))
             }
             U32ValueKind::Crc(type_str) => {
@@ -939,6 +980,7 @@ impl StreamingDecoder {
             0
         });
         self.inflater.reset();
+        self.ready_for_fdat_chunks = true;
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,

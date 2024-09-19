@@ -59,12 +59,12 @@ mod intermittent_eofs {
     use std::rc::Rc;
 
     /// A reader that returns `std::io::ErrorKind::UnexpectedEof` errors in every other read.
-    /// EOFs can be temporarily disabled and re-enabled later using the associated `Enabler`.
+    /// EOFs can be temporarily disabled and re-enabled later using the associated `EofController`.
     pub struct IntermittentEofs<R: Read> {
         inner: R,
 
         /// Controls whether intermittent EOFs happen at all.
-        enabler: Rc<Enabler>,
+        controller: Rc<EofController>,
 
         /// Controls whether an intermittent EOF will happen during the next `read`
         /// (when enabled, intermittent EOFs happen every other `read`).
@@ -75,49 +75,64 @@ mod intermittent_eofs {
         pub fn new(inner: R) -> Self {
             Self {
                 inner,
-                enabler: Rc::new(Enabler::new()),
+                controller: Rc::new(EofController::new()),
                 eof_soon: true,
             }
         }
 
-        pub fn enabler(&self) -> Rc<Enabler> {
-            self.enabler.clone()
+        pub fn controller(&self) -> Rc<EofController> {
+            self.controller.clone()
         }
     }
 
     impl<R: Read> Read for IntermittentEofs<R> {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.enabler.is_enabled() && self.eof_soon {
+            if self.controller.are_intermittent_eofs_enabled() && self.eof_soon {
                 self.eof_soon = false;
                 return Ok(0);
             }
 
             self.eof_soon = true;
-            self.inner.read(buf)
+            let inner_result = self.inner.read(buf);
+            if let Ok(0) = &inner_result {
+                self.controller.mark_inner_eof();
+            }
+
+            inner_result
         }
     }
 
-    pub struct Enabler {
-        is_enabled: RefCell<bool>,
+    pub struct EofController {
+        are_intermittent_eofs_enabled: RefCell<bool>,
+        did_reach_inner_eof: RefCell<bool>,
     }
 
-    impl Enabler {
+    impl EofController {
         fn new() -> Self {
             Self {
-                is_enabled: RefCell::new(true),
+                are_intermittent_eofs_enabled: RefCell::new(true),
+                did_reach_inner_eof: RefCell::new(false),
             }
         }
 
-        pub fn enable(&self) {
-            *self.is_enabled.borrow_mut() = true;
+        pub fn enable_intermittent_eofs(&self) {
+            *self.are_intermittent_eofs_enabled.borrow_mut() = true;
         }
 
-        pub fn disable(&self) {
-            *self.is_enabled.borrow_mut() = false;
+        pub fn disable_intermittent_eofs(&self) {
+            *self.are_intermittent_eofs_enabled.borrow_mut() = false;
         }
 
-        fn is_enabled(&self) -> bool {
-            *self.is_enabled.borrow()
+        fn are_intermittent_eofs_enabled(&self) -> bool {
+            *self.are_intermittent_eofs_enabled.borrow()
+        }
+
+        fn mark_inner_eof(&self) {
+            *self.did_reach_inner_eof.borrow_mut() = true;
+        }
+
+        pub fn did_reach_inner_eof(&self) -> bool {
+            *self.did_reach_inner_eof.borrow()
         }
     }
 }
@@ -133,7 +148,7 @@ fn test_data<'a>(data: &'a [u8]) -> Result<(), ()> {
     let intermittent_eofs_reader = Box::new(intermittent_eofs::IntermittentEofs::new(
         smal_buf::SmalBuf::new(data, 1),
     ));
-    let intermittent_eofs_enabler = intermittent_eofs_reader.enabler();
+    let intermittent_eofs_controller = intermittent_eofs_reader.controller();
     let data_readers: Vec<Box<dyn Read + 'a>> = vec![
         baseline_reader,
         byte_by_byte_reader,
@@ -151,14 +166,14 @@ fn test_data<'a>(data: &'a [u8]) -> Result<(), ()> {
 
     // `Decoder.read_info` consumes `self` and is therefore not resumable.  To work around that
     // let's temporarily disable intermittent EOFs:
-    intermittent_eofs_enabler.disable();
+    intermittent_eofs_controller.disable_intermittent_eofs();
     let mut png_readers = decoders
         .into_iter()
         .map(|decoder| decoder.read_info())
         .assert_all_results_are_consistent()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ())?;
-    intermittent_eofs_enabler.enable();
+    intermittent_eofs_controller.enable_intermittent_eofs();
 
     let info = png_readers
         .iter()
@@ -179,8 +194,10 @@ fn test_data<'a>(data: &'a [u8]) -> Result<(), ()> {
         let output_infos = png_readers
             .iter_mut()
             .zip(buffers.iter_mut())
-            .map(|(png_reader, buffer)| {
-                retry_after_eofs(|| png_reader.next_frame(buffer.as_mut_slice()))
+            .enumerate()
+            .map(|(i, (png_reader, buffer))| {
+                let eof_controller = if i == 2 { Some(&intermittent_eofs_controller) } else { None };
+                retry_after_eofs(eof_controller, || png_reader.next_frame(buffer.as_mut_slice()))
             })
             .assert_all_results_are_consistent()
             .collect::<Result<Vec<_>, _>>()
@@ -191,17 +208,24 @@ fn test_data<'a>(data: &'a [u8]) -> Result<(), ()> {
 }
 
 fn retry_after_eofs<T>(
+    eof_controller: Option<&std::rc::Rc<intermittent_eofs::EofController>>,
     mut f: impl FnMut() -> Result<T, png::DecodingError>,
 ) -> Result<T, png::DecodingError> {
     loop {
-        match f() {
-            Err(png::DecodingError::IoError(e))
-                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
-            {
-                ()
-            }
-            other_result => break other_result,
+        let result = f();
+        match result.as_ref() {
+            Err(png::DecodingError::IoError(e)) => {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    if let Some(ctrl) = eof_controller {
+                        if !ctrl.did_reach_inner_eof() {
+                            continue;
+                        }
+                    }
+                }
+            },
+            _ => (),
         }
+        break result;
     }
 }
 

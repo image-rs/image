@@ -54,7 +54,7 @@ mod smal_buf {
 
 mod intermittent_eofs {
 
-    use std::cell::RefCell;
+    use std::cell::Cell;
     use std::io::Read;
     use std::rc::Rc;
 
@@ -103,36 +103,36 @@ mod intermittent_eofs {
     }
 
     pub struct EofController {
-        are_intermittent_eofs_enabled: RefCell<bool>,
-        did_reach_inner_eof: RefCell<bool>,
+        are_intermittent_eofs_enabled: Cell<bool>,
+        did_reach_inner_eof: Cell<bool>,
     }
 
     impl EofController {
         fn new() -> Self {
             Self {
-                are_intermittent_eofs_enabled: RefCell::new(true),
-                did_reach_inner_eof: RefCell::new(false),
+                are_intermittent_eofs_enabled: Cell::new(true),
+                did_reach_inner_eof: Cell::new(false),
             }
         }
 
         pub fn enable_intermittent_eofs(&self) {
-            *self.are_intermittent_eofs_enabled.borrow_mut() = true;
+            self.are_intermittent_eofs_enabled.set(true);
         }
 
         pub fn disable_intermittent_eofs(&self) {
-            *self.are_intermittent_eofs_enabled.borrow_mut() = false;
+            self.are_intermittent_eofs_enabled.set(false);
         }
 
         fn are_intermittent_eofs_enabled(&self) -> bool {
-            *self.are_intermittent_eofs_enabled.borrow()
+            self.are_intermittent_eofs_enabled.get()
         }
 
         fn mark_inner_eof(&self) {
-            *self.did_reach_inner_eof.borrow_mut() = true;
+            self.did_reach_inner_eof.set(true);
         }
 
         pub fn did_reach_inner_eof(&self) -> bool {
-            *self.did_reach_inner_eof.borrow()
+            self.did_reach_inner_eof.get()
         }
     }
 }

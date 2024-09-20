@@ -233,6 +233,8 @@ pub(crate) enum FormatErrorInner {
     CorruptFlateStream {
         err: fdeflate::DecompressionError,
     },
+    /// The image data chunk was too short for the expected pixel count.
+    NoMoreImageData,
     /// Bad text encoding
     BadTextEncoding(TextDecodingError),
     /// fdAT shorter than 4 bytes
@@ -333,6 +335,10 @@ impl fmt::Display for FormatError {
             UnknownInterlaceMethod(nr) => write!(fmt, "Unknown interlace method {}.", nr),
             BadSubFrameBounds {} => write!(fmt, "Sub frame is out-of-bounds."),
             InvalidSignature => write!(fmt, "Invalid PNG signature."),
+            NoMoreImageData => write!(
+                fmt,
+                "IDAT or fDAT chunk does not have enough data for image."
+            ),
             CorruptFlateStream { err } => {
                 write!(fmt, "Corrupt deflate stream. ")?;
                 write!(fmt, "{:?}", err)

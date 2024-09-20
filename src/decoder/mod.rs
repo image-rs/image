@@ -702,7 +702,9 @@ impl<R: Read> Reader<R> {
         // Read image data until we have at least one full row (but possibly more than one).
         while self.data_stream.len() - self.current_start < rowlen {
             if self.subframe.consumed_and_flushed {
-                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
+                return Err(DecodingError::Format(
+                    FormatErrorInner::NoMoreImageData.into(),
+                ));
             }
 
             // Clear the current buffer before appending more data.
@@ -716,11 +718,8 @@ impl<R: Read> Reader<R> {
 
             match self.decoder.decode_next(&mut self.data_stream)? {
                 Some(Decoded::ImageData) => {}
-                Some(Decoded::ImageDataFlushed) => {
+                Some(Decoded::ImageDataFlushed) | None /* after IEND chunk */ => {
                     self.subframe.consumed_and_flushed = true;
-                }
-                None => {
-                    return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
                 }
                 _ => (),
             }

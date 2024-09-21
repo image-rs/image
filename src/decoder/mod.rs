@@ -713,10 +713,8 @@ impl<R: Read> Reader<R> {
             }
 
             match self.decoder.decode_next(&mut self.data_stream)? {
-                Some(Decoded::ImageData) => {}
-                Some(Decoded::ImageDataFlushed) | None /* after IEND chunk */ => {
-                    self.subframe.consumed_and_flushed = true;
-                }
+                Some(Decoded::ImageData) => (),
+                Some(Decoded::ImageDataFlushed) => self.subframe.consumed_and_flushed = true,
                 _ => (),
             }
         }

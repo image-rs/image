@@ -415,7 +415,6 @@ impl<R: Read> Reader<R> {
                 Some(Decoded::ChunkBegin(_, chunk::IDAT))
                 | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
                 Some(Decoded::FrameControl(_)) => {
-                    self.subframe = SubframeInfo::new(self.info());
                     // The next frame is the one to which this chunk applies.
                     self.next_frame = SubframeIdx::Some(self.fctl_read);
                     // TODO: what about overflow here? That would imply there are more fctl chunks
@@ -474,17 +473,13 @@ impl<R: Read> Reader<R> {
     /// Output lines will be written in row-major, packed matrix with width and height of the read
     /// frame (or subframe), all samples are in big endian byte order where this matters.
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<OutputInfo, DecodingError> {
-        let subframe_idx = match self.decoder.info().unwrap().frame_control() {
-            None => SubframeIdx::Initial,
-            Some(_) => SubframeIdx::Some(self.fctl_read - 1),
-        };
-
         if self.next_frame == SubframeIdx::End {
             return Err(DecodingError::Parameter(
                 ParameterErrorKind::PolledAfterEndOfImage.into(),
             ));
-        } else if self.next_frame != subframe_idx {
-            // Advance until we've read the info / fcTL for this frame.
+        } else if self.subframe.consumed_and_flushed {
+            // Advance until the next `fdAT`
+            // (along the way we should encounter the fcTL for this frame).
             self.read_until_image_data()?;
         }
 
@@ -539,6 +534,7 @@ impl<R: Read> Reader<R> {
         // Advance over the rest of data for this (sub-)frame.
         if !self.subframe.consumed_and_flushed {
             self.decoder.finish_decoding()?;
+            self.subframe.consumed_and_flushed = true;
         }
 
         // Advance our state to expect the next frame.

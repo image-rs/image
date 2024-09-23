@@ -250,6 +250,10 @@ pub(crate) enum FormatErrorInner {
     UnexpectedRestartOfDataChunkSequence {
         kind: ChunkType,
     },
+    /// Failure to parse a chunk, because the chunk didn't contain enough bytes.
+    ChunkTooShort {
+        kind: ChunkType,
+    },
 }
 
 impl error::Error for DecodingError {
@@ -375,6 +379,9 @@ impl fmt::Display for FormatError {
             FdatShorterThanFourBytes => write!(fmt, "fdAT chunk shorter than 4 bytes"),
             UnexpectedRestartOfDataChunkSequence { kind } => {
                 write!(fmt, "Unexpected restart of {:?} chunk sequence", kind)
+            }
+            ChunkTooShort { kind } => {
+                write!(fmt, "Chunk is too short: {:?}", kind)
             }
         }
     }
@@ -951,9 +958,22 @@ impl StreamingDecoder {
             _ => Ok(Decoded::PartialChunk(type_str)),
         };
 
-        if parse_result.is_err() {
+        let parse_result = parse_result.map_err(|e| {
             self.state = None;
-        }
+            match e {
+                // `parse_chunk` is invoked after gathering **all** bytes of a chunk, so
+                // `UnexpectedEof` from something like `read_be` is permanent and indicates an
+                // invalid PNG that should be represented as a `FormatError`, rather than as a
+                // (potentially recoverable) `IoError` / `UnexpectedEof`.
+                DecodingError::IoError(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    let fmt_err: FormatError =
+                        FormatErrorInner::ChunkTooShort { kind: type_str }.into();
+                    fmt_err.into()
+                }
+                e => e,
+            }
+        });
+
         parse_result
     }
 

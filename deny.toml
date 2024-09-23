@@ -1,5 +1,6 @@
 # https://embarkstudios.github.io/cargo-deny/
 
+[graph]
 targets = [
     { triple = "aarch64-apple-darwin" },
     { triple = "aarch64-linux-android" },
@@ -10,9 +11,21 @@ targets = [
 ]
 
 
+[licenses]
+confidence-threshold = 0.93
+allow = [
+    "Apache-2.0 WITH LLVM-exception",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+]
+
+
 [advisories]
-vulnerability = "deny"
-unmaintained = "warn"
 yanked = "deny"
 ignore = []
 
@@ -22,17 +35,7 @@ multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
 skip = [
-    { name = "num-derive" } # ravif transatively depends on 0.3 and 0.4.
+    { name = "bitflags" },   # Some deps depend on 1.3.2 while others on 2.6.0
+    { name = "hashbrown" },  # Some deps depend on 0.13.2 while others on 0.14.5
+    { name = "miniz_oxide" } # Some deps depend on 0.7.4 while others on 0.8.0
 ]
-skip-tree = [
-    { name = "criterion" },  # dev-dependency
-    { name = "quickcheck" }, # dev-dependency
-    { name = "dav1d" }, # TODO: needs upgrade
-    { name = "clap" },
-]
-
-
-[licenses]
-unlicensed = "allow"
-allow-osi-fsf-free = "either"
-copyleft = "allow"

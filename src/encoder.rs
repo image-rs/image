@@ -809,9 +809,6 @@ impl<W: Write> Writer<W> {
     /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
     /// sample values based on the previous. For a potentially better compression ratio, at the
     /// cost of more complex processing, try out [`FilterType::Paeth`].
-    ///
-    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
-    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
         self.options.filter = filter;
     }
@@ -822,8 +819,6 @@ impl<W: Write> Writer<W> {
     /// based on heuristics which minimize the file size for compression rather
     /// than use a single filter for the entire image. The default method is
     /// [`AdaptiveFilterType::NonAdaptive`].
-    ///
-    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.options.adaptive_filter = adaptive_filter;
     }
@@ -911,7 +906,7 @@ impl<W: Write> Writer<W> {
     ///
     /// This method will return an error if the image is not animated.
     ///
-    /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
+    /// [`reset_frame_position`]: Writer::reset_frame_position
     pub fn reset_frame_dimension(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.width = self.info.width - fctl.x_offset;
@@ -928,7 +923,7 @@ impl<W: Write> Writer<W> {
     ///
     /// This method will return an error if the image is not animated.
     ///
-    /// [`set_frame_position(0, 0)`]: struct.Writer.html#method.set_frame_position
+    /// [`set_frame_position(0, 0)`]: Writer::set_frame_position
     pub fn reset_frame_position(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.x_offset = 0;
@@ -952,8 +947,6 @@ impl<W: Write> Writer<W> {
     /// of each play.*
     ///
     /// This method will return an error if the image is not animated.
-    ///
-    /// [`BlendOP`]: enum.BlendOp.html
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.blend_op = op;
@@ -1284,9 +1277,10 @@ impl<'a, W: Write> Wrapper<'a, W> {
 /// Streaming PNG writer
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
-/// [`finish`](#method.finish) or [`flush`] before dropping.
+/// [`finish`] or [`flush`] before dropping.
 ///
-/// [`flush`]: https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush
+/// [`finish`]: Self::finish
+/// [`flush`]: Write::flush
 pub struct StreamWriter<'a, W: Write> {
     /// The option here is needed in order to access the inner `ChunkWriter` in-between
     /// each frame, which is needed for writing the fcTL chunks between each frame

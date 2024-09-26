@@ -394,7 +394,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// at the end of the delay (before rendering the next frame)
     ///
     /// *Note that this parameter can be set for each individual frame after
-    /// [`write_header`] is called (see [`Writer::set_dispose_op`])*
+    /// [`write_header`](Self::write_header) is called (see [`Writer::set_dispose_op`])*
     ///
     /// See the [`DisposeOp`] documentation for the possible values and their effects.
     ///
@@ -404,15 +404,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// The default value is [`DisposeOp::None`].
     ///
     /// This method will return an error if the image is not animated.
-    /// (see [`set_animated`])
-    ///
-    /// [`DisposeOp`]: ../common/enum.BlendOp.html
-    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
-    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
-    /// [`DisposeOp::None`]: ../common/enum.BlendOp.html#variant.None
-    /// [`write_header`]: struct.Encoder.html#method.write_header
-    /// [`set_animated`]: struct.Encoder.html#method.set_animated
-    /// [`Writer::set_dispose_op`]: struct.Writer#method.set_dispose_op
+    /// (see [`set_animated`](Self::set_animated))
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.dispose_op = op;

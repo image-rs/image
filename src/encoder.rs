@@ -307,9 +307,6 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
     /// sample values based on the previous. For a potentially better compression ratio, at the
     /// cost of more complex processing, try out [`FilterType::Paeth`].
-    ///
-    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
-    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
         self.options.filter = filter;
     }
@@ -320,8 +317,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// based on heuristics which minimize the file size for compression rather
     /// than use a single filter for the entire image. The default method is
     /// [`AdaptiveFilterType::NonAdaptive`].
-    ///
-    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
+
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.options.adaptive_filter = adaptive_filter;
     }
@@ -341,9 +337,8 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// This method will return an error if the image is not animated.
     /// (see [`set_animated`])
     ///
-    /// [`write_header`]: struct.Encoder.html#method.write_header
-    /// [`set_animated`]: struct.Encoder.html#method.set_animated
-    /// [`Writer::set_frame_delay`]: struct.Writer#method.set_frame_delay
+    /// [`write_header`]: Self::write_header
+    /// [`set_animated`]: Self::set_animated
     pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.delay_den = denominator;
@@ -374,11 +369,8 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// This method will return an error if the image is not animated.
     /// (see [`set_animated`])
     ///
-    /// [`BlendOP`]: enum.BlendOp.html
-    /// [`BlendOP::Source`]: enum.BlendOp.html#variant.Source
-    /// [`write_header`]: struct.Encoder.html#method.write_header
-    /// [`set_animated`]: struct.Encoder.html#method.set_animated
-    /// [`Writer::set_blend_op`]: struct.Writer#method.set_blend_op
+    /// [`write_header`]: Self::write_header
+    /// [`set_animated`]: Self::set_animated
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.blend_op = op;
@@ -982,10 +974,6 @@ impl<W: Write> Writer<W> {
     /// it will be treated as [`DisposeOp::Background`].*
     ///
     /// This method will return an error if the image is not animated.
-    ///
-    /// [`DisposeOp`]: ../common/enum.BlendOp.html
-    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
-    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.dispose_op = op;
@@ -1011,7 +999,7 @@ impl<W: Write> Writer<W> {
     ///
     /// See [`stream_writer`].
     ///
-    /// [`stream_writer`]: #fn.stream_writer
+    /// [`stream_writer`]: Self::stream_writer
     pub fn stream_writer_with_size(&mut self, size: usize) -> Result<StreamWriter<W>> {
         StreamWriter::new(ChunkOutput::Borrowed(self), size)
     }
@@ -1019,8 +1007,10 @@ impl<W: Write> Writer<W> {
     /// Turn this into a stream writer for image data.
     ///
     /// This allows you to create images that do not fit in memory. The default
-    /// chunk size is 4K, use `stream_writer_with_size` to set another chunk
+    /// chunk size is 4K, use [`stream_writer_with_size`] to set another chunk
     /// size.
+    ///
+    /// [`stream_writer_with_size`]: Self::stream_writer_with_size
     pub fn into_stream_writer(self) -> Result<StreamWriter<'static, W>> {
         self.into_stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
@@ -1029,7 +1019,7 @@ impl<W: Write> Writer<W> {
     ///
     /// See [`into_stream_writer`].
     ///
-    /// [`into_stream_writer`]: #fn.into_stream_writer
+    /// [`into_stream_writer`]: Self::into_stream_writer
     pub fn into_stream_writer_with_size(self, size: usize) -> Result<StreamWriter<'static, W>> {
         StreamWriter::new(ChunkOutput::Owned(self), size)
     }
@@ -1177,7 +1167,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         Ok(())
     }
 
-    /// Set the `FrameControl` for the following frame
+    /// Set the [`FrameControl`] for the following frame
     ///
     /// It will ignore the `sequence_number` of the parameter
     /// as it is updated internally.
@@ -1364,9 +1354,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
     /// sample values based on the previous. For a potentially better compression ratio, at the
     /// cost of more complex processing, try out [`FilterType::Paeth`].
-    ///
-    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
-    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
         self.filter = filter;
     }
@@ -1377,8 +1364,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// based on heuristics which minimize the file size for compression rather
     /// than use a single filter for the entire image. The default method is
     /// [`AdaptiveFilterType::NonAdaptive`].
-    ///
-    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.adaptive_filter = adaptive_filter;
     }
@@ -1462,7 +1447,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     ///
     /// This method will return an error if the image is not animated.
     ///
-    /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
+    /// [`reset_frame_position`]: Writer::reset_frame_position
     pub fn reset_frame_dimension(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.width = self.width - fctl.x_offset;
@@ -1479,7 +1464,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     ///
     /// This method will return an error if the image is not animated.
     ///
-    /// [`set_frame_position(0, 0)`]: struct.Writer.html#method.set_frame_position
+    /// [`set_frame_position(0, 0)`]: Writer::set_frame_position
     pub fn reset_frame_position(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.x_offset = 0;
@@ -1503,8 +1488,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// of each play.*
     ///
     /// This method will return an error if the image is not animated.
-    ///
-    /// [`BlendOP`]: enum.BlendOp.html
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.blend_op = op;
@@ -1525,10 +1508,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// it will be treated as [`DisposeOp::Background`].*
     ///
     /// This method will return an error if the image is not animated.
-    ///
-    /// [`DisposeOp`]: ../common/enum.BlendOp.html
-    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
-    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.dispose_op = op;

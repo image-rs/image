@@ -1346,8 +1346,11 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// Set the used filter type for the next frame.
     ///
     /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
-    /// sample values based on the previous. For a potentially better compression ratio, at the
-    /// cost of more complex processing, try out [`FilterType::Paeth`].
+    /// sample values based on the previous.
+    ///
+    /// For optimal compression ratio you should enable adaptive filtering
+    /// instead of setting a single filter for the entire image, see
+    /// [set_adaptive_filter](Self::set_adaptive_filter).
     pub fn set_filter(&mut self, filter: FilterType) {
         self.filter = filter;
     }
@@ -1356,8 +1359,9 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     ///
     /// Adaptive filtering attempts to select the best filter for each line
     /// based on heuristics which minimize the file size for compression rather
-    /// than use a single filter for the entire image. The default method is
-    /// [`AdaptiveFilterType::NonAdaptive`].
+    /// than use a single filter for the entire image.
+    ///
+    /// The default method is [`AdaptiveFilterType::NonAdaptive`].
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.adaptive_filter = adaptive_filter;
     }

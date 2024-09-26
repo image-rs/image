@@ -267,6 +267,8 @@ mod simd {
 /// Compression in general benefits from repetitive data. The filter is a content-aware method of
 /// compressing the range of occurring byte values to help the compression algorithm. Note that
 /// this does not operate on pixels but on raw bytes of a scanline.
+///
+/// Details on how each filter works can be found in the [PNG Book](http://www.libpng.org/pub/png/book/chapter09.html).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum FilterType {
@@ -297,12 +299,14 @@ impl FilterType {
     }
 }
 
-/// The filtering method for preprocessing scanline data before compression.
+/// Adaptive filtering tries every possible filter for each row and keeps the best one.
+/// This improves compression ratio, but makes encoding slower.
 ///
-/// Adaptive filtering performs additional computation in an attempt to maximize
-/// the compression of the data. [`NonAdaptive`] filtering is the default.
+/// It is recommended to use `Adaptive` whenever you care about compression ratio.
+/// Filtering is quite cheap compared to other parts of encoding, but can contribute
+/// to the compression ratio significantly.
 ///
-/// [`NonAdaptive`]: AdaptiveFilterType::NonAdaptive
+/// `NonAdaptive` filtering is the default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AdaptiveFilterType {

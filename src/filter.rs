@@ -299,8 +299,8 @@ impl FilterType {
     }
 }
 
-/// Adaptive filtering tries every possible filter for each row and keeps the best one.
-/// This improves compression ratio, but makes encoding slower.
+/// Adaptive filtering tries every possible filter for each row and uses a heuristic to select the best one.
+/// This improves compression ratio, but makes encoding slightly slower.
 ///
 /// It is recommended to use `Adaptive` whenever you care about compression ratio.
 /// Filtering is quite cheap compared to other parts of encoding, but can contribute

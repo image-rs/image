@@ -1,6 +1,13 @@
-## Unreleased
+## 0.17.14
 
 * Updated to miniz_oxide 0.8.0.
+* Added public API to consume interlaced rows one by one ([#495])
+* Improved support for resuming decoding after an `UnexpectedEof`, which lets you start parsing a file before it's fully received over the network ([#496])
+* Fixed some broken links in documentation, improved some documentation comments
+
+[#495]: https://github.com/image-rs/image-png/pull/495
+[#496]: https://github.com/image-rs/image-png/pull/496
+
 
 ## 0.17.13
 

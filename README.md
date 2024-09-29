@@ -12,9 +12,9 @@ No `unsafe` code, battle-tested, and fuzzed on [OSS-fuzz](https://github.com/goo
 
 Performance is typically on par with or better than libpng.
 
-Includes an fast encoding mode powered by [fdeflate](https://crates.io/crates/fdeflate) that is dramatically faster than the fastest mode of libpng while *simultaneously* providing better compression ratio.
+Includes a fast encoding mode powered by [fdeflate](https://crates.io/crates/fdeflate) that is dramatically faster than the fastest mode of libpng while *simultaneously* providing better compression ratio.
 
-On nightly Rust compiler you can slightly speed up decoding of certain images as well as encoding even further by enabling the `unstable` feature of this crate.
+On nightly Rust compiler you can slightly speed up decoding of some images by enabling the `unstable` feature of this crate.
 
 ## License
 

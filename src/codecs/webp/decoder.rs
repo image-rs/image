@@ -5,14 +5,15 @@ use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
 use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
 
-/// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
+/// WebP Image format decoder.
+///
+/// Supports both lossless and lossy WebP images.
 pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
 }
 
 impl<R: BufRead + Seek> WebPDecoder<R> {
-    /// Create a new `WebPDecoder` from the Reader ```r```.
-    /// This function takes ownership of the Reader.
+    /// Create a new `WebPDecoder` from the Reader `r`.
     pub fn new(r: R) -> ImageResult<Self> {
         Ok(Self {
             inner: image_webp::WebPDecoder::new(r).map_err(ImageError::from_webp_decode)?,

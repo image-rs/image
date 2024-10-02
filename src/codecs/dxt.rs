@@ -153,7 +153,6 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
 /**
  * Actual encoding/decoding logic below.
  */
-
 type Rgb = [u8; 3];
 
 /// decodes a 5-bit R, 6-bit G, 5-bit B 16-bit packed color value into 8-bit RGB

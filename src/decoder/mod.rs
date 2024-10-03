@@ -532,10 +532,7 @@ impl<R: Read> Reader<R> {
         }
 
         // Advance over the rest of data for this (sub-)frame.
-        if !self.subframe.consumed_and_flushed {
-            self.decoder.finish_decoding()?;
-            self.subframe.consumed_and_flushed = true;
-        }
+        self.finish_decoding()?;
 
         // Advance our state to expect the next frame.
         let past_end_subframe = self
@@ -558,6 +555,21 @@ impl<R: Read> Reader<R> {
         Ok(output_info)
     }
 
+    /// Advance over the rest of data for this (sub-)frame.
+    /// Called after decoding the last row of a frame.
+    fn finish_decoding(&mut self) -> Result<(), DecodingError> {
+        // Double-check that all rows of this frame have been decoded.
+        assert!(self.subframe.current_interlace_info.is_none());
+
+        // Discard the remaining data in the current sequence of `IDAT` or `fdAT` chunks.
+        if !self.subframe.consumed_and_flushed {
+            self.decoder.finish_decoding()?;
+            self.subframe.consumed_and_flushed = true;
+        }
+
+        Ok(())
+    }
+
     /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<Row>, DecodingError> {
         self.next_interlaced_row()
@@ -567,7 +579,10 @@ impl<R: Read> Reader<R> {
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(&mut self) -> Result<Option<InterlacedRow>, DecodingError> {
         let interlace = match self.subframe.current_interlace_info.as_ref() {
-            None => return Ok(None),
+            None => {
+                self.finish_decoding()?;
+                return Ok(None);
+            }
             Some(interlace) => *interlace,
         };
         if interlace.line_number() == 0 {

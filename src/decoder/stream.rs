@@ -2431,8 +2431,16 @@ mod tests {
             .next_frame(&mut buf)
             .expect("Expecting no error from next_frame call");
 
-        // TODO: Verify if we have read the next `fcTL` chunk + repopulated `buf`:
-        //assert_eq!(reader.info().frame_control.as_ref().unwrap().sequence_number, 1);
-        //assert!(buf.iter().any(|byte| *byte != 0x0f));
+        // Verify if we have read the next `fcTL` chunk + repopulated `buf`:
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            1
+        );
+        assert!(buf.iter().any(|byte| *byte != 0x0f));
     }
 }

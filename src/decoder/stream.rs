@@ -958,7 +958,7 @@ impl StreamingDecoder {
             _ => Ok(Decoded::PartialChunk(type_str)),
         };
 
-        let parse_result = parse_result.map_err(|e| {
+        parse_result.map_err(|e| {
             self.state = None;
             match e {
                 // `parse_chunk` is invoked after gathering **all** bytes of a chunk, so
@@ -972,9 +972,7 @@ impl StreamingDecoder {
                 }
                 e => e,
             }
-        });
-
-        parse_result
+        })
     }
 
     fn parse_fctl(&mut self) -> Result<Decoded, DecodingError> {

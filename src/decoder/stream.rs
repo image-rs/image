@@ -1574,6 +1574,7 @@ mod tests {
     use crate::{Decoder, DecodingError, Reader};
     use byteorder::WriteBytesExt;
     use std::cell::RefCell;
+    use std::collections::VecDeque;
     use std::fs::File;
     use std::io::{ErrorKind, Read, Write};
     use std::rc::Rc;
@@ -2040,7 +2041,7 @@ mod tests {
         assert_eq!(3093270825, crc32fast::hash(&buf));
     }
 
-    /// `StremingInput` can be used by tests to simulate a streaming input
+    /// `StreamingInput` can be used by tests to simulate a streaming input
     /// (e.g. a slow http response, where all bytes are not immediately available).
     #[derive(Clone)]
     struct StreamingInput(Rc<RefCell<StreamingInputState>>);
@@ -2208,5 +2209,193 @@ mod tests {
             info_from_whole_input.interlaced,
             info_from_streaming_input.interlaced
         );
+    }
+
+    /// Creates a ready-to-test [`Reader`] which decodes a PNG that contains:
+    /// IHDR, IDAT, IEND.
+    fn create_reader_of_ihdr_idat() -> Reader<VecDeque<u8>> {
+        let mut png = VecDeque::new();
+        write_noncompressed_png(&mut png, /* width = */ 16, /* idat_size = */ 1024);
+        Decoder::new(png).read_info().unwrap()
+    }
+
+    /// Creates a ready-to-test [`Reader`] which decodes an animated PNG that contains:
+    /// IHDR, acTL, fcTL, IDAT, fcTL, fdAT, IEND.  (i.e. IDAT is part of the animation)
+    fn create_reader_of_ihdr_actl_fctl_idat_fctl_fdat() -> Reader<VecDeque<u8>> {
+        let width = 16;
+        let frame_data = generate_rgba8_with_width_and_height(width, width);
+        let mut fctl = crate::FrameControl {
+            width,
+            height: width,
+            ..Default::default()
+        };
+
+        let mut png = VecDeque::new();
+        write_png_sig(&mut png);
+        write_rgba8_ihdr_with_width(&mut png, width);
+        write_actl(
+            &mut png,
+            &crate::AnimationControl {
+                num_frames: 2,
+                num_plays: 0,
+            },
+        );
+        fctl.sequence_number = 0;
+        write_fctl(&mut png, &fctl);
+        write_chunk(&mut png, b"IDAT", &frame_data);
+        fctl.sequence_number = 1;
+        write_fctl(&mut png, &fctl);
+        write_fdat(&mut png, 2, &frame_data);
+        write_iend(&mut png);
+
+        Decoder::new(png).read_info().unwrap()
+    }
+
+    /// Creates a ready-to-test [`Reader`] which decodes an animated PNG that contains: IHDR, acTL,
+    /// IDAT, fcTL, fdAT, fcTL, fdAT, IEND.  (i.e. IDAT is *not* part of the animation)
+    fn create_reader_of_ihdr_actl_idat_fctl_fdat_fctl_fdat() -> Reader<VecDeque<u8>> {
+        let width = 16;
+        let frame_data = generate_rgba8_with_width_and_height(width, width);
+        let mut fctl = crate::FrameControl {
+            width,
+            height: width,
+            ..Default::default()
+        };
+
+        let mut png = VecDeque::new();
+        write_png_sig(&mut png);
+        write_rgba8_ihdr_with_width(&mut png, width);
+        write_actl(
+            &mut png,
+            &crate::AnimationControl {
+                num_frames: 2,
+                num_plays: 0,
+            },
+        );
+        write_chunk(&mut png, b"IDAT", &frame_data);
+        fctl.sequence_number = 0;
+        write_fctl(&mut png, &fctl);
+        write_fdat(&mut png, 1, &frame_data);
+        fctl.sequence_number = 2;
+        write_fctl(&mut png, &fctl);
+        write_fdat(&mut png, 3, &frame_data);
+        write_iend(&mut png);
+
+        Decoder::new(png).read_info().unwrap()
+    }
+
+    /// Tests that [`Reader.next_frame`] will report a `PolledAfterEndOfImage` error when called
+    /// after already decoding a single frame in a non-animated PNG.
+    #[test]
+    fn test_next_frame_polling_after_end_non_animated() {
+        let mut reader = create_reader_of_ihdr_idat();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for IDAT frame");
+
+        let err = reader
+            .next_frame(&mut buf)
+            .expect_err("Main test - expecting error");
+        assert!(matches!(err, DecodingError::Parameter(_)));
+    }
+
+    /// Tests that [`Reader.next_frame`] will report a `PolledAfterEndOfImage` error when called
+    /// after already decoding a single frame in an animated PNG where IDAT is part of the
+    /// animation.
+    #[test]
+    fn test_next_frame_polling_after_end_idat_part_of_animation() {
+        let mut reader = create_reader_of_ihdr_actl_fctl_idat_fctl_fdat();
+        let mut buf = vec![0; reader.output_buffer_size()];
+
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            0
+        );
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for IDAT frame");
+
+        // `next_frame` doesn't advance to the next `fcTL`.
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            0
+        );
+
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for fdAT frame");
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            1
+        );
+
+        let err = reader
+            .next_frame(&mut buf)
+            .expect_err("Main test - expecting error");
+        assert!(matches!(err, DecodingError::Parameter(_)));
+    }
+
+    /// Tests that [`Reader.next_frame`] will report a `PolledAfterEndOfImage` error when called
+    /// after already decoding a single frame in an animated PNG where IDAT is *not* part of the
+    /// animation.
+    #[test]
+    fn test_next_frame_polling_after_end_idat_not_part_of_animation() {
+        let mut reader = create_reader_of_ihdr_actl_idat_fctl_fdat_fctl_fdat();
+        let mut buf = vec![0; reader.output_buffer_size()];
+
+        assert!(reader.info().frame_control.is_none());
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for IDAT frame");
+
+        // `next_frame` doesn't advance to the next `fcTL`.
+        assert!(reader.info().frame_control.is_none());
+
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for 1st fdAT frame");
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            0
+        );
+
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error for 2nd fdAT frame");
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            2
+        );
+
+        let err = reader
+            .next_frame(&mut buf)
+            .expect_err("Main test - expecting error");
+        assert!(matches!(err, DecodingError::Parameter(_)));
     }
 }

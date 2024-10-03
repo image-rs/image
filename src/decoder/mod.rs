@@ -16,6 +16,7 @@ use crate::common::{
     BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
 };
 use crate::filter::{unfilter, FilterType};
+use crate::FrameControl;
 
 pub use interlace_info::InterlaceInfo;
 use interlace_info::InterlaceInfoIter;
@@ -396,6 +397,38 @@ struct SubframeInfo {
 }
 
 impl<R: Read> Reader<R> {
+    /// Advances to the start of the next animation frame and
+    /// returns a reference to the `FrameControl` info that describes it.
+    /// Skips and discards the image data of the previous frame if necessary.
+    ///
+    /// Returns a [`ParameterError`] when there are no more animation frames.
+    /// To avoid this the caller can check if [`Info::animation_control`] exists
+    /// and consult [`AnimationControl::num_frames`].
+    pub fn next_frame_info(&mut self) -> Result<&FrameControl, DecodingError> {
+        let remaining_frames = if self.subframe.consumed_and_flushed {
+            self.remaining_frames
+        } else {
+            // One remaining frame will be consumed by the `finish_decoding` call below.
+            self.remaining_frames - 1
+        };
+        if remaining_frames == 0 {
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
+            ));
+        }
+
+        if !self.subframe.consumed_and_flushed {
+            self.subframe.current_interlace_info = None;
+            self.finish_decoding()?;
+        }
+        self.read_until_image_data()?;
+
+        // The PNG standard (and `StreamingDecoder `) guarantes that there is an `fcTL` chunk
+        // before the start of image data in a sequence of `fdAT` chunks.  Therefore `unwrap`
+        // below is guaranteed to not panic.
+        Ok(self.info().frame_control.as_ref().unwrap())
+    }
+
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
     fn read_until_image_data(&mut self) -> Result<(), DecodingError> {

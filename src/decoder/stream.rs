@@ -2398,4 +2398,41 @@ mod tests {
             .expect_err("Main test - expecting error");
         assert!(matches!(err, DecodingError::Parameter(_)));
     }
+
+    /// Tests that after decoding a whole frame via [`Reader.next_row`] the call to
+    /// [`Reader.next_frame`] will decode the **next** frame.
+    #[test]
+    fn test_row_by_row_then_next_frame() {
+        let mut reader = create_reader_of_ihdr_actl_fctl_idat_fctl_fdat();
+        let mut buf = vec![0; reader.output_buffer_size()];
+
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            0
+        );
+        while let Some(_) = reader.next_row().unwrap() {}
+        assert_eq!(
+            reader
+                .info()
+                .frame_control
+                .as_ref()
+                .unwrap()
+                .sequence_number,
+            0
+        );
+
+        buf.fill(0x0f);
+        reader
+            .next_frame(&mut buf)
+            .expect("Expecting no error from next_frame call");
+
+        // TODO: Verify if we have read the next `fcTL` chunk + repopulated `buf`:
+        //assert_eq!(reader.info().frame_control.as_ref().unwrap().sequence_number, 1);
+        //assert!(buf.iter().any(|byte| *byte != 0x0f));
+    }
 }

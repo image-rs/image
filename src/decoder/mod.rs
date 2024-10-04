@@ -135,7 +135,6 @@ impl<R: Read> Decoder<R> {
             read_decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
                 decoder,
-                at_eof: false,
             },
             transform: Transformations::IDENTITY,
         }
@@ -150,7 +149,6 @@ impl<R: Read> Decoder<R> {
             read_decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
                 decoder,
-                at_eof: false,
             },
             transform: Transformations::IDENTITY,
         }
@@ -191,8 +189,9 @@ impl<R: Read> Decoder<R> {
         let mut buf = Vec::new();
         while self.read_decoder.info().is_none() {
             buf.clear();
-            if self.read_decoder.decode_next(&mut buf)?.is_none() {
-                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
+
+            if let Decoded::ImageEnd = self.read_decoder.decode_next(&mut buf)? {
+                unreachable!()
             }
         }
         Ok(self.read_decoder.info().unwrap())
@@ -304,14 +303,13 @@ impl<R: Read> Decoder<R> {
 struct ReadDecoder<R: Read> {
     reader: BufReader<R>,
     decoder: StreamingDecoder,
-    at_eof: bool,
 }
 
 impl<R: Read> ReadDecoder<R> {
     /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
     /// into image_data.
-    fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Option<Decoded>, DecodingError> {
-        while !self.at_eof {
+    fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Decoded, DecodingError> {
+        loop {
             let (consumed, result) = {
                 let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
@@ -322,15 +320,14 @@ impl<R: Read> ReadDecoder<R> {
             self.reader.consume(consumed);
             match result {
                 Decoded::Nothing => (),
-                Decoded::ImageEnd => self.at_eof = true,
-                result => return Ok(Some(result)),
+                result => return Ok(result),
             }
         }
-        Ok(None)
     }
 
+    /// Consumes and discards the rest of an `IDAT` / `fdAT` chunk sequence.
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        while !self.at_eof {
+        loop {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
                 return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
@@ -339,7 +336,6 @@ impl<R: Read> ReadDecoder<R> {
             self.reader.consume(consumed);
             match event {
                 Decoded::Nothing => (),
-                Decoded::ImageEnd => self.at_eof = true,
                 // ignore more data
                 Decoded::ChunkComplete(_, _) | Decoded::ChunkBegin(_, _) | Decoded::ImageData => {}
                 Decoded::ImageDataFlushed => return Ok(()),
@@ -347,8 +343,6 @@ impl<R: Read> ReadDecoder<R> {
                 new => unreachable!("{:?}", new),
             }
         }
-
-        Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()))
     }
 
     fn info(&self) -> Option<&Info<'static>> {
@@ -444,9 +438,8 @@ impl<R: Read> Reader<R> {
             assert!(buf.is_empty());
 
             match state {
-                Some(Decoded::ChunkBegin(_, chunk::IDAT))
-                | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
-                None => {
+                Decoded::ChunkBegin(_, chunk::IDAT) | Decoded::ChunkBegin(_, chunk::fdAT) => break,
+                Decoded::ImageEnd => {
                     return Err(DecodingError::Format(
                         FormatErrorInner::MissingImageData.into(),
                     ))
@@ -641,14 +634,7 @@ impl<R: Read> Reader<R> {
         self.data_stream.clear();
         self.current_start = 0;
         self.prev_start = 0;
-        loop {
-            let mut buf = Vec::new();
-            let state = self.decoder.decode_next(&mut buf)?;
-
-            if state.is_none() {
-                break;
-            }
-        }
+        while !matches!(self.decoder.decode_next(&mut vec![])?, Decoded::ImageEnd) {}
 
         self.finished = true;
         Ok(())
@@ -749,9 +735,17 @@ impl<R: Read> Reader<R> {
             }
 
             match self.decoder.decode_next(&mut self.data_stream)? {
-                Some(Decoded::ImageData) => (),
-                Some(Decoded::ImageDataFlushed) => self.mark_subframe_as_consumed_and_flushed(),
-                _ => (),
+                Decoded::ImageData => (),
+                Decoded::ImageDataFlushed => self.mark_subframe_as_consumed_and_flushed(),
+                // Similarily to `finish_decoding` we ignore other events that may happen
+                // within an `IDAT` / `fdAT` chunks sequence.
+                Decoded::Nothing
+                | Decoded::ChunkComplete(_, _)
+                | Decoded::ChunkBegin(_, _)
+                | Decoded::PartialChunk(_) => {}
+                // Similarily to `finish_decoding` other events should not happen
+                // within an `IDAT` / `fdAT` chunks sequence.
+                unexpected => unreachable!("{:?}", unexpected),
             }
         }
 

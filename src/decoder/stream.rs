@@ -10,7 +10,7 @@ use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
-    PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
+    ParameterErrorKind, PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
 };
 use crate::text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk};
 use crate::traits::ReadBytesExt;
@@ -627,15 +627,24 @@ impl StreamingDecoder {
         mut buf: &[u8],
         image_data: &mut Vec<u8>,
     ) -> Result<(usize, Decoded), DecodingError> {
+        if self.state.is_none() {
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterFatalError.into(),
+            ));
+        }
+
         let len = buf.len();
-        while !buf.is_empty() && self.state.is_some() {
+        while !buf.is_empty() {
             match self.next_state(buf, image_data) {
                 Ok((bytes, Decoded::Nothing)) => buf = &buf[bytes..],
                 Ok((bytes, result)) => {
                     buf = &buf[bytes..];
                     return Ok((len - buf.len(), result));
                 }
-                Err(err) => return Err(err),
+                Err(err) => {
+                    debug_assert!(self.state.is_none());
+                    return Err(err);
+                }
             }
         }
         Ok((len - buf.len(), Decoded::Nothing))
@@ -1917,8 +1926,18 @@ mod tests {
         // 0-length fdAT should result in an error.
         let err = reader.next_frame(&mut buf).unwrap_err();
         assert!(matches!(&err, DecodingError::Format(_)));
-        let msg = format!("{err}");
-        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+        assert_eq!("fdAT chunk shorter than 4 bytes", format!("{err}"));
+
+        // Calling `next_frame` again should return an error.  Same error as above would be nice,
+        // but it is probably unnecessary and infeasible (`DecodingError` can't derive `Clone`
+        // because `std::io::Error` doesn't implement `Clone`)..  But it definitely shouldn't enter
+        // an infinite loop.
+        let err2 = reader.next_frame(&mut buf).unwrap_err();
+        assert!(matches!(&err2, DecodingError::Parameter(_)));
+        assert_eq!(
+            "A fatal decoding error has been encounted earlier",
+            format!("{err2}")
+        );
     }
 
     #[test]
@@ -1935,8 +1954,7 @@ mod tests {
         // 3-bytes-long fdAT should result in an error.
         let err = reader.next_frame(&mut buf).unwrap_err();
         assert!(matches!(&err, DecodingError::Format(_)));
-        let msg = format!("{err}");
-        assert_eq!("fdAT chunk shorter than 4 bytes", msg);
+        assert_eq!("fdAT chunk shorter than 4 bytes", format!("{err}"));
     }
 
     #[test]

@@ -213,6 +213,7 @@ impl<R: Read> Decoder<R> {
             transform: self.transform,
             transform_fn: None,
             scratch_buffer: Vec::new(),
+            finished: false,
         };
 
         // Check if the decoding buffer of a single raw line has a valid size.
@@ -379,6 +380,8 @@ pub struct Reader<R: Read> {
     /// to a byte slice. In a future version of this library, this buffer will be removed and
     /// `next_row` and `next_interlaced_row` will write directly into a user provided output buffer.
     scratch_buffer: Vec<u8>,
+    /// Whether `ImageEnd` was already reached by `fn finish`.
+    finished: bool,
 }
 
 /// The subframe specific information.
@@ -628,6 +631,12 @@ impl<R: Read> Reader<R> {
     /// Read the rest of the image and chunks and finish up, including text chunks or others
     /// This will discard the rest of the image if the image is not read already with [`Reader::next_frame`], [`Reader::next_row`] or [`Reader::next_interlaced_row`]
     pub fn finish(&mut self) -> Result<(), DecodingError> {
+        if self.finished {
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
+            ));
+        }
+
         self.remaining_frames = 0;
         self.data_stream.clear();
         self.current_start = 0;
@@ -641,6 +650,7 @@ impl<R: Read> Reader<R> {
             }
         }
 
+        self.finished = true;
         Ok(())
     }
 

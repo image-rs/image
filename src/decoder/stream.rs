@@ -875,10 +875,11 @@ impl StreamingDecoder {
                 };
 
                 if val == sum || CHECKSUM_DISABLED {
-                    self.state = Some(State::new_u32(U32ValueKind::Length));
                     if type_str == IEND {
+                        debug_assert!(self.state.is_none());
                         Ok(Decoded::ImageEnd)
                     } else {
+                        self.state = Some(State::new_u32(U32ValueKind::Length));
                         Ok(Decoded::ChunkComplete(val, type_str))
                     }
                 } else if self.decode_options.skip_ancillary_crc_failures
@@ -1840,6 +1841,23 @@ mod tests {
         let mut decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
         decoder.set_ignore_iccp_chunk(true);
         assert!(decoder.read_info().is_ok());
+    }
+
+    /// Tests what happens then [`Reader.finish`] is called twice.
+    #[test]
+    fn test_finishing_twice() {
+        let mut png = Vec::new();
+        write_noncompressed_png(&mut png, 16, 1024);
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+
+        // First call to `finish` - expecting success.
+        reader.finish().unwrap();
+
+        // Second call to `finish` - expecting an error.
+        let err = reader.finish().unwrap_err();
+        assert!(matches!(&err, DecodingError::Parameter(_)));
+        assert_eq!("End of image has been reached", format!("{err}"));
     }
 
     /// Writes an acTL chunk.

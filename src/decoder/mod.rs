@@ -318,27 +318,33 @@ impl<R: Read> ReadDecoder<R> {
         Ok(result)
     }
 
+    fn decode_next_without_image_data(&mut self) -> Result<Decoded, DecodingError> {
+        // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
+        // know that we will stop before reading any image data from the stream. Thus pass an
+        // empty buffer and assert that remains empty.
+        let mut buf = Vec::new();
+        let state = self.decode_next(&mut buf)?;
+        assert!(buf.is_empty());
+        Ok(state)
+    }
+
+    fn decode_next_and_discard_image_data(&mut self) -> Result<Decoded, DecodingError> {
+        let mut to_be_discarded = Vec::new();
+        self.decode_next(&mut to_be_discarded)
+    }
+
     pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {
         while self.info().is_none() {
-            let mut buf = Vec::new();
-            if let Decoded::ImageEnd = self.decode_next(&mut buf)? {
+            if let Decoded::ImageEnd = self.decode_next_without_image_data()? {
                 unreachable!()
             }
-            assert!(buf.is_empty());
         }
         Ok(self.info().unwrap())
     }
 
     pub fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
         loop {
-            // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
-            // know that we will stop before reading any image data from the stream. Thus pass an
-            // empty buffer and assert that remains empty.
-            let mut buf = Vec::new();
-            let state = self.decode_next(&mut buf)?;
-            assert!(buf.is_empty());
-
-            match state {
+            match self.decode_next_without_image_data()? {
                 Decoded::ChunkBegin(_, chunk::IDAT) | Decoded::ChunkBegin(_, chunk::fdAT) => break,
                 Decoded::ImageEnd => {
                     return Err(DecodingError::Format(
@@ -360,14 +366,13 @@ impl<R: Read> ReadDecoder<R> {
         match self.decode_next(image_data)? {
             Decoded::ImageData => Ok(ImageDataCompletionStatus::ExpectingMoreData),
             Decoded::ImageDataFlushed => Ok(ImageDataCompletionStatus::Done),
-            // Similarily to `finish_decoding` we ignore other events that may happen
-            // within an `IDAT` / `fdAT` chunks sequence.
+            // Ignore other events that may happen within an `IDAT` / `fdAT` chunks sequence.
             Decoded::Nothing
             | Decoded::ChunkComplete(_, _)
             | Decoded::ChunkBegin(_, _)
             | Decoded::PartialChunk(_) => Ok(ImageDataCompletionStatus::ExpectingMoreData),
-            // Similarily to `finish_decoding` other events should not happen
-            // within an `IDAT` / `fdAT` chunks sequence.
+            // Other kinds of events shouldn't happen, unless we have been (incorrectly) called
+            // when outside of a sequence of `IDAT` / `fdAT` chunks.
             unexpected => unreachable!("{:?}", unexpected),
         }
     }
@@ -383,7 +388,7 @@ impl<R: Read> ReadDecoder<R> {
     }
 
     pub fn read_until_end_of_input(&mut self) -> Result<(), DecodingError> {
-        while !matches!(self.decode_next(&mut vec![])?, Decoded::ImageEnd) {}
+        while !matches!(self.decode_next_and_discard_image_data()?, Decoded::ImageEnd) {}
         Ok(())
     }
 

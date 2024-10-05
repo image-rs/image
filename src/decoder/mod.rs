@@ -307,20 +307,15 @@ impl<R: Read> ReadDecoder<R> {
     /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
     /// into image_data.
     fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Decoded, DecodingError> {
-        loop {
-            let (consumed, result) = {
-                let buf = self.reader.fill_buf()?;
-                if buf.is_empty() {
-                    return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
-                }
-                self.decoder.update(buf, image_data)?
-            };
-            self.reader.consume(consumed);
-            match result {
-                Decoded::Nothing => (),
-                result => return Ok(result),
+        let (consumed, result) = {
+            let buf = self.reader.fill_buf()?;
+            if buf.is_empty() {
+                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
             }
-        }
+            self.decoder.update(buf, image_data)?
+        };
+        self.reader.consume(consumed);
+        Ok(result)
     }
 
     pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {

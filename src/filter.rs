@@ -13,6 +13,32 @@ mod simd {
     use std::simd::num::{SimdInt, SimdUint};
     use std::simd::{u8x4, u8x8, LaneCount, Simd, SimdElement, SupportedLaneCount};
 
+    /// Scalar Paeth function wrapped in SIMD scaffolding.
+    ///
+    /// This is needed because simply running the function on the inputs
+    /// makes the compiler think our inputs are too short
+    /// to benefit from vectorization.
+    /// Putting it in SIMD scaffolding fixes that.
+    /// https://github.com/image-rs/image-png/issues/511
+    ///
+    /// Funnily, the autovectorizer does a better job here
+    /// than a handwritten algorithm using std::simd!
+    /// We used to have a handwritten one but this is just faster.
+    fn paeth_predictor<const N: usize>(
+        a: Simd<i16, N>,
+        b: Simd<i16, N>,
+        c: Simd<i16, N>,
+    ) -> Simd<i16, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut out = [0; N];
+        for i in 0..N {
+            out[i] = super::filter_paeth_decode_i16(a[i].into(), b[i].into(), c[i].into());
+        }
+        out.into()
+    }
+
     /// This is an equivalent of the `PaethPredictor` function from
     /// [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Filters.html#Filter-type-4-Paeth)
     /// except that it simultaneously calculates the predictor for all SIMD lanes.
@@ -24,36 +50,8 @@ mod simd {
     /// - RGB  => 4 lanes of `i16x4` contain R, G, B, and a ignored 4th value
     ///
     /// The SIMD algorithm below is based on [`libpng`](https://github.com/glennrp/libpng/blob/f8e5fa92b0e37ab597616f554bee254157998227/intel/filter_sse2_intrinsics.c#L261-L280).
-    fn paeth_predictor<const N: usize>(
-        a: Simd<i16, N>,
-        b: Simd<i16, N>,
-        c: Simd<i16, N>,
-    ) -> Simd<i16, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        let pa = b - c; // (p-a) == (a+b-c - a) == (b-c)
-        let pb = a - c; // (p-b) == (a+b-c - b) == (a-c)
-        let pc = pa + pb; // (p-c) == (a+b-c - c) == (a+b-c-c) == (b-c)+(a-c)
-
-        let pa = pa.abs();
-        let pb = pb.abs();
-        let pc = pc.abs();
-
-        let smallest = pc.simd_min(pa.simd_min(pb));
-
-        // Paeth algorithm breaks ties favoring a over b over c, so we execute the following
-        // lane-wise selection:
-        //
-        //     if smalest == pa
-        //         then select a
-        //         else select (if smallest == pb then select b else select c)
-        smallest
-            .simd_eq(pa)
-            .select(a, smallest.simd_eq(pb).select(b, c))
-    }
-
-    /// Equivalent to `simd::paeth_predictor` but does not temporarily convert
+    ///
+    /// Functionally equivalent to `simd::paeth_predictor` but does not temporarily convert
     /// the SIMD elements to `i16`.
     fn paeth_predictor_u8<const N: usize>(
         a: Simd<u8, N>,
@@ -325,6 +323,27 @@ fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     let pa = (i16::from(b) - i16::from(c)).abs();
     let pb = (i16::from(a) - i16::from(c)).abs();
     let pc = ((i16::from(a) - i16::from(c)) + (i16::from(b) - i16::from(c))).abs();
+
+    let mut out = a;
+    let mut min = pa;
+
+    if pb < min {
+        min = pb;
+        out = b;
+    }
+    if pc < min {
+        out = c;
+    }
+
+    out
+}
+
+#[cfg(feature = "unstable")]
+fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
+    // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
+    let pa = (b - c).abs();
+    let pb = (a - c).abs();
+    let pc = ((a - c) + (b - c)).abs();
 
     let mut out = a;
     let mut min = pa;

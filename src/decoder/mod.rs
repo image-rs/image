@@ -1,17 +1,17 @@
 mod interlace_info;
-mod stream;
+mod read_decoder;
+pub(crate) mod stream;
 pub(crate) mod transform;
 mod zlib;
 
-pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
-use self::stream::{FormatErrorInner, CHUNK_BUFFER_SIZE};
+use self::read_decoder::{ImageDataCompletionStatus, ReadDecoder};
+use self::stream::{DecodeOptions, DecodingError, FormatErrorInner, CHUNK_BUFFER_SIZE};
 use self::transform::{create_transform_fn, TransformFn};
 
-use std::io::{BufRead, BufReader, ErrorKind, Read};
+use std::io::Read;
 use std::mem;
 
 use crate::adam7::{self, Adam7Info};
-use crate::chunk;
 use crate::common::{
     BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
 };
@@ -128,28 +128,22 @@ impl<R: Read> Decoder<R> {
 
     /// Create a new decoder configuration with custom limits.
     pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
-        let mut decoder = StreamingDecoder::new();
-        decoder.limits = limits;
+        let mut read_decoder = ReadDecoder::new(r);
+        read_decoder.set_limits(limits);
 
         Decoder {
-            read_decoder: ReadDecoder {
-                reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
-                decoder,
-            },
+            read_decoder,
             transform: Transformations::IDENTITY,
         }
     }
 
     /// Create a new decoder configuration with custom `DecodeOptions`.
     pub fn new_with_options(r: R, decode_options: DecodeOptions) -> Decoder<R> {
-        let mut decoder = StreamingDecoder::new_with_options(decode_options);
-        decoder.limits = Limits::default();
+        let mut read_decoder = ReadDecoder::with_options(r, decode_options);
+        read_decoder.set_limits(Limits::default());
 
         Decoder {
-            read_decoder: ReadDecoder {
-                reader: BufReader::with_capacity(CHUNK_BUFFER_SIZE, r),
-                decoder,
-            },
+            read_decoder,
             transform: Transformations::IDENTITY,
         }
     }
@@ -178,7 +172,7 @@ impl<R: Read> Decoder<R> {
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_limits(&mut self, limits: Limits) {
-        self.read_decoder.decoder.limits = limits;
+        self.read_decoder.set_limits(limits);
     }
 
     /// Read the PNG header and return the information contained within.
@@ -261,9 +255,7 @@ impl<R: Read> Decoder<R> {
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
-        self.read_decoder
-            .decoder
-            .set_ignore_text_chunk(ignore_text_chunk);
+        self.read_decoder.set_ignore_text_chunk(ignore_text_chunk);
     }
 
     /// Set the decoder to ignore iccp chunks while parsing.
@@ -277,123 +269,13 @@ impl<R: Read> Decoder<R> {
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_ignore_iccp_chunk(&mut self, ignore_iccp_chunk: bool) {
-        self.read_decoder
-            .decoder
-            .set_ignore_iccp_chunk(ignore_iccp_chunk);
+        self.read_decoder.set_ignore_iccp_chunk(ignore_iccp_chunk);
     }
 
     /// Set the decoder to ignore and not verify the Adler-32 checksum
     /// and CRC code.
     pub fn ignore_checksums(&mut self, ignore_checksums: bool) {
-        self.read_decoder
-            .decoder
-            .set_ignore_adler32(ignore_checksums);
-        self.read_decoder.decoder.set_ignore_crc(ignore_checksums);
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-enum ImageDataCompletionStatus {
-    ExpectingMoreData,
-    Done,
-}
-
-struct ReadDecoder<R: Read> {
-    reader: BufReader<R>,
-    decoder: StreamingDecoder,
-}
-
-impl<R: Read> ReadDecoder<R> {
-    /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
-    /// into image_data.
-    fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Decoded, DecodingError> {
-        let (consumed, result) = {
-            let buf = self.reader.fill_buf()?;
-            if buf.is_empty() {
-                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
-            }
-            self.decoder.update(buf, image_data)?
-        };
-        self.reader.consume(consumed);
-        Ok(result)
-    }
-
-    fn decode_next_without_image_data(&mut self) -> Result<Decoded, DecodingError> {
-        // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
-        // know that we will stop before reading any image data from the stream. Thus pass an
-        // empty buffer and assert that remains empty.
-        let mut buf = Vec::new();
-        let state = self.decode_next(&mut buf)?;
-        assert!(buf.is_empty());
-        Ok(state)
-    }
-
-    fn decode_next_and_discard_image_data(&mut self) -> Result<Decoded, DecodingError> {
-        let mut to_be_discarded = Vec::new();
-        self.decode_next(&mut to_be_discarded)
-    }
-
-    pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {
-        while self.info().is_none() {
-            if let Decoded::ImageEnd = self.decode_next_without_image_data()? {
-                unreachable!()
-            }
-        }
-        Ok(self.info().unwrap())
-    }
-
-    pub fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
-        loop {
-            match self.decode_next_without_image_data()? {
-                Decoded::ChunkBegin(_, chunk::IDAT) | Decoded::ChunkBegin(_, chunk::fdAT) => break,
-                Decoded::ImageEnd => {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::MissingImageData.into(),
-                    ))
-                }
-                // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
-                // chunks and their control chunks.
-                _ => {}
-            }
-        }
-        Ok(())
-    }
-
-    pub fn decode_image_data(
-        &mut self,
-        image_data: &mut Vec<u8>,
-    ) -> Result<ImageDataCompletionStatus, DecodingError> {
-        match self.decode_next(image_data)? {
-            Decoded::ImageData => Ok(ImageDataCompletionStatus::ExpectingMoreData),
-            Decoded::ImageDataFlushed => Ok(ImageDataCompletionStatus::Done),
-            // Ignore other events that may happen within an `IDAT` / `fdAT` chunks sequence.
-            Decoded::Nothing
-            | Decoded::ChunkComplete(_, _)
-            | Decoded::ChunkBegin(_, _)
-            | Decoded::PartialChunk(_) => Ok(ImageDataCompletionStatus::ExpectingMoreData),
-            // Other kinds of events shouldn't happen, unless we have been (incorrectly) called
-            // when outside of a sequence of `IDAT` / `fdAT` chunks.
-            unexpected => unreachable!("{:?}", unexpected),
-        }
-    }
-
-    /// Consumes and discards the rest of an `IDAT` / `fdAT` chunk sequence.
-    pub fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        loop {
-            let mut to_be_discarded = vec![];
-            if let ImageDataCompletionStatus::Done = self.decode_image_data(&mut to_be_discarded)? {
-                return Ok(());
-            }
-        }
-    }
-
-    pub fn read_until_end_of_input(&mut self) -> Result<(), DecodingError> {
-        while !matches!(self.decode_next_and_discard_image_data()?, Decoded::ImageEnd) {}
-        Ok(())
-    }
-
-    pub fn info(&self) -> Option<&Info<'static>> {
-        self.decoder.info.as_ref()
+        self.read_decoder.ignore_checksums(ignore_checksums);
     }
 }
 
@@ -486,7 +368,7 @@ impl<R: Read> Reader<R> {
 
         // Allocate output buffer.
         let buflen = self.output_line_size(self.subframe.width);
-        self.decoder.decoder.limits.reserve_bytes(buflen)?;
+        self.decoder.reserve_bytes(buflen)?;
 
         self.prev_start = self.current_start;
 
@@ -594,7 +476,7 @@ impl<R: Read> Reader<R> {
 
         // Discard the remaining data in the current sequence of `IDAT` or `fdAT` chunks.
         if !self.subframe.consumed_and_flushed {
-            self.decoder.finish_decoding()?;
+            self.decoder.finish_decoding_image_data()?;
             self.mark_subframe_as_consumed_and_flushed();
         }
 

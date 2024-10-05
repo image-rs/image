@@ -92,13 +92,13 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
+impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
     fn into_frames(self) -> Frames<'a> {
         struct FramesInner<R: Read + Seek> {
             decoder: WebPDecoder<R>,
             current: u32,
         }
-        impl<R: Read + Seek> Iterator for FramesInner<R> {
+        impl<R: BufRead + Seek> Iterator for FramesInner<R> {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {

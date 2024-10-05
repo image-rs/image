@@ -272,7 +272,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     }
 }
 
-impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
+impl<W: Write> ImageEncoder for BmpEncoder<'_, W> {
     #[track_caller]
     fn write_image(
         mut self,

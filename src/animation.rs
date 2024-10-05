@@ -26,7 +26,7 @@ impl<'a> Frames<'a> {
     }
 }
 
-impl<'a> Iterator for Frames<'a> {
+impl Iterator for Frames<'_> {
     type Item = ImageResult<Frame>;
     fn next(&mut self) -> Option<ImageResult<Frame>> {
         self.iterator.next()

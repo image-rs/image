@@ -478,15 +478,8 @@ impl<R: Read> Reader<R> {
     fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
         self.decoder.read_until_image_data()?;
 
-        // TODO: We can just call `self.info()`, because `read_until_image_data`
-        // guarantees that we've reached `IDAT` or `fdAT`, and `StreamingDecoder` checks that
-        // `IHDR` appears before any other chunk.
-        let info = self
-            .decoder
-            .info()
-            .ok_or(DecodingError::Format(FormatErrorInner::MissingIhdr.into()))?;
-        self.bpp = info.bpp_in_prediction();
-        self.subframe = SubframeInfo::new(info);
+        self.subframe = SubframeInfo::new(self.info());
+        self.bpp = self.info().bpp_in_prediction();
         self.data_stream.clear();
         self.current_start = 0;
         self.prev_start = 0;

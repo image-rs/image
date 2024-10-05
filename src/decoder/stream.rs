@@ -166,8 +166,6 @@ pub(crate) enum FormatErrorInner {
     /// Not a PNG, the magic signature is missing.
     InvalidSignature,
     // Errors of chunk level ordering, missing etc.
-    /// Ihdr must occur.
-    MissingIhdr,
     /// Fctl must occur if an animated chunk occurs.
     MissingFctl,
     /// Image data that was indicated in IHDR or acTL is missing.
@@ -291,7 +289,6 @@ impl fmt::Display for FormatError {
                 "CRC error: expected 0x{:x} have 0x{:x} while decoding {:?} chunk.",
                 crc_val, crc_sum, chunk
             ),
-            MissingIhdr => write!(fmt, "IHDR chunk missing"),
             MissingFctl => write!(fmt, "fcTL chunk missing before fdAT chunk."),
             MissingImageData => write!(fmt, "IDAT or fdAT chunk is missing."),
             ChunkBeforeIhdr { kind } => write!(fmt, "{:?} chunk appeared before IHDR chunk", kind),
@@ -2073,6 +2070,30 @@ mod tests {
         // the current behavior.
         reader.next_frame(&mut buf).unwrap();
         assert_eq!(3093270825, crc32fast::hash(&buf));
+    }
+
+    #[test]
+    fn test_only_idat_chunk_in_input_stream() {
+        let png = {
+            let mut png = Vec::new();
+            write_png_sig(&mut png);
+            write_chunk(&mut png, b"IDAT", &[]);
+            png
+        };
+        let decoder = Decoder::new(png.as_slice());
+        let Err(err) = decoder.read_info() else {
+            panic!("Expected an error")
+        };
+        assert!(matches!(&err, DecodingError::Format(_)));
+        assert_eq!(
+            "ChunkType { type: IDAT, \
+                         critical: true, \
+                         private: false, \
+                         reserved: false, \
+                         safecopy: false \
+             } chunk appeared before IHDR chunk",
+            format!("{err}"),
+        );
     }
 
     /// `StreamingInput` can be used by tests to simulate a streaming input

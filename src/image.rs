@@ -641,7 +641,8 @@ pub trait ImageDecoder {
     /// This is usually obtained from the Exif metadata, if present. Formats that don't support
     /// indicating orientation in their image metadata will return `Ok(Orientation::NoTransforms)`.
     fn orientation(&mut self) -> ImageResult<Orientation> {
-        Ok(self.exif_metadata()?
+        Ok(self
+            .exif_metadata()?
             .and_then(|chunk| Orientation::from_exif_chunk(&chunk))
             .unwrap_or(Orientation::NoTransforms))
     }

@@ -304,7 +304,7 @@ impl PnmHeader {
                 ..
             } => {
                 struct TupltypeWriter<'a>(&'a Option<ArbitraryTuplType>);
-                impl<'a> fmt::Display for TupltypeWriter<'a> {
+                impl fmt::Display for TupltypeWriter<'_> {
                     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                         match self.0 {
                             Some(tt) => writeln!(f, "TUPLTYPE {}", tt.name()),

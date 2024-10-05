@@ -799,7 +799,7 @@ pub struct Pixels<'a, I: ?Sized + 'a> {
     height: u32,
 }
 
-impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
+impl<I: GenericImageView> Iterator for Pixels<'_, I> {
     type Item = (u32, u32, I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {

@@ -140,7 +140,7 @@ impl<'a> RunIterator<'a> {
     }
 }
 
-impl<'a> Iterator for RunIterator<'a> {
+impl Iterator for RunIterator<'_> {
     type Item = RunOrNot;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -179,7 +179,7 @@ impl<'a> NorunCombineIterator<'a> {
 }
 
 // Combines sequential noruns produced by RunIterator
-impl<'a> Iterator for NorunCombineIterator<'a> {
+impl Iterator for NorunCombineIterator<'_> {
     type Item = RunOrNot;
     fn next(&mut self) -> Option<Self::Item> {
         loop {

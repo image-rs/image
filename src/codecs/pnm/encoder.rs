@@ -522,7 +522,7 @@ impl<'a> CheckedHeader<'a> {
 
 struct SampleWriter<'a>(&'a mut dyn Write);
 
-impl<'a> SampleWriter<'a> {
+impl SampleWriter<'_> {
     fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
     where
         V: Iterator,
@@ -633,7 +633,7 @@ impl<'a> From<&'a [u16]> for FlatSamples<'a> {
     }
 }
 
-impl<'a> TupleEncoding<'a> {
+impl TupleEncoding<'_> {
     fn write_image(&self, writer: &mut dyn Write) -> ImageResult<()> {
         match *self {
             TupleEncoding::PbmBits {

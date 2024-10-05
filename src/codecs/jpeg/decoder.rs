@@ -78,7 +78,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
         self.orientation = Some(
             exif.as_ref()
-                .and_then(|exif| Orientation::from_exif_chunk(&exif))
+                .and_then(|exif| Orientation::from_exif_chunk(exif))
                 .unwrap_or(Orientation::NoTransforms),
         );
 

@@ -3,13 +3,16 @@ use std::io::{BufRead, Read, Seek};
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
+use crate::{
+    AnimationDecoder, ColorType, Delay, Frame, Frames, Orientation, RgbImage, Rgba, RgbaImage,
+};
 
 /// WebP Image format decoder.
 ///
 /// Supports both lossless and lossy WebP images.
 pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
+    orientation: Option<Orientation>,
 }
 
 impl<R: BufRead + Seek> WebPDecoder<R> {
@@ -17,6 +20,7 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
     pub fn new(r: R) -> ImageResult<Self> {
         Ok(Self {
             inner: image_webp::WebPDecoder::new(r).map_err(ImageError::from_webp_decode)?,
+            orientation: None,
         })
     }
 
@@ -65,9 +69,26 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        self.inner
+        let exif = self
+            .inner
             .exif_metadata()
-            .map_err(ImageError::from_webp_decode)
+            .map_err(ImageError::from_webp_decode)?;
+
+        self.orientation = Some(
+            exif.as_ref()
+                .and_then(|exif| Orientation::from_exif_chunk(&exif))
+                .unwrap_or(Orientation::NoTransforms),
+        );
+
+        Ok(exif)
+    }
+
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
+        if self.orientation.is_none() {
+            let _ = self.exif_metadata()?;
+        }
+        Ok(self.orientation.unwrap())
     }
 }
 

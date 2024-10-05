@@ -187,3 +187,16 @@ impl ImageError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, io::Cursor};
+
+    #[test]
+    fn test_exif_orientation() {
+        let data = fs::read("tests/images/jpg/portrait_2.jpg").unwrap();
+        let mut decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
+        assert_eq!(decoder.orientation().unwrap(), Orientation::FlipHorizontal);
+    }
+}

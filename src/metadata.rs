@@ -73,7 +73,8 @@ impl Orientation {
                     let tag = reader.read_u16::<LittleEndian>().ok()?;
                     let format = reader.read_u16::<LittleEndian>().ok()?;
                     let count = reader.read_u32::<LittleEndian>().ok()?;
-                    let value = reader.read_u32::<LittleEndian>().ok()?;
+                    let value = reader.read_u16::<LittleEndian>().ok()?;
+                    let _padding = reader.read_u16::<LittleEndian>().ok()?;
                     if tag == 0x112 && format == 3 && count == 1 {
                         return Self::from_exif(value.min(255) as u8);
                     }
@@ -87,7 +88,8 @@ impl Orientation {
                     let tag = reader.read_u16::<BigEndian>().ok()?;
                     let format = reader.read_u16::<BigEndian>().ok()?;
                     let count = reader.read_u32::<BigEndian>().ok()?;
-                    let value = reader.read_u32::<BigEndian>().ok()?;
+                    let value = reader.read_u16::<BigEndian>().ok()?;
+                    let _padding = reader.read_u16::<BigEndian>().ok()?;
                     if tag == 0x112 && format == 3 && count == 1 {
                         return Self::from_exif(value.min(255) as u8);
                     }

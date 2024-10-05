@@ -186,15 +186,7 @@ impl<R: Read> Decoder<R> {
     /// Most image metadata will not be read until `read_info` is called, so those fields will be
     /// None or empty.
     pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {
-        let mut buf = Vec::new();
-        while self.read_decoder.info().is_none() {
-            buf.clear();
-
-            if let Decoded::ImageEnd = self.read_decoder.decode_next(&mut buf)? {
-                unreachable!()
-            }
-        }
-        Ok(self.read_decoder.info().unwrap())
+        self.read_decoder.read_header_info()
     }
 
     /// Reads all meta data until the first IDAT chunk
@@ -300,6 +292,12 @@ impl<R: Read> Decoder<R> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum ImageDataCompletionStatus {
+    ExpectingMoreData,
+    Done,
+}
+
 struct ReadDecoder<R: Read> {
     reader: BufReader<R>,
     decoder: StreamingDecoder,
@@ -325,26 +323,76 @@ impl<R: Read> ReadDecoder<R> {
         }
     }
 
+    pub fn read_header_info(&mut self) -> Result<&Info<'static>, DecodingError> {
+        while self.info().is_none() {
+            let mut buf = Vec::new();
+            if let Decoded::ImageEnd = self.decode_next(&mut buf)? {
+                unreachable!()
+            }
+            assert!(buf.is_empty());
+        }
+        Ok(self.info().unwrap())
+    }
+
+    pub fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
+        loop {
+            // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
+            // know that we will stop before reading any image data from the stream. Thus pass an
+            // empty buffer and assert that remains empty.
+            let mut buf = Vec::new();
+            let state = self.decode_next(&mut buf)?;
+            assert!(buf.is_empty());
+
+            match state {
+                Decoded::ChunkBegin(_, chunk::IDAT) | Decoded::ChunkBegin(_, chunk::fdAT) => break,
+                Decoded::ImageEnd => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::MissingImageData.into(),
+                    ))
+                }
+                // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
+                // chunks and their control chunks.
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    pub fn decode_image_data(
+        &mut self,
+        image_data: &mut Vec<u8>,
+    ) -> Result<ImageDataCompletionStatus, DecodingError> {
+        match self.decode_next(image_data)? {
+            Decoded::ImageData => Ok(ImageDataCompletionStatus::ExpectingMoreData),
+            Decoded::ImageDataFlushed => Ok(ImageDataCompletionStatus::Done),
+            // Similarily to `finish_decoding` we ignore other events that may happen
+            // within an `IDAT` / `fdAT` chunks sequence.
+            Decoded::Nothing
+            | Decoded::ChunkComplete(_, _)
+            | Decoded::ChunkBegin(_, _)
+            | Decoded::PartialChunk(_) => Ok(ImageDataCompletionStatus::ExpectingMoreData),
+            // Similarily to `finish_decoding` other events should not happen
+            // within an `IDAT` / `fdAT` chunks sequence.
+            unexpected => unreachable!("{:?}", unexpected),
+        }
+    }
+
     /// Consumes and discards the rest of an `IDAT` / `fdAT` chunk sequence.
-    fn finish_decoding(&mut self) -> Result<(), DecodingError> {
+    pub fn finish_decoding(&mut self) -> Result<(), DecodingError> {
         loop {
             let mut to_be_discarded = vec![];
-            match self.decode_next(&mut to_be_discarded)? {
-                Decoded::ImageDataFlushed => return Ok(()),
-                // Ignore other events that may happen within an `IDAT` / `fdAT` chunks sequence.
-                Decoded::Nothing
-                | Decoded::ImageData
-                | Decoded::ChunkComplete(_, _)
-                | Decoded::ChunkBegin(_, _)
-                | Decoded::PartialChunk(_) => {}
-                // Other kinds of events shouldn't happen, unless we have been (incorrectly) called
-                // when outside of a sequence of `IDAT` / `fdAT` chunks.
-                unexpected => unreachable!("{:?}", unexpected),
+            if let ImageDataCompletionStatus::Done = self.decode_image_data(&mut to_be_discarded)? {
+                return Ok(());
             }
         }
     }
 
-    fn info(&self) -> Option<&Info<'static>> {
+    pub fn read_until_end_of_input(&mut self) -> Result<(), DecodingError> {
+        while !matches!(self.decode_next(&mut vec![])?, Decoded::ImageEnd) {}
+        Ok(())
+    }
+
+    pub fn info(&self) -> Option<&Info<'static>> {
         self.decoder.info.as_ref()
     }
 }
@@ -428,27 +476,11 @@ impl<R: Read> Reader<R> {
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
     fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
-        loop {
-            // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
-            // know that we will stop before reading any image data from the stream. Thus pass an
-            // empty buffer and assert that remains empty.
-            let mut buf = Vec::new();
-            let state = self.decoder.decode_next(&mut buf)?;
-            assert!(buf.is_empty());
+        self.decoder.read_until_image_data()?;
 
-            match state {
-                Decoded::ChunkBegin(_, chunk::IDAT) | Decoded::ChunkBegin(_, chunk::fdAT) => break,
-                Decoded::ImageEnd => {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::MissingImageData.into(),
-                    ))
-                }
-                // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
-                // chunks and their control chunks.
-                _ => {}
-            }
-        }
-
+        // TODO: We can just call `self.info()`, because `read_until_image_data`
+        // guarantees that we've reached `IDAT` or `fdAT`, and `StreamingDecoder` checks that
+        // `IHDR` appears before any other chunk.
         let info = self
             .decoder
             .info()
@@ -633,7 +665,7 @@ impl<R: Read> Reader<R> {
         self.data_stream.clear();
         self.current_start = 0;
         self.prev_start = 0;
-        while !matches!(self.decoder.decode_next(&mut vec![])?, Decoded::ImageEnd) {}
+        self.decoder.read_until_end_of_input()?;
 
         self.finished = true;
         Ok(())
@@ -733,18 +765,9 @@ impl<R: Read> Reader<R> {
                 self.prev_start = 0;
             }
 
-            match self.decoder.decode_next(&mut self.data_stream)? {
-                Decoded::ImageData => (),
-                Decoded::ImageDataFlushed => self.mark_subframe_as_consumed_and_flushed(),
-                // Similarily to `finish_decoding` we ignore other events that may happen
-                // within an `IDAT` / `fdAT` chunks sequence.
-                Decoded::Nothing
-                | Decoded::ChunkComplete(_, _)
-                | Decoded::ChunkBegin(_, _)
-                | Decoded::PartialChunk(_) => {}
-                // Similarily to `finish_decoding` other events should not happen
-                // within an `IDAT` / `fdAT` chunks sequence.
-                unexpected => unreachable!("{:?}", unexpected),
+            match self.decoder.decode_image_data(&mut self.data_stream)? {
+                ImageDataCompletionStatus::ExpectingMoreData => (),
+                ImageDataCompletionStatus::Done => self.mark_subframe_as_consumed_and_flushed(),
             }
         }
 

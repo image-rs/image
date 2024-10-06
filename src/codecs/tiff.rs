@@ -18,6 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
+use crate::Orientation;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -204,6 +205,18 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             Ok(decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok())
         } else {
             Ok(None)
+        }
+    }
+
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        if let Some(decoder) = &mut self.inner {
+            Ok(decoder
+                .find_tag(tiff::tags::Tag::Orientation)
+                .map_err(ImageError::from_tiff_decode)?
+                .and_then(|v| Orientation::from_exif(v.into_u16().ok()?.min(255) as u8))
+                .unwrap_or(Orientation::NoTransforms))
+        } else {
+            Ok(Orientation::NoTransforms)
         }
     }
 

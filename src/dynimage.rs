@@ -824,9 +824,19 @@ impl DynamicImage {
 
     /// Performs a Gaussian blur on this image.
     /// `sigma` is a measure of how much to blur by.
+    /// Use [DynamicImage::fast_blur()] for a faster but less
+    /// accurate version.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
+    }
+
+    /// Performs a fast blur on this image.
+    /// `sigma` is the standard deviation of the
+    /// (approximated) Gaussian
+    #[must_use]
+    pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
     }
 
     /// Performs an unsharpen mask on this image.

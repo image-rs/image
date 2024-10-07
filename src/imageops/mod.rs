@@ -31,7 +31,10 @@ mod affine;
 // Public only because of Rust bug:
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
+mod fast_blur;
 mod sample;
+
+pub use fast_blur::fast_blur;
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
@@ -353,9 +356,12 @@ where
 #[cfg(test)]
 mod tests {
 
-    use super::{overlay, overlay_bounds_ext};
+    use super::*;
     use crate::color::Rgb;
+    use crate::GrayAlphaImage;
+    use crate::GrayImage;
     use crate::ImageBuffer;
+    use crate::RgbImage;
     use crate::RgbaImage;
 
     #[test]
@@ -478,9 +484,86 @@ mod tests {
     }
 
     #[test]
-    /// Test blur doesn't panick when passed 0.0
+    /// Test blur doesn't panic when passed 0.0
     fn test_blur_zero() {
         let image = RgbaImage::new(50, 50);
-        let _ = super::blur(&image, 0.0);
+        let _ = blur(&image, 0.0);
+    }
+
+    #[test]
+    /// Test fast blur doesn't panic when passed 0.0
+    fn test_fast_blur_zero() {
+        let image = RgbaImage::new(50, 50);
+        let _ = fast_blur(&image, 0.0);
+    }
+
+    #[test]
+    /// Test fast blur doesn't panic when passed negative numbers
+    fn test_fast_blur_negative() {
+        let image = RgbaImage::new(50, 50);
+        let _ = fast_blur(&image, -1.0);
+    }
+
+    #[test]
+    /// Test fast blur doesn't panic when sigma produces boxes larger than the image
+    fn test_fast_large_sigma() {
+        let image = RgbaImage::new(1, 1);
+        let _ = fast_blur(&image, 50.0);
+    }
+
+    #[test]
+    /// Test blur doesn't panic when passed an empty image (any direction)
+    fn test_fast_blur_empty() {
+        let image = RgbaImage::new(0, 0);
+        let _ = fast_blur(&image, 1.0);
+        let image = RgbaImage::new(20, 0);
+        let _ = fast_blur(&image, 1.0);
+        let image = RgbaImage::new(0, 20);
+        let _ = fast_blur(&image, 1.0);
+    }
+
+    #[test]
+    /// Test fast blur works with 3 channels
+    fn test_fast_blur_3_channels() {
+        let image = RgbImage::new(50, 50);
+        let _ = fast_blur(&image, 1.0);
+    }
+
+    #[test]
+    /// Test fast blur works with 2 channels
+    fn test_fast_blur_2_channels() {
+        let image = GrayAlphaImage::new(50, 50);
+        let _ = fast_blur(&image, 1.0);
+    }
+
+    #[test]
+    /// Test fast blur works with 1 channel
+    fn test_fast_blur_1_channels() {
+        let image = GrayImage::new(50, 50);
+        let _ = fast_blur(&image, 1.0);
+    }
+
+    #[test]
+    #[cfg(feature = "tiff")]
+    fn fast_blur_approximates_gaussian_blur_well() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/rgb-3c-16b.tiff"
+        );
+        let image = crate::open(path).unwrap();
+        let image_blurred_gauss = image.blur(50.0).to_rgb8();
+        let image_blurred_gauss_samples = image_blurred_gauss.as_flat_samples();
+        let image_blurred_gauss_bytes = image_blurred_gauss_samples.as_slice();
+        let image_blurred_fast = image.fast_blur(50.0).to_rgb8();
+        let image_blurred_fast_samples = image_blurred_fast.as_flat_samples();
+        let image_blurred_fast_bytes = image_blurred_fast_samples.as_slice();
+
+        let error = image_blurred_gauss_bytes
+            .iter()
+            .zip(image_blurred_fast_bytes.iter())
+            .map(|(a, b)| ((*a as f32 - *b as f32) / (*a as f32)))
+            .sum::<f32>()
+            / (image_blurred_gauss_bytes.len() as f32);
+        assert!(error < 0.05);
     }
 }

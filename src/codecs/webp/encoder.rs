@@ -92,6 +92,11 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
+
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.inner.set_icc_profile(icc_profile);
+        Ok(())
+    }
 }
 
 impl ImageError {

@@ -2,12 +2,29 @@ use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{
-        ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
+        ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
+        UnsupportedErrorKind,
     },
     image::{ImageDecoder, ImageFormat},
+    utils::packed_color::{Bitfield, Bitfields},
 };
-use byteorder_lite::ReadBytesExt;
-use std::io::{self, Read};
+use byteorder_lite::{LittleEndian, ReadBytesExt};
+use num_traits::ToPrimitive;
+use std::io::{self, Cursor, Read};
+
+static R5_G5_B5_COLOR_MASK: Bitfields = Bitfields {
+    r: Bitfield { len: 5, shift: 10 },
+    g: Bitfield { len: 5, shift: 5 },
+    b: Bitfield { len: 5, shift: 0 },
+    a: Bitfield { len: 0, shift: 0 },
+};
+
+static R5_G5_B5_A1_COLOR_MASK: Bitfields = Bitfields {
+    r: Bitfield { len: 5, shift: 10 },
+    g: Bitfield { len: 5, shift: 5 },
+    b: Bitfield { len: 5, shift: 0 },
+    a: Bitfield { len: 1, shift: 15 },
+};
 
 struct ColorMap {
     /// sizes in bytes
@@ -57,6 +74,8 @@ pub struct TgaDecoder<R> {
 
     header: Header,
     color_map: Option<ColorMap>,
+
+    packing: Option<&'static Bitfields>,
 }
 
 impl<R: Read> TgaDecoder<R> {
@@ -76,6 +95,8 @@ impl<R: Read> TgaDecoder<R> {
 
             header: Header::default(),
             color_map: None,
+
+            packing: None,
         };
         decoder.read_metadata()?;
         Ok(decoder)
@@ -103,12 +124,13 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Loads the color information for the decoder
     ///
-    /// To keep things simple, we won't handle bit depths that aren't divisible
-    /// by 8 and are larger than 32.
+    /// To keep things simple, we won't handle bit depths that are larger than 32.
     fn read_color_information(&mut self) -> ImageResult<()> {
-        if self.header.pixel_depth % 8 != 0 || self.header.pixel_depth > 32 {
+        if self.header.pixel_depth != 15
+            && (self.header.pixel_depth % 8 != 0 || self.header.pixel_depth > 32)
+        {
             // Bit depth must be divisible by 8, and must be less than or equal
-            // to 32.
+            // to 32 OR be 15-bit
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tga.into(),
@@ -137,6 +159,7 @@ impl<R: Read> TgaDecoder<R> {
 
             self.header.pixel_depth - num_alpha_bits
         };
+
         let color = self.image_type.is_color();
 
         match (num_alpha_bits, other_channel_bits, color) {
@@ -151,6 +174,16 @@ impl<R: Read> TgaDecoder<R> {
                 // alpha-only image is treated as L8
                 self.color_type = ColorType::L8;
                 self.original_color_type = Some(ExtendedColorType::A8);
+            }
+            (0, 15 | 16, true) => {
+                self.color_type = ColorType::Rgb8;
+                self.original_color_type = Some(ExtendedColorType::Rgb5);
+                self.packing = Some(&R5_G5_B5_COLOR_MASK);
+            }
+            (1, 15, true) => {
+                self.color_type = ColorType::Rgba8;
+                self.original_color_type = Some(ExtendedColorType::Rgb5a1);
+                self.packing = Some(&R5_G5_B5_A1_COLOR_MASK);
             }
             _ => {
                 return Err(ImageError::Unsupported(
@@ -350,16 +383,21 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             .unwrap_or_else(|| self.color_type().into())
     }
 
+    #[allow(clippy::identity_op)]
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         // In indexed images, we might need more bytes than pixels to read them. That's nonsensical
         // to encode but we'll not want to crash.
+        //
+        // also used for packed (<8 bit per channel) images
         let mut fallback_buf = vec![];
         // read the pixels from the data region
         let rawbuf = if self.image_type.is_encoded() {
             let pixel_data = self.read_all_encoded_data()?;
-            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {
+            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel())
+                && self.packing.is_none()
+            {
                 buf[..pixel_data.len()].copy_from_slice(&pixel_data);
                 &buf[..pixel_data.len()]
             } else {
@@ -368,7 +406,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             }
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
-            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {
+            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel())
+                && self.packing.is_none()
+            {
                 self.r.by_ref().read_exact(&mut buf[..num_raw_bytes])?;
                 &buf[..num_raw_bytes]
             } else {
@@ -384,15 +424,70 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         if self.image_type.is_color_mapped() {
             let pixel_data = self.expand_color_map(rawbuf)?;
             // not enough data to fill the buffer, or would overflow the buffer
-            if pixel_data.len() != buf.len() {
+            if self.packing.is_none() && pixel_data.len() != buf.len() {
                 return Err(ImageError::Limits(LimitError::from_kind(
                     LimitErrorKind::DimensionError,
                 )));
             }
-            buf.copy_from_slice(&pixel_data);
+
+            if self.packing.is_none() {
+                buf.copy_from_slice(&pixel_data);
+            } else {
+                fallback_buf.resize(pixel_data.len(), 0);
+                fallback_buf.copy_from_slice(&pixel_data);
+            }
         }
 
-        self.reverse_encoding_in_output(buf);
+        if let Some(bitfields) = &self.packing {
+            let num_pixels = self.width * self.height;
+            let bytes_per_unpacked_pixel = if bitfields.a.len > 0 { 4 } else { 3 };
+            let mut stream = Cursor::new(fallback_buf);
+            let bytes_per_packed_pixel = if self.header.map_type == 0 {
+                self.bytes_per_pixel
+            } else {
+                (self.header.map_entry_size as usize + 7) / 8
+            };
+
+            if num_pixels * bytes_per_unpacked_pixel != buf.len() {
+                return Err(ImageError::Limits(LimitError::from_kind(
+                    LimitErrorKind::DimensionError,
+                )));
+            }
+
+            // this check shouldn't get hit, unsupported formats should have been rejected in `read_color_information`
+            // but it seemed better to check this here instead of panicing below if there is an issue
+            if !(1..=3).contains(&bytes_per_packed_pixel) {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormatHint::Exact(ImageFormat::Tga),
+                        UnsupportedErrorKind::GenericFeature(
+                            "Unsupported packed pixel format".to_string(),
+                        ),
+                    ),
+                ));
+            }
+
+            for i in 0..num_pixels {
+                let value = match bytes_per_packed_pixel {
+                    1 => stream.read_u8().map(|i| -> u32 { i.to_u32().unwrap() }),
+                    2 => stream
+                        .read_u16::<LittleEndian>()
+                        .map(|i| -> u32 { i.to_u32().unwrap() }),
+                    3 => stream.read_u24::<LittleEndian>(),
+                    _ => unimplemented!(),
+                }
+                .map_err(|e| -> ImageError { ImageError::IoError(e) })?;
+
+                buf[i * bytes_per_unpacked_pixel + 0] = bitfields.r.read(value);
+                buf[i * bytes_per_unpacked_pixel + 1] = bitfields.g.read(value);
+                buf[i * bytes_per_unpacked_pixel + 2] = bitfields.b.read(value);
+                if bytes_per_unpacked_pixel == 4 {
+                    buf[i * bytes_per_unpacked_pixel + 3] = bitfields.a.read(value);
+                }
+            }
+        } else {
+            self.reverse_encoding_in_output(buf);
+        }
 
         self.flip_vertically(buf);
 

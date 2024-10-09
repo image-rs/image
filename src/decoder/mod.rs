@@ -328,19 +328,18 @@ impl<R: Read> ReadDecoder<R> {
     /// Consumes and discards the rest of an `IDAT` / `fdAT` chunk sequence.
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
         loop {
-            let buf = self.reader.fill_buf()?;
-            if buf.is_empty() {
-                return Err(DecodingError::IoError(ErrorKind::UnexpectedEof.into()));
-            }
-            let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
-            self.reader.consume(consumed);
-            match event {
-                Decoded::Nothing => (),
-                // ignore more data
-                Decoded::ChunkComplete(_, _) | Decoded::ChunkBegin(_, _) | Decoded::ImageData => {}
+            let mut to_be_discarded = vec![];
+            match self.decode_next(&mut to_be_discarded)? {
                 Decoded::ImageDataFlushed => return Ok(()),
-                Decoded::PartialChunk(_) => {}
-                new => unreachable!("{:?}", new),
+                // Ignore other events that may happen within an `IDAT` / `fdAT` chunks sequence.
+                Decoded::Nothing
+                | Decoded::ImageData
+                | Decoded::ChunkComplete(_, _)
+                | Decoded::ChunkBegin(_, _)
+                | Decoded::PartialChunk(_) => {}
+                // Other kinds of events shouldn't happen, unless we have been (incorrectly) called
+                // when outside of a sequence of `IDAT` / `fdAT` chunks.
+                unexpected => unreachable!("{:?}", unexpected),
             }
         }
     }

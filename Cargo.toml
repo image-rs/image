@@ -68,7 +68,7 @@ kamadak-exif = "0.5.5"
 default = ["rayon", "default-formats"]
 
 # Format features
-default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
+default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp", "xbm"]
 avif = ["dep:ravif", "dep:rgb"]
 bmp = []
 dds = []
@@ -84,6 +84,7 @@ qoi = ["dep:qoi"]
 tga = []
 tiff = ["dep:tiff"]
 webp = ["dep:image-webp"]
+xbm = []
 
 # Other features
 rayon = ["dep:rayon"] # Enables multi-threading

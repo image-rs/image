@@ -65,6 +65,9 @@ pub enum ImageFormat {
 
     /// An Image in QOI Format
     Qoi,
+
+    /// An Image in XBM Format
+    Xbm,
 }
 
 impl ImageFormat {
@@ -103,6 +106,7 @@ impl ImageFormat {
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
+                "xbm" => ImageFormat::Xbm,
                 _ => return None,
             })
         }
@@ -178,6 +182,7 @@ impl ImageFormat {
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             "image/x-qoi" => Some(ImageFormat::Qoi),
+            "image/x-xbitmap" => Some(ImageFormat::Xbm),
             _ => None,
         }
     }
@@ -225,6 +230,7 @@ impl ImageFormat {
             ImageFormat::Qoi => "image/x-qoi",
             // farbfeld's MIME type taken from https://www.wikidata.org/wiki/Q28206109
             ImageFormat::Farbfeld => "application/octet-stream",
+            ImageFormat::Xbm => "image/x-xbitmap",
         }
     }
 
@@ -249,6 +255,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::Qoi => true,
+            ImageFormat::Xbm => false,
         }
     }
 
@@ -273,6 +280,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::Qoi => true,
+            ImageFormat::Xbm => true,
         }
     }
 
@@ -304,6 +312,7 @@ impl ImageFormat {
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::Qoi => &["qoi"],
+            ImageFormat::Xbm => &["xbm"],
         }
     }
 
@@ -326,6 +335,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
+            ImageFormat::Xbm => false,
             ImageFormat::Dds => false,
         }
     }
@@ -349,6 +359,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
+            ImageFormat::Xbm => cfg!(feature = "xbm"),
             ImageFormat::Dds => false,
         }
     }
@@ -371,6 +382,7 @@ impl ImageFormat {
             ImageFormat::Qoi,
             ImageFormat::Dds,
             ImageFormat::Hdr,
+            ImageFormat::Xbm,
         ]
         .iter()
         .copied()

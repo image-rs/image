@@ -59,6 +59,7 @@ image format encoders and decoders.
 | TGA      | Yes                                       | Yes                                     |
 | TIFF     | Yes                                       | Yes                                     |
 | WebP     | Yes                                       | Yes (lossless only)                     |
+| XBM      | ---                                       | Yes                                     |
 
 - \* Requires the `avif-native` feature, uses the libdav1d C library.
 

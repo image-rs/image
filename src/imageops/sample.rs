@@ -463,6 +463,8 @@ pub fn interpolate_bilinear<P: Pixel>(
 // ```filter``` is the filter to use for sampling.
 // The return value is not necessarily Rgba, the underlying order of channels in ```image``` is
 // preserved.
+//
+// Note: if an empty image is passed in, may return an empty image with different dimensions.
 fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
@@ -470,6 +472,13 @@ where
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
+
+    // There is nothing to sample from, but a potentially very large allocation.
+    if height == 0 {
+        // Hence instead of returning data from no pixels, return no pixels.
+        return ImageBuffer::new(0, new_height);
+    }
+
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
@@ -1256,5 +1265,17 @@ mod tests {
         let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
         let result = resize(&image, 22, 22, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().any(|c| c != 0));
+    }
+
+    #[test]
+    fn issue_2340() {
+        let empty = crate::RgbaImage::from_raw(1 << 31, 0, vec![]).unwrap();
+        // Really we're checking that no overflow / outsized allocation happens here.
+        let result = resize(&empty, 1, 1, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
+        // With the previous strategy before the regression this would allocate 1TB of memory for a
+        // temporary during the sampling evaluation.
+        let result = resize(&empty, 256, 256, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
     }
 }

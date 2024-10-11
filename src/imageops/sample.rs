@@ -78,7 +78,7 @@ use crate::{ImageBuffer, Rgba32FImage};
 ///     <td>1170 ms</td>
 ///   </tr>
 /// </table>
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
 pub enum FilterType {
     /// Nearest Neighbor
     Nearest,

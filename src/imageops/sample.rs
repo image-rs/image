@@ -221,6 +221,8 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
+//
+// Note: if an empty image is passed in, panics unless the image is truly empty.
 fn horizontal_sample<P, S>(
     image: &Rgba32FImage,
     new_width: u32,
@@ -231,6 +233,13 @@ where
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
+    // This is protection against a memory usage similar to #2340. See `vertical_sample`.
+    assert!(
+        // Checks the implication: (width == 0) -> (height == 0)
+        width != 0 || height == 0,
+        "Unexpected prior allocation size. This case should have been handled by the caller"
+    );
+
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
@@ -476,6 +485,7 @@ where
     // This is protection against a regression in memory usage such as #2340. Since the strategy to
     // deal with it depends on the caller it is a precondition of this function.
     assert!(
+        // Checks the implication: (height == 0) -> (width == 0)
         height != 0 || width == 0,
         "Unexpected prior allocation size. This case should have been handled by the caller"
     );
@@ -1291,6 +1301,16 @@ mod tests {
         assert!(result.into_raw().into_iter().all(|c| c == 0));
         // With the previous strategy before the regression this would allocate 1TB of memory for a
         // temporary during the sampling evaluation.
+        let result = resize(&empty, 256, 256, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn issue_2340_refl() {
+        // Tests the swapped coordinate version of `issue_2340`.
+        let empty = crate::GrayImage::from_raw(0, 1 << 31, vec![]).unwrap();
+        let result = resize(&empty, 1, 1, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
         let result = resize(&empty, 256, 256, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().all(|c| c == 0));
     }

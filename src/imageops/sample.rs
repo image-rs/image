@@ -221,6 +221,8 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
+//
+// Note: if an empty image is passed in, panics unless the image is truly empty.
 fn horizontal_sample<P, S>(
     image: &Rgba32FImage,
     new_width: u32,
@@ -231,6 +233,13 @@ where
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
+    // This is protection against a memory usage similar to #2340. See `vertical_sample`.
+    assert!(
+        // Checks the implication: (width == 0) -> (height == 0)
+        width != 0 || height == 0,
+        "Unexpected prior allocation size. This case should have been handled by the caller"
+    );
+
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
@@ -463,6 +472,8 @@ pub fn interpolate_bilinear<P: Pixel>(
 // ```filter``` is the filter to use for sampling.
 // The return value is not necessarily Rgba, the underlying order of channels in ```image``` is
 // preserved.
+//
+// Note: if an empty image is passed in, panics unless the image is truly empty.
 fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
@@ -470,6 +481,15 @@ where
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
+
+    // This is protection against a regression in memory usage such as #2340. Since the strategy to
+    // deal with it depends on the caller it is a precondition of this function.
+    assert!(
+        // Checks the implication: (height == 0) -> (width == 0)
+        height != 0 || width == 0,
+        "Unexpected prior allocation size. This case should have been handled by the caller"
+    );
+
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
@@ -916,6 +936,16 @@ where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Subpixel: 'static,
 {
+    // Check if there is nothing to sample from.
+    let is_empty = {
+        let (width, height) = image.dimensions();
+        width == 0 || height == 0
+    };
+
+    if is_empty {
+        return ImageBuffer::new(nwidth, nheight);
+    }
+
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
         let mut tmp = ImageBuffer::new(image.width(), image.height());
@@ -970,6 +1000,11 @@ where
     };
 
     let (width, height) = image.dimensions();
+    let is_empty = width == 0 || height == 0;
+
+    if is_empty {
+        return ImageBuffer::new(width, height);
+    }
 
     // Keep width and height the same for horizontal and
     // vertical sampling.
@@ -1258,5 +1293,27 @@ mod tests {
         let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
         let result = resize(&image, 22, 22, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().any(|c| c != 0));
+    }
+
+    #[test]
+    fn issue_2340() {
+        let empty = crate::GrayImage::from_raw(1 << 31, 0, vec![]).unwrap();
+        // Really we're checking that no overflow / outsized allocation happens here.
+        let result = resize(&empty, 1, 1, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
+        // With the previous strategy before the regression this would allocate 1TB of memory for a
+        // temporary during the sampling evaluation.
+        let result = resize(&empty, 256, 256, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn issue_2340_refl() {
+        // Tests the swapped coordinate version of `issue_2340`.
+        let empty = crate::GrayImage::from_raw(0, 1 << 31, vec![]).unwrap();
+        let result = resize(&empty, 1, 1, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
+        let result = resize(&empty, 256, 256, FilterType::Lanczos3);
+        assert!(result.into_raw().into_iter().all(|c| c == 0));
     }
 }

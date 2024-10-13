@@ -67,5 +67,17 @@ name = "fuzzer_script_exr"
 path = "fuzzers/fuzzer_script_exr.rs"
 
 [[bin]]
+name = "fuzzer_script_qoi"
+path = "fuzzers/fuzzer_script_qoi.rs"
+
+[[bin]]
+name = "fuzzer_script_openexr"
+path = "fuzzers/fuzzer_script_openexr.rs"
+
+[[bin]]
+name = "fuzzer_script_farbfeld"
+path = "fuzzers/fuzzer_script_farbfeld.rs"
+
+[[bin]]
 name = "roundtrip_webp"
 path = "fuzzers/roundtrip_webp.rs"

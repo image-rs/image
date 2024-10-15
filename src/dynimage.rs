@@ -16,10 +16,11 @@ use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
+use crate::metadata::Orientation;
 use crate::traits::Pixel;
+use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
-use crate::{ImageReader, Orientation};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -940,7 +941,7 @@ impl DynamicImage {
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// use image::{Orientation, DynamicImage, ImageReader, ImageDecoder};
+    /// use image::{DynamicImage, ImageReader, ImageDecoder};
     ///
     /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
     /// let orientation = decoder.orientation()?;

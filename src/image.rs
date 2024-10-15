@@ -11,8 +11,9 @@ use crate::error::{
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::math::Rect;
+use crate::metadata::Orientation;
 use crate::traits::Pixel;
-use crate::{ImageBuffer, Orientation};
+use crate::ImageBuffer;
 
 use crate::animation::Frames;
 

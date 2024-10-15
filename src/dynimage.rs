@@ -941,7 +941,7 @@ impl DynamicImage {
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// use image::{DynamicImage, ImageReader, ImageDecoder, metadata::Orientation};
+    /// use image::{DynamicImage, ImageReader, ImageDecoder};
     ///
     /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
     /// let orientation = decoder.orientation()?;

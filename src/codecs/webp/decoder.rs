@@ -3,9 +3,8 @@ use std::io::{BufRead, Read, Seek};
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{
-    AnimationDecoder, ColorType, Delay, Frame, Frames, Orientation, RgbImage, Rgba, RgbaImage,
-};
+use crate::metadata::Orientation;
+use crate::{AnimationDecoder, ColorType, Delay, Frame, Frames, RgbImage, Rgba, RgbaImage};
 
 /// WebP Image format decoder.
 ///

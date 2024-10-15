@@ -1,3 +1,5 @@
+//! Types describing image metadata
+
 use std::io::{Cursor, Read};
 
 use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt};

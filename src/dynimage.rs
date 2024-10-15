@@ -940,25 +940,12 @@ impl DynamicImage {
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use image::{Orientation, DynamicImage, ImageReader, ImageDecoder};
-    /// use exif::{In, Tag}; // third-party crate `kamadak_exif` is needed to parse Exif chunk
+    /// use image::{Orientation, DynamicImage, ImageReader, ImageDecoder};
     ///
     /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
-    /// let raw_exif = decoder.exif_metadata();
+    /// let orientation = decoder.orientation()?;
     /// let mut image = DynamicImage::from_decoder(decoder)?;
-    ///
-    /// // Parse Exif chunk (if present) and apply the orientation
-    /// if let Ok(Some(raw_exif)) = raw_exif {
-    ///     let reader = exif::Reader::new();
-    ///     let exif = reader.read_raw(raw_exif)?;
-    ///     if let Some(orientation) = exif.get_field(Tag::Orientation, In::PRIMARY) {
-    ///        if let Some(value) = orientation.value.get_uint(0) {
-    ///            if let Some(orientation) = Orientation::from_exif(value as u8) {
-    ///                image.apply_orientation(orientation);
-    ///            }
-    ///        }
-    ///    }
-    /// }
+    /// image.apply_orientation(orientation);
     /// # Ok(())
     /// # }
     /// ```

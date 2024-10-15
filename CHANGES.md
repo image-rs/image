@@ -19,7 +19,7 @@ Features:
 Bug fixes:
  - Fixed some APNG images being decoded incorrectly
  - Fixed the iterator over animated WebP frames to return `None` instead of an error when the end of the animation is reached
- - Disabling the `rayon` feature now also disables multi-threading in `ravif` and actually removes `rayon` from the dependency tree
+ - Toggling the `rayon` feature now correctly toggles the use of `rayon` within `ravif` (AVIF encoder). Previously it would be either always on or always off, depending on the `ravif` version.
 
 ### Version 0.25.2
 

@@ -62,7 +62,6 @@ num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
 criterion = "0.5.0"
-kamadak-exif = "0.5.5"
 
 [features]
 default = ["rayon", "default-formats"]

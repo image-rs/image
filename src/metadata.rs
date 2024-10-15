@@ -5,7 +5,7 @@ use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt};
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
 ///
-/// Orientation is specified in the Exif metadata, and is often written by cameras.
+/// Orientation is specified in the file's metadata, and is often written by cameras.
 ///
 /// You can apply it to an image via [`DynamicImage::apply_orientation`](crate::DynamicImage::apply_orientation).
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]

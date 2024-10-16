@@ -6,7 +6,7 @@
 
 ## Changes
 
-### Version 0.25.3
+### Version 0.25.4
 
 Features:
  - Much faster decoding of lossless WebP due to a variety of optimizations. Our benchmarks show 2x to 2.5x improvement.
@@ -20,6 +20,12 @@ Features:
 Bug fixes:
  - Fixed some APNG images being decoded incorrectly
  - Fixed the iterator over animated WebP frames to return `None` instead of an error when the end of the animation is reached
+
+### Version 0.25.3
+
+Yanked! This version accidentally missed a commit that should have been
+included with the release. The `Orientation` struct should be in the
+appropriate module instead of the top-level. This release won't be supported.
 
 ### Version 0.25.2
 

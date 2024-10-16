@@ -9,6 +9,7 @@
 ### Version 0.25.3
 
 Features:
+ - Much faster decoding of lossless WebP due to a variety of optimizations. Our benchmarks show 2x to 2.5x improvement.
  - Added support for orientation metadata, so that e.g. smartphone camera images could be displayed correctly:
    - Added `ImageDecoder::orientation()` and implemented orientation metadata extraction for JPEG, WebP and TIFF formats
    - Added `DynamicImage::apply_orientation()` to apply the orientation to an image

@@ -1,11 +1,26 @@
 # Release Notes
 
 ## Known issues
-- Many decoders will panic on malicous input. In most cases, this is caused by
-  not enforcing memory limits, though other panics have been seen from fuzzing.
+- Many decoders will panic on malicious input.
 - The color space information of pixels is not clearly communicated.
 
 ## Changes
+
+### Version 0.25.3
+
+Features:
+ - Much faster decoding of lossless WebP due to a variety of optimizations. Our benchmarks show 2x to 2.5x improvement.
+ - Added support for orientation metadata, so that e.g. smartphone camera images could be displayed correctly:
+   - Added `ImageDecoder::orientation()` and implemented orientation metadata extraction for JPEG, WebP and TIFF formats
+   - Added `DynamicImage::apply_orientation()` to apply the orientation to an image
+ - Added support for extracting Exif metadata from images via `ImageDecoder::exif_metadata()`, and implemented it for JPEG and WebP formats
+ - Added `ImageEncoder::set_icc_profile()` and implemented it for WebP format. Pull requests with implementations for other formats are welcome.
+ - Added `DynamicImage::fast_blur()` for a linear-time approximation of Gaussian blur, which is much faster at larger blur radii
+
+Bug fixes:
+ - Fixed some APNG images being decoded incorrectly
+ - Fixed the iterator over animated WebP frames to return `None` instead of an error when the end of the animation is reached
+ - Toggling the `rayon` feature now correctly toggles the use of `rayon` within `ravif` (AVIF encoder). Previously it would be either always on or always off, depending on the `ravif` version.
 
 ### Version 0.25.2
 

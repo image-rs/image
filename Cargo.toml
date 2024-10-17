@@ -49,7 +49,7 @@ image-webp = { version = "0.2.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.6", optional = true }
 qoi = { version = "0.4", optional = true }
-ravif = { version = "0.11.10", default-features = false, optional = true }
+ravif = { version = "0.11.11", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.9.0", optional = true }

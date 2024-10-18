@@ -180,6 +180,10 @@ pub(crate) enum FormatErrorInner {
     AfterIdat {
         kind: ChunkType,
     },
+    // 4.3., Some chunks must be after PLTE.
+    BeforePlte {
+        kind: ChunkType,
+    },
     /// 4.3., some chunks must be before PLTE.
     AfterPlte {
         kind: ChunkType,
@@ -204,6 +208,16 @@ pub(crate) enum FormatErrorInner {
     ShortPalette {
         expected: usize,
         len: usize,
+    },
+    /// sBIT chunk size based on color type.
+    InvalidSbitChunkSize {
+        color_type: ColorType,
+        expected: usize,
+        len: usize,
+    },
+    InvalidSbit {
+        bit_depth: BitDepth,
+        sbit: u8,
     },
     /// A palletized image did not have a palette.
     PaletteRequired,
@@ -296,6 +310,7 @@ impl fmt::Display for FormatError {
             MissingImageData => write!(fmt, "IDAT or fdAT chunk is missing."),
             ChunkBeforeIhdr { kind } => write!(fmt, "{:?} chunk appeared before IHDR chunk", kind),
             AfterIdat { kind } => write!(fmt, "Chunk {:?} is invalid after IDAT chunk.", kind),
+            BeforePlte { kind } => write!(fmt, "Chunk {:?} is invalid before PLTE chunk.", kind),
             AfterPlte { kind } => write!(fmt, "Chunk {:?} is invalid after PLTE chunk.", kind),
             OutsidePlteIdat { kind } => write!(
                 fmt,
@@ -312,6 +327,16 @@ impl fmt::Display for FormatError {
                 fmt,
                 "Not enough palette entries, expect {} got {}.",
                 expected, len
+            ),
+            InvalidSbitChunkSize {color_type, expected, len} => write!(
+                fmt,
+                "The size of the sBIT chunk should be {} byte(s), but {} byte(s) were provided for the {:?} color type.",
+                expected, len, color_type
+            ),
+            InvalidSbit {bit_depth, sbit} => write!(
+                fmt,
+                "Invalid sBIT value {}. It must be greater than zero and less than the sample depth {:?}.",
+                sbit, bit_depth
             ),
             PaletteRequired => write!(fmt, "Missing palette of indexed image."),
             InvalidDimensions => write!(fmt, "Invalid image dimensions"),
@@ -952,6 +977,7 @@ impl StreamingDecoder {
         self.state = Some(State::new_u32(U32ValueKind::Crc(type_str)));
         let parse_result = match type_str {
             IHDR => self.parse_ihdr(),
+            chunk::sBIT => self.parse_sbit(),
             chunk::PLTE => self.parse_plte(),
             chunk::tRNS => self.parse_trns(),
             chunk::pHYs => self.parse_phys(),
@@ -1081,6 +1107,59 @@ impl StreamingDecoder {
         }
     }
 
+    fn parse_sbit(&mut self) -> Result<Decoded, DecodingError> {
+        let info = self.info.as_mut().unwrap();
+        if info.palette.is_some() {
+            return Err(DecodingError::Format(
+                FormatErrorInner::AfterPlte { kind: chunk::sBIT }.into(),
+            ));
+        }
+
+        if self.have_idat {
+            return Err(DecodingError::Format(
+                FormatErrorInner::AfterIdat { kind: chunk::sBIT }.into(),
+            ));
+        }
+
+        if info.sbit.is_some() {
+            return Err(DecodingError::Format(
+                FormatErrorInner::DuplicateChunk { kind: chunk::sBIT }.into(),
+            ));
+        }
+
+        let (color_type, bit_depth) = { (info.color_type, info.bit_depth) };
+        self.limits
+            .reserve_bytes(self.current_chunk.raw_bytes.len())?;
+        let vec = self.current_chunk.raw_bytes.clone();
+        let len = vec.len();
+
+        // expected lenth of the chunk
+        let expected = match color_type {
+            ColorType::Grayscale => 1,
+            ColorType::Rgb | ColorType::Indexed => 3,
+            ColorType::GrayscaleAlpha => 2,
+            ColorType::Rgba => 4,
+        };
+
+        // Check if the sbit chunk size is valid.
+        if expected != len {
+            return Err(DecodingError::Format(
+                FormatErrorInner::InvalidSbitChunkSize { color_type, expected, len }.into(),
+            ));
+        }
+
+        for sbit in &vec {
+            if *sbit < 1 || *sbit > bit_depth as u8 {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::InvalidSbit { bit_depth, sbit: *sbit }.into(),
+                ));
+            }
+        }
+
+        info.sbit = Some(Cow::Owned(vec));
+        Ok(Decoded::Nothing)
+    }
+
     fn parse_trns(&mut self) -> Result<Decoded, DecodingError> {
         let info = self.info.as_mut().unwrap();
         if info.trns.is_some() {
@@ -1127,7 +1206,7 @@ impl StreamingDecoder {
                 // before the data chunk.
                 if info.palette.is_none() {
                     return Err(DecodingError::Format(
-                        FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into(),
+                        FormatErrorInner::BeforePlte { kind: chunk::tRNS }.into(),
                     ));
                 } else if self.have_idat {
                     return Err(DecodingError::Format(
@@ -1585,6 +1664,7 @@ mod tests {
     use std::fs::File;
     use std::io::{ErrorKind, Read, Write};
     use std::rc::Rc;
+    use std::borrow::Cow;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {
@@ -1811,6 +1891,23 @@ mod tests {
         trial("tests/pngsuite/z00n2c08.png", None);
         trial("tests/pngsuite/z03n2c08.png", None);
         trial("tests/pngsuite/z06n2c08.png", None);
+        Ok(())
+    }
+
+    #[test]
+    fn image_source_sbit() -> Result<(), ()> {
+        fn trial(path: &str, expected: Option<Cow<[u8]>>) {
+            let decoder = crate::Decoder::new(File::open(path).unwrap());
+            let reader = decoder.read_info().unwrap();
+            let actual: Option<Cow<[u8]>> = reader.info().sbit.clone();
+            assert!(actual == expected);
+        }
+
+        trial("tests/pngsuite/sbit-g.png", Some(Cow::Owned(vec![5u8])));
+        trial("tests/pngsuite/sbit-ga.png", Some(Cow::Owned(vec![5u8, 3u8])));
+        trial("tests/pngsuite/sbit-indexed.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
+        trial("tests/pngsuite/sbit-rgb.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
+        trial("tests/pngsuite/sbit-rgba.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8, 8u8])));
         Ok(())
     }
 

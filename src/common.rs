@@ -20,6 +20,19 @@ pub enum ColorType {
     Rgba = 6,
 }
 
+pub enum SBIT {
+    /// 1 grayscale sample.
+    Grayscale(u8),
+    /// 1 red sample, 1 green sample, 1 blue sample.
+    Rgb(u8, u8, u8),
+    /// 1 sample for the palette index.
+    Indexed(u8, u8, u8),
+    /// 1 grayscale sample, then 1 alpha sample.
+    GrayscaleAlpha(u8, u8),
+    /// 1 red sample, 1 green sample, 1 blue sample, and finally, 1 alpha sample.
+    Rgba(u8, u8, u8, u8),
+}
+
 impl ColorType {
     /// Returns the number of samples used per pixel encoded in this way.
     pub fn samples(self) -> usize {
@@ -480,6 +493,8 @@ pub struct Info<'a> {
     /// How colors are stored in the image.
     pub color_type: ColorType,
     pub interlaced: bool,
+    /// The image's `sBIT` chunk, if present; contains significant bits of the sample.
+    pub sbit: Option<Cow<'a, [u8]>>,
     /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
     pub trns: Option<Cow<'a, [u8]>>,
     pub pixel_dims: Option<PixelDimensions>,
@@ -524,6 +539,7 @@ impl Default for Info<'_> {
             color_type: ColorType::Grayscale,
             interlaced: false,
             palette: None,
+            sbit: None,
             trns: None,
             gama_chunk: None,
             chrm_chunk: None,

@@ -20,19 +20,6 @@ pub enum ColorType {
     Rgba = 6,
 }
 
-pub enum SBIT {
-    /// 1 grayscale sample.
-    Grayscale(u8),
-    /// 1 red sample, 1 green sample, 1 blue sample.
-    Rgb(u8, u8, u8),
-    /// 1 sample for the palette index.
-    Indexed(u8, u8, u8),
-    /// 1 grayscale sample, then 1 alpha sample.
-    GrayscaleAlpha(u8, u8),
-    /// 1 red sample, 1 green sample, 1 blue sample, and finally, 1 alpha sample.
-    Rgba(u8, u8, u8, u8),
-}
-
 impl ColorType {
     /// Returns the number of samples used per pixel encoded in this way.
     pub fn samples(self) -> usize {

@@ -1129,7 +1129,11 @@ impl StreamingDecoder {
 
         let (color_type, bit_depth) = { (info.color_type, info.bit_depth) };
         // The sample depth for color type 3 is fixed at eight bits.
-        let sample_depth = if color_type == ColorType::Indexed {BitDepth::Eight} else {bit_depth};
+        let sample_depth = if color_type == ColorType::Indexed {
+            BitDepth::Eight
+        } else {
+            bit_depth
+        };
         self.limits
             .reserve_bytes(self.current_chunk.raw_bytes.len())?;
         let vec = self.current_chunk.raw_bytes.clone();
@@ -1146,14 +1150,23 @@ impl StreamingDecoder {
         // Check if the sbit chunk size is valid.
         if expected != len {
             return Err(DecodingError::Format(
-                FormatErrorInner::InvalidSbitChunkSize { color_type, expected, len }.into(),
+                FormatErrorInner::InvalidSbitChunkSize {
+                    color_type,
+                    expected,
+                    len,
+                }
+                .into(),
             ));
         }
 
         for sbit in &vec {
             if *sbit < 1 || *sbit > sample_depth as u8 {
                 return Err(DecodingError::Format(
-                    FormatErrorInner::InvalidSbit { sample_depth, sbit: *sbit }.into(),
+                    FormatErrorInner::InvalidSbit {
+                        sample_depth,
+                        sbit: *sbit,
+                    }
+                    .into(),
                 ));
             }
         }
@@ -1661,12 +1674,12 @@ mod tests {
     use crate::test_utils::*;
     use crate::{Decoder, DecodingError, Reader};
     use byteorder::WriteBytesExt;
+    use std::borrow::Cow;
     use std::cell::RefCell;
     use std::collections::VecDeque;
     use std::fs::File;
     use std::io::{ErrorKind, Read, Write};
     use std::rc::Rc;
-    use std::borrow::Cow;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {
@@ -1907,9 +1920,15 @@ mod tests {
 
         trial("tests/sbit/g.png", Some(Cow::Owned(vec![5u8])));
         trial("tests/sbit/ga.png", Some(Cow::Owned(vec![5u8, 3u8])));
-        trial("tests/sbit/indexed.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
+        trial(
+            "tests/sbit/indexed.png",
+            Some(Cow::Owned(vec![5u8, 6u8, 5u8])),
+        );
         trial("tests/sbit/rgb.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
-        trial("tests/sbit/rgba.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8, 8u8])));
+        trial(
+            "tests/sbit/rgba.png",
+            Some(Cow::Owned(vec![5u8, 6u8, 5u8, 8u8])),
+        );
     }
 
     /// Test handling of a PNG file that contains *two* iCCP chunks.

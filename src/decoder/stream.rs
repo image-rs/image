@@ -216,7 +216,7 @@ pub(crate) enum FormatErrorInner {
         len: usize,
     },
     InvalidSbit {
-        bit_depth: BitDepth,
+        sample_depth: BitDepth,
         sbit: u8,
     },
     /// A palletized image did not have a palette.
@@ -333,10 +333,10 @@ impl fmt::Display for FormatError {
                 "The size of the sBIT chunk should be {} byte(s), but {} byte(s) were provided for the {:?} color type.",
                 expected, len, color_type
             ),
-            InvalidSbit {bit_depth, sbit} => write!(
+            InvalidSbit {sample_depth, sbit} => write!(
                 fmt,
                 "Invalid sBIT value {}. It must be greater than zero and less than the sample depth {:?}.",
-                sbit, bit_depth
+                sbit, sample_depth
             ),
             PaletteRequired => write!(fmt, "Missing palette of indexed image."),
             InvalidDimensions => write!(fmt, "Invalid image dimensions"),
@@ -1128,6 +1128,8 @@ impl StreamingDecoder {
         }
 
         let (color_type, bit_depth) = { (info.color_type, info.bit_depth) };
+        // The sample depth for color type 3 is fixed at eight bits.
+        let sample_depth = if color_type == ColorType::Indexed {BitDepth::Eight} else {bit_depth};
         self.limits
             .reserve_bytes(self.current_chunk.raw_bytes.len())?;
         let vec = self.current_chunk.raw_bytes.clone();
@@ -1149,9 +1151,9 @@ impl StreamingDecoder {
         }
 
         for sbit in &vec {
-            if *sbit < 1 || *sbit > bit_depth as u8 {
+            if *sbit < 1 || *sbit > sample_depth as u8 {
                 return Err(DecodingError::Format(
-                    FormatErrorInner::InvalidSbit { bit_depth, sbit: *sbit }.into(),
+                    FormatErrorInner::InvalidSbit { sample_depth, sbit: *sbit }.into(),
                 ));
             }
         }
@@ -1895,7 +1897,7 @@ mod tests {
     }
 
     #[test]
-    fn image_source_sbit() -> Result<(), ()> {
+    fn image_source_sbit() {
         fn trial(path: &str, expected: Option<Cow<[u8]>>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
             let reader = decoder.read_info().unwrap();
@@ -1903,12 +1905,11 @@ mod tests {
             assert!(actual == expected);
         }
 
-        trial("tests/pngsuite/sbit-g.png", Some(Cow::Owned(vec![5u8])));
-        trial("tests/pngsuite/sbit-ga.png", Some(Cow::Owned(vec![5u8, 3u8])));
-        trial("tests/pngsuite/sbit-indexed.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
-        trial("tests/pngsuite/sbit-rgb.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
-        trial("tests/pngsuite/sbit-rgba.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8, 8u8])));
-        Ok(())
+        trial("tests/sbit/g.png", Some(Cow::Owned(vec![5u8])));
+        trial("tests/sbit/ga.png", Some(Cow::Owned(vec![5u8, 3u8])));
+        trial("tests/sbit/indexed.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
+        trial("tests/sbit/rgb.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8])));
+        trial("tests/sbit/rgba.png", Some(Cow::Owned(vec![5u8, 6u8, 5u8, 8u8])));
     }
 
     /// Test handling of a PNG file that contains *two* iCCP chunks.

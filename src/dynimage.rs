@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
@@ -10,16 +11,16 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
-use crate::ImageReader;
-use crate::{image, Luma, LumaA};
+use crate::{color, GenericImage};
+use crate::{image, GenericImageView, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
+use crate::{ImageReader, Pixel};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -132,6 +133,89 @@ impl Clone for DynamicImage {
             (this, source) => *this = source.clone(),
         }
     }
+}
+
+/// Refers to a [`DynamicImage`], proxying a concrete pixel type.
+///
+/// Construct via [`DynamicImage::as_pixel_view`] or [`DynamicImage::as_pixel_view_mut`] for a read
+/// or a read+write access to the underlying image. The variant is never modified by this view. It
+/// will instead convert between colors with every access to pixels.
+pub struct DynamicView<Pix, Inner> {
+    inner: Inner,
+    pixel: PhantomData<Pix>,
+}
+
+/// A marker for Pixel types that appear in `DynamicImage`.
+pub trait DynamicPixel
+where
+    Self: Pixel,
+    Self: sealed::Sealed,
+{
+}
+
+mod sealed {
+    use crate::color::{self, FromColor, IntoColor as _};
+    use std::any::Any;
+
+    pub(crate) fn convert_between<T: Sealed, U: super::Pixel + Sealed>(ref v: T) -> U {
+        if let Some(&v) = <dyn Any>::downcast_ref::<U>(v) {
+            v
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Luma<u8>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Luma<u8>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::LumaA<u8>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgb<u8>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgba<u8>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Luma<u16>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::LumaA<u16>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgb<u16>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgba<u16>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgb<f32>>(v) {
+            v.into_color()
+        } else if let Some(&v) = <dyn Any>::downcast_ref::<color::Rgba<f32>>(v) {
+            v.into_color()
+        } else {
+            unreachable!("Exhaustively matched all implementations of `Sealed");
+        }
+    }
+
+    // A sealed trait to mark colors, convertible from all the different variants of
+    // `DynamicImage`. The seal ensures that the trait's requirements and implementing traits can
+    // be non-exhaustive.
+    pub trait Sealed
+    where
+        Self: Sized + 'static,
+        Self: FromColor<color::Luma<u8>>,
+        Self: FromColor<color::LumaA<u8>>,
+        Self: FromColor<color::Rgb<u8>>,
+        Self: FromColor<color::Rgba<u8>>,
+        Self: FromColor<color::Luma<u16>>,
+        Self: FromColor<color::LumaA<u16>>,
+        Self: FromColor<color::Rgb<u16>>,
+        Self: FromColor<color::Rgba<u16>>,
+        Self: FromColor<color::Rgb<f32>>,
+        Self: FromColor<color::Rgba<f32>>,
+    {
+    }
+
+    impl Sealed for color::Luma<u8> {}
+    impl Sealed for color::LumaA<u8> {}
+    impl Sealed for color::Rgb<u8> {}
+    impl Sealed for color::Rgba<u8> {}
+    impl Sealed for color::Luma<u16> {}
+    impl Sealed for color::LumaA<u16> {}
+    impl Sealed for color::Rgb<u16> {}
+    impl Sealed for color::Rgba<u16> {}
+    impl Sealed for color::Rgb<f32> {}
+    impl Sealed for color::Rgba<f32> {}
 }
 
 impl DynamicImage {
@@ -1039,6 +1123,26 @@ impl DynamicImage {
     {
         dynamic_map!(*self, ref p, p.save_with_format(path, format))
     }
+
+    /// View the pixels in this buffer with a particular type.
+    ///
+    /// The view will convert each individual pixel on access.
+    pub fn as_pixel_view<P: DynamicPixel>(&self) -> DynamicView<P, &'_ Self> {
+        DynamicView {
+            inner: self,
+            pixel: PhantomData,
+        }
+    }
+
+    /// View the pixels in this buffer with a particular type.
+    ///
+    /// The view will convert each individual pixel on access.
+    pub fn as_pixel_view_mut<P: DynamicPixel>(&mut self) -> DynamicView<P, &'_ mut Self> {
+        DynamicView {
+            inner: self,
+            pixel: PhantomData,
+        }
+    }
 }
 
 impl From<GrayImage> for DynamicImage {
@@ -1112,9 +1216,61 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
         DynamicImage::ImageRgba32F(image.convert())
     }
 }
+
 impl Default for DynamicImage {
     fn default() -> Self {
         Self::ImageRgba8(Default::default())
+    }
+}
+
+impl<P: Pixel> GenericImageView for DynamicView<P, &'_ DynamicImage>
+where
+    P: DynamicPixel,
+{
+    type Pixel = P;
+
+    fn dimensions(&self) -> (u32, u32) {
+        self.inner.dimensions()
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        use color::IntoColor as _;
+        dynamic_map!(&self.inner, ref img, img.get_pixel(x, y).into_color())
+    }
+}
+
+impl<P: Pixel> GenericImageView for DynamicView<P, &'_ mut DynamicImage>
+where
+    P: DynamicPixel,
+{
+    type Pixel = P;
+
+    fn dimensions(&self) -> (u32, u32) {
+        self.inner.dimensions()
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        use color::IntoColor as _;
+        dynamic_map!(&self.inner, ref img, img.get_pixel(x, y).into_color())
+    }
+}
+
+impl<P: Pixel> GenericImage for DynamicView<P, &'_ mut DynamicImage>
+where
+    P: DynamicPixel,
+{
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+        dynamic_map!(
+            &mut self.inner,
+            ref mut img,
+            img.put_pixel(x, y, sealed::convert_between(pixel))
+        );
+    }
+
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+        let mut pix = self.get_pixel(x, y);
+        pix.blend(&pixel);
+        self.put_pixel(x, y, pix);
     }
 }
 

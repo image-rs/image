@@ -507,6 +507,8 @@ pub struct Info<'a> {
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
     pub icc_profile: Option<Cow<'a, [u8]>>,
+    /// The EXIF metadata for the image.
+    pub exif_metadata: Option<Cow<'a, [u8]>>,
     /// tEXt field
     pub uncompressed_latin1_text: Vec<TEXtChunk>,
     /// zTXt field
@@ -537,6 +539,7 @@ impl Default for Info<'_> {
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
+            exif_metadata: None,
             uncompressed_latin1_text: Vec::new(),
             compressed_latin1_text: Vec::new(),
             utf8_text: Vec::new(),
@@ -631,6 +634,7 @@ impl Info<'_> {
         data[9] = self.color_type as u8;
         data[12] = self.interlaced as u8;
         encoder::write_chunk(&mut w, chunk::IHDR, &data)?;
+
         // Encode the pHYs chunk
         if let Some(pd) = self.pixel_dims {
             let mut phys_data = [0; 9];
@@ -641,14 +645,6 @@ impl Info<'_> {
                 Unit::Unspecified => phys_data[8] = 0,
             }
             encoder::write_chunk(&mut w, chunk::pHYs, &phys_data)?;
-        }
-
-        if let Some(p) = &self.palette {
-            encoder::write_chunk(&mut w, chunk::PLTE, p)?;
-        };
-
-        if let Some(t) = &self.trns {
-            encoder::write_chunk(&mut w, chunk::tRNS, t)?;
         }
 
         // If specified, the sRGB information overrides the source gamma and chromaticities.
@@ -665,9 +661,27 @@ impl Info<'_> {
             if let Some(chrms) = self.source_chromaticities {
                 chrms.encode(&mut w)?;
             }
+            if let Some(iccp) = &self.icc_profile {
+                encoder::write_chunk(&mut w, chunk::iCCP, iccp)?;
+            }
         }
+
+        if let Some(exif) = &self.exif_metadata {
+            encoder::write_chunk(&mut w, chunk::eXIf, exif)?;
+        }
+
         if let Some(actl) = self.animation_control {
             actl.encode(&mut w)?;
+        }
+
+        // The position of the PLTE chunk is important, it must come before the tRNS chunk and after
+        // many of the other metadata chunks.
+        if let Some(p) = &self.palette {
+            encoder::write_chunk(&mut w, chunk::PLTE, p)?;
+        };
+
+        if let Some(t) = &self.trns {
+            encoder::write_chunk(&mut w, chunk::tRNS, t)?;
         }
 
         for text_chunk in &self.uncompressed_latin1_text {

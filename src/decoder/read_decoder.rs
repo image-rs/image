@@ -17,7 +17,7 @@ use crate::common::Info;
 /// * `decode_image_data` - reading from `IDAT` / `fdAT` sequence into `Vec<u8>`
 /// * `finish_decoding_image_data()` - discarding remaining data from `IDAT` / `fdAT` sequence
 /// * `read_until_end_of_input()` - reading until `IEND` chunk
-pub struct ReadDecoder<R: Read> {
+pub(crate) struct ReadDecoder<R: Read> {
     reader: BufReader<R>,
     decoder: StreamingDecoder,
 }

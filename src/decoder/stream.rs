@@ -166,8 +166,6 @@ pub(crate) enum FormatErrorInner {
     /// Not a PNG, the magic signature is missing.
     InvalidSignature,
     // Errors of chunk level ordering, missing etc.
-    /// Ihdr must occur.
-    MissingIhdr,
     /// Fctl must occur if an animated chunk occurs.
     MissingFctl,
     /// Image data that was indicated in IHDR or acTL is missing.
@@ -291,7 +289,6 @@ impl fmt::Display for FormatError {
                 "CRC error: expected 0x{:x} have 0x{:x} while decoding {:?} chunk.",
                 crc_val, crc_sum, chunk
             ),
-            MissingIhdr => write!(fmt, "IHDR chunk missing"),
             MissingFctl => write!(fmt, "fcTL chunk missing before fdAT chunk."),
             MissingImageData => write!(fmt, "IDAT or fdAT chunk is missing."),
             ChunkBeforeIhdr { kind } => write!(fmt, "{:?} chunk appeared before IHDR chunk", kind),
@@ -875,10 +872,11 @@ impl StreamingDecoder {
                 };
 
                 if val == sum || CHECKSUM_DISABLED {
-                    self.state = Some(State::new_u32(U32ValueKind::Length));
                     if type_str == IEND {
+                        debug_assert!(self.state.is_none());
                         Ok(Decoded::ImageEnd)
                     } else {
+                        self.state = Some(State::new_u32(U32ValueKind::Length));
                         Ok(Decoded::ChunkComplete(val, type_str))
                     }
                 } else if self.decode_options.skip_ancillary_crc_failures
@@ -1842,6 +1840,23 @@ mod tests {
         assert!(decoder.read_info().is_ok());
     }
 
+    /// Tests what happens then [`Reader.finish`] is called twice.
+    #[test]
+    fn test_finishing_twice() {
+        let mut png = Vec::new();
+        write_noncompressed_png(&mut png, 16, 1024);
+        let decoder = Decoder::new(png.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+
+        // First call to `finish` - expecting success.
+        reader.finish().unwrap();
+
+        // Second call to `finish` - expecting an error.
+        let err = reader.finish().unwrap_err();
+        assert!(matches!(&err, DecodingError::Parameter(_)));
+        assert_eq!("End of image has been reached", format!("{err}"));
+    }
+
     /// Writes an acTL chunk.
     /// See https://wiki.mozilla.org/APNG_Specification#.60acTL.60:_The_Animation_Control_Chunk
     fn write_actl(w: &mut impl Write, animation: &crate::AnimationControl) {
@@ -2055,6 +2070,30 @@ mod tests {
         // the current behavior.
         reader.next_frame(&mut buf).unwrap();
         assert_eq!(3093270825, crc32fast::hash(&buf));
+    }
+
+    #[test]
+    fn test_only_idat_chunk_in_input_stream() {
+        let png = {
+            let mut png = Vec::new();
+            write_png_sig(&mut png);
+            write_chunk(&mut png, b"IDAT", &[]);
+            png
+        };
+        let decoder = Decoder::new(png.as_slice());
+        let Err(err) = decoder.read_info() else {
+            panic!("Expected an error")
+        };
+        assert!(matches!(&err, DecodingError::Format(_)));
+        assert_eq!(
+            "ChunkType { type: IDAT, \
+                         critical: true, \
+                         private: false, \
+                         reserved: false, \
+                         safecopy: false \
+             } chunk appeared before IHDR chunk",
+            format!("{err}"),
+        );
     }
 
     /// `StreamingInput` can be used by tests to simulate a streaming input

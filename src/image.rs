@@ -943,29 +943,6 @@ pub trait GenericImageView {
 
 /// A trait for manipulating images.
 pub trait GenericImage: GenericImageView {
-    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// Panics for dynamic images (this method is deprecated and will be removed).
-    ///
-    /// ## Known issues
-    ///
-    /// This requires the buffer to contain a unique set of continuous channels in the exact order
-    /// and byte representation that the pixel type requires. This is somewhat restrictive.
-    ///
-    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
-    /// while still doing only one array lookup:
-    ///
-    /// ```ignore
-    /// let px = image.pixel_entry_at(x,y);
-    /// px.set_from_rgba(rgba)
-    /// ```
-    #[deprecated(since = "0.24.0", note = "Use `get_pixel` and `put_pixel` instead.")]
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
     /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
@@ -1290,10 +1267,6 @@ where
     I: DerefMut,
     I::Target: GenericImage + Sized,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
-        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .put_pixel(x + self.xoffset, y + self.yoffset, pixel);

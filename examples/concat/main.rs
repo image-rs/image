@@ -8,9 +8,15 @@ use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
 /// cargo run --release --example concat
 fn main() {
     h_concat(&[
-        image::open("examples/concat/200x300.png").unwrap(),
-        image::open("examples/concat/300x300.png").unwrap(),
-        image::open("examples/concat/400x300.png").unwrap(),
+        image::open("examples/concat/200x300.png")
+            .unwrap()
+            .to_rgba8(),
+        image::open("examples/concat/300x300.png")
+            .unwrap()
+            .to_rgba8(),
+        image::open("examples/concat/400x300.png")
+            .unwrap()
+            .to_rgba8(),
     ])
     .save("examples/concat/concatenated_900x300.png")
     .unwrap();

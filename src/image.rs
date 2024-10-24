@@ -90,7 +90,7 @@ impl ImageFormat {
 
             Some(match ext.as_str() {
                 "avif" => ImageFormat::Avif,
-                "jpg" | "jpeg" => ImageFormat::Jpeg,
+                "jpg" | "jpeg" | "jfif" => ImageFormat::Jpeg,
                 "png" | "apng" => ImageFormat::Png,
                 "gif" => ImageFormat::Gif,
                 "webp" => ImageFormat::WebP,

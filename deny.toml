@@ -24,6 +24,10 @@ allow = [
     "Unicode-DFS-2016",
 ]
 
+[[licenses.exceptions]]
+allow = ["WTFPL"]
+name = "pcx"
+version = "*"
 
 [advisories]
 yanked = "deny"

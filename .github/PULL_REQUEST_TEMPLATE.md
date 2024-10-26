@@ -1,8 +1,8 @@
 <!--
-If you are a new contributor, consent to licensing by including this text:
+We welcome performance optimizations, bug fixes, and documentation improvements.
 
-I license past and future contributions under the dual MIT/Apache-2.0 license,
-allowing licensees to choose either at their option.
+Feature additions are also welcome, but we encourage you to open an issue first
+to discuss whether it is something we want to add.
 
 Thank you for contributing, you can delete this comment.
 -->

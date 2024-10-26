@@ -69,7 +69,7 @@ criterion = "0.5.0"
 default = ["rayon", "default-formats"]
 
 # Format features
-default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "pcx", "png", "pnm", "qoi", "tga", "tiff", "webp"]
+default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
 avif = ["dep:ravif", "dep:rgb"]
 bmp = []
 dds = []

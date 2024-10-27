@@ -308,19 +308,16 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // correct storage requirement if the result does not fit in `usize`.
         // on the other hand, `ImageBuffer::from_raw` detects overflow and
         // reports by returning `None`.
-        let mut frame_buffer = match ImageBuffer::from_raw(frame.width, frame.height, vec) {
-            Some(frame_buffer) => frame_buffer,
-            None => {
-                return Some(Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Gif.into(),
-                        UnsupportedErrorKind::GenericFeature(format!(
-                            "Image dimensions ({}, {}) are too large",
-                            frame.width, frame.height
-                        )),
-                    ),
-                )))
-            }
+        let Some(mut frame_buffer) = ImageBuffer::from_raw(frame.width, frame.height, vec) else {
+            return Some(Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Gif.into(),
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Image dimensions ({}, {}) are too large",
+                        frame.width, frame.height
+                    )),
+                ),
+            )));
         };
 
         // blend the current frame with the non-disposed frame, then update

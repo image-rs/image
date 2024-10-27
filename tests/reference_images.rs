@@ -267,9 +267,8 @@ fn check_references() {
             }
         }
 
-        let test_img = match test_img.as_ref() {
-            Some(img) => img,
-            None => return,
+        let Some(test_img) = test_img.as_ref() else {
+            return;
         };
 
         let test_crc_actual = {

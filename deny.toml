@@ -22,9 +22,12 @@ allow = [
     "MIT-0",
     "MPL-2.0",
     "Unicode-DFS-2016",
-    "WTFPL",
 ]
 
+[[licenses.exceptions]]
+allow = ["WTFPL"]
+name = "pcx"
+version = "*"
 
 [advisories]
 yanked = "deny"

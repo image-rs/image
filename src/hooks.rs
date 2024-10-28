@@ -17,12 +17,12 @@ pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<ImageFormat, DecodingHoo
 
 /// A wrapper around a type-erased trait object that implements `Read` and `Seek`.
 pub struct BoxReadSeek<'a>(pub(crate) Box<dyn ReadSeek + 'a>);
-impl<'a> Read for BoxReadSeek<'a> {
+impl Read for BoxReadSeek<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.0.read(buf)
     }
 }
-impl<'a> Seek for BoxReadSeek<'a> {
+impl Seek for BoxReadSeek<'_> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         self.0.seek(pos)
     }

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
-use crate::hooks::{BoxReadSeek, DECODING_HOOKS};
+use crate::hooks::{BoxReadSeek, GenericReader, DECODING_HOOKS};
 use crate::image::ImageFormat;
 use crate::{ImageDecoder, ImageError, ImageResult};
 
@@ -184,7 +184,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
                 let hooks = DECODING_HOOKS.read().unwrap();
                 if let Some(hooks) = hooks.as_ref() {
                     if let Some(hook) = hooks.get(&format) {
-                        return hook(BufReader::new(BoxReadSeek(Box::new(reader))));
+                        return hook(GenericReader(BufReader::new(Box::new(reader))));
                     }
                 }
 

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
-use crate::hooks::{BoxReadSeek, GenericReader, DECODING_HOOKS};
+use crate::hooks::{GenericReader, DECODING_HOOKS};
 use crate::image::ImageFormat;
 use crate::{ImageDecoder, ImageError, ImageResult};
 

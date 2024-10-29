@@ -66,11 +66,27 @@ impl Seek for GenericReader<'_> {
 pub type DecodingHook =
     Box<dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync>;
 
-/// Register a new decoding hook or replace an existing one.
-pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) {
+/// Register a new decoding hook or returns false if one already exists for the given format.
+pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
     let mut hooks = DECODING_HOOKS.write().unwrap();
     if hooks.is_none() {
         *hooks = Some(HashMap::new());
     }
-    hooks.as_mut().unwrap().insert(format, hook);
+    match hooks.as_mut().unwrap().entry(format) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(hook);
+            true
+        }
+        std::collections::hash_map::Entry::Occupied(_) => false,
+    }
+}
+
+/// Returns whether a decoding hook has been registered for the given format.
+pub fn decoding_hook_registered(format: ImageFormat) -> bool {
+    DECODING_HOOKS
+        .read()
+        .unwrap()
+        .as_ref()
+        .map(|hooks| hooks.contains_key(&format))
+        .unwrap_or(false)
 }

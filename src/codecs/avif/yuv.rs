@@ -213,12 +213,7 @@ impl<'a, T> YuvGrayImage<'a, T> {
 ///
 /// # Arguments
 ///
-/// * `y_plane`: Luma plane
-/// * `y_stride`: Luma stride
-/// * `u_plane`: U chroma plane
-/// * `u_stride`: U chroma stride, even odd images is supported this always must match `u_stride * height`
-/// * `v_plane`: V chroma plane
-/// * `v_stride`: V chroma stride, even odd images is supported this always must match `v_stride * height`
+/// * `image`: see [YuvGrayImage]
 /// * `rgba`: RGBA image layout
 /// * `width`: Image width
 /// * `height`: Image height

@@ -76,6 +76,7 @@ impl<R: Read> AvifDecoder<R> {
     }
 }
 
+/// Reshaping incorrectly aligned or sized FFI data into Rust constraints
 fn reshape_plane(source: &[u8], stride: usize, width: usize, height: usize) -> Vec<u16> {
     let mut target_plane = vec![0u16; width * height];
     for (shaped_row, src_row) in target_plane
@@ -87,6 +88,80 @@ fn reshape_plane(source: &[u8], stride: usize, width: usize, height: usize) -> V
         }
     }
     target_plane
+}
+
+/// Getting one of prebuilt matrix of fails
+fn get_matrix(
+    david_matrix: dav1d::pixel::MatrixCoefficients,
+) -> Result<YuvStandardMatrix, ImageError> {
+    match david_matrix {
+        // Identity just a stub here, we'll handle it in different way
+        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvStandardMatrix::Bt709),
+        dav1d::pixel::MatrixCoefficients::BT709 => Ok(YuvStandardMatrix::Bt709),
+        // This is arguable, some applications prefer to go with Bt.709 as default,
+        // and some applications prefer Bt.601 as default.
+        // For ex. `Chrome` always prefer Bt.709 even for SD content
+        // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
+        dav1d::pixel::MatrixCoefficients::Unspecified => Ok(YuvStandardMatrix::Bt709),
+        dav1d::pixel::MatrixCoefficients::Reserved => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Avif.into(),
+                UnsupportedErrorKind::GenericFeature(
+                    "Using 'Reserved' color matrix is not supported".to_string(),
+                ),
+            ),
+        )),
+        dav1d::pixel::MatrixCoefficients::BT470M => Ok(YuvStandardMatrix::Bt470_6),
+        dav1d::pixel::MatrixCoefficients::BT470BG => Ok(YuvStandardMatrix::Bt601),
+        dav1d::pixel::MatrixCoefficients::ST170M => Ok(YuvStandardMatrix::Smpte240),
+        dav1d::pixel::MatrixCoefficients::ST240M => Ok(YuvStandardMatrix::Smpte240),
+        // This is an experimental matrix in libavif yet.
+        dav1d::pixel::MatrixCoefficients::YCgCo => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Avif.into(),
+                UnsupportedErrorKind::GenericFeature("YCgCo matrix is not supported".to_string()),
+            ),
+        )),
+        dav1d::pixel::MatrixCoefficients::BT2020NonConstantLuminance => {
+            Ok(YuvStandardMatrix::Bt2020)
+        }
+        dav1d::pixel::MatrixCoefficients::BT2020ConstantLuminance => {
+            // This matrix significantly differs from others because linearize values is required
+            // to compute Y instead of Y'.
+            // Actually it is almost everywhere is not implemented.
+            Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Avif.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "BT2020ConstantLuminance matrix is not supported".to_string(),
+                    ),
+                ),
+            ))
+        }
+        dav1d::pixel::MatrixCoefficients::ST2085 => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Avif.into(),
+                UnsupportedErrorKind::GenericFeature("ST2085 matrix is not supported".to_string()),
+            ),
+        )),
+        dav1d::pixel::MatrixCoefficients::ChromaticityDerivedConstantLuminance
+        | dav1d::pixel::MatrixCoefficients::ChromaticityDerivedNonConstantLuminance => Err(
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Avif.into(),
+                UnsupportedErrorKind::GenericFeature(
+                    "Chromaticity Derived Luminance matrix is not supported".to_string(),
+                ),
+            )),
+        ),
+        dav1d::pixel::MatrixCoefficients::ICtCp => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Avif.into(),
+                UnsupportedErrorKind::GenericFeature(
+                    "ICtCp Derived Luminance matrix is not supported".to_string(),
+                ),
+            ),
+        )),
+    }
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
@@ -119,87 +194,9 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         let is_identity =
             self.picture.matrix_coefficients() == dav1d::pixel::MatrixCoefficients::Identity;
 
-        let color_matrix = match self.picture.matrix_coefficients() {
-            // Identity just a stub here, we'll handle it in different way
-            dav1d::pixel::MatrixCoefficients::Identity => YuvStandardMatrix::Bt709,
-            dav1d::pixel::MatrixCoefficients::BT709 => YuvStandardMatrix::Bt709,
-            // This is arguable, some applications prefer to go with Bt.709 as default some applications as Bt.601
-            // For ex. `Chrome` always prefer Bt.709 even for SD content
-            // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
-            dav1d::pixel::MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt709,
-            dav1d::pixel::MatrixCoefficients::Reserved => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "Using 'Reserved' color matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-            dav1d::pixel::MatrixCoefficients::BT470M => YuvStandardMatrix::Bt470_6,
-            dav1d::pixel::MatrixCoefficients::BT470BG => YuvStandardMatrix::Bt601,
-            dav1d::pixel::MatrixCoefficients::ST170M => YuvStandardMatrix::Smpte240,
-            dav1d::pixel::MatrixCoefficients::ST240M => YuvStandardMatrix::Smpte240,
-            dav1d::pixel::MatrixCoefficients::YCgCo => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "YCgCo matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-            dav1d::pixel::MatrixCoefficients::BT2020NonConstantLuminance => {
-                YuvStandardMatrix::Bt2020
-            }
-            dav1d::pixel::MatrixCoefficients::BT2020ConstantLuminance => {
-                // This matrix significantly differs from others because linearize values is required
-                // to compute Y instead of Y'.
-                // Actually it is almost everywhere is not implemented.
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "BT2020ConstantLuminance matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-            dav1d::pixel::MatrixCoefficients::ST2085 => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "ST2085 matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-            dav1d::pixel::MatrixCoefficients::ChromaticityDerivedConstantLuminance
-            | dav1d::pixel::MatrixCoefficients::ChromaticityDerivedNonConstantLuminance => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "Chromaticity Derived Luminance matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-            dav1d::pixel::MatrixCoefficients::ICtCp => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "ICtCp Derived Luminance matrix is not supported".to_string(),
-                        ),
-                    ),
-                ));
-            }
-        };
+        let color_matrix = get_matrix(self.picture.matrix_coefficients())?;
 
+        // Identity matrix should be possible only on 444
         if is_identity && self.picture.pixel_layout() != PixelLayout::I444 {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -216,6 +213,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 let ref_y = self.picture.plane(PlanarImageComponent::Y);
                 let ref_u = self.picture.plane(PlanarImageComponent::U);
                 let ref_v = self.picture.plane(PlanarImageComponent::V);
+
                 let image = YuvPlanarImage::new(
                     ref_y.as_ref(),
                     self.picture.stride(PlanarImageComponent::Y) as usize,
@@ -321,7 +319,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             // dav1d may return not aligned and not correctly constrained data,
             // or at least I can't find guarantees on that
             // so if it is happened, instead casting we'll need to reshape it into a target slice
-            // required criteria: bytemuck allows this data align, and stride must be dividable by 2
+            // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
 
             let mut y_plane_stride = self.picture.stride(PlanarImageComponent::Y) >> 1;
 

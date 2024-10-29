@@ -1,6 +1,7 @@
 use num_traits::AsPrimitive;
 
 #[derive(Debug, Copy, Clone)]
+/// Representation of inversion matrix
 struct CbCrInverseTransform<T> {
     pub y_coef: T,
     pub cr_coef: T,
@@ -215,8 +216,6 @@ impl<'a, T> YuvGrayImage<'a, T> {
 ///
 /// * `image`: see [YuvGrayImage]
 /// * `rgba`: RGBA image layout
-/// * `width`: Image width
-/// * `height`: Image height
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///

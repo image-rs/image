@@ -68,6 +68,10 @@ pub type DecodingHook =
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
 pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
+    if format.reading_enabled() {
+        return false;
+    }
+
     let mut hooks = DECODING_HOOKS.write().unwrap();
     if hooks.is_none() {
         *hooks = Some(HashMap::new());

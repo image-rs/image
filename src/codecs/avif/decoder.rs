@@ -188,6 +188,16 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
 
         let (width, height) = self.dimensions();
 
+        // This is suspicious if this happens, better fail early
+        if width == 0 || height == 0 {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Avif.into(),
+                    UnsupportedErrorKind::GenericFeature("Invalid image dimensions".to_string()),
+                ),
+            ));
+        }
+
         let yuv_range = match self.picture.color_range() {
             dav1d::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
             dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,

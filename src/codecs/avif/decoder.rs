@@ -129,6 +129,8 @@ fn get_matrix(
             // This matrix significantly differs from others because linearize values is required
             // to compute Y instead of Y'.
             // Actually it is almost everywhere is not implemented.
+            // Libavif + libheif missing this also so actually AVIF images
+            // with CL BT.2020 might be made only by mistake
             Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Avif.into(),

@@ -115,8 +115,19 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             dav1d::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
             dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,
         };
-        let color_matrix = match self.picture.color_primaries() {
-            dav1d::pixel::ColorPrimaries::Reserved0 | dav1d::pixel::ColorPrimaries::Reserved => {
+
+        let is_identity =
+            self.picture.matrix_coefficients() == dav1d::pixel::MatrixCoefficients::Identity;
+
+        let color_matrix = match self.picture.matrix_coefficients() {
+            // Identity just a stub here, we'll handle it in different way
+            dav1d::pixel::MatrixCoefficients::Identity => YuvStandardMatrix::Bt709,
+            dav1d::pixel::MatrixCoefficients::BT709 => YuvStandardMatrix::Bt709,
+            // This is arguable, some applications prefer to go with Bt.709 as default some applications as Bt.601
+            // For ex. `Chrome` always prefer Bt.709 even for SD content
+            // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
+            dav1d::pixel::MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt709,
+            dav1d::pixel::MatrixCoefficients::Reserved => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Avif.into(),
@@ -126,39 +137,82 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     ),
                 ));
             }
-            dav1d::pixel::ColorPrimaries::BT709 => YuvStandardMatrix::Bt709,
-            // This is arguable, some applications prefer to go with Bt.709 as default some applications as Bt.601
-            // For ex. chrome always prefer Bt.709 even for SD content
-            // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
-            dav1d::pixel::ColorPrimaries::Unspecified => YuvStandardMatrix::Bt709,
-            dav1d::pixel::ColorPrimaries::BT470M => YuvStandardMatrix::Bt470_6,
-            dav1d::pixel::ColorPrimaries::BT470BG => YuvStandardMatrix::Bt601,
-            dav1d::pixel::ColorPrimaries::ST170M => YuvStandardMatrix::Smpte240,
-            dav1d::pixel::ColorPrimaries::ST240M => YuvStandardMatrix::Smpte240,
-            dav1d::pixel::ColorPrimaries::Film => YuvStandardMatrix::Bt2020,
-            dav1d::pixel::ColorPrimaries::BT2020 => YuvStandardMatrix::Bt2020,
-            dav1d::pixel::ColorPrimaries::ST428 => YuvStandardMatrix::Bt709,
-            dav1d::pixel::ColorPrimaries::P3DCI => YuvStandardMatrix::Bt709,
-            dav1d::pixel::ColorPrimaries::P3Display => YuvStandardMatrix::Bt709,
-            dav1d::pixel::ColorPrimaries::Tech3213 => {
+            dav1d::pixel::MatrixCoefficients::BT470M => YuvStandardMatrix::Bt470_6,
+            dav1d::pixel::MatrixCoefficients::BT470BG => YuvStandardMatrix::Bt601,
+            dav1d::pixel::MatrixCoefficients::ST170M => YuvStandardMatrix::Smpte240,
+            dav1d::pixel::MatrixCoefficients::ST240M => YuvStandardMatrix::Smpte240,
+            dav1d::pixel::MatrixCoefficients::YCgCo => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Avif.into(),
-                        UnsupportedErrorKind::GenericFeature("Unknown color matrix".to_string()),
+                        UnsupportedErrorKind::GenericFeature(
+                            "YCgCo matrix is not supported".to_string(),
+                        ),
+                    ),
+                ));
+            }
+            dav1d::pixel::MatrixCoefficients::BT2020NonConstantLuminance => {
+                YuvStandardMatrix::Bt2020
+            }
+            dav1d::pixel::MatrixCoefficients::BT2020ConstantLuminance => {
+                // This matrix significantly differs from others because linearize values is required
+                // to compute Y instead of Y'.
+                // Actually it is almost everywhere is not implemented.
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(
+                            "BT2020ConstantLuminance matrix is not supported".to_string(),
+                        ),
+                    ),
+                ));
+            }
+            dav1d::pixel::MatrixCoefficients::ST2085 => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(
+                            "ST2085 matrix is not supported".to_string(),
+                        ),
+                    ),
+                ));
+            }
+            dav1d::pixel::MatrixCoefficients::ChromaticityDerivedConstantLuminance
+            | dav1d::pixel::MatrixCoefficients::ChromaticityDerivedNonConstantLuminance => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(
+                            "Chromaticity Derived Luminance matrix is not supported".to_string(),
+                        ),
+                    ),
+                ));
+            }
+            dav1d::pixel::MatrixCoefficients::ICtCp => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Avif.into(),
+                        UnsupportedErrorKind::GenericFeature(
+                            "ICtCp Derived Luminance matrix is not supported".to_string(),
+                        ),
                     ),
                 ));
             }
         };
 
+        if is_identity && self.picture.pixel_layout() != PixelLayout::I444 {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Avif.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Impossible YUV layout for Identity matrix".to_string(),
+                    ),
+                ),
+            ));
+        }
+
         if self.picture.bit_depth() == 8 {
             if self.picture.pixel_layout() != PixelLayout::I400 {
-                let worker = match self.picture.pixel_layout() {
-                    PixelLayout::I400 => unreachable!(),
-                    PixelLayout::I420 => yuv420_to_rgba,
-                    PixelLayout::I422 => yuv422_to_rgba,
-                    PixelLayout::I444 => yuv444_to_rgba,
-                };
-
                 let ref_y = self.picture.plane(PlanarImageComponent::Y);
                 let ref_u = self.picture.plane(PlanarImageComponent::U);
                 let ref_v = self.picture.plane(PlanarImageComponent::V);
@@ -173,15 +227,35 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     height as usize,
                 );
 
-                let res = worker(image, buf, 8, yuv_range, color_matrix);
+                if !is_identity {
+                    let worker = match self.picture.pixel_layout() {
+                        PixelLayout::I400 => unreachable!(),
+                        PixelLayout::I420 => yuv420_to_rgba,
+                        PixelLayout::I422 => yuv422_to_rgba,
+                        PixelLayout::I444 => yuv444_to_rgba,
+                    };
 
-                if let Err(err) = res {
-                    return Err(ImageError::Unsupported(
-                        UnsupportedError::from_format_and_kind(
-                            ImageFormat::Avif.into(),
-                            UnsupportedErrorKind::GenericFeature(err),
-                        ),
-                    ));
+                    let res = worker(image, buf, 8, yuv_range, color_matrix);
+
+                    if let Err(err) = res {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Avif.into(),
+                                UnsupportedErrorKind::GenericFeature(err),
+                            ),
+                        ));
+                    }
+                } else {
+                    let res = gbr_to_rgba(image, buf, 8);
+
+                    if let Err(err) = res {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Avif.into(),
+                                UnsupportedErrorKind::GenericFeature(err),
+                            ),
+                        ));
+                    }
                 }
             } else {
                 let plane = self.picture.plane(PlanarImageComponent::Y);
@@ -354,13 +428,6 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                         _bind_v.as_slice()
                     };
 
-                let worker = match self.picture.pixel_layout() {
-                    PixelLayout::I400 => unreachable!(),
-                    PixelLayout::I420 => yuv420_to_rgba,
-                    PixelLayout::I422 => yuv422_to_rgba,
-                    PixelLayout::I444 => yuv444_to_rgba,
-                };
-
                 let image = YuvPlanarImage::new(
                     y_plane,
                     y_plane_stride as usize,
@@ -372,21 +439,41 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     height as usize,
                 );
 
-                let res = worker(
-                    image,
-                    rgba16_buf,
-                    self.picture.bit_depth() as u32,
-                    yuv_range,
-                    color_matrix,
-                );
+                if !is_identity {
+                    let worker = match self.picture.pixel_layout() {
+                        PixelLayout::I400 => unreachable!(),
+                        PixelLayout::I420 => yuv420_to_rgba,
+                        PixelLayout::I422 => yuv422_to_rgba,
+                        PixelLayout::I444 => yuv444_to_rgba,
+                    };
 
-                if let Err(err) = res {
-                    return Err(ImageError::Unsupported(
-                        UnsupportedError::from_format_and_kind(
-                            ImageFormat::Avif.into(),
-                            UnsupportedErrorKind::GenericFeature(err),
-                        ),
-                    ));
+                    let res = worker(
+                        image,
+                        rgba16_buf,
+                        self.picture.bit_depth() as u32,
+                        yuv_range,
+                        color_matrix,
+                    );
+
+                    if let Err(err) = res {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Avif.into(),
+                                UnsupportedErrorKind::GenericFeature(err),
+                            ),
+                        ));
+                    }
+                } else {
+                    let res = gbr_to_rgba(image, rgba16_buf, self.picture.bit_depth() as u32);
+
+                    if let Err(err) = res {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Avif.into(),
+                                UnsupportedErrorKind::GenericFeature(err),
+                            ),
+                        ));
+                    }
                 }
             } else {
                 let gray_image = YuvGrayImage::new(
@@ -425,10 +512,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                         ),
                     ));
                 }
-                let ref_a = self.picture.plane(PlanarImageComponent::Y);
+                let ref_a = picture.plane(PlanarImageComponent::Y);
                 let mut _bind_a = vec![];
 
-                let mut a_plane_stride = self.picture.stride(PlanarImageComponent::Y) >> 1;
+                let mut a_plane_stride = picture.stride(PlanarImageComponent::Y) >> 1;
 
                 let mut shape_a_plane = || {
                     a_plane_stride = width;
@@ -456,7 +543,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 let width = picture.width();
                 for (buf, slice) in Iterator::zip(
                     rgba16_buf.chunks_exact_mut(width as usize * 4),
-                    a_plane.as_ref().chunks_exact(a_plane_stride as usize),
+                    a_plane.chunks_exact(a_plane_stride as usize),
                 ) {
                     for (rgba, a_src) in buf.chunks_exact_mut(4).zip(slice) {
                         rgba[3] = *a_src;

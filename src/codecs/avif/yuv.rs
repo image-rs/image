@@ -209,7 +209,7 @@ impl<'a, T> YuvGrayImage<'a, T> {
 
 /// Converts Yuv 400 planar format to Rgba
 ///
-/// This support not tightly packed data and crop image using stride in place.
+/// Stride here is not supports u16 as it can be in passed from FFI.
 ///
 /// # Arguments
 ///
@@ -235,6 +235,7 @@ where
     let y_stride = image.y_stride;
     let height = image.height;
     let width = image.width;
+
     if y_plane.len() != y_stride * height {
         return Err(format!(
             "Luma plane expected {} bytes, got {}",
@@ -242,8 +243,17 @@ where
             y_plane.len()
         ));
     }
+
+    if !(8..=16).contains(&bit_depth) {
+        return Err(format!(
+            "Unexpected bit depth value {}, only 8...16 is supported",
+            bit_depth
+        ));
+    }
     const CHANNELS: usize = 4;
     let rgba_stride = width * CHANNELS;
+
+    let max_value = (1 << bit_depth) - 1;
 
     // If luma plane is in full range it can be just redistributed across the image
     if range == YuvIntensityRange::Pc {
@@ -258,7 +268,7 @@ where
                 rgb_dst[0] = r;
                 rgb_dst[1] = r;
                 rgb_dst[2] = r;
-                rgb_dst[3] = r;
+                rgb_dst[3] = max_value.as_();
             }
         }
         return Ok(());
@@ -288,8 +298,6 @@ where
         ));
     }
 
-    let max_value = (1 << bit_depth) - 1;
-
     let y_iter = y_plane.chunks_exact(y_stride);
     let rgb_iter = rgba.chunks_exact_mut(rgba_stride);
 
@@ -312,7 +320,6 @@ where
 
 /// Converts YUV420 to Rgb
 ///
-/// This support not tightly packed data and crop image using stride in place.
 /// Stride here is not supports u16 as it can be in passed from FFI.
 ///
 /// # Arguments
@@ -340,6 +347,7 @@ where
     let u_stride = image.u_stride;
     let v_stride = image.v_stride;
     let chroma_height = (image.height + 1) / 2;
+
     if y_plane.len() != y_stride * image.height {
         return Err(format!(
             "Luma plane expected {} bytes, got {}",
@@ -361,6 +369,13 @@ where
             "V plane expected {} bytes, got {}",
             v_stride * chroma_height,
             v_plane.len()
+        ));
+    }
+
+    if !(8..=16).contains(&bit_depth) {
+        return Err(format!(
+            "Unexpected bit depth value {}, only 8...16 is supported",
+            bit_depth
         ));
     }
 
@@ -548,32 +563,37 @@ where
             rgb_dst[7] = max_value.as_();
         }
 
-        let y_left = y_src.chunks_exact(2).remainder();
-        let rgb_chunks = rgb
-            .chunks_exact_mut(CHANNELS * 2)
-            .into_remainder()
-            .chunks_exact_mut(CHANNELS);
-        let u_iter = u_plane.iter().rev();
-        let v_iter = v_plane.iter().rev();
-
         // Process remainder if width is odd.
 
-        for (((y_src, u_src), v_src), rgb_dst) in
-            y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
-        {
-            let y_value = (y_src.as_() - bias_y) * y_coef;
-            let cb_value = u_src.as_() - bias_uv;
-            let cr_value = v_src.as_() - bias_uv;
+        if image.width & 1 != 0 {
+            let y_left = y_src.chunks_exact(2).remainder();
+            let rgb_chunks = rgb
+                .chunks_exact_mut(CHANNELS * 2)
+                .into_remainder()
+                .chunks_exact_mut(CHANNELS);
+            let u_iter = u_plane.iter().rev();
+            let v_iter = v_plane.iter().rev();
 
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
-                .clamp(0, max_value);
+            for (((y_src, u_src), v_src), rgb_dst) in
+                y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
+            {
+                let y_value = (y_src.as_() - bias_y) * y_coef;
+                let cb_value = u_src.as_() - bias_uv;
+                let cr_value = v_src.as_() - bias_uv;
 
-            rgb_dst[0] = r.as_();
-            rgb_dst[1] = g.as_();
-            rgb_dst[2] = b.as_();
-            rgb_dst[3] = max_value.as_();
+                let r =
+                    ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
+                let b =
+                    ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
+                let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
+                    >> PRECISION)
+                    .clamp(0, max_value);
+
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+                rgb_dst[3] = max_value.as_();
+            }
         }
     }
 
@@ -582,7 +602,7 @@ where
 
 /// Converts Yuv 422 planar format to Rgba
 ///
-/// This support not tightly packed data and crop image using stride in place.
+/// Stride here is not supports u16 as it can be in passed from FFI.
 ///
 /// # Arguments
 ///
@@ -610,6 +630,7 @@ where
     let v_stride = image.v_stride;
     let height = image.height;
     let width = image.width;
+
     if y_plane.len() != y_stride * height {
         return Err(format!(
             "Luma plane expected {} bytes, got {}",
@@ -631,6 +652,13 @@ where
             "V plane expected {} bytes, got {}",
             v_stride * height,
             v_plane.len()
+        ));
+    }
+
+    if !(8..=16).contains(&bit_depth) {
+        return Err(format!(
+            "Unexpected bit depth value {}, only 8...16 is supported",
+            bit_depth
         ));
     }
 
@@ -767,9 +795,9 @@ where
     Ok(())
 }
 
-/// Converts YUV444 to Rgb
+/// Converts Yuv 444 planar format to Rgba
 ///
-/// This support not tightly packed data and crop image using stride in place.
+/// Stride here is not supports u16 as it can be in passed from FFI.
 ///
 /// # Arguments
 ///
@@ -797,6 +825,7 @@ where
     let v_stride = image.v_stride;
     let height = image.height;
     let width = image.width;
+
     if y_plane.len() != y_stride * height {
         return Err(format!(
             "Luma plane expected {} bytes, got {}",
@@ -818,6 +847,13 @@ where
             "V plane expected {} bytes, got {}",
             v_stride * height,
             v_plane.len()
+        ));
+    }
+
+    if !(8..=16).contains(&bit_depth) {
+        return Err(format!(
+            "Unexpected bit depth value {}, only 8...16 is supported",
+            bit_depth
         ));
     }
 
@@ -878,6 +914,100 @@ where
             rgb_dst[0] = r.as_();
             rgb_dst[1] = g.as_();
             rgb_dst[2] = b.as_();
+            rgb_dst[3] = max_value.as_();
+        }
+    }
+
+    Ok(())
+}
+
+/// Converts Gbr planar format to Rgba
+///
+/// Stride here is not supports u16 as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn gbr_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
+    image: YuvPlanarImage<V>,
+    rgb: &mut [V],
+    bit_depth: u32,
+) -> Result<(), String>
+where
+    i32: AsPrimitive<V>,
+{
+    let y_plane = image.y_plane;
+    let u_plane = image.u_plane;
+    let v_plane = image.v_plane;
+    let y_stride = image.y_stride;
+    let u_stride = image.u_stride;
+    let v_stride = image.v_stride;
+    let height = image.height;
+    let width = image.width;
+
+    if y_plane.len() != y_stride * height {
+        return Err(format!(
+            "Luma plane expected {} bytes, got {}",
+            y_stride * height,
+            y_plane.len()
+        ));
+    }
+
+    if u_plane.len() != u_stride * height {
+        return Err(format!(
+            "U plane expected {} bytes, got {}",
+            u_stride * height,
+            u_plane.len()
+        ));
+    }
+
+    if v_plane.len() != v_stride * height {
+        return Err(format!(
+            "V plane expected {} bytes, got {}",
+            v_stride * height,
+            v_plane.len()
+        ));
+    }
+
+    if !(8..=16).contains(&bit_depth) {
+        return Err(format!(
+            "Unexpected bit depth value {}, only 8...16 is supported",
+            bit_depth
+        ));
+    }
+
+    const CHANNELS: usize = 4;
+
+    if rgb.len() != width * height * CHANNELS {
+        return Err(format!(
+            "RGB image layout expected {} bytes, got {}",
+            width * height * CHANNELS,
+            rgb.len()
+        ));
+    }
+
+    let max_value = (1 << bit_depth) - 1;
+
+    let rgb_stride = width * CHANNELS;
+
+    let y_iter = y_plane.chunks_exact(y_stride);
+    let rgb_iter = rgb.chunks_exact_mut(rgb_stride);
+    let u_iter = u_plane.chunks_exact(u_stride);
+    let v_iter = v_plane.chunks_exact(v_stride);
+
+    for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
+        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+
+        for (((y_src, u_src), v_src), rgb_dst) in y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
+        {
+            rgb_dst[0] = v_src.as_();
+            rgb_dst[1] = y_src.as_();
+            rgb_dst[2] = u_src.as_();
             rgb_dst[3] = max_value.as_();
         }
     }

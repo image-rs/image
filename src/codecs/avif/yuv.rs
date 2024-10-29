@@ -1003,11 +1003,11 @@ where
     for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
         let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
 
-        for (((y_src, u_src), v_src), rgb_dst) in y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
+        for (((&y_src, &u_src), &v_src), rgb_dst) in y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
         {
-            rgb_dst[0] = v_src.as_();
-            rgb_dst[1] = y_src.as_();
-            rgb_dst[2] = u_src.as_();
+            rgb_dst[0] = v_src;
+            rgb_dst[1] = y_src;
+            rgb_dst[2] = u_src;
             rgb_dst[3] = max_value.as_();
         }
     }

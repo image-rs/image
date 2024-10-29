@@ -468,10 +468,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             let target_expand_bits = 16u32.saturating_sub(self.picture.bit_depth() as u32);
             if target_expand_bits > 0 {
                 for rgba in rgba16_buf.chunks_exact_mut(4) {
-                    rgba[0] = rgba[0] << target_expand_bits;
-                    rgba[1] = rgba[1] << target_expand_bits;
-                    rgba[2] = rgba[2] << target_expand_bits;
-                    rgba[3] = rgba[3] << target_expand_bits;
+                    rgba[0] <<= target_expand_bits;
+                    rgba[1] <<= target_expand_bits;
+                    rgba[2] <<= target_expand_bits;
+                    rgba[3] <<= target_expand_bits;
                 }
             }
         }

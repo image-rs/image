@@ -12,7 +12,6 @@ use crate::{ImageDecoder, ImageFormat, ImageResult};
 pub(crate) trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
-
 pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<ImageFormat, DecodingHook>>> =
     RwLock::new(None);
 
@@ -38,11 +37,8 @@ impl Seek for GenericReader<'_> {
 }
 
 /// A function to produce an `ImageDecoder` for a given image format.
-pub type DecodingHook = Box<
-    dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>>
-        + Send
-        + Sync,
->;
+pub type DecodingHook =
+    Box<dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync>;
 
 /// Register a new decoding hook or replace an existing one.
 pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) {

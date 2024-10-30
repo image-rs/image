@@ -1,4 +1,7 @@
+use crate::error::DecodingError;
+use crate::{ImageError, ImageFormat};
 use num_traits::AsPrimitive;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Copy, Clone)]
 /// Representation of inversion matrix
@@ -8,24 +11,6 @@ struct CbCrInverseTransform<T> {
     pub cb_coef: T,
     pub g_coeff_1: T,
     pub g_coeff_2: T,
-}
-
-impl<T> CbCrInverseTransform<T> {
-    fn new(
-        y_coef: T,
-        cr_coef: T,
-        cb_coef: T,
-        g_coeff_1: T,
-        g_coeff_2: T,
-    ) -> CbCrInverseTransform<T> {
-        CbCrInverseTransform {
-            y_coef,
-            cr_coef,
-            cb_coef,
-            g_coeff_1,
-            g_coeff_2,
-        }
-    }
 }
 
 impl CbCrInverseTransform<f32> {
@@ -46,7 +31,97 @@ impl CbCrInverseTransform<f32> {
     }
 }
 
-/// Transformation RGB to YUV with coefficients as specified in [ITU-R](https://www.itu.int/rec/T-REC-H.273/en)
+#[derive(Copy, Clone, Debug)]
+struct ErrorSize {
+    expected: usize,
+    received: usize,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum PlaneDefinition {
+    Y,
+    U,
+    V,
+}
+
+impl Display for PlaneDefinition {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            PlaneDefinition::Y => f.write_str("Luma"),
+            PlaneDefinition::U => f.write_str("U chroma"),
+            PlaneDefinition::V => f.write_str("V chroma"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum YuvConversionError {
+    YuvPlaneSizeMismatch(PlaneDefinition, ErrorSize),
+    RgbDestinationSizeMismatch(ErrorSize),
+}
+
+impl Display for YuvConversionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
+                f.write_fmt(format_args!(
+                    "For plane {} expected size is {} but was received {}",
+                    plane, error_size.received, error_size.expected,
+                ))
+            }
+            YuvConversionError::RgbDestinationSizeMismatch(error_size) => {
+                f.write_fmt(format_args!(
+                    "For RGB destination expected size is {} but was received {}",
+                    error_size.received, error_size.expected,
+                ))
+            }
+        }
+    }
+}
+
+impl std::error::Error for YuvConversionError {}
+
+#[inline]
+fn check_yuv_plane_preconditions<V>(
+    plane: &[V],
+    plane_definition: PlaneDefinition,
+    stride: usize,
+    height: usize,
+) -> Result<(), ImageError> {
+    if plane.len() != stride * height {
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Avif.into(),
+            YuvConversionError::YuvPlaneSizeMismatch(
+                plane_definition,
+                ErrorSize {
+                    expected: stride * height,
+                    received: plane.len(),
+                },
+            ),
+        )));
+    }
+    Ok(())
+}
+
+#[inline]
+fn check_rgb_preconditions<V>(
+    rgb_data: &[V],
+    stride: usize,
+    height: usize,
+) -> Result<(), ImageError> {
+    if rgb_data.len() != stride * height {
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Avif.into(),
+            YuvConversionError::RgbDestinationSizeMismatch(ErrorSize {
+                expected: stride * height,
+                received: rgb_data.len(),
+            }),
+        )));
+    }
+    Ok(())
+}
+
+/// Transformation YUV to RGB with coefficients as specified in [ITU-R](https://www.itu.int/rec/T-REC-H.273/en)
 fn get_inverse_transform(
     range_bgra: u32,
     range_y: u32,
@@ -54,25 +129,27 @@ fn get_inverse_transform(
     kr: f32,
     kb: f32,
     precision: u32,
-) -> Result<CbCrInverseTransform<i32>, String> {
+) -> CbCrInverseTransform<i32> {
     let range_uv = range_bgra as f32 / range_uv as f32;
     let y_coef = range_bgra as f32 / range_y as f32;
     let cr_coeff = (2f32 * (1f32 - kr)) * range_uv;
     let cb_coeff = (2f32 * (1f32 - kb)) * range_uv;
     let kg = 1.0f32 - kr - kb;
-    if kg == 0f32 {
-        return Err("1.0f - kr - kg must not be 0".parse().unwrap());
-    }
+    assert_ne!(kg, 0., "1.0f - kr - kg must not be 0");
     let g_coeff_1 = (2f32 * ((1f32 - kr) * kr / kg)) * range_uv;
     let g_coeff_2 = (2f32 * ((1f32 - kb) * kb / kg)) * range_uv;
-    let exact_transform =
-        CbCrInverseTransform::new(y_coef, cr_coeff, cb_coeff, g_coeff_1, g_coeff_2);
-    Ok(exact_transform.to_integers(precision))
+    let exact_transform = CbCrInverseTransform {
+        y_coef,
+        cr_coef: cr_coeff,
+        cb_coef: cb_coeff,
+        g_coeff_1,
+        g_coeff_2,
+    };
+    exact_transform.to_integers(precision)
 }
 
-#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
-/// Declares YUV range TV (limited) or Full,
+/// Declares YUV range TV (limited) or PC (full),
 /// more info [ITU-R](https://www.itu.int/rec/T-REC-H.273/en)
 pub(crate) enum YuvIntensityRange {
     /// Limited range Y ∈ [16 << (depth - 8), 16 << (depth - 8) + 224 << (depth - 8)],
@@ -92,26 +169,27 @@ struct YuvChromaRange {
     pub range: YuvIntensityRange,
 }
 
-const fn get_yuv_range(depth: u32, range: YuvIntensityRange) -> YuvChromaRange {
-    match range {
-        YuvIntensityRange::Tv => YuvChromaRange {
-            bias_y: 16 << (depth - 8),
-            bias_uv: 1 << (depth - 1),
-            range_y: 219 << (depth - 8),
-            range_uv: 224 << (depth - 8),
-            range,
-        },
-        YuvIntensityRange::Pc => YuvChromaRange {
-            bias_y: 0,
-            bias_uv: 1 << (depth - 1),
-            range_uv: (1 << depth) - 1,
-            range_y: (1 << depth) - 1,
-            range,
-        },
+impl YuvIntensityRange {
+    const fn get_yuv_range(self, depth: u32) -> YuvChromaRange {
+        match self {
+            YuvIntensityRange::Tv => YuvChromaRange {
+                bias_y: 16 << (depth - 8),
+                bias_uv: 1 << (depth - 1),
+                range_y: 219 << (depth - 8),
+                range_uv: 224 << (depth - 8),
+                range: self,
+            },
+            YuvIntensityRange::Pc => YuvChromaRange {
+                bias_y: 0,
+                bias_uv: 1 << (depth - 1),
+                range_uv: (1 << depth) - 1,
+                range_y: (1 << depth) - 1,
+                range: self,
+            },
+        }
     }
 }
 
-#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 /// Declares standard prebuilt YUV conversion matrices,
 /// check [ITU-R](https://www.itu.int/rec/T-REC-H.273/en) information for more info
@@ -125,92 +203,56 @@ pub(crate) enum YuvStandardMatrix {
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 struct YuvBias {
-    pub kr: f32,
-    pub kb: f32,
+    kr: f32,
+    kb: f32,
 }
 
-const fn get_kr_kb(matrix: YuvStandardMatrix) -> YuvBias {
-    match matrix {
-        YuvStandardMatrix::Bt601 => YuvBias {
-            kr: 0.299f32,
-            kb: 0.114f32,
-        },
-        YuvStandardMatrix::Bt709 => YuvBias {
-            kr: 0.2126f32,
-            kb: 0.0722f32,
-        },
-        YuvStandardMatrix::Bt2020 => YuvBias {
-            kr: 0.2627f32,
-            kb: 0.0593f32,
-        },
-        YuvStandardMatrix::Smpte240 => YuvBias {
-            kr: 0.087f32,
-            kb: 0.212f32,
-        },
-        YuvStandardMatrix::Bt470_6 => YuvBias {
-            kr: 0.2220f32,
-            kb: 0.0713f32,
-        },
+impl YuvStandardMatrix {
+    const fn get_kr_kb(self) -> YuvBias {
+        match self {
+            YuvStandardMatrix::Bt601 => YuvBias {
+                kr: 0.299f32,
+                kb: 0.114f32,
+            },
+            YuvStandardMatrix::Bt709 => YuvBias {
+                kr: 0.2126f32,
+                kb: 0.0722f32,
+            },
+            YuvStandardMatrix::Bt2020 => YuvBias {
+                kr: 0.2627f32,
+                kb: 0.0593f32,
+            },
+            YuvStandardMatrix::Smpte240 => YuvBias {
+                kr: 0.087f32,
+                kb: 0.212f32,
+            },
+            YuvStandardMatrix::Bt470_6 => YuvBias {
+                kr: 0.2220f32,
+                kb: 0.0713f32,
+            },
+        }
     }
 }
 
 pub(crate) struct YuvPlanarImage<'a, T> {
-    y_plane: &'a [T],
-    y_stride: usize,
-    u_plane: &'a [T],
-    u_stride: usize,
-    v_plane: &'a [T],
-    v_stride: usize,
-    width: usize,
-    height: usize,
-}
-
-impl<'a, T> YuvPlanarImage<'a, T> {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        y_plane: &'a [T],
-        y_stride: usize,
-        u_plane: &'a [T],
-        u_stride: usize,
-        v_plane: &'a [T],
-        v_stride: usize,
-        width: usize,
-        height: usize,
-    ) -> Self {
-        YuvPlanarImage {
-            y_plane,
-            y_stride,
-            u_plane,
-            u_stride,
-            v_plane,
-            v_stride,
-            width,
-            height,
-        }
-    }
+    pub(crate) y_plane: &'a [T],
+    pub(crate) y_stride: usize,
+    pub(crate) u_plane: &'a [T],
+    pub(crate) u_stride: usize,
+    pub(crate) v_plane: &'a [T],
+    pub(crate) v_stride: usize,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
 }
 
 pub(crate) struct YuvGrayImage<'a, T> {
-    y_plane: &'a [T],
-    y_stride: usize,
-    width: usize,
-    height: usize,
+    pub(crate) y_plane: &'a [T],
+    pub(crate) y_stride: usize,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
 }
 
-impl<'a, T> YuvGrayImage<'a, T> {
-    pub(crate) fn new(y_plane: &'a [T], y_stride: usize, width: usize, height: usize) -> Self {
-        YuvGrayImage {
-            y_plane,
-            y_stride,
-            width,
-            height,
-        }
-    }
-}
-
-/// Converts Yuv 400 planar format to Rgba
-///
-/// Stride here is not supports u16 as it can be in passed from FFI.
+/// Converts Yuv 400 planar format 8 bit to Rgba 8 bit
 ///
 /// # Arguments
 ///
@@ -220,45 +262,118 @@ impl<'a, T> YuvGrayImage<'a, T> {
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn yuv400_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
-    image: YuvGrayImage<V>,
-    rgba: &mut [V],
-    bit_depth: u32,
+pub(crate) fn yuv400_to_rgba8(
+    image: YuvGrayImage<u8>,
+    rgba: &mut [u8],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
-) -> Result<(), String>
+) -> Result<(), ImageError> {
+    yuv400_to_rgbx_impl::<u8, 4, 8>(image, rgba, range, matrix)
+}
+
+/// Converts Yuv 400 planar format 10 bit to Rgba 10 bit
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvGrayImage]
+/// * `rgba`: RGBA image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv400_to_rgba10(
+    image: YuvGrayImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv400_to_rgbx_impl::<u16, 4, 10>(image, rgba, range, matrix)
+}
+
+/// Converts Yuv 400 planar format 12 bit to Rgba 12 bit
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvGrayImage]
+/// * `rgba`: RGBA image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv400_to_rgba12(
+    image: YuvGrayImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv400_to_rgbx_impl::<u16, 4, 12>(image, rgba, range, matrix)
+}
+
+/// Converts Yuv 400 planar format to Rgba
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvGrayImage]
+/// * `rgba`: RGBA image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+#[inline]
+fn yuv400_to_rgbx_impl<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
+    image: YuvGrayImage<V>,
+    rgba: &mut [V],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
 {
+    assert!(
+        CHANNELS == 3 || CHANNELS == 4,
+        "YUV 4:0:0 -> RGB is implemented only on 3 and 4 channels"
+    );
+    assert!(
+        (8..=16).contains(&BIT_DEPTH),
+        "Invalid bit depth is provided"
+    );
+    assert!(
+        if BIT_DEPTH > 8 {
+            size_of::<V>() == 2
+        } else {
+            size_of::<V>() == 1
+        },
+        "Unsupported bit depth and data type combination"
+    );
+
     let y_plane = image.y_plane;
     let y_stride = image.y_stride;
     let height = image.height;
     let width = image.width;
 
-    if y_plane.len() != y_stride * height {
-        return Err(format!(
-            "Luma plane expected {} bytes, got {}",
-            y_stride * height,
-            y_plane.len()
-        ));
-    }
+    check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, height)?;
+    check_rgb_preconditions(rgba, width * CHANNELS, height)?;
 
-    if !(8..=16).contains(&bit_depth) {
-        return Err(format!(
-            "Unexpected bit depth value {}, only 8...16 is supported",
-            bit_depth
-        ));
-    }
-    const CHANNELS: usize = 4;
     let rgba_stride = width * CHANNELS;
 
-    let max_value = (1 << bit_depth) - 1;
+    let max_value = (1 << BIT_DEPTH) - 1;
 
     // If luma plane is in full range it can be just redistributed across the image
     if range == YuvIntensityRange::Pc {
         let y_iter = y_plane.chunks_exact(y_stride);
         let rgb_iter = rgba.chunks_exact_mut(rgba_stride);
 
+        // All branches on generic const will be optimized out.
         for (y_src, rgb) in y_iter.zip(rgb_iter) {
             let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
 
@@ -267,39 +382,34 @@ where
                 rgb_dst[0] = r;
                 rgb_dst[1] = r;
                 rgb_dst[2] = r;
-                rgb_dst[3] = max_value.as_();
+                if CHANNELS == 4 {
+                    rgb_dst[3] = max_value.as_();
+                }
             }
         }
         return Ok(());
     }
 
-    let range = get_yuv_range(bit_depth, range);
-    let kr_kb = get_kr_kb(matrix);
+    let range = range.get_yuv_range(BIT_DEPTH as u32);
+    let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
     const ROUNDING: i32 = 1 << (PRECISION - 1);
     let inverse_transform = get_inverse_transform(
-        (1 << bit_depth) - 1,
+        (1 << BIT_DEPTH) - 1,
         range.range_y,
         range.range_uv,
         kr_kb.kr,
         kr_kb.kb,
         PRECISION as u32,
-    )?;
+    );
     let y_coef = inverse_transform.y_coef;
 
     let bias_y = range.bias_y as i32;
 
-    if rgba.len() != width * height * CHANNELS {
-        return Err(format!(
-            "RGB image layout expected {} bytes, got {}",
-            width * height * CHANNELS,
-            rgba.len()
-        ));
-    }
-
     let y_iter = y_plane.chunks_exact(y_stride);
     let rgb_iter = rgba.chunks_exact_mut(rgba_stride);
 
+    // All branches on generic const will be optimized out.
     for (y_src, rgb) in y_iter.zip(rgb_iter) {
         let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
 
@@ -310,16 +420,16 @@ where
             rgb_dst[0] = r.as_();
             rgb_dst[1] = r.as_();
             rgb_dst[2] = r.as_();
-            rgb_dst[3] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[3] = max_value.as_();
+            }
         }
     }
 
     Ok(())
 }
 
-/// Converts YUV420 to Rgb
-///
-/// Stride here is not supports u16 as it can be in passed from FFI.
+/// Converts YUV420 8 bit-depth to Rgba 8 bit
 ///
 /// # Arguments
 ///
@@ -329,16 +439,99 @@ where
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn yuv420_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
-    image: YuvPlanarImage<V>,
-    rgb: &mut [V],
-    bit_depth: u32,
+pub(crate) fn yuv420_to_rgba8(
+    image: YuvPlanarImage<u8>,
+    rgb: &mut [u8],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
-) -> Result<(), String>
+) -> Result<(), ImageError> {
+    yuv420_to_rgbx::<u8, 4, 8>(image, rgb, range, matrix)
+}
+
+/// Converts YUV420 10 bit-depth to Rgba 10 bit-depth
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv420_to_rgba10(
+    image: YuvPlanarImage<u16>,
+    rgb: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv420_to_rgbx::<u16, 4, 10>(image, rgb, range, matrix)
+}
+
+/// Converts YUV420 12 bit-depth to Rgba 12 bit-depth
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv420_to_rgba12(
+    image: YuvPlanarImage<u16>,
+    rgb: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv420_to_rgbx::<u16, 4, 12>(image, rgb, range, matrix)
+}
+
+/// Converts YUV420 to Rgba
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+#[inline]
+fn yuv420_to_rgbx<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
+    image: YuvPlanarImage<V>,
+    rgb: &mut [V],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
 {
+    assert!(
+        CHANNELS == 3 || CHANNELS == 4,
+        "YUV 4:2:0 -> RGB is implemented only on 3 and 4 channels"
+    );
+    assert!(
+        (8..=16).contains(&BIT_DEPTH),
+        "Invalid bit depth is provided"
+    );
+    assert!(
+        if BIT_DEPTH > 8 {
+            size_of::<V>() == 2
+        } else {
+            size_of::<V>() == 1
+        },
+        "Unsupported bit depth and data type combination"
+    );
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;
     let v_plane = image.v_plane;
@@ -347,52 +540,27 @@ where
     let v_stride = image.v_stride;
     let chroma_height = (image.height + 1) / 2;
 
-    if y_plane.len() != y_stride * image.height {
-        return Err(format!(
-            "Luma plane expected {} bytes, got {}",
-            y_stride * image.height,
-            y_plane.len()
-        ));
-    }
+    check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, image.height)?;
+    check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, chroma_height)?;
+    check_yuv_plane_preconditions(v_plane, PlaneDefinition::V, v_stride, chroma_height)?;
 
-    if u_plane.len() != u_stride * chroma_height {
-        return Err(format!(
-            "U plane expected {} bytes, got {}",
-            u_stride * chroma_height,
-            u_plane.len()
-        ));
-    }
+    check_rgb_preconditions(rgb, image.width * CHANNELS, image.height)?;
 
-    if v_plane.len() != v_stride * chroma_height {
-        return Err(format!(
-            "V plane expected {} bytes, got {}",
-            v_stride * chroma_height,
-            v_plane.len()
-        ));
-    }
-
-    if !(8..=16).contains(&bit_depth) {
-        return Err(format!(
-            "Unexpected bit depth value {}, only 8...16 is supported",
-            bit_depth
-        ));
-    }
-
-    let max_value = (1 << bit_depth) - 1;
+    let max_value = (1 << BIT_DEPTH) - 1;
 
     const PRECISION: i32 = 11;
     const ROUNDING: i32 = 1 << (PRECISION - 1);
 
-    let range = get_yuv_range(bit_depth, range);
-    let kr_kb = get_kr_kb(matrix);
+    let range = range.get_yuv_range(BIT_DEPTH as u32);
+    let kr_kb = matrix.get_kr_kb();
     let inverse_transform = get_inverse_transform(
-        (1 << bit_depth) - 1,
+        (1 << BIT_DEPTH) - 1,
         range.range_y,
         range.range_uv,
         kr_kb.kr,
         kr_kb.kb,
         PRECISION as u32,
-    )?;
+    );
     let cr_coef = inverse_transform.cr_coef;
     let cb_coef = inverse_transform.cb_coef;
     let y_coef = inverse_transform.y_coef;
@@ -401,16 +569,6 @@ where
 
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
-
-    const CHANNELS: usize = 4;
-
-    if rgb.len() != image.width * image.height * CHANNELS {
-        return Err(format!(
-            "RGB image layout expected {} bytes, got {}",
-            image.width * image.height * CHANNELS,
-            rgb.len()
-        ));
-    }
 
     let rgb_stride = image.width * CHANNELS;
 
@@ -445,6 +603,7 @@ where
        If image have odd height then luma channel is exact, and we're replicating last chroma rows.
     */
 
+    // All branches on generic const will be optimized out.
     for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
         // Since we're processing two rows in one loop we need to re-slice once more
         let y_iter = y_src.chunks_exact(y_stride);
@@ -466,10 +625,18 @@ where
                     >> PRECISION)
                     .clamp(0, max_value);
 
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-                rgb_dst[3] = max_value.as_();
+                if CHANNELS == 4 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                    rgb_dst[3] = max_value.as_();
+                } else if CHANNELS == 3 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                } else {
+                    unreachable!();
+                }
 
                 let y_value = (y_src[1].as_() - bias_y) * y_coef;
 
@@ -481,10 +648,18 @@ where
                     >> PRECISION)
                     .clamp(0, max_value);
 
-                rgb_dst[4] = r.as_();
-                rgb_dst[5] = g.as_();
-                rgb_dst[6] = b.as_();
-                rgb_dst[7] = max_value.as_();
+                if CHANNELS == 4 {
+                    rgb_dst[4] = r.as_();
+                    rgb_dst[5] = g.as_();
+                    rgb_dst[6] = b.as_();
+                    rgb_dst[7] = max_value.as_();
+                } else if CHANNELS == 3 {
+                    rgb_dst[3] = r.as_();
+                    rgb_dst[4] = g.as_();
+                    rgb_dst[5] = b.as_();
+                } else {
+                    unreachable!();
+                }
             }
 
             // Process remainder if width is odd.
@@ -512,10 +687,18 @@ where
                         >> PRECISION)
                         .clamp(0, max_value);
 
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                    rgb_dst[3] = max_value.as_();
+                    if CHANNELS == 4 {
+                        rgb_dst[0] = r.as_();
+                        rgb_dst[1] = g.as_();
+                        rgb_dst[2] = b.as_();
+                        rgb_dst[3] = max_value.as_();
+                    } else if CHANNELS == 3 {
+                        rgb_dst[0] = r.as_();
+                        rgb_dst[1] = g.as_();
+                        rgb_dst[2] = b.as_();
+                    } else {
+                        unreachable!();
+                    }
                 }
             }
         }
@@ -544,10 +727,18 @@ where
             let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
                 .clamp(0, max_value);
 
-            rgb_dst[0] = r.as_();
-            rgb_dst[1] = g.as_();
-            rgb_dst[2] = b.as_();
-            rgb_dst[3] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+                rgb_dst[3] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+            } else {
+                unreachable!();
+            }
 
             let y_value = (y_src[1].as_() - bias_y) * y_coef;
 
@@ -556,10 +747,18 @@ where
             let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
                 .clamp(0, max_value);
 
-            rgb_dst[4] = r.as_();
-            rgb_dst[5] = g.as_();
-            rgb_dst[6] = b.as_();
-            rgb_dst[7] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[4] = r.as_();
+                rgb_dst[5] = g.as_();
+                rgb_dst[6] = b.as_();
+                rgb_dst[7] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[3] = r.as_();
+                rgb_dst[4] = g.as_();
+                rgb_dst[5] = b.as_();
+            } else {
+                unreachable!();
+            }
         }
 
         // Process remainder if width is odd.
@@ -588,15 +787,84 @@ where
                     >> PRECISION)
                     .clamp(0, max_value);
 
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-                rgb_dst[3] = max_value.as_();
+                if CHANNELS == 4 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                    rgb_dst[3] = max_value.as_();
+                } else if CHANNELS == 3 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                } else {
+                    unreachable!();
+                }
             }
         }
     }
 
     Ok(())
+}
+
+/// Converts Yuv 422 8-bit planar format to Rgba 8-bit
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv422_to_rgba8(
+    image: YuvPlanarImage<u8>,
+    rgb: &mut [u8],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv422_to_rgbx_impl::<u8, 4, 8>(image, rgb, range, matrix)
+}
+
+/// Converts Yuv 422 10-bit planar format to Rgba 10-bit
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv422_to_rgba10(
+    image: YuvPlanarImage<u16>,
+    rgb: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv422_to_rgbx_impl::<u16, 4, 10>(image, rgb, range, matrix)
+}
+
+/// Converts Yuv 422 12-bit planar format to Rgba 12-bit
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn yuv422_to_rgba12(
+    image: YuvPlanarImage<u16>,
+    rgb: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv422_to_rgbx_impl::<u16, 4, 12>(image, rgb, range, matrix)
 }
 
 /// Converts Yuv 422 planar format to Rgba
@@ -611,70 +879,63 @@ where
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn yuv422_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
+fn yuv422_to_rgbx_impl<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
     image: YuvPlanarImage<V>,
     rgb: &mut [V],
-    bit_depth: u32,
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
-) -> Result<(), String>
+) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
 {
+    assert!(
+        CHANNELS == 3 || CHANNELS == 4,
+        "YUV 4:2:2 -> RGB is implemented only on 3 and 4 channels"
+    );
+    assert!(
+        (8..=16).contains(&BIT_DEPTH),
+        "Invalid bit depth is provided"
+    );
+    assert!(
+        if BIT_DEPTH > 8 {
+            size_of::<V>() == 2
+        } else {
+            size_of::<V>() == 1
+        },
+        "Unsupported bit depth and data type combination"
+    );
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;
     let v_plane = image.v_plane;
     let y_stride = image.y_stride;
     let u_stride = image.u_stride;
     let v_stride = image.v_stride;
-    let height = image.height;
     let width = image.width;
 
-    if y_plane.len() != y_stride * height {
-        return Err(format!(
-            "Luma plane expected {} bytes, got {}",
-            y_stride * height,
-            y_plane.len()
-        ));
-    }
+    check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, image.height)?;
+    check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, image.height)?;
+    check_yuv_plane_preconditions(v_plane, PlaneDefinition::V, v_stride, image.height)?;
 
-    if u_plane.len() != u_stride * height {
-        return Err(format!(
-            "U plane expected {} bytes, got {}",
-            u_stride * height,
-            u_plane.len()
-        ));
-    }
+    check_rgb_preconditions(rgb, image.width * CHANNELS, image.height)?;
 
-    if v_plane.len() != v_stride * height {
-        return Err(format!(
-            "V plane expected {} bytes, got {}",
-            v_stride * height,
-            v_plane.len()
-        ));
-    }
+    let max_value = (1 << BIT_DEPTH) - 1;
 
-    if !(8..=16).contains(&bit_depth) {
-        return Err(format!(
-            "Unexpected bit depth value {}, only 8...16 is supported",
-            bit_depth
-        ));
-    }
-
-    let max_value = (1 << bit_depth) - 1;
-
-    let range = get_yuv_range(bit_depth, range);
-    let kr_kb = get_kr_kb(matrix);
+    let range = range.get_yuv_range(BIT_DEPTH as u32);
+    let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
     const ROUNDING: i32 = 1 << (PRECISION - 1);
     let inverse_transform = get_inverse_transform(
-        (1 << bit_depth) - 1,
+        (1 << BIT_DEPTH) - 1,
         range.range_y,
         range.range_uv,
         kr_kb.kr,
         kr_kb.kb,
         PRECISION as u32,
-    )?;
+    );
     let cr_coef = inverse_transform.cr_coef;
     let cb_coef = inverse_transform.cb_coef;
     let y_coef = inverse_transform.y_coef;
@@ -683,16 +944,6 @@ where
 
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
-
-    const CHANNELS: usize = 4;
-
-    if rgb.len() != width * height * CHANNELS {
-        return Err(format!(
-            "RGB image layout expected {} bytes, got {}",
-            width * height * CHANNELS,
-            rgb.len()
-        ));
-    }
 
     /*
        Sample 4x4 YUV422 planar image
@@ -726,6 +977,7 @@ where
     let u_iter = u_plane.chunks_exact(u_stride);
     let v_iter = v_plane.chunks_exact(v_stride);
 
+    // All branches on generic const will be optimized out.
     for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
         let y_iter = y_src.chunks_exact(2);
         let rgb_chunks = rgb.chunks_exact_mut(CHANNELS * 2);
@@ -740,10 +992,18 @@ where
             let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
                 .clamp(0, max_value);
 
-            rgb_dst[0] = r.as_();
-            rgb_dst[1] = g.as_();
-            rgb_dst[2] = b.as_();
-            rgb_dst[3] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+                rgb_dst[3] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+            } else {
+                unreachable!();
+            }
 
             let y_value = (y_src[1].as_() - bias_y) * y_coef;
 
@@ -752,10 +1012,18 @@ where
             let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
                 .clamp(0, max_value);
 
-            rgb_dst[4] = r.as_();
-            rgb_dst[5] = g.as_();
-            rgb_dst[6] = b.as_();
-            rgb_dst[7] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[4] = r.as_();
+                rgb_dst[5] = g.as_();
+                rgb_dst[6] = b.as_();
+                rgb_dst[7] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[3] = r.as_();
+                rgb_dst[4] = g.as_();
+                rgb_dst[5] = b.as_();
+            } else {
+                unreachable!();
+            }
         }
 
         // Process left pixels for odd images, this should work since luma must be always exact
@@ -783,15 +1051,84 @@ where
                     >> PRECISION)
                     .clamp(0, max_value);
 
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-                rgb_dst[3] = max_value.as_();
+                if CHANNELS == 4 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                    rgb_dst[3] = max_value.as_();
+                } else if CHANNELS == 3 {
+                    rgb_dst[0] = r.as_();
+                    rgb_dst[1] = g.as_();
+                    rgb_dst[2] = b.as_();
+                } else {
+                    unreachable!();
+                }
             }
         }
     }
 
     Ok(())
+}
+
+/// Converts Yuv 444 planar format 8 bit-depth to Rgba 8 bit
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgba`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(super) fn yuv444_to_rgba8(
+    image: YuvPlanarImage<u8>,
+    rgba: &mut [u8],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv444_to_rgbx_impl::<u8, 4, 8>(image, rgba, range, matrix)
+}
+
+/// Converts Yuv 444 planar format 10 bit-depth to Rgba 10 bit
+///
+/// Stride here is not supports u16 as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgba`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(super) fn yuv444_to_rgba10(
+    image: YuvPlanarImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv444_to_rgbx_impl::<u16, 4, 10>(image, rgba, range, matrix)
+}
+
+/// Converts Yuv 444 planar format 12 bit-depth to Rgba 12 bit
+///
+/// Stride here is not supports u16 as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgba`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(super) fn yuv444_to_rgba12(
+    image: YuvPlanarImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+    matrix: YuvStandardMatrix,
+) -> Result<(), ImageError> {
+    yuv444_to_rgbx_impl::<u16, 4, 12>(image, rgba, range, matrix)
 }
 
 /// Converts Yuv 444 planar format to Rgba
@@ -801,21 +1138,42 @@ where
 /// # Arguments
 ///
 /// * `image`: see [YuvPlanarImage]
-/// * `rgb`: RGB image layout
+/// * `rgba`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn yuv444_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
+#[inline]
+fn yuv444_to_rgbx_impl<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
     image: YuvPlanarImage<V>,
-    rgb: &mut [V],
-    bit_depth: u32,
+    rgba: &mut [V],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
-) -> Result<(), String>
+) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
 {
+    assert!(
+        CHANNELS == 3 || CHANNELS == 4,
+        "YUV 4:4:4 -> RGB is implemented only on 3 and 4 channels"
+    );
+    assert!(
+        (8..=16).contains(&BIT_DEPTH),
+        "Invalid bit depth is provided"
+    );
+    assert!(
+        if BIT_DEPTH > 8 {
+            size_of::<V>() == 2
+        } else {
+            size_of::<V>() == 1
+        },
+        "Unsupported bit depth and data type combination"
+    );
+
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;
     let v_plane = image.v_plane;
@@ -825,49 +1183,24 @@ where
     let height = image.height;
     let width = image.width;
 
-    if y_plane.len() != y_stride * height {
-        return Err(format!(
-            "Luma plane expected {} bytes, got {}",
-            y_stride * height,
-            y_plane.len()
-        ));
-    }
+    check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, height)?;
+    check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, height)?;
+    check_yuv_plane_preconditions(v_plane, PlaneDefinition::V, v_stride, height)?;
 
-    if u_plane.len() != u_stride * height {
-        return Err(format!(
-            "U plane expected {} bytes, got {}",
-            u_stride * height,
-            u_plane.len()
-        ));
-    }
+    check_rgb_preconditions(rgba, image.width * CHANNELS, height)?;
 
-    if v_plane.len() != v_stride * height {
-        return Err(format!(
-            "V plane expected {} bytes, got {}",
-            v_stride * height,
-            v_plane.len()
-        ));
-    }
-
-    if !(8..=16).contains(&bit_depth) {
-        return Err(format!(
-            "Unexpected bit depth value {}, only 8...16 is supported",
-            bit_depth
-        ));
-    }
-
-    let range = get_yuv_range(bit_depth, range);
-    let kr_kb = get_kr_kb(matrix);
+    let range = range.get_yuv_range(BIT_DEPTH as u32);
+    let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
     const ROUNDING: i32 = 1 << (PRECISION - 1);
     let inverse_transform = get_inverse_transform(
-        (1 << bit_depth) - 1,
+        (1 << BIT_DEPTH) - 1,
         range.range_y,
         range.range_uv,
         kr_kb.kr,
         kr_kb.kb,
         PRECISION as u32,
-    )?;
+    );
     let cr_coef = inverse_transform.cr_coef;
     let cb_coef = inverse_transform.cb_coef;
     let y_coef = inverse_transform.y_coef;
@@ -877,25 +1210,16 @@ where
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
 
-    const CHANNELS: usize = 4;
-
-    if rgb.len() != width * height * CHANNELS {
-        return Err(format!(
-            "RGB image layout expected {} bytes, got {}",
-            width * height * CHANNELS,
-            rgb.len()
-        ));
-    }
-
-    let max_value = (1 << bit_depth) - 1;
+    let max_value = (1 << BIT_DEPTH) - 1;
 
     let rgb_stride = width * CHANNELS;
 
     let y_iter = y_plane.chunks_exact(y_stride);
-    let rgb_iter = rgb.chunks_exact_mut(rgb_stride);
+    let rgb_iter = rgba.chunks_exact_mut(rgb_stride);
     let u_iter = u_plane.chunks_exact(u_stride);
     let v_iter = v_plane.chunks_exact(v_stride);
 
+    // All branches on generic const will be optimized out.
     for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
         let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
 
@@ -910,19 +1234,25 @@ where
             let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
                 .clamp(0, max_value);
 
-            rgb_dst[0] = r.as_();
-            rgb_dst[1] = g.as_();
-            rgb_dst[2] = b.as_();
-            rgb_dst[3] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+                rgb_dst[3] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+            } else {
+                unreachable!();
+            }
         }
     }
 
     Ok(())
 }
 
-/// Converts Gbr planar format to Rgba
-///
-/// Stride here is not supports u16 as it can be in passed from FFI.
+/// Converts Gbr 8 bit planar format to Rgba 8 bit-depth
 ///
 /// # Arguments
 ///
@@ -932,14 +1262,82 @@ where
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn gbr_to_rgba<V: Copy + AsPrimitive<i32> + 'static>(
+pub(crate) fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u8, 4, 8>(image, rgb)
+}
+
+/// Converts Gbr 10 bit planar format to Rgba 10 bit-depth
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u16, 4, 10>(image, rgb)
+}
+
+/// Converts Gbr 12 bit planar format to Rgba 12 bit-depth
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+pub(crate) fn gbr_to_rgba12(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u16, 4, 12>(image, rgb)
+}
+
+/// Converts Gbr planar format to Rgba
+///
+/// Stride here is not supported as it can be in passed from FFI.
+///
+/// # Arguments
+///
+/// * `image`: see [YuvPlanarImage]
+/// * `rgb`: RGB image layout
+/// * `range`: see [YuvIntensityRange]
+/// * `matrix`: see [YuvStandardMatrix]
+///
+///
+#[inline]
+fn gbr_to_rgbx_impl<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
     image: YuvPlanarImage<V>,
     rgb: &mut [V],
-    bit_depth: u32,
-) -> Result<(), String>
+) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
 {
+    assert!(
+        CHANNELS == 3 || CHANNELS == 4,
+        "GBR -> RGB is implemented only on 3 and 4 channels"
+    );
+    assert!(
+        (8..=16).contains(&BIT_DEPTH),
+        "Invalid bit depth is provided"
+    );
+    assert!(
+        if BIT_DEPTH > 8 {
+            size_of::<V>() == 2
+        } else {
+            size_of::<V>() == 1
+        },
+        "Unsupported bit depth and data type combination"
+    );
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;
     let v_plane = image.v_plane;
@@ -949,48 +1347,13 @@ where
     let height = image.height;
     let width = image.width;
 
-    if y_plane.len() != y_stride * height {
-        return Err(format!(
-            "Luma plane expected {} bytes, got {}",
-            y_stride * height,
-            y_plane.len()
-        ));
-    }
+    check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, height)?;
+    check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, height)?;
+    check_yuv_plane_preconditions(v_plane, PlaneDefinition::V, v_stride, height)?;
 
-    if u_plane.len() != u_stride * height {
-        return Err(format!(
-            "U plane expected {} bytes, got {}",
-            u_stride * height,
-            u_plane.len()
-        ));
-    }
+    check_rgb_preconditions(rgb, width * CHANNELS, height)?;
 
-    if v_plane.len() != v_stride * height {
-        return Err(format!(
-            "V plane expected {} bytes, got {}",
-            v_stride * height,
-            v_plane.len()
-        ));
-    }
-
-    if !(8..=16).contains(&bit_depth) {
-        return Err(format!(
-            "Unexpected bit depth value {}, only 8...16 is supported",
-            bit_depth
-        ));
-    }
-
-    const CHANNELS: usize = 4;
-
-    if rgb.len() != width * height * CHANNELS {
-        return Err(format!(
-            "RGB image layout expected {} bytes, got {}",
-            width * height * CHANNELS,
-            rgb.len()
-        ));
-    }
-
-    let max_value = (1 << bit_depth) - 1;
+    let max_value = (1 << BIT_DEPTH) - 1;
 
     let rgb_stride = width * CHANNELS;
 
@@ -1008,7 +1371,9 @@ where
             rgb_dst[0] = v_src;
             rgb_dst[1] = y_src;
             rgb_dst[2] = u_src;
-            rgb_dst[3] = max_value.as_();
+            if CHANNELS == 4 {
+                rgb_dst[3] = max_value.as_();
+            }
         }
     }
 

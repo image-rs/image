@@ -214,6 +214,7 @@ pub mod flat;
 /// | ICO      | Yes                                       | Yes                                     |
 /// | JPEG     | Yes                                       | Yes                                     |
 /// | EXR      | Yes                                       | Yes                                     |
+/// | PCX      | Yes                                       | ---                                     |
 /// | PNG      | Yes                                       | Yes                                     |
 /// | PNM      | Yes                                       | Yes                                     |
 /// | QOI      | Yes                                       | Yes                                     |
@@ -263,6 +264,8 @@ pub mod codecs {
     pub mod jpeg;
     #[cfg(feature = "exr")]
     pub mod openexr;
+    #[cfg(feature = "pcx")]
+    pub mod pcx;
     #[cfg(feature = "png")]
     pub mod png;
     #[cfg(feature = "pnm")]

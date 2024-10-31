@@ -28,6 +28,7 @@ flate2 = "1.0.11"
 miniz_oxide = { version = "0.8", features = ["simd"] }
 
 [dev-dependencies]
+approx = "0.5.1"
 byteorder = "1.5.0"
 clap = { version = "3.0", features = ["derive"] }
 criterion = "0.4.0"

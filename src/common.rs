@@ -470,6 +470,56 @@ impl SrgbRenderingIntent {
     }
 }
 
+/// Mastering Display Color Volume (mDCv) used at the point of content creation,
+/// as specified in [SMPTE-ST-2086](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8353899).
+///
+/// See https://www.w3.org/TR/png-3/#mDCv-chunk for more details.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MasteringDisplayColorVolume {
+    /// Mastering display chromaticities.
+    pub chromaticities: SourceChromaticities,
+
+    /// Mastering display maximum luminance.
+    ///
+    /// The value is expressed in units of 0.0001 cd/m^2 - for example if this field
+    /// is set to `10000000` then it indicates 1000 cd/m^2.
+    pub max_luminance: u32,
+
+    /// Mastering display minimum luminance.
+    ///
+    /// The value is expressed in units of 0.0001 cd/m^2 - for example if this field
+    /// is set to `10000000` then it indicates 1000 cd/m^2.
+    pub min_luminance: u32,
+}
+
+/// Content light level information of HDR content.
+///
+/// See https://www.w3.org/TR/png-3/#cLLi-chunk for more details.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContentLightLevelInfo {
+    /// Maximum Content Light Level indicates the maximum light level of any
+    /// single pixel (in cd/m^2, also known as nits) of the entire playback
+    /// sequence.
+    ///
+    /// The value is expressed in units of 0.0001 cd/m^2 - for example if this field
+    /// is set to `10000000` then it indicates 1000 cd/m^2.
+    ///
+    /// A value of zero means that the value is unknown or not currently calculable.
+    pub max_content_light_level: u32,
+
+    /// Maximum Frame Average Light Level indicates the maximum value of the
+    /// frame average light level (in cd/m^2, also known as nits) of the entire
+    /// playback sequence. It is calculated by first averaging the decoded
+    /// luminance values of all the pixels in each frame, and then using the
+    /// value for the frame with the highest value.
+    ///
+    /// The value is expressed in units of 0.0001 cd/m^2 - for example if this field
+    /// is set to `10000000` then it indicates 1000 cd/m^2.
+    ///
+    /// A value of zero means that the value is unknown or not currently calculable.
+    pub max_frame_average_light_level: u32,
+}
+
 /// PNG info struct
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -507,6 +557,10 @@ pub struct Info<'a> {
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
     pub icc_profile: Option<Cow<'a, [u8]>>,
+    /// The mastering display color volume for the image.
+    pub mastering_display_color_volume: Option<MasteringDisplayColorVolume>,
+    /// The content light information for the image.
+    pub content_light_level: Option<ContentLightLevelInfo>,
     /// The EXIF metadata for the image.
     pub exif_metadata: Option<Cow<'a, [u8]>>,
     /// tEXt field
@@ -539,6 +593,8 @@ impl Default for Info<'_> {
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
+            mastering_display_color_volume: None,
+            content_light_level: None,
             exif_metadata: None,
             uncompressed_latin1_text: Vec::new(),
             compressed_latin1_text: Vec::new(),

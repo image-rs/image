@@ -35,6 +35,10 @@ pub const gAMA: ChunkType = ChunkType(*b"gAMA");
 pub const sRGB: ChunkType = ChunkType(*b"sRGB");
 /// ICC profile chunk
 pub const iCCP: ChunkType = ChunkType(*b"iCCP");
+/// Mastering Display Color Volume chunk
+pub const mDCv: ChunkType = ChunkType(*b"mDCv");
+/// Content Light Level Information chunk
+pub const cLLi: ChunkType = ChunkType(*b"cLLi");
 /// EXIF metadata chunk
 pub const eXIf: ChunkType = ChunkType(*b"eXIf");
 /// Latin-1 uncompressed textual data

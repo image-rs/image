@@ -176,6 +176,7 @@ tests/pngsuite/z09n2c08.png: 1730743317
 tests/pngsuite-extra/basi3p01_2.png: 4023530527
 tests/pngsuite-extra/basi3p02_2.png: 313298351
 tests/bugfixes/acid2.png: 2380843583
+tests/bugfixes/cicp_pq.png: 2316063598
 tests/bugfixes/gama-srgb-order-issue#304.png: 275287206
 tests/bugfixes/invalid_palette_index.png: 4178597885
 tests/bugfixes/issue#202.png: 29900969

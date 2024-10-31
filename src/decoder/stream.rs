@@ -9,8 +9,9 @@ use crc32fast::Hasher as Crc32;
 use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
-    AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
-    ParameterErrorKind, PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
+    AnimationControl, BitDepth, BlendOp, ColorType, ContentLightLevelInfo, DisposeOp, FrameControl,
+    Info, MasteringDisplayColorVolume, ParameterError, ParameterErrorKind, PixelDimensions,
+    ScaledFloat, SourceChromaticities, Unit,
 };
 use crate::text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk};
 use crate::traits::ReadBytesExt;
@@ -958,6 +959,8 @@ impl StreamingDecoder {
             chunk::fcTL => self.parse_fctl(),
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
+            chunk::mDCv => Ok(self.parse_mdcv()),
+            chunk::cLLi => Ok(self.parse_clli()),
             chunk::iCCP if !self.decode_options.ignore_iccp_chunk => self.parse_iccp(),
             chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
             chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
@@ -1271,6 +1274,82 @@ impl StreamingDecoder {
         }
     }
 
+    // NOTE: This function cannot return `DecodingError` and handles parsing
+    // errors or spec violations as-if the chunk was missing.  See
+    // https://github.com/image-rs/image-png/issues/525 for more discussion.
+    fn parse_mdcv(&mut self) -> Decoded {
+        fn parse(mut buf: &[u8]) -> Result<MasteringDisplayColorVolume, std::io::Error> {
+            let red_x: u16 = buf.read_be()?;
+            let red_y: u16 = buf.read_be()?;
+            let green_x: u16 = buf.read_be()?;
+            let green_y: u16 = buf.read_be()?;
+            let blue_x: u16 = buf.read_be()?;
+            let blue_y: u16 = buf.read_be()?;
+            let white_x: u16 = buf.read_be()?;
+            let white_y: u16 = buf.read_be()?;
+            fn scale(chunk: u16) -> ScaledFloat {
+                // `ScaledFloat::SCALING` is hardcoded to 100_000, which works
+                // well for the `cHRM` chunk where the spec says that "a value
+                // of 0.3127 would be stored as the integer 31270".  In the
+                // `mDCv` chunk the spec says that "0.708, 0.292)" is stored as
+                // "{ 35400, 14600 }", using a scaling factor of 50_000, so we
+                // multiply by 2 before converting.
+                ScaledFloat::from_scaled((chunk as u32) * 2)
+            }
+            let chromaticities = SourceChromaticities {
+                white: (scale(white_x), scale(white_y)),
+                red: (scale(red_x), scale(red_y)),
+                green: (scale(green_x), scale(green_y)),
+                blue: (scale(blue_x), scale(blue_y)),
+            };
+            let max_luminance: u32 = buf.read_be()?;
+            let min_luminance: u32 = buf.read_be()?;
+            if !buf.is_empty() {
+                return Err(std::io::ErrorKind::InvalidData.into());
+            }
+            Ok(MasteringDisplayColorVolume {
+                chromaticities,
+                max_luminance,
+                min_luminance,
+            })
+        }
+
+        // The spec requires that the mDCv chunk MUST come before the PLTE and IDAT chunks.
+        // Additionally, we ignore a second, duplicated mDCv chunk (if any).
+        let info = self.info.as_mut().unwrap();
+        let is_before_plte_and_idat = !self.have_idat && info.palette.is_none();
+        if is_before_plte_and_idat && info.mastering_display_color_volume.is_none() {
+            info.mastering_display_color_volume = parse(&self.current_chunk.raw_bytes[..]).ok();
+        }
+
+        Decoded::Nothing
+    }
+
+    // NOTE: This function cannot return `DecodingError` and handles parsing
+    // errors or spec violations as-if the chunk was missing.  See
+    // https://github.com/image-rs/image-png/issues/525 for more discussion.
+    fn parse_clli(&mut self) -> Decoded {
+        fn parse(mut buf: &[u8]) -> Result<ContentLightLevelInfo, std::io::Error> {
+            let max_content_light_level: u32 = buf.read_be()?;
+            let max_frame_average_light_level: u32 = buf.read_be()?;
+            if !buf.is_empty() {
+                return Err(std::io::ErrorKind::InvalidData.into());
+            }
+            Ok(ContentLightLevelInfo {
+                max_content_light_level,
+                max_frame_average_light_level,
+            })
+        }
+
+        // We ignore a second, duplicated cLLi chunk (if any).
+        let info = self.info.as_mut().unwrap();
+        if info.content_light_level.is_none() {
+            info.content_light_level = parse(&self.current_chunk.raw_bytes[..]).ok();
+        }
+
+        Decoded::Nothing
+    }
+
     fn parse_iccp(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
             Err(DecodingError::Format(
@@ -1577,6 +1656,7 @@ mod tests {
     use super::SourceChromaticities;
     use crate::test_utils::*;
     use crate::{Decoder, DecodingError, Reader};
+    use approx::assert_relative_eq;
     use byteorder::WriteBytesExt;
     use std::cell::RefCell;
     use std::collections::VecDeque;
@@ -1838,6 +1918,30 @@ mod tests {
         let mut decoder = crate::Decoder::new(File::open("tests/iccp/broken_iccp.png").unwrap());
         decoder.set_ignore_iccp_chunk(true);
         assert!(decoder.read_info().is_ok());
+    }
+
+    /// Test handling of `mDCv` and `cLLi` chunks.`
+    #[test]
+    fn test_mdcv_and_clli_chunks() {
+        let decoder = crate::Decoder::new(File::open("tests/bugfixes/cicp_pq.png").unwrap());
+        let reader = decoder.read_info().unwrap();
+        let info = reader.info();
+
+        let mdcv = info.mastering_display_color_volume.unwrap();
+        assert_relative_eq!(mdcv.chromaticities.red.0.into_value(), 0.680);
+        assert_relative_eq!(mdcv.chromaticities.red.1.into_value(), 0.320);
+        assert_relative_eq!(mdcv.chromaticities.green.0.into_value(), 0.265);
+        assert_relative_eq!(mdcv.chromaticities.green.1.into_value(), 0.690);
+        assert_relative_eq!(mdcv.chromaticities.blue.0.into_value(), 0.150);
+        assert_relative_eq!(mdcv.chromaticities.blue.1.into_value(), 0.060);
+        assert_relative_eq!(mdcv.chromaticities.white.0.into_value(), 0.3127);
+        assert_relative_eq!(mdcv.chromaticities.white.1.into_value(), 0.3290);
+        assert_relative_eq!(mdcv.min_luminance as f32 / 10_000.0, 0.01);
+        assert_relative_eq!(mdcv.max_luminance as f32 / 10_000.0, 5000.0);
+
+        let clli = info.content_light_level.unwrap();
+        assert_relative_eq!(clli.max_content_light_level as f32 / 10_000.0, 4000.0);
+        assert_relative_eq!(clli.max_frame_average_light_level as f32 / 10_000.0, 2627.0);
     }
 
     /// Tests what happens then [`Reader.finish`] is called twice.

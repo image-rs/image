@@ -35,6 +35,8 @@ pub const gAMA: ChunkType = ChunkType(*b"gAMA");
 pub const sRGB: ChunkType = ChunkType(*b"sRGB");
 /// ICC profile chunk
 pub const iCCP: ChunkType = ChunkType(*b"iCCP");
+/// Coding-independent code points for video signal type identification chunk
+pub const cICP: ChunkType = ChunkType(*b"cICP");
 /// Mastering Display Color Volume chunk
 pub const mDCv: ChunkType = ChunkType(*b"mDCv");
 /// Content Light Level Information chunk

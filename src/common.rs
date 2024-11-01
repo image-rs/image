@@ -470,6 +470,45 @@ impl SrgbRenderingIntent {
     }
 }
 
+/// Coding-independent code points (cICP) specify the color space (primaries),
+/// transfer function, matrix coefficients and scaling factor of the image using
+/// the code points specified in [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273).
+///
+/// See https://www.w3.org/TR/png-3/#cICP-chunk for more details.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CodingIndependentCodePoints {
+    /// Id number of the color primaries defined in
+    /// [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273) in "Table 2 -
+    /// Interpretation of colour primaries (ColourPrimaries) value".
+    pub color_primaries: u8,
+
+    /// Id number of the transfer characteristics defined in
+    /// [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273) in "Table 3 -
+    /// Interpretation of transfer characteristics (TransferCharacteristics)
+    /// value".
+    pub transfer_function: u8,
+
+    /// Id number of the matrix coefficients defined in
+    /// [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273) in "Table 4 -
+    /// Interpretation of matrix coefficients (MatrixCoefficients) value".
+    ///
+    /// This field is included to faithfully replicate the base
+    /// [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273) specification, but matrix coefficients
+    /// will always be set to 0, because RGB is currently the only supported color mode in PNG.
+    pub matrix_coefficients: u8,
+
+    /// Whether the image is
+    /// [a full range image](https://www.w3.org/TR/png-3/#dfn-full-range-image)
+    /// or
+    /// [a narrow range image](https://www.w3.org/TR/png-3/#dfn-narrow-range-image).
+    ///
+    /// This field is included to faithfully replicate the base
+    /// [ITU-T-H.273](https://www.itu.int/rec/T-REC-H.273) specification, but it has limited
+    /// practical application to PNG images, because narrow-range images are [quite
+    /// rare](https://github.com/w3c/png/issues/312#issuecomment-2327349614) in practice.
+    pub is_video_full_range_image: bool,
+}
+
 /// Mastering Display Color Volume (mDCv) used at the point of content creation,
 /// as specified in [SMPTE-ST-2086](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8353899).
 ///
@@ -557,6 +596,8 @@ pub struct Info<'a> {
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
     pub icc_profile: Option<Cow<'a, [u8]>>,
+    /// The coding-independent code points for video signal type identification of the image.
+    pub coding_independent_code_points: Option<CodingIndependentCodePoints>,
     /// The mastering display color volume for the image.
     pub mastering_display_color_volume: Option<MasteringDisplayColorVolume>,
     /// The content light information for the image.
@@ -593,6 +634,7 @@ impl Default for Info<'_> {
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
+            coding_independent_code_points: None,
             mastering_display_color_volume: None,
             content_light_level: None,
             exif_metadata: None,

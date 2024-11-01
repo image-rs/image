@@ -443,7 +443,7 @@ impl<R: Read> AvifDecoder<R> {
         // or at least I can't find guarantees on that
         // so if it is happened, instead casting we'll need to reshape it into a target slice
         // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
-        
+
         let y_plane_view = transmute_y_plane16(
             &y_dav1d_plane,
             self.picture.stride(PlanarImageComponent::Y) as usize,

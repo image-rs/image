@@ -1,4 +1,9 @@
 //! Decoding of AVIF images.
+use crate::error::{
+    DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
+};
+use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
 /// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
 ///
@@ -7,12 +12,6 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::marker::PhantomData;
-
-use crate::error::{
-    DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
-    UnsupportedErrorKind,
-};
-use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
@@ -35,7 +34,6 @@ pub struct AvifDecoder<R> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AvifDecoderError {
     AlphaPlaneFormat(PixelLayout),
-    MemoryLayout,
     YuvLayoutOnIdentityMatrix(PixelLayout),
 }
 
@@ -48,9 +46,6 @@ impl Display for AvifDecoderError {
                 PixelLayout::I422 => f.write_str("Alpha layout must be 4:0:0 but it was 4:2:2"),
                 PixelLayout::I444 => f.write_str("Alpha layout must be 4:0:0 but it was 4:4:4"),
             },
-            AvifDecoderError::MemoryLayout => {
-                f.write_str("Unexpected data size for current RGBx layout")
-            }
             AvifDecoderError::YuvLayoutOnIdentityMatrix(pixel_layout) => match pixel_layout {
                 PixelLayout::I400 => {
                     f.write_str("YUV layout on 'Identity' matrix must be 4:4:4 but it was 4:0:0")
@@ -125,7 +120,7 @@ fn reshape_plane(source: &[u8], stride: usize, width: usize, height: usize) -> V
         .zip(source.chunks_exact(stride))
     {
         for (dst, src) in shaped_row.iter_mut().zip(src_row.chunks_exact(2)) {
-            *dst = u16::from_le_bytes([src[0], src[1]]);
+            *dst = u16::from_ne_bytes([src[0], src[1]]);
         }
     }
     target_plane
@@ -134,6 +129,15 @@ fn reshape_plane(source: &[u8], stride: usize, width: usize, height: usize) -> V
 struct Plane16View<'a> {
     data: std::borrow::Cow<'a, [u16]>,
     stride: usize,
+}
+
+impl Default for Plane16View<'_> {
+    fn default() -> Self {
+        Plane16View {
+            data: std::borrow::Cow::Owned(vec![]),
+            stride: 0,
+        }
+    }
 }
 
 /// This is correct to transmute FFI data for Y plane and Alpha plane
@@ -230,8 +234,7 @@ fn get_matrix(
     david_matrix: dav1d::pixel::MatrixCoefficients,
 ) -> Result<YuvStandardMatrix, ImageError> {
     match david_matrix {
-        // Identity just a stub here, we'll handle it in different way
-        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvStandardMatrix::Bt709),
+        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvStandardMatrix::Identity),
         dav1d::pixel::MatrixCoefficients::BT709 => Ok(YuvStandardMatrix::Bt709),
         // This is arguable, some applications prefer to go with Bt.709 as default,
         // and some applications prefer Bt.601 as default.
@@ -301,60 +304,6 @@ fn get_matrix(
     }
 }
 
-fn check_target_rgba_dimension_preconditions(
-    width: usize,
-    height: usize,
-) -> Result<(), ImageError> {
-    // This is suspicious if this happens, better fail early
-    if width == 0 || height == 0 {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::DimensionError,
-        )));
-    }
-    // Image dimensions must not exceed pointer size
-    let (v_stride, ow) = width.overflowing_mul(4);
-    if ow {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::InsufficientMemory,
-        )));
-    }
-    let (_, ow) = v_stride.overflowing_mul(height);
-    if ow {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::InsufficientMemory,
-        )));
-    }
-    Ok(())
-}
-
-fn check_plane_dimension_preconditions(
-    width: usize,
-    height: usize,
-    target_width: usize,
-    target_height: usize,
-) -> Result<(), ImageError> {
-    // This is suspicious if this happens, better fail early
-    if width == 0 || height == 0 {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::DimensionError,
-        )));
-    }
-    // Plane dimensions must not exceed pointer size
-    let (_, ow) = width.overflowing_mul(height);
-    if ow {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::InsufficientMemory,
-        )));
-    }
-    // This should never happen that plane size differs from target size
-    if target_width != width || target_height != height {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::DimensionError,
-        )));
-    }
-    Ok(())
-}
-
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.picture.width(), self.picture.height())
@@ -382,7 +331,12 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
         let (width, height) = self.dimensions();
-        check_target_rgba_dimension_preconditions(width as usize, height as usize)?;
+        // This is suspicious if this happens, better fail early
+        if width == 0 || height == 0 {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::DimensionError,
+            )));
+        }
 
         let yuv_range = match self.picture.color_range() {
             dav1d::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
@@ -403,46 +357,29 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         }
 
         if bit_depth == 8 {
-            if self.picture.pixel_layout() != PixelLayout::I400 {
-                let ref_y = self.picture.plane(PlanarImageComponent::Y);
-                let ref_u = self.picture.plane(PlanarImageComponent::U);
-                let ref_v = self.picture.plane(PlanarImageComponent::V);
+            let ref_y = self.picture.plane(PlanarImageComponent::Y);
+            let ref_u = self.picture.plane(PlanarImageComponent::U);
+            let ref_v = self.picture.plane(PlanarImageComponent::V);
 
-                let image = YuvPlanarImage {
-                    y_plane: ref_y.as_ref(),
-                    y_stride: self.picture.stride(PlanarImageComponent::Y) as usize,
-                    u_plane: ref_u.as_ref(),
-                    u_stride: self.picture.stride(PlanarImageComponent::U) as usize,
-                    v_plane: ref_v.as_ref(),
-                    v_stride: self.picture.stride(PlanarImageComponent::V) as usize,
-                    width: width as usize,
-                    height: height as usize,
-                };
+            let image = YuvPlanarImage {
+                y_plane: ref_y.as_ref(),
+                y_stride: self.picture.stride(PlanarImageComponent::Y) as usize,
+                u_plane: ref_u.as_ref(),
+                u_stride: self.picture.stride(PlanarImageComponent::U) as usize,
+                v_plane: ref_v.as_ref(),
+                v_stride: self.picture.stride(PlanarImageComponent::V) as usize,
+                width: width as usize,
+                height: height as usize,
+            };
 
-                if !is_identity {
-                    let worker = match self.picture.pixel_layout() {
-                        PixelLayout::I400 => unreachable!(),
-                        PixelLayout::I420 => yuv420_to_rgba8,
-                        PixelLayout::I422 => yuv422_to_rgba8,
-                        PixelLayout::I444 => yuv444_to_rgba8,
-                    };
+            let worker = match self.picture.pixel_layout() {
+                PixelLayout::I400 => yuv400_to_rgba8,
+                PixelLayout::I420 => yuv420_to_rgba8,
+                PixelLayout::I422 => yuv422_to_rgba8,
+                PixelLayout::I444 => yuv444_to_rgba8,
+            };
 
-                    worker(image, buf, yuv_range, color_matrix)?;
-                } else {
-                    gbr_to_rgba8(image, buf)?;
-                }
-            } else {
-                let plane = self.picture.plane(PlanarImageComponent::Y);
-
-                let gray_image = YuvGrayImage {
-                    y_plane: plane.as_ref(),
-                    y_stride: self.picture.stride(PlanarImageComponent::Y) as usize,
-                    width: width as usize,
-                    height: height as usize,
-                };
-
-                yuv400_to_rgba8(gray_image, buf, yuv_range, color_matrix)?;
-            }
+            worker(image, buf, yuv_range, color_matrix)?;
 
             // Squashing alpha plane into a picture
             if let Some(picture) = self.alpha_picture {
@@ -452,13 +389,6 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                         AvifDecoderError::AlphaPlaneFormat(picture.pixel_layout()),
                     )));
                 }
-
-                check_plane_dimension_preconditions(
-                    picture.width() as usize,
-                    picture.height() as usize,
-                    width as usize,
-                    height as usize,
-                )?;
 
                 let stride = picture.stride(PlanarImageComponent::Y) as usize;
                 let plane = picture.plane(PlanarImageComponent::Y);
@@ -473,150 +403,24 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 }
             }
         } else {
-            // 8+ bit-depth case
-            let rgba16_buf: &mut [u16] = match bytemuck::try_cast_slice_mut(buf) {
-                Ok(slice) => slice,
-                Err(_) => {
-                    return Err(ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Avif.into(),
-                        AvifDecoderError::MemoryLayout,
-                    )));
-                }
-            };
+            // // 8+ bit-depth case
 
             // dav1d may return not aligned and not correctly constrained data,
             // or at least I can't find guarantees on that
             // so if it is happened, instead casting we'll need to reshape it into a target slice
             // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
 
-            let y_dav1d_plane = self.picture.plane(PlanarImageComponent::Y);
-
-            let y_plane_view = transmute_y_plane16(
-                &y_dav1d_plane,
-                self.picture.stride(PlanarImageComponent::Y) as usize,
-                width as usize,
-                height as usize,
-            );
-
-            if self.picture.pixel_layout() != PixelLayout::I400 {
-                let u_dav1d_plane = self.picture.plane(PlanarImageComponent::U);
-                let v_dav1d_plane = self.picture.plane(PlanarImageComponent::V);
-
-                let u_plane_view = transmute_chroma_plane16(
-                    &u_dav1d_plane,
-                    self.picture.pixel_layout(),
-                    self.picture.stride(PlanarImageComponent::U) as usize,
-                    width as usize,
-                    height as usize,
-                );
-                let v_plane_view = transmute_chroma_plane16(
-                    &v_dav1d_plane,
-                    self.picture.pixel_layout(),
-                    self.picture.stride(PlanarImageComponent::V) as usize,
-                    width as usize,
-                    height as usize,
-                );
-
-                let image = YuvPlanarImage {
-                    y_plane: y_plane_view.data.as_ref(),
-                    y_stride: y_plane_view.stride,
-                    u_plane: u_plane_view.data.as_ref(),
-                    u_stride: u_plane_view.stride,
-                    v_plane: v_plane_view.data.as_ref(),
-                    v_stride: v_plane_view.stride,
-                    width: width as usize,
-                    height: height as usize,
-                };
-
-                if !is_identity {
-                    let worker = match self.picture.pixel_layout() {
-                        PixelLayout::I400 => unreachable!(),
-                        PixelLayout::I420 => {
-                            if bit_depth == 10 {
-                                yuv420_to_rgba10
-                            } else {
-                                yuv420_to_rgba12
-                            }
-                        }
-                        PixelLayout::I422 => {
-                            if bit_depth == 10 {
-                                yuv422_to_rgba10
-                            } else {
-                                yuv422_to_rgba12
-                            }
-                        }
-                        PixelLayout::I444 => {
-                            if bit_depth == 10 {
-                                yuv444_to_rgba10
-                            } else {
-                                yuv444_to_rgba12
-                            }
-                        }
-                    };
-
-                    worker(image, rgba16_buf, yuv_range, color_matrix)?;
-                } else {
-                    let worker = if bit_depth == 10 {
-                        gbr_to_rgba10
-                    } else {
-                        gbr_to_rgba12
-                    };
-                    worker(image, rgba16_buf)?;
-                }
+            if let Ok(buf) = bytemuck::try_cast_slice_mut(buf) {
+                let target_slice: &mut [u16] = buf;
+                self.process_16bit_picture(target_slice, yuv_range, color_matrix)?;
             } else {
-                let gray_image = YuvGrayImage {
-                    y_plane: y_plane_view.data.as_ref(),
-                    y_stride: y_plane_view.stride,
-                    width: width as usize,
-                    height: height as usize,
-                };
-                let worker = if bit_depth == 10 {
-                    yuv400_to_rgba10
-                } else {
-                    yuv400_to_rgba12
-                };
-                worker(gray_image, rgba16_buf, yuv_range, color_matrix)?;
-            }
-
-            // Squashing alpha plane into a picture
-            if let Some(picture) = self.alpha_picture {
-                if picture.pixel_layout() != PixelLayout::I400 {
-                    return Err(ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Avif.into(),
-                        AvifDecoderError::AlphaPlaneFormat(picture.pixel_layout()),
-                    )));
-                }
-
-                check_plane_dimension_preconditions(
-                    picture.width() as usize,
-                    picture.height() as usize,
-                    width as usize,
-                    height as usize,
-                )?;
-
-                let a_dav1d_plane = picture.plane(PlanarImageComponent::Y);
-                let a_plane_view = transmute_y_plane16(
-                    &a_dav1d_plane,
-                    picture.stride(PlanarImageComponent::Y) as usize,
-                    width as usize,
-                    height as usize,
-                );
-
-                for (buf, slice) in Iterator::zip(
-                    rgba16_buf.chunks_exact_mut(width as usize * 4),
-                    a_plane_view.data.as_ref().chunks_exact(a_plane_view.stride),
-                ) {
-                    for (rgba, a_src) in buf.chunks_exact_mut(4).zip(slice) {
-                        rgba[3] = *a_src;
-                    }
-                }
-            }
-
-            // Expand current bit depth to target 16
-            let target_expand_bits = 16u32.saturating_sub(self.picture.bit_depth() as u32);
-            if target_expand_bits > 0 {
-                for item in rgba16_buf.iter_mut() {
-                    *item <<= target_expand_bits;
+                // If buffer from Decoder is unaligned
+                let mut aligned_store = vec![0u16; buf.len() / 2];
+                self.process_16bit_picture(&mut aligned_store, yuv_range, color_matrix)?;
+                for (dst, src) in buf.chunks_exact_mut(2).zip(aligned_store.iter()) {
+                    let bytes = src.to_ne_bytes();
+                    dst[0] = bytes[0];
+                    dst[1] = bytes[1];
                 }
             }
         }
@@ -626,6 +430,127 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
+    }
+}
+
+impl<R: Read> AvifDecoder<R> {
+    fn process_16bit_picture(
+        &self,
+        target: &mut [u16],
+        yuv_range: YuvIntensityRange,
+        color_matrix: YuvStandardMatrix,
+    ) -> ImageResult<()> {
+        let y_dav1d_plane = self.picture.plane(PlanarImageComponent::Y);
+
+        let (width, height) = (self.picture.width(), self.picture.height());
+        let bit_depth = self.picture.bit_depth();
+
+        let y_plane_view = transmute_y_plane16(
+            &y_dav1d_plane,
+            self.picture.stride(PlanarImageComponent::Y) as usize,
+            width as usize,
+            height as usize,
+        );
+
+        let u_dav1d_plane = self.picture.plane(PlanarImageComponent::U);
+        let v_dav1d_plane = self.picture.plane(PlanarImageComponent::V);
+        let mut u_plane_view = Plane16View::default();
+        let mut v_plane_view = Plane16View::default();
+
+        if self.picture.pixel_layout() != PixelLayout::I400 {
+            u_plane_view = transmute_chroma_plane16(
+                &u_dav1d_plane,
+                self.picture.pixel_layout(),
+                self.picture.stride(PlanarImageComponent::U) as usize,
+                width as usize,
+                height as usize,
+            );
+            v_plane_view = transmute_chroma_plane16(
+                &v_dav1d_plane,
+                self.picture.pixel_layout(),
+                self.picture.stride(PlanarImageComponent::V) as usize,
+                width as usize,
+                height as usize,
+            );
+        }
+
+        let image = YuvPlanarImage {
+            y_plane: y_plane_view.data.as_ref(),
+            y_stride: y_plane_view.stride,
+            u_plane: u_plane_view.data.as_ref(),
+            u_stride: u_plane_view.stride,
+            v_plane: v_plane_view.data.as_ref(),
+            v_stride: v_plane_view.stride,
+            width: width as usize,
+            height: height as usize,
+        };
+
+        let worker = match self.picture.pixel_layout() {
+            PixelLayout::I400 => {
+                if bit_depth == 10 {
+                    yuv400_to_rgba10
+                } else {
+                    yuv400_to_rgba12
+                }
+            }
+            PixelLayout::I420 => {
+                if bit_depth == 10 {
+                    yuv420_to_rgba10
+                } else {
+                    yuv420_to_rgba12
+                }
+            }
+            PixelLayout::I422 => {
+                if bit_depth == 10 {
+                    yuv422_to_rgba10
+                } else {
+                    yuv422_to_rgba12
+                }
+            }
+            PixelLayout::I444 => {
+                if bit_depth == 10 {
+                    yuv444_to_rgba10
+                } else {
+                    yuv444_to_rgba12
+                }
+            }
+        };
+        worker(image, target, yuv_range, color_matrix)?;
+
+        // Squashing alpha plane into a picture
+        if let Some(picture) = &self.alpha_picture {
+            if picture.pixel_layout() != PixelLayout::I400 {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Avif.into(),
+                    AvifDecoderError::AlphaPlaneFormat(picture.pixel_layout()),
+                )));
+            }
+
+            let a_dav1d_plane = picture.plane(PlanarImageComponent::Y);
+            let a_plane_view = transmute_y_plane16(
+                &a_dav1d_plane,
+                picture.stride(PlanarImageComponent::Y) as usize,
+                width as usize,
+                height as usize,
+            );
+
+            for (buf, slice) in Iterator::zip(
+                target.chunks_exact_mut(width as usize * 4),
+                a_plane_view.data.as_ref().chunks_exact(a_plane_view.stride),
+            ) {
+                for (rgba, a_src) in buf.chunks_exact_mut(4).zip(slice) {
+                    rgba[3] = *a_src;
+                }
+            }
+        }
+
+        // Expand current bit depth to target 16
+        let target_expand_bits = 16u32 - self.picture.bit_depth() as u32;
+        for item in target.iter_mut() {
+            *item <<= target_expand_bits;
+        }
+
+        Ok(())
     }
 }
 

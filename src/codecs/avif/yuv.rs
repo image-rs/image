@@ -199,6 +199,7 @@ pub(crate) enum YuvStandardMatrix {
     Bt2020,
     Smpte240,
     Bt470_6,
+    Identity,
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -230,6 +231,7 @@ impl YuvStandardMatrix {
                 kr: 0.2220f32,
                 kb: 0.0713f32,
             },
+            YuvStandardMatrix::Identity => unreachable!(),
         }
     }
 }
@@ -245,13 +247,6 @@ pub(crate) struct YuvPlanarImage<'a, T> {
     pub(crate) height: usize,
 }
 
-pub(crate) struct YuvGrayImage<'a, T> {
-    pub(crate) y_plane: &'a [T],
-    pub(crate) y_stride: usize,
-    pub(crate) width: usize,
-    pub(crate) height: usize,
-}
-
 /// Converts Yuv 400 planar format 8 bit to Rgba 8 bit
 ///
 /// # Arguments
@@ -263,7 +258,7 @@ pub(crate) struct YuvGrayImage<'a, T> {
 ///
 ///
 pub(crate) fn yuv400_to_rgba8(
-    image: YuvGrayImage<u8>,
+    image: YuvPlanarImage<u8>,
     rgba: &mut [u8],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
@@ -284,7 +279,7 @@ pub(crate) fn yuv400_to_rgba8(
 ///
 ///
 pub(crate) fn yuv400_to_rgba10(
-    image: YuvGrayImage<u16>,
+    image: YuvPlanarImage<u16>,
     rgba: &mut [u16],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
@@ -305,7 +300,7 @@ pub(crate) fn yuv400_to_rgba10(
 ///
 ///
 pub(crate) fn yuv400_to_rgba12(
-    image: YuvGrayImage<u16>,
+    image: YuvPlanarImage<u16>,
     rgba: &mut [u16],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
@@ -331,7 +326,7 @@ fn yuv400_to_rgbx_impl<
     const CHANNELS: usize,
     const BIT_DEPTH: usize,
 >(
-    image: YuvGrayImage<V>,
+    image: YuvPlanarImage<V>,
     rgba: &mut [V],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
@@ -1080,13 +1075,17 @@ where
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(super) fn yuv444_to_rgba8(
+pub(crate) fn yuv444_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgba: &mut [u8],
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
-    yuv444_to_rgbx_impl::<u8, 4, 8>(image, rgba, range, matrix)
+    if matrix == YuvStandardMatrix::Identity {
+        gbr_to_rgba8(image, rgba)
+    } else {
+        yuv444_to_rgbx_impl::<u8, 4, 8>(image, rgba, range, matrix)
+    }
 }
 
 /// Converts Yuv 444 planar format 10 bit-depth to Rgba 10 bit
@@ -1107,7 +1106,11 @@ pub(super) fn yuv444_to_rgba10(
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
-    yuv444_to_rgbx_impl::<u16, 4, 10>(image, rgba, range, matrix)
+    if matrix == YuvStandardMatrix::Identity {
+        gbr_to_rgba10(image, rgba)
+    } else {
+        yuv444_to_rgbx_impl::<u16, 4, 10>(image, rgba, range, matrix)
+    }
 }
 
 /// Converts Yuv 444 planar format 12 bit-depth to Rgba 12 bit
@@ -1128,7 +1131,11 @@ pub(super) fn yuv444_to_rgba12(
     range: YuvIntensityRange,
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
-    yuv444_to_rgbx_impl::<u16, 4, 12>(image, rgba, range, matrix)
+    if matrix == YuvStandardMatrix::Identity {
+        gbr_to_rgba12(image, rgba)
+    } else {
+        yuv444_to_rgbx_impl::<u16, 4, 12>(image, rgba, range, matrix)
+    }
 }
 
 /// Converts Yuv 444 planar format to Rgba
@@ -1262,7 +1269,7 @@ where
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<(), ImageError> {
+fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<(), ImageError> {
     gbr_to_rgbx_impl::<u8, 4, 8>(image, rgb)
 }
 
@@ -1278,7 +1285,7 @@ pub(crate) fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
+fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
     gbr_to_rgbx_impl::<u16, 4, 10>(image, rgb)
 }
 
@@ -1294,7 +1301,7 @@ pub(crate) fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Resu
 /// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-pub(crate) fn gbr_to_rgba12(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
+fn gbr_to_rgba12(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
     gbr_to_rgbx_impl::<u16, 4, 12>(image, rgb)
 }
 

@@ -343,13 +343,12 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,
         };
 
-        let is_identity =
-            self.picture.matrix_coefficients() == dav1d::pixel::MatrixCoefficients::Identity;
-
         let color_matrix = get_matrix(self.picture.matrix_coefficients())?;
 
         // Identity matrix should be possible only on 4:4:4
-        if is_identity && self.picture.pixel_layout() != PixelLayout::I444 {
+        if color_matrix == YuvStandardMatrix::Identity
+            && self.picture.pixel_layout() != PixelLayout::I444
+        {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Avif.into(),
                 AvifDecoderError::YuvLayoutOnIdentityMatrix(self.picture.pixel_layout()),

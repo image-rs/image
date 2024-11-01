@@ -55,6 +55,7 @@ rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.9.0", optional = true }
 zune-core = { version = "0.4.12", default-features = false, optional = true }
 zune-jpeg = { version = "0.4.13", optional = true }
+serde = { version = "1.0.214", optional = true, features = ["derive"] }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -90,6 +91,7 @@ nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be instal
 color_quant = ["dep:color_quant"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
+serde = ["dep:serde"]
 
 [[bench]]
 path = "benches/decode.rs"

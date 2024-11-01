@@ -5,6 +5,9 @@ use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
@@ -20,6 +23,7 @@ use crate::animation::Frames;
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub enum ImageFormat {
     /// An Image in PNG Format

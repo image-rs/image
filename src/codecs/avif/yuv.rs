@@ -350,6 +350,11 @@ where
         },
         "Unsupported bit depth and data type combination"
     );
+    assert_ne!(
+        matrix,
+        YuvStandardMatrix::Identity,
+        "Identity matrix cannot be used on 4:0:0"
+    );
 
     let y_plane = image.y_plane;
     let y_stride = image.y_stride;
@@ -526,6 +531,11 @@ where
             size_of::<V>() == 1
         },
         "Unsupported bit depth and data type combination"
+    );
+    assert_ne!(
+        matrix,
+        YuvStandardMatrix::Identity,
+        "Identity matrix cannot be used on 4:2:0"
     );
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;
@@ -902,6 +912,11 @@ where
             size_of::<V>() == 1
         },
         "Unsupported bit depth and data type combination"
+    );
+    assert_ne!(
+        matrix,
+        YuvStandardMatrix::Identity,
+        "Identity matrix cannot be used on 4:2:2"
     );
     let y_plane = image.y_plane;
     let u_plane = image.u_plane;

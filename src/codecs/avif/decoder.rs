@@ -404,12 +404,6 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
         } else {
             // // 8+ bit-depth case
-
-            // dav1d may return not aligned and not correctly constrained data,
-            // or at least I can't find guarantees on that
-            // so if it is happened, instead casting we'll need to reshape it into a target slice
-            // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
-
             if let Ok(buf) = bytemuck::try_cast_slice_mut(buf) {
                 let target_slice: &mut [u16] = buf;
                 self.process_16bit_picture(target_slice, yuv_range, color_matrix)?;
@@ -445,6 +439,11 @@ impl<R: Read> AvifDecoder<R> {
         let (width, height) = (self.picture.width(), self.picture.height());
         let bit_depth = self.picture.bit_depth();
 
+        // dav1d may return not aligned and not correctly constrained data,
+        // or at least I can't find guarantees on that
+        // so if it is happened, instead casting we'll need to reshape it into a target slice
+        // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
+        
         let y_plane_view = transmute_y_plane16(
             &y_dav1d_plane,
             self.picture.stride(PlanarImageComponent::Y) as usize,

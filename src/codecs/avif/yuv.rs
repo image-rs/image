@@ -247,6 +247,14 @@ pub(crate) struct YuvPlanarImage<'a, T> {
     pub(crate) height: usize,
 }
 
+#[inline(always)]
+/// Saturating rounding shift right against bit depth
+fn qrshr<const PRECISION: i32, const BIT_DEPTH: usize>(val: i32) -> i32 {
+    let rounding: i32 = 1 << (PRECISION - 1);
+    let max_value: i32 = (1 << BIT_DEPTH) - 1;
+    ((val + rounding) >> PRECISION).clamp(0, max_value)
+}
+
 /// Converts Yuv 400 planar format 8 bit to Rgba 8 bit
 ///
 /// # Arguments
@@ -393,7 +401,7 @@ where
     let range = range.get_yuv_range(BIT_DEPTH as u32);
     let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
-    const ROUNDING: i32 = 1 << (PRECISION - 1);
+
     let inverse_transform = get_inverse_transform(
         (1 << BIT_DEPTH) - 1,
         range.range_y,
@@ -416,7 +424,7 @@ where
         for (y_src, rgb_dst) in y_src.iter().zip(rgb_chunks) {
             let y_value = (y_src.as_() - bias_y) * y_coef;
 
-            let r = ((y_value + ROUNDING) >> PRECISION).clamp(0, max_value);
+            let r = qrshr::<PRECISION, BIT_DEPTH>(y_value);
             rgb_dst[0] = r.as_();
             rgb_dst[1] = r.as_();
             rgb_dst[2] = r.as_();
@@ -490,6 +498,114 @@ pub(crate) fn yuv420_to_rgba12(
     yuv420_to_rgbx::<u16, 4, 12>(image, rgb, range, matrix)
 }
 
+#[inline]
+fn process_halved_chroma_row<
+    V: Copy + AsPrimitive<i32> + 'static + Sized,
+    const PRECISION: i32,
+    const CHANNELS: usize,
+    const BIT_DEPTH: usize,
+>(
+    image: YuvPlanarImage<V>,
+    rgba: &mut [V],
+    transform: &CbCrInverseTransform<i32>,
+    range: &YuvChromaRange,
+) where
+    i32: AsPrimitive<V>,
+{
+    let cr_coef = transform.cr_coef;
+    let cb_coef = transform.cb_coef;
+    let y_coef = transform.y_coef;
+    let g_coef_1 = transform.g_coeff_1;
+    let g_coef_2 = transform.g_coeff_2;
+
+    let max_value = (1 << BIT_DEPTH) - 1;
+
+    let bias_y = range.bias_y as i32;
+    let bias_uv = range.bias_uv as i32;
+    let y_iter = image.y_plane.chunks_exact(2);
+    let rgb_chunks = rgba.chunks_exact_mut(CHANNELS * 2);
+    for (((y_src, &u_src), &v_src), rgb_dst) in
+        y_iter.zip(image.u_plane).zip(image.v_plane).zip(rgb_chunks)
+    {
+        let y_value: i32 = (y_src[0].as_() - bias_y) * y_coef;
+        let cb_value: i32 = u_src.as_() - bias_uv;
+        let cr_value: i32 = v_src.as_() - bias_uv;
+
+        let r = qrshr::<PRECISION, BIT_DEPTH>(y_value + cr_coef * cr_value);
+        let b = qrshr::<PRECISION, BIT_DEPTH>(y_value + cb_coef * cb_value);
+        let g = qrshr::<PRECISION, BIT_DEPTH>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
+
+        if CHANNELS == 4 {
+            rgb_dst[0] = r.as_();
+            rgb_dst[1] = g.as_();
+            rgb_dst[2] = b.as_();
+            rgb_dst[3] = max_value.as_();
+        } else if CHANNELS == 3 {
+            rgb_dst[0] = r.as_();
+            rgb_dst[1] = g.as_();
+            rgb_dst[2] = b.as_();
+        } else {
+            unreachable!();
+        }
+
+        let y_value = (y_src[1].as_() - bias_y) * y_coef;
+
+        let r = qrshr::<PRECISION, BIT_DEPTH>(y_value + cr_coef * cr_value);
+        let b = qrshr::<PRECISION, BIT_DEPTH>(y_value + cb_coef * cb_value);
+        let g = qrshr::<PRECISION, BIT_DEPTH>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
+
+        if CHANNELS == 4 {
+            rgb_dst[4] = r.as_();
+            rgb_dst[5] = g.as_();
+            rgb_dst[6] = b.as_();
+            rgb_dst[7] = max_value.as_();
+        } else if CHANNELS == 3 {
+            rgb_dst[3] = r.as_();
+            rgb_dst[4] = g.as_();
+            rgb_dst[5] = b.as_();
+        } else {
+            unreachable!();
+        }
+    }
+
+    // Process remainder if width is odd.
+    if image.width & 1 != 0 {
+        let y_left = image.y_plane.chunks_exact(2).remainder();
+        let rgb_chunks = rgba
+            .chunks_exact_mut(CHANNELS * 2)
+            .into_remainder()
+            .chunks_exact_mut(CHANNELS);
+        let u_iter = image.u_plane.iter().rev();
+        let v_iter = image.v_plane.iter().rev();
+
+        for (((y_src, u_src), v_src), rgb_dst) in
+            y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
+        {
+            let y_value = (y_src.as_() - bias_y) * y_coef;
+            let cb_value = u_src.as_() - bias_uv;
+            let cr_value = v_src.as_() - bias_uv;
+
+            let r = qrshr::<PRECISION, BIT_DEPTH>(y_value + cr_coef * cr_value);
+            let b = qrshr::<PRECISION, BIT_DEPTH>(y_value + cb_coef * cb_value);
+            let g =
+                qrshr::<PRECISION, BIT_DEPTH>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
+
+            if CHANNELS == 4 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+                rgb_dst[3] = max_value.as_();
+            } else if CHANNELS == 3 {
+                rgb_dst[0] = r.as_();
+                rgb_dst[1] = g.as_();
+                rgb_dst[2] = b.as_();
+            } else {
+                unreachable!();
+            }
+        }
+    }
+}
+
 /// Converts YUV420 to Rgba
 ///
 /// Stride here is not supported as it can be in passed from FFI.
@@ -551,10 +667,7 @@ where
 
     check_rgb_preconditions(rgb, image.width * CHANNELS, image.height)?;
 
-    let max_value = (1 << BIT_DEPTH) - 1;
-
     const PRECISION: i32 = 11;
-    const ROUNDING: i32 = 1 << (PRECISION - 1);
 
     let range = range.get_yuv_range(BIT_DEPTH as u32);
     let kr_kb = matrix.get_kr_kb();
@@ -566,14 +679,6 @@ where
         kr_kb.kb,
         PRECISION as u32,
     );
-    let cr_coef = inverse_transform.cr_coef;
-    let cb_coef = inverse_transform.cb_coef;
-    let y_coef = inverse_transform.y_coef;
-    let g_coef_1 = inverse_transform.g_coeff_1;
-    let g_coef_2 = inverse_transform.g_coeff_2;
-
-    let bias_y = range.bias_y as i32;
-    let bias_uv = range.bias_uv as i32;
 
     let rgb_stride = image.width * CHANNELS;
 
@@ -613,99 +718,23 @@ where
         // Since we're processing two rows in one loop we need to re-slice once more
         let y_iter = y_src.chunks_exact(y_stride);
         let rgb_iter = rgb.chunks_exact_mut(rgb_stride);
-        for (y_src, rgb) in y_iter.zip(rgb_iter) {
-            let y_iter = y_src.chunks_exact(2);
-            let rgb_chunks = rgb.chunks_exact_mut(CHANNELS * 2);
-            for (((y_src, &u_src), &v_src), rgb_dst) in y_iter.zip(u_src).zip(v_src).zip(rgb_chunks)
-            {
-                let y_value: i32 = (y_src[0].as_() - bias_y) * y_coef;
-                let cb_value: i32 = u_src.as_() - bias_uv;
-                let cr_value: i32 = v_src.as_() - bias_uv;
-
-                let r =
-                    ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let b =
-                    ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
-                    >> PRECISION)
-                    .clamp(0, max_value);
-
-                if CHANNELS == 4 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                    rgb_dst[3] = max_value.as_();
-                } else if CHANNELS == 3 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                } else {
-                    unreachable!();
-                }
-
-                let y_value = (y_src[1].as_() - bias_y) * y_coef;
-
-                let r =
-                    ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let b =
-                    ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
-                    >> PRECISION)
-                    .clamp(0, max_value);
-
-                if CHANNELS == 4 {
-                    rgb_dst[4] = r.as_();
-                    rgb_dst[5] = g.as_();
-                    rgb_dst[6] = b.as_();
-                    rgb_dst[7] = max_value.as_();
-                } else if CHANNELS == 3 {
-                    rgb_dst[3] = r.as_();
-                    rgb_dst[4] = g.as_();
-                    rgb_dst[5] = b.as_();
-                } else {
-                    unreachable!();
-                }
-            }
-
-            // Process remainder if width is odd.
-            if image.width & 1 != 0 {
-                let y_left = y_src.chunks_exact(2).remainder();
-                let rgb_chunks = rgb
-                    .chunks_exact_mut(CHANNELS * 2)
-                    .into_remainder()
-                    .chunks_exact_mut(CHANNELS);
-                let u_iter = u_src.iter().rev();
-                let v_iter = v_src.iter().rev();
-
-                for (((y_src, u_src), v_src), rgb_dst) in
-                    y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
-                {
-                    let y_value = (y_src.as_() - bias_y) * y_coef;
-                    let cb_value = u_src.as_() - bias_uv;
-                    let cr_value = v_src.as_() - bias_uv;
-
-                    let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION)
-                        .clamp(0, max_value);
-                    let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION)
-                        .clamp(0, max_value);
-                    let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
-                        >> PRECISION)
-                        .clamp(0, max_value);
-
-                    if CHANNELS == 4 {
-                        rgb_dst[0] = r.as_();
-                        rgb_dst[1] = g.as_();
-                        rgb_dst[2] = b.as_();
-                        rgb_dst[3] = max_value.as_();
-                    } else if CHANNELS == 3 {
-                        rgb_dst[0] = r.as_();
-                        rgb_dst[1] = g.as_();
-                        rgb_dst[2] = b.as_();
-                    } else {
-                        unreachable!();
-                    }
-                }
-            }
+        for (y_src, rgba) in y_iter.zip(rgb_iter) {
+            let image = YuvPlanarImage {
+                y_plane: y_src,
+                y_stride: 0,
+                u_plane: u_src,
+                u_stride: 0,
+                v_plane: v_src,
+                v_stride: 0,
+                width: image.width,
+                height: image.height,
+            };
+            process_halved_chroma_row::<V, PRECISION, CHANNELS, BIT_DEPTH>(
+                image,
+                rgba,
+                &inverse_transform,
+                &range,
+            );
         }
     }
 
@@ -719,99 +748,23 @@ where
     let u_iter = u_plane.chunks_exact(u_stride).rev();
     let v_iter = v_plane.chunks_exact(v_stride).rev();
 
-    for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-        let y_iter = y_src.chunks_exact(2);
-        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS * 2);
-        for (((y_src, u_src), v_src), rgb_dst) in y_iter.zip(u_src).zip(v_src).zip(rgb_chunks) {
-            let y_value = (y_src[0].as_() - bias_y) * y_coef;
-            let cb_value = u_src.as_() - bias_uv;
-            let cr_value = v_src.as_() - bias_uv;
-
-#[inline(always)]
-fn round<const PRECISION: i32, const MAX: i32>(val: i32) -> i32 {
-    let ROUNDING: i32 = 1 << (PRECISION - 1);
-    ((val + ROUNDING) >> PRECISION).clamp(0, MAX)
-}
-
-            let r = round::<PRECISION, MAX>(y_value + cr_coef * cr_value);
-            let b = round::<PRECISION, MAX>(y_value + cb_coef * cb_value);
-            let g = round::<PRECISION, MAX>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
-                .clamp(0, max_value);
-
-            if CHANNELS == 4 {
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-                rgb_dst[3] = max_value.as_();
-            } else if CHANNELS == 3 {
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-            } else {
-                unreachable!();
-            }
-
-            let y_value = (y_src[1].as_() - bias_y) * y_coef;
-
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
-                .clamp(0, max_value);
-
-            if CHANNELS == 4 {
-                rgb_dst[4] = r.as_();
-                rgb_dst[5] = g.as_();
-                rgb_dst[6] = b.as_();
-                rgb_dst[7] = max_value.as_();
-            } else if CHANNELS == 3 {
-                rgb_dst[3] = r.as_();
-                rgb_dst[4] = g.as_();
-                rgb_dst[5] = b.as_();
-            } else {
-                unreachable!();
-            }
-        }
-
-        // Process remainder if width is odd.
-
-        if image.width & 1 != 0 {
-            let y_left = y_src.chunks_exact(2).remainder();
-            let rgb_chunks = rgb
-                .chunks_exact_mut(CHANNELS * 2)
-                .into_remainder()
-                .chunks_exact_mut(CHANNELS);
-            let u_iter = u_plane.iter().rev();
-            let v_iter = v_plane.iter().rev();
-
-            for (((y_src, u_src), v_src), rgb_dst) in
-                y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
-            {
-                let y_value = (y_src.as_() - bias_y) * y_coef;
-                let cb_value = u_src.as_() - bias_uv;
-                let cr_value = v_src.as_() - bias_uv;
-
-                let r =
-                    ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let b =
-                    ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
-                    >> PRECISION)
-                    .clamp(0, max_value);
-
-                if CHANNELS == 4 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                    rgb_dst[3] = max_value.as_();
-                } else if CHANNELS == 3 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                } else {
-                    unreachable!();
-                }
-            }
-        }
+    for (((y_src, u_src), v_src), rgba) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
+        let image = YuvPlanarImage {
+            y_plane: y_src,
+            y_stride: 0,
+            u_plane: u_src,
+            u_stride: 0,
+            v_plane: v_src,
+            v_stride: 0,
+            width: image.width,
+            height: image.height,
+        };
+        process_halved_chroma_row::<V, PRECISION, CHANNELS, BIT_DEPTH>(
+            image,
+            rgba,
+            &inverse_transform,
+            &range,
+        );
     }
 
     Ok(())
@@ -938,12 +891,10 @@ where
 
     check_rgb_preconditions(rgb, image.width * CHANNELS, image.height)?;
 
-    let max_value = (1 << BIT_DEPTH) - 1;
-
     let range = range.get_yuv_range(BIT_DEPTH as u32);
     let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
-    const ROUNDING: i32 = 1 << (PRECISION - 1);
+
     let inverse_transform = get_inverse_transform(
         (1 << BIT_DEPTH) - 1,
         range.range_y,
@@ -952,14 +903,6 @@ where
         kr_kb.kb,
         PRECISION as u32,
     );
-    let cr_coef = inverse_transform.cr_coef;
-    let cb_coef = inverse_transform.cb_coef;
-    let y_coef = inverse_transform.y_coef;
-    let g_coef_1 = inverse_transform.g_coeff_1;
-    let g_coef_2 = inverse_transform.g_coeff_2;
-
-    let bias_y = range.bias_y as i32;
-    let bias_uv = range.bias_uv as i32;
 
     /*
        Sample 4x4 YUV422 planar image
@@ -994,93 +937,23 @@ where
     let v_iter = v_plane.chunks_exact(v_stride);
 
     // All branches on generic const will be optimized out.
-    for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-        let y_iter = y_src.chunks_exact(2);
-        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS * 2);
-
-        for (((y_src, u_src), v_src), rgb_dst) in y_iter.zip(u_src).zip(v_src).zip(rgb_chunks) {
-            let y_value = (y_src[0].as_() - bias_y) * y_coef;
-            let cb_value = u_src.as_() - bias_uv;
-            let cr_value = v_src.as_() - bias_uv;
-
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
-                .clamp(0, max_value);
-
-            if CHANNELS == 4 {
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-                rgb_dst[3] = max_value.as_();
-            } else if CHANNELS == 3 {
-                rgb_dst[0] = r.as_();
-                rgb_dst[1] = g.as_();
-                rgb_dst[2] = b.as_();
-            } else {
-                unreachable!();
-            }
-
-            let y_value = (y_src[1].as_() - bias_y) * y_coef;
-
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
-                .clamp(0, max_value);
-
-            if CHANNELS == 4 {
-                rgb_dst[4] = r.as_();
-                rgb_dst[5] = g.as_();
-                rgb_dst[6] = b.as_();
-                rgb_dst[7] = max_value.as_();
-            } else if CHANNELS == 3 {
-                rgb_dst[3] = r.as_();
-                rgb_dst[4] = g.as_();
-                rgb_dst[5] = b.as_();
-            } else {
-                unreachable!();
-            }
-        }
-
-        // Process left pixels for odd images, this should work since luma must be always exact
-        if width & 1 != 0 {
-            let y_left = y_src.chunks_exact(2).remainder();
-            let rgb_chunks = rgb
-                .chunks_exact_mut(CHANNELS * 2)
-                .into_remainder()
-                .chunks_exact_mut(CHANNELS);
-            let u_iter = u_src.iter().rev();
-            let v_iter = v_src.iter().rev();
-
-            for (((y_src, u_src), v_src), rgb_dst) in
-                y_left.iter().zip(u_iter).zip(v_iter).zip(rgb_chunks)
-            {
-                let y_value = (y_src.as_() - bias_y) * y_coef;
-                let cb_value = u_src.as_() - bias_uv;
-                let cr_value = v_src.as_() - bias_uv;
-
-                let r =
-                    ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let b =
-                    ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-                let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING)
-                    >> PRECISION)
-                    .clamp(0, max_value);
-
-                if CHANNELS == 4 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                    rgb_dst[3] = max_value.as_();
-                } else if CHANNELS == 3 {
-                    rgb_dst[0] = r.as_();
-                    rgb_dst[1] = g.as_();
-                    rgb_dst[2] = b.as_();
-                } else {
-                    unreachable!();
-                }
-            }
-        }
+    for (((y_src, u_src), v_src), rgba) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
+        let image = YuvPlanarImage {
+            y_plane: y_src,
+            y_stride: 0,
+            u_plane: u_src,
+            u_stride: 0,
+            v_plane: v_src,
+            v_stride: 0,
+            width: image.width,
+            height: image.height,
+        };
+        process_halved_chroma_row::<V, PRECISION, CHANNELS, BIT_DEPTH>(
+            image,
+            rgba,
+            &inverse_transform,
+            &range,
+        );
     }
 
     Ok(())
@@ -1220,7 +1093,7 @@ where
     let range = range.get_yuv_range(BIT_DEPTH as u32);
     let kr_kb = matrix.get_kr_kb();
     const PRECISION: i32 = 11;
-    const ROUNDING: i32 = 1 << (PRECISION - 1);
+
     let inverse_transform = get_inverse_transform(
         (1 << BIT_DEPTH) - 1,
         range.range_y,
@@ -1257,10 +1130,10 @@ where
             let cb_value = u_src.as_() - bias_uv;
             let cr_value = v_src.as_() - bias_uv;
 
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
-                .clamp(0, max_value);
+            let r = qrshr::<PRECISION, BIT_DEPTH>(y_value + cr_coef * cr_value);
+            let b = qrshr::<PRECISION, BIT_DEPTH>(y_value + cb_coef * cb_value);
+            let g =
+                qrshr::<PRECISION, BIT_DEPTH>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
 
             if CHANNELS == 4 {
                 rgb_dst[0] = r.as_();

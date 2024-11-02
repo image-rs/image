@@ -240,7 +240,7 @@ fn get_matrix(
         // and some applications prefer Bt.601 as default.
         // For ex. `Chrome` always prefer Bt.709 even for SD content
         // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
-        dav1d::pixel::MatrixCoefficients::Unspecified => Ok(YuvStandardMatrix::Bt601),
+        dav1d::pixel::MatrixCoefficients::Unspecified => Ok(YuvStandardMatrix::Bt709),
         dav1d::pixel::MatrixCoefficients::Reserved => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),

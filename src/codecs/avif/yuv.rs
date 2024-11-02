@@ -976,7 +976,7 @@ pub(crate) fn yuv444_to_rgba8(
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
     if matrix == YuvStandardMatrix::Identity {
-        gbr_to_rgba8(image, rgba)
+        gbr_to_rgba8(image, rgba, range)
     } else {
         yuv444_to_rgbx_impl::<u8, 4, 8>(image, rgba, range, matrix)
     }
@@ -1001,7 +1001,7 @@ pub(super) fn yuv444_to_rgba10(
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
     if matrix == YuvStandardMatrix::Identity {
-        gbr_to_rgba10(image, rgba)
+        gbr_to_rgba10(image, rgba, range)
     } else {
         yuv444_to_rgbx_impl::<u16, 4, 10>(image, rgba, range, matrix)
     }
@@ -1026,7 +1026,7 @@ pub(super) fn yuv444_to_rgba12(
     matrix: YuvStandardMatrix,
 ) -> Result<(), ImageError> {
     if matrix == YuvStandardMatrix::Identity {
-        gbr_to_rgba12(image, rgba)
+        gbr_to_rgba12(image, rgba, range)
     } else {
         yuv444_to_rgbx_impl::<u16, 4, 12>(image, rgba, range, matrix)
     }
@@ -1160,11 +1160,14 @@ where
 /// * `image`: see [YuvPlanarImage]
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
-/// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<(), ImageError> {
-    gbr_to_rgbx_impl::<u8, 4, 8>(image, rgb)
+fn gbr_to_rgba8(
+    image: YuvPlanarImage<u8>,
+    rgb: &mut [u8],
+    range: YuvIntensityRange,
+) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u8, 4, 8>(image, rgb, range)
 }
 
 /// Converts Gbr 10 bit planar format to Rgba 10 bit-depth
@@ -1174,13 +1177,16 @@ fn gbr_to_rgba8(image: YuvPlanarImage<u8>, rgb: &mut [u8]) -> Result<(), ImageEr
 /// # Arguments
 ///
 /// * `image`: see [YuvPlanarImage]
-/// * `rgb`: RGB image layout
+/// * `rgba`: RGBx image layout
 /// * `range`: see [YuvIntensityRange]
-/// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
-    gbr_to_rgbx_impl::<u16, 4, 10>(image, rgb)
+fn gbr_to_rgba10(
+    image: YuvPlanarImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u16, 4, 10>(image, rgba, range)
 }
 
 /// Converts Gbr 12 bit planar format to Rgba 12 bit-depth
@@ -1190,13 +1196,16 @@ fn gbr_to_rgba10(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), Imag
 /// # Arguments
 ///
 /// * `image`: see [YuvPlanarImage]
-/// * `rgb`: RGB image layout
+/// * `rgba`: RGBx image layout
 /// * `range`: see [YuvIntensityRange]
-/// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
-fn gbr_to_rgba12(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), ImageError> {
-    gbr_to_rgbx_impl::<u16, 4, 12>(image, rgb)
+fn gbr_to_rgba12(
+    image: YuvPlanarImage<u16>,
+    rgba: &mut [u16],
+    range: YuvIntensityRange,
+) -> Result<(), ImageError> {
+    gbr_to_rgbx_impl::<u16, 4, 12>(image, rgba, range)
 }
 
 /// Converts Gbr planar format to Rgba
@@ -1208,7 +1217,6 @@ fn gbr_to_rgba12(image: YuvPlanarImage<u16>, rgb: &mut [u16]) -> Result<(), Imag
 /// * `image`: see [YuvPlanarImage]
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
-/// * `matrix`: see [YuvStandardMatrix]
 ///
 ///
 #[inline]
@@ -1218,7 +1226,8 @@ fn gbr_to_rgbx_impl<
     const BIT_DEPTH: usize,
 >(
     image: YuvPlanarImage<V>,
-    rgb: &mut [V],
+    rgba: &mut [V],
+    yuv_range: YuvIntensityRange,
 ) -> Result<(), ImageError>
 where
     i32: AsPrimitive<V>,
@@ -1252,28 +1261,59 @@ where
     check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, height)?;
     check_yuv_plane_preconditions(v_plane, PlaneDefinition::V, v_stride, height)?;
 
-    check_rgb_preconditions(rgb, width * CHANNELS, height)?;
+    check_rgb_preconditions(rgba, width * CHANNELS, height)?;
 
     let max_value = (1 << BIT_DEPTH) - 1;
 
     let rgb_stride = width * CHANNELS;
 
     let y_iter = y_plane.chunks_exact(y_stride);
-    let rgb_iter = rgb.chunks_exact_mut(rgb_stride);
+    let rgb_iter = rgba.chunks_exact_mut(rgb_stride);
     let u_iter = u_plane.chunks_exact(u_stride);
     let v_iter = v_plane.chunks_exact(v_stride);
 
-    for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+    match yuv_range {
+        YuvIntensityRange::Tv => {
+            const PRECISION: i32 = 11;
+            // All channels on identity should use Y range
+            let range = yuv_range.get_yuv_range(BIT_DEPTH as u32);
+            let range_rgba = (1 << BIT_DEPTH) - 1;
+            let y_coef =
+                ((range_rgba as f32 / range.range_y as f32) * (1 << PRECISION) as f32) as i32;
+            let y_bias = range.bias_y as i32;
 
-        for (((&y_src, &u_src), &v_src), rgb_dst) in
-            y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
-        {
-            rgb_dst[0] = v_src;
-            rgb_dst[1] = y_src;
-            rgb_dst[2] = u_src;
-            if CHANNELS == 4 {
-                rgb_dst[3] = max_value.as_();
+            for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
+                let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+
+                for (((&y_src, &u_src), &v_src), rgb_dst) in
+                    y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
+                {
+                    rgb_dst[0] =
+                        qrshr::<PRECISION, BIT_DEPTH>((v_src.as_() - y_bias) * y_coef).as_();
+                    rgb_dst[1] =
+                        qrshr::<PRECISION, BIT_DEPTH>((y_src.as_() - y_bias) * y_coef).as_();
+                    rgb_dst[2] =
+                        qrshr::<PRECISION, BIT_DEPTH>((u_src.as_() - y_bias) * y_coef).as_();
+                    if CHANNELS == 4 {
+                        rgb_dst[3] = max_value.as_();
+                    }
+                }
+            }
+        }
+        YuvIntensityRange::Pc => {
+            for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
+                let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+
+                for (((&y_src, &u_src), &v_src), rgb_dst) in
+                    y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
+                {
+                    rgb_dst[0] = v_src;
+                    rgb_dst[1] = y_src;
+                    rgb_dst[2] = u_src;
+                    if CHANNELS == 4 {
+                        rgb_dst[3] = max_value.as_();
+                    }
+                }
             }
         }
     }

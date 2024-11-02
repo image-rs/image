@@ -727,9 +727,15 @@ where
             let cb_value = u_src.as_() - bias_uv;
             let cr_value = v_src.as_() - bias_uv;
 
-            let r = ((y_value + cr_coef * cr_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let b = ((y_value + cb_coef * cb_value + ROUNDING) >> PRECISION).clamp(0, max_value);
-            let g = ((y_value - g_coef_1 * cr_value - g_coef_2 * cb_value + ROUNDING) >> PRECISION)
+#[inline(always)]
+fn round<const PRECISION: i32, const MAX: i32>(val: i32) -> i32 {
+    let ROUNDING: i32 = 1 << (PRECISION - 1);
+    ((val + ROUNDING) >> PRECISION).clamp(0, MAX)
+}
+
+            let r = round::<PRECISION, MAX>(y_value + cr_coef * cr_value);
+            let b = round::<PRECISION, MAX>(y_value + cb_coef * cb_value);
+            let g = round::<PRECISION, MAX>(y_value - g_coef_1 * cr_value - g_coef_2 * cb_value);
                 .clamp(0, max_value);
 
             if CHANNELS == 4 {

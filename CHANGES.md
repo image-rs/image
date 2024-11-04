@@ -9,7 +9,7 @@
 ### Version 0.25.5
 
 Features:
- - Added support for decoding 10-bit AVIF
+ - Added support for decoding 10-bit and 12-bit AVIF
  - Added support for decoding PCX, disabled by default due to WTFPL license on the decoder
  - Initial, opt-in serde support for an enum. This may be extended to other types in the future.
 

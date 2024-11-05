@@ -53,7 +53,6 @@ image format encoders and decoders.
 | ICO      | Yes                                       | Yes                                     |
 | JPEG     | Yes                                       | Yes                                     |
 | EXR      | Yes                                       | Yes                                     |
-| PCX      | Yes                                       | ---                                     |
 | PNG      | Yes                                       | Yes                                     |
 | PNM      | Yes                                       | Yes                                     |
 | QOI      | Yes                                       | Yes                                     |

@@ -118,14 +118,6 @@
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-// We've temporarily disabled PCX support for 0.25.5 release
-// by removing the corresponding feature.
-// We want to ship bug fixes without committing to PCX support.
-//
-// Cargo shows warnings about code depending on a nonexistent feature
-// even to people using the crate as a dependency,
-// so we have to suppress those warnings.
-#![allow(unexpected_cfgs)]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -220,6 +212,7 @@ pub use crate::images::flat;
 /// | ICO      | Yes                                       | Yes                                     |
 /// | JPEG     | Yes                                       | Yes                                     |
 /// | EXR      | Yes                                       | Yes                                     |
+/// | PCX      | Yes                                       | ---                                     |
 /// | PNG      | Yes                                       | Yes                                     |
 /// | PNM      | Yes                                       | Yes                                     |
 /// | QOI      | Yes                                       | Yes                                     |

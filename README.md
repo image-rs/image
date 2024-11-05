@@ -44,9 +44,9 @@ image format encoders and decoders.
 
 | Format   | Decoding                                  | Encoding                                |
 | -------- | ----------------------------------------- | --------------------------------------- |
-| AVIF     | Yes (8-bit only) \*                       | Yes (lossy only)                        |
+| AVIF     | Yes \*                                    | Yes (lossy only)                        |
 | BMP      | Yes                                       | Yes                                     |
-| DDS      | Yes                                       | ---                                      |
+| DDS      | Yes                                       | ---                                     |
 | Farbfeld | Yes                                       | Yes                                     |
 | GIF      | Yes                                       | Yes                                     |
 | HDR      | Yes                                       | Yes                                     |

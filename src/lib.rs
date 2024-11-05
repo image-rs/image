@@ -213,7 +213,7 @@ pub mod flat;
 ///
 /// | Format   | Decoding                                  | Encoding                                |
 /// | -------- | ----------------------------------------- | --------------------------------------- |
-/// | AVIF     | Yes (8-bit only) \*                       | Yes (lossy only)                        |
+/// | AVIF     | Yes \*                                    | Yes (lossy only)                        |
 /// | BMP      | Yes                                       | Yes                                     |
 /// | DDS      | Yes                                       | ---                                     |
 /// | Farbfeld | Yes                                       | Yes                                     |

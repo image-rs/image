@@ -6,6 +6,17 @@
 
 ## Changes
 
+### Version 0.25.5
+
+Features:
+ - Added support for decoding 10-bit and 12-bit AVIF
+ - Initial, opt-in serde support for an enum. This may be extended to other types in the future.
+
+Bug fixes:
+ - [Multiple bug fixes in AVIF decoding](https://github.com/image-rs/image/pull/2373)
+ - The `rayon` feature now correctly toggles the use of `rayon` when encoding AVIF. (Previously it would be either always on or always off depending on the version of the `ravif` crate in your dependency tree.)
+ - "jfif" file extension for JPEG images is now recognized
+
 ### Version 0.25.4
 
 Features:

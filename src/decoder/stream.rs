@@ -2436,17 +2436,16 @@ mod tests {
     /// Creates a ready-to-test [`Reader`] which decodes an animated PNG that contains:
     /// IHDR, acTL, fcTL, IDAT, fcTL, fdAT, IEND.  (i.e. IDAT is part of the animation)
     fn create_reader_of_ihdr_actl_fctl_idat_fctl_fdat() -> Reader<VecDeque<u8>> {
-        let width = 16;
-        let frame_data = generate_rgba8_with_width_and_height(width, width);
+        let idat_width = 16;
         let mut fctl = crate::FrameControl {
-            width,
-            height: width,
+            width: idat_width,
+            height: idat_width, // same height and width
             ..Default::default()
         };
 
         let mut png = VecDeque::new();
         write_png_sig(&mut png);
-        write_rgba8_ihdr_with_width(&mut png, width);
+        write_rgba8_ihdr_with_width(&mut png, idat_width);
         write_actl(
             &mut png,
             &crate::AnimationControl {
@@ -2456,10 +2455,21 @@ mod tests {
         );
         fctl.sequence_number = 0;
         write_fctl(&mut png, &fctl);
-        write_chunk(&mut png, b"IDAT", &frame_data);
+        // Using `fctl.height + 1` means that the `IDAT` will have "left-over" data after
+        // processing.  This helps to verify that `Reader.read_until_image_data` discards the
+        // left-over data when resetting `UnfilteredRowsBuffer`.
+        let idat_data = generate_rgba8_with_width_and_height(fctl.width, fctl.height + 1);
+        write_chunk(&mut png, b"IDAT", &idat_data);
+
+        let fdat_width = 10;
         fctl.sequence_number = 1;
+        // Using different width in `IDAT` and `fDAT` frames helps to catch problems that
+        // may arise when `Reader.read_until_image_data` doesn't properly reset
+        // `UnfilteredRowsBuffer`.
+        fctl.width = fdat_width;
         write_fctl(&mut png, &fctl);
-        write_fdat(&mut png, 2, &frame_data);
+        let fdat_data = generate_rgba8_with_width_and_height(fctl.width, fctl.height);
+        write_fdat(&mut png, 2, &fdat_data);
         write_iend(&mut png);
 
         Decoder::new(png).read_info().unwrap()

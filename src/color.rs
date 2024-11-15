@@ -385,16 +385,24 @@ impl<T: Primitive> FromPrimitive<T> for T {
 // Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
 // as truncate towards zero. We emulate rounding by adding a bias.
 
+const NAN_CLAMP_TO: f32 = 1.0;
+
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
+        let mut inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
+        if inner.is_nan() {
+            inner = NAN_CLAMP_TO;
+        }
         NumCast::from(inner).unwrap()
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
+        let mut inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
+        if inner.is_nan() {
+            inner = NAN_CLAMP_TO;
+        }
         NumCast::from(inner).unwrap()
     }
 }

@@ -569,6 +569,8 @@ pub struct Info<'a> {
     /// How colors are stored in the image.
     pub color_type: ColorType,
     pub interlaced: bool,
+    /// The image's `sBIT` chunk, if present; contains significant bits of the sample.
+    pub sbit: Option<Cow<'a, [u8]>>,
     /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
     pub trns: Option<Cow<'a, [u8]>>,
     pub pixel_dims: Option<PixelDimensions>,
@@ -621,6 +623,7 @@ impl Default for Info<'_> {
             color_type: ColorType::Grayscale,
             interlaced: false,
             palette: None,
+            sbit: None,
             trns: None,
             gama_chunk: None,
             chrm_chunk: None,

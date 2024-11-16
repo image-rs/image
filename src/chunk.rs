@@ -49,6 +49,8 @@ pub const tEXt: ChunkType = ChunkType(*b"tEXt");
 pub const zTXt: ChunkType = ChunkType(*b"zTXt");
 /// UTF-8 textual data
 pub const iTXt: ChunkType = ChunkType(*b"iTXt");
+// Significant bits
+pub const sBIT: ChunkType = ChunkType(*b"sBIT");
 
 // -- Extension chunks --
 

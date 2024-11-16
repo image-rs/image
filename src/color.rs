@@ -399,15 +399,15 @@ fn sanitize_nan(i: f32) -> f32 {
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
-        NumCast::from(sanitize_nan(inner)).unwrap()
+        let inner = (sanitize_nan(float).clamp(0.0, 1.0) * u8::MAX as f32).round();
+        NumCast::from(inner).unwrap()
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
-        NumCast::from(sanitize_nan(inner)).unwrap()
+        let inner = (sanitize_nan(float).clamp(0.0, 1.0) * u16::MAX as f32).round();
+        NumCast::from(inner).unwrap()
     }
 }
 

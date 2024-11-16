@@ -385,25 +385,29 @@ impl<T: Primitive> FromPrimitive<T> for T {
 // Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
 // as truncate towards zero. We emulate rounding by adding a bias.
 
-const NAN_CLAMP_TO: f32 = 1.0;
+// All other special values are clamped inbetween 0.0 and 1.0 (infinities and subnormals)
+// NaN however always maps to NaN therefore we have to force it towards some value.
+// 1.0 (white) was picked as firefox and chrome choose to map NaN to that.
+#[inline]
+fn sanitize_nan(i: f32) -> f32 {
+    if i.is_nan() {
+        1.0
+    } else {
+        i
+    }
+}
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        let mut inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
-        if inner.is_nan() {
-            inner = NAN_CLAMP_TO;
-        }
-        NumCast::from(inner).unwrap()
+        let inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
+        NumCast::from(sanitize_nan(inner)).unwrap()
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
         let mut inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
-        if inner.is_nan() {
-            inner = NAN_CLAMP_TO;
-        }
-        NumCast::from(inner).unwrap()
+        NumCast::from(sanitize_nan(inner)).unwrap()
     }
 }
 

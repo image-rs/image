@@ -406,7 +406,7 @@ impl FromPrimitive<f32> for u8 {
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        let mut inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
+        let inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
         NumCast::from(sanitize_nan(inner)).unwrap()
     }
 }

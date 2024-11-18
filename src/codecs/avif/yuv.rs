@@ -2,15 +2,16 @@ use crate::error::DecodingError;
 use crate::{ImageError, ImageFormat};
 use num_traits::AsPrimitive;
 use std::fmt::{Display, Formatter};
+use std::mem::size_of;
 
 #[derive(Debug, Copy, Clone)]
 /// Representation of inversion matrix
 struct CbCrInverseTransform<T> {
-    pub y_coef: T,
-    pub cr_coef: T,
-    pub cb_coef: T,
-    pub g_coeff_1: T,
-    pub g_coeff_2: T,
+    y_coef: T,
+    cr_coef: T,
+    cb_coef: T,
+    g_coeff_1: T,
+    g_coeff_2: T,
 }
 
 impl CbCrInverseTransform<f32> {
@@ -162,11 +163,11 @@ pub(crate) enum YuvIntensityRange {
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 struct YuvChromaRange {
-    pub bias_y: u32,
-    pub bias_uv: u32,
-    pub range_y: u32,
-    pub range_uv: u32,
-    pub range: YuvIntensityRange,
+    bias_y: u32,
+    bias_uv: u32,
+    range_y: u32,
+    range_uv: u32,
+    range: YuvIntensityRange,
 }
 
 impl YuvIntensityRange {

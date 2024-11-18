@@ -389,25 +389,20 @@ impl<T: Primitive> FromPrimitive<T> for T {
 // NaN however always maps to NaN therefore we have to force it towards some value.
 // 1.0 (white) was picked as firefox and chrome choose to map NaN to that.
 #[inline]
-fn sanitize_nan(i: f32) -> f32 {
-    if i.is_nan() {
-        1.0
-    } else {
-        i
-    }
+fn normalize_float(float: f32, max: f32) -> f32 {
+    let clamped = if !(float < 1.0) { 1.0 } else { float.max(0.0) };
+    (clamped * max).round()
 }
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (sanitize_nan(float).clamp(0.0, 1.0) * u8::MAX as f32).round();
-        NumCast::from(inner).unwrap()
+        NumCast::from(normalize_float(float, u8::MAX as f32)).unwrap()
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        let inner = (sanitize_nan(float).clamp(0.0, 1.0) * u16::MAX as f32).round();
-        NumCast::from(inner).unwrap()
+        NumCast::from(normalize_float(float, u16::MAX as f32)).unwrap()
     }
 }
 

@@ -115,7 +115,3 @@ harness = false
 path = "benches/blur.rs"
 name = "blur"
 harness = false
-
-[[bench]]
-name = "fixed_point"
-harness = false

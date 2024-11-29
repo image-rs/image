@@ -897,7 +897,6 @@ mod tests {
             // note that, even with the encode quality set to 100, we do not get the same image
             // back. Therefore, we're going to assert that it's at least red-ish:
             assert_eq!(3, decoded.len());
-            println!("{:?}", &decoded[0..3]);
             assert!(decoded[0] > 0x80);
             assert!(decoded[1] < 0x80);
             assert!(decoded[2] < 0x80);

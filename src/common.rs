@@ -582,6 +582,8 @@ pub struct Info<'a> {
     /// The contents of the image's `cHRM` chunk, if present.
     /// Prefer `source_chromaticities` to also get the derived replacements from sRGB chunks.
     pub chrm_chunk: Option<SourceChromaticities>,
+    /// The contents of the image's `bKGD` chunk, if present.
+    pub bkgd: Option<Cow<'a, [u8]>>,
 
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
@@ -627,6 +629,7 @@ impl Default for Info<'_> {
             trns: None,
             gama_chunk: None,
             chrm_chunk: None,
+            bkgd: None,
             pixel_dims: None,
             frame_control: None,
             animation_control: None,

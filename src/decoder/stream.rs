@@ -988,6 +988,7 @@ impl StreamingDecoder {
             chunk::cICP => Ok(self.parse_cicp()),
             chunk::mDCv => Ok(self.parse_mdcv()),
             chunk::cLLi => Ok(self.parse_clli()),
+            chunk::bKGD => Ok(self.parse_bkgd()),
             chunk::iCCP if !self.decode_options.ignore_iccp_chunk => self.parse_iccp(),
             chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
             chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
@@ -1753,6 +1754,32 @@ impl StreamingDecoder {
         );
 
         Ok(Decoded::Nothing)
+    }
+
+    // NOTE: This function cannot return `DecodingError` and handles parsing
+    // errors or spec violations as-if the chunk was missing.  See
+    // https://github.com/image-rs/image-png/issues/525 for more discussion.
+    fn parse_bkgd(&mut self) -> Decoded {
+        let info = self.info.as_mut().unwrap();
+        if info.bkgd.is_none() && !self.have_idat {
+            let expected = match info.color_type {
+                ColorType::Indexed => {
+                    if info.palette.is_none() {
+                        return Decoded::Nothing;
+                    };
+                    1
+                }
+                ColorType::Grayscale | ColorType::GrayscaleAlpha => 2,
+                ColorType::Rgb | ColorType::Rgba => 6,
+            };
+            let vec = self.current_chunk.raw_bytes.clone();
+            let len = vec.len();
+            if len == expected {
+                info.bkgd = Some(Cow::Owned(vec));
+            }
+        }
+
+        Decoded::Nothing
     }
 }
 

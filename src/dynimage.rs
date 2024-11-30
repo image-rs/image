@@ -10,14 +10,13 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color::{self, IntoColor};
+use crate::color;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
-use crate::traits::Pixel;
 use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{imageops, ExtendedColorType};
@@ -704,6 +703,11 @@ impl DynamicImage {
         dynamic_map!(*self, ref p, { p.height() })
     }
 
+    /// Returns the dimensions of the underlying image
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width(), self.height())
+    }
+
     /// Return a grayscale version of this image.
     /// Returns `Luma` images in most cases. However, for `f32` images,
     /// this will return a grayscale `Rgb/Rgba` image instead.
@@ -1108,66 +1112,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
         DynamicImage::ImageRgba32F(image.convert())
     }
 }
-
-#[allow(deprecated)]
-impl GenericImageView for DynamicImage {
-    type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
-
-    fn dimensions(&self) -> (u32, u32) {
-        dynamic_map!(*self, ref p, p.dimensions())
-    }
-
-    fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
-        dynamic_map!(*self, ref p, p.get_pixel(x, y).to_rgba().into_color())
-    }
-}
-
-#[allow(deprecated)]
-impl GenericImage for DynamicImage {
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
-        match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => {
-                p.put_pixel(x, y, pixel.to_luma_alpha().into_color());
-            }
-            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
-        }
-    }
-
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
-        match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma().into_color());
-            }
-            DynamicImage::ImageLumaA16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color());
-            }
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_rgb().into_color());
-            }
-            DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-        }
-    }
-
-    /// Do not use is function: It is unimplemented!
-    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
-        unimplemented!()
-    }
-}
-
 impl Default for DynamicImage {
     fn default() -> Self {
         Self::ImageRgba8(Default::default())
@@ -1386,84 +1330,6 @@ mod test {
         let im_path = "./tests/images/png/16bpc/basn6a16.png";
         let image = super::open(im_path).unwrap();
         assert_eq!(image.color(), ColorType::Rgba16);
-    }
-
-    fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
-        use crate::image::{GenericImage, GenericImageView};
-        img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
-        let expected_alpha = if alpha_discarded { 255 } else { 100 };
-        assert_eq!(
-            img.grayscale().get_pixel(0, 0),
-            crate::color::Rgba([54, 54, 54, expected_alpha])
-        );
-    }
-
-    fn test_grayscale_alpha_discarded(img: super::DynamicImage) {
-        test_grayscale(img, true);
-    }
-
-    fn test_grayscale_alpha_preserved(img: super::DynamicImage) {
-        test_grayscale(img, false);
-    }
-
-    #[test]
-    fn test_grayscale_luma8() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_luma8(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L8));
-    }
-
-    #[test]
-    fn test_grayscale_luma_a8() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a8(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La8));
-    }
-
-    #[test]
-    fn test_grayscale_rgb8() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb8(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb8));
-    }
-
-    #[test]
-    fn test_grayscale_rgba8() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba8(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba8));
-    }
-
-    #[test]
-    fn test_grayscale_luma16() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_luma16(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::L16));
-    }
-
-    #[test]
-    fn test_grayscale_luma_a16() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a16(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::La16));
-    }
-
-    #[test]
-    fn test_grayscale_rgb16() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb16(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb16));
-    }
-
-    #[test]
-    fn test_grayscale_rgba16() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba16(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba16));
-    }
-
-    #[test]
-    fn test_grayscale_rgb32f() {
-        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb32f(1, 1));
-        test_grayscale_alpha_discarded(super::DynamicImage::new(1, 1, ColorType::Rgb32F));
-    }
-
-    #[test]
-    fn test_grayscale_rgba32f() {
-        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
-        test_grayscale_alpha_preserved(super::DynamicImage::new(1, 1, ColorType::Rgba32F));
     }
 
     #[test]

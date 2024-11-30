@@ -1,8 +1,5 @@
 #![allow(clippy::too_many_arguments)]
 
-use std::borrow::Cow;
-use std::io::{self, Write};
-
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
@@ -10,6 +7,9 @@ use crate::error::{
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
 use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use num_traits::ToPrimitive;
+use std::borrow::Cow;
+use std::io::{self, Write};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
@@ -771,19 +771,36 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
-    use crate::traits::Primitive;
-    use num_traits::cast::ToPrimitive;
-
     let [r, g, b] = pixel.to_rgb().0;
-    let max: f32 = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap();
-    let r: f32 = r.to_f32().unwrap();
-    let g: f32 = g.to_f32().unwrap();
-    let b: f32 = b.to_f32().unwrap();
+    let r: i32 = r.to_u8().unwrap() as i32;
+    let g: i32 = g.to_u8().unwrap() as i32;
+    let b: i32 = b.to_u8().unwrap() as i32;
 
-    // Coefficients from JPEG File Interchange Format (Version 1.02), multiplied for 255 maximum.
-    let y = 76.245 / max * r + 149.685 / max * g + 29.07 / max * b;
-    let cb = -43.0185 / max * r - 84.4815 / max * g + 127.5 / max * b + 128.;
-    let cr = 127.5 / max * r - 106.7685 / max * g - 20.7315 / max * b + 128.;
+    /*
+       JPEG RGB -> YCbCr is defined as following equations using Bt.601 Full Range matrix:
+       Y  =  0.29900 * R + 0.58700 * G + 0.11400 * B
+       Cb = -0.16874 * R - 0.33126 * G + 0.50000 * B  + 128
+       Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B  + 128
+
+       To avoid using slow floating point conversion is done in fixed point,
+       using following coefficients with rounding to nearest integer mode:
+    */
+
+    const C_YR: i32 = 19595; // 0.29900 = 19595 * 2^-16
+    const C_YG: i32 = 38469; // 0.58700 = 38469 * 2^-16
+    const C_YB: i32 = 7471; // 0.11400 = 7471 * 2^-16
+    const Y_ROUNDING: i32 = (1 << 15) - 1; // + 0.5 to perform rounding shift right in-place
+    const C_UR: i32 = 11059; // 0.16874 = 11059 * 2^-16
+    const C_UG: i32 = 21709; // 0.33126 = 21709 * 2^-16
+    const C_UB: i32 = 32768; // 0.5 = 32768 * 2^-16
+    const UV_BIAS_ROUNDING: i32 = (128 * (1 << 16)) + ((1 << 15) - 1); // 128 + 0.5 = ((128 * (1 << 16)) + ((1 << 15) - 1)) * 2^-16 ; + 0.5 to perform rounding shift right in-place
+    const C_VR: i32 = C_UB; // 0.5 = 32768 * 2^-16
+    const C_VG: i32 = 27439; // 0.41869 = 27439 * 2^-16
+    const C_VB: i32 = 5329; // 0.08131409 = 5329 * 2^-16
+
+    let y = (C_YR * r + C_YG * g + C_YB * b + Y_ROUNDING) >> 16;
+    let cb = (-C_UR * r - C_UG * g + C_UB * b + UV_BIAS_ROUNDING) >> 16;
+    let cr = (C_VR * r - C_VG * g - C_VB * b + UV_BIAS_ROUNDING) >> 16;
 
     (y as u8, cb as u8, cr as u8)
 }

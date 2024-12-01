@@ -1158,6 +1158,18 @@ mod test {
     }
 
     #[test]
+    fn paeth_impls_are_equivalent() {
+        use super::{filter_paeth, filter_paeth_decode};
+        for a in 0..=255 {
+            for b in 0..=255 {
+                for c in 0..=255 {
+                    assert_eq!(filter_paeth(a, b, c), filter_paeth_decode(a, b, c));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn roundtrip_ascending_previous_line() {
         // A multiple of 8, 6, 4, 3, 2, 1
         const LEN: u8 = 240;

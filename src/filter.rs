@@ -338,22 +338,12 @@ fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
 #[cfg(feature = "unstable")]
 fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
     // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
-    let pa = (b - c).abs();
-    let pb = (a - c).abs();
-    let pc = ((a - c) + (b - c)).abs();
-
-    let mut out = a;
-    let mut min = pa;
-
-    if pb < min {
-        min = pb;
-        out = b;
-    }
-    if pc < min {
-        out = c;
-    }
-
-    out
+    let thresh = c * 3 - (a + b);
+    let lo = a.min(b);
+    let hi = a.max(b);
+    let t0 = if hi <= thresh { lo } else { c };
+    let t1 = if thresh <= lo { hi } else { t0 };
+    return t1;
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {

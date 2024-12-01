@@ -41,15 +41,13 @@ mod simd {
 
     /// This is an equivalent of the `PaethPredictor` function from
     /// [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Filters.html#Filter-type-4-Paeth)
-    /// except that it simultaneously calculates the predictor for all SIMD lanes.
+    /// 
     /// Mapping between parameter names and pixel positions can be found in
     /// [a diagram here](https://www.w3.org/TR/png/#filter-byte-positions).
     ///
     /// Examples of how different pixel types may be represented as multiple SIMD lanes:
     /// - RGBA => 4 lanes of `i16x4` contain R, G, B, A
     /// - RGB  => 4 lanes of `i16x4` contain R, G, B, and a ignored 4th value
-    ///
-    /// The SIMD algorithm below is based on [`libpng`](https://github.com/glennrp/libpng/blob/f8e5fa92b0e37ab597616f554bee254157998227/intel/filter_sse2_intrinsics.c#L261-L280).
     ///
     /// Functionally equivalent to `simd::paeth_predictor` but does not temporarily convert
     /// the SIMD elements to `i16`.
@@ -61,44 +59,11 @@ mod simd {
     where
         LaneCount<N>: SupportedLaneCount,
     {
-        // Calculates the absolute difference between `a` and `b`.
-        fn abs_diff_simd<const N: usize>(a: Simd<u8, N>, b: Simd<u8, N>) -> Simd<u8, N>
-        where
-            LaneCount<N>: SupportedLaneCount,
-        {
-            a.simd_max(b) - b.simd_min(a)
+        let mut out = [0; N];
+        for i in 0..N {
+            out[i] = super::filter_paeth_decode(a[i].into(), b[i].into(), c[i].into());
         }
-
-        // Uses logic from `filter::filter_paeth` to calculate absolute values
-        // entirely in `Simd<u8, N>`. This method avoids unpacking and packing
-        // penalties resulting from conversion to and from `Simd<i16, N>`.
-        // ```
-        //     let pa = b.max(c) - c.min(b);
-        //     let pb = a.max(c) - c.min(a);
-        //     let pc = if (a < c) == (c < b) {
-        //         pa.max(pb) - pa.min(pb)
-        //     } else {
-        //         255
-        //     };
-        // ```
-        let pa = abs_diff_simd(b, c);
-        let pb = abs_diff_simd(a, c);
-        let pc = a
-            .simd_lt(c)
-            .simd_eq(c.simd_lt(b))
-            .select(abs_diff_simd(pa, pb), Simd::splat(255));
-
-        let smallest = pc.simd_min(pa.simd_min(pb));
-
-        // Paeth algorithm breaks ties favoring a over b over c, so we execute the following
-        // lane-wise selection:
-        //
-        //     if smalest == pa
-        //         then select a
-        //         else select (if smallest == pb then select b else select c)
-        smallest
-            .simd_eq(pa)
-            .select(a, smallest.simd_eq(pb).select(b, c))
+        out.into()
     }
 
     /// Memory of previous pixels (as needed to unfilter `FilterType::Paeth`).

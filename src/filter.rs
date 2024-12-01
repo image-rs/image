@@ -41,7 +41,7 @@ mod simd {
 
     /// This is an equivalent of the `PaethPredictor` function from
     /// [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Filters.html#Filter-type-4-Paeth)
-    /// 
+    ///
     /// Mapping between parameter names and pixel positions can be found in
     /// [a diagram here](https://www.w3.org/TR/png/#filter-byte-positions).
     ///

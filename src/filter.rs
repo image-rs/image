@@ -1113,6 +1113,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // takes ~20s without optimizations
     fn paeth_impls_are_equivalent() {
         use super::{filter_paeth, filter_paeth_decode};
         for a in 0..=255 {

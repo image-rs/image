@@ -319,6 +319,8 @@ impl Default for AdaptiveFilterType {
 }
 
 fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
+    // Decoding optimizes better with this algorithm than with `filter_paeth()`
+    //
     // This formulation looks very different from the reference in the PNG spec, but is
     // actually equivalent and has favorable data dependencies and admits straightforward
     // generation of branch-free code, which helps performance significantly.

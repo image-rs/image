@@ -325,13 +325,16 @@ fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     //
     // Adapted from public domain PNG implementation:
     // https://github.com/nothings/stb/blob/5c205738c191bcb0abc65c4febfa9bd25ff35234/stb_image.h#L4657-L4668
-    let thresh = i16::from(c) * 3 - (i16::from(a) + i16::from(b));
-    let thresh = thresh as u8;
+    let a = i16::from(a);
+    let b = i16::from(b);
+    let c = i16::from(c);
+
+    let thresh = c * 3 - (a + b);
     let lo = a.min(b);
     let hi = a.max(b);
     let t0 = if hi <= thresh { lo } else { c };
     let t1 = if thresh <= lo { hi } else { t0 };
-    return t1;
+    return t1 as u8;
 }
 
 #[cfg(feature = "unstable")]

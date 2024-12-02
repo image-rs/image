@@ -283,6 +283,7 @@ impl Default for AdaptiveFilterType {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     // Decoding optimizes better with this algorithm than with `filter_paeth()`
     //
@@ -300,7 +301,7 @@ fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     return t1;
 }
 
-#[cfg(feature = "unstable")]
+#[cfg(all(feature = "unstable", target_arch = "x86_64"))]
 fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
     // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
     let thresh = c * 3 - (a + b);
@@ -309,6 +310,48 @@ fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
     let t0 = if hi <= thresh { lo } else { c };
     let t1 = if thresh <= lo { hi } else { t0 };
     return t1;
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
+    // Decoding seems to optimize better with this algorithm
+    let pa = (i16::from(b) - i16::from(c)).abs();
+    let pb = (i16::from(a) - i16::from(c)).abs();
+    let pc = ((i16::from(a) - i16::from(c)) + (i16::from(b) - i16::from(c))).abs();
+
+    let mut out = a;
+    let mut min = pa;
+
+    if pb < min {
+        min = pb;
+        out = b;
+    }
+    if pc < min {
+        out = c;
+    }
+
+    out
+}
+
+#[cfg(all(feature = "unstable", not(target_arch = "x86_64")))]
+fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
+    // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
+    let pa = (b - c).abs();
+    let pb = (a - c).abs();
+    let pc = ((a - c) + (b - c)).abs();
+
+    let mut out = a;
+    let mut min = pa;
+
+    if pb < min {
+        min = pb;
+        out = b;
+    }
+    if pc < min {
+        out = c;
+    }
+
+    out
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {

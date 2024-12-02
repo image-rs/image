@@ -7,11 +7,13 @@ use crate::common::BytesPerPixel;
 /// TODO(https://github.com/rust-lang/rust/issues/86656): Stop gating this module behind the
 /// "unstable" feature of the `png` crate.  This should be possible once the "portable_simd"
 /// feature of Rust gets stabilized.
-#[cfg(feature = "unstable")]
+///
+/// This is only known to help on x86, with no change measured on most benchmarks on ARM,
+/// and even severely regressing some of them.
+/// So despite the code being portable, we only enable this for x86.
+/// We can add more platforms once this code is proven to be beneficial for them.
+#[cfg(all(feature = "unstable", target_arch = "x86_64"))]
 mod simd {
-    // unused imports may ocur in this module due to conditional compilation
-    #![allow(unused_imports)]
-    use std::simd::cmp::{SimdOrd, SimdPartialEq, SimdPartialOrd};
     use std::simd::num::{SimdInt, SimdUint};
     use std::simd::{u8x4, u8x8, LaneCount, Simd, SimdElement, SupportedLaneCount};
 
@@ -26,7 +28,6 @@ mod simd {
     /// Funnily, the autovectorizer does a better job here
     /// than a handwritten algorithm using std::simd!
     /// We used to have a handwritten one but this is just faster.
-    #[cfg(target_arch = "x86_64")]
     fn paeth_predictor<const N: usize>(
         a: Simd<i16, N>,
         b: Simd<i16, N>,
@@ -78,7 +79,6 @@ mod simd {
     ///
     /// `b` is the current pixel in the previous row.  `x` is the current pixel in the current row.
     /// See also https://www.w3.org/TR/png/#filter-byte-positions
-    #[cfg(target_arch = "x86_64")]
     fn paeth_step<const N: usize>(
         state: &mut PaethState<i16, N>,
         b: Simd<u8, N>,
@@ -116,18 +116,15 @@ mod simd {
         state.a = *x;
     }
 
-    #[cfg(target_arch = "x86_64")]
     fn load3(src: &[u8]) -> u8x4 {
         u8x4::from_array([src[0], src[1], src[2], 0])
     }
 
-    #[cfg(target_arch = "x86_64")]
     fn store3(src: u8x4, dest: &mut [u8]) {
         dest[0..3].copy_from_slice(&src.to_array()[0..3])
     }
 
     /// Undoes `FilterType::Paeth` for `BytesPerPixel::Three`.
-    #[cfg(target_arch = "x86_64")]
     pub fn unfilter_paeth3(mut prev_row: &[u8], mut curr_row: &mut [u8]) {
         debug_assert_eq!(prev_row.len(), curr_row.len());
         debug_assert_eq!(prev_row.len() % 3, 0);
@@ -182,18 +179,15 @@ mod simd {
         }
     }
 
-    #[cfg(target_arch = "x86_64")]
     fn load6(src: &[u8]) -> u8x8 {
         u8x8::from_array([src[0], src[1], src[2], src[3], src[4], src[5], 0, 0])
     }
 
-    #[cfg(target_arch = "x86_64")]
     fn store6(src: u8x8, dest: &mut [u8]) {
         dest[0..6].copy_from_slice(&src.to_array()[0..6])
     }
 
     /// Undoes `FilterType::Paeth` for `BytesPerPixel::Six`.
-    #[cfg(target_arch = "x86_64")]
     pub fn unfilter_paeth6(mut prev_row: &[u8], mut curr_row: &mut [u8]) {
         debug_assert_eq!(prev_row.len(), curr_row.len());
         debug_assert_eq!(prev_row.len() % 6, 0);
@@ -775,7 +769,7 @@ pub(crate) fn unfilter(
                     }
                 }
                 BytesPerPixel::Four => {
-                    #[cfg(feature = "unstable")]
+                    #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
                     simd::unfilter_paeth_u8::<4>(previous, current);
 
                     #[cfg(not(feature = "unstable"))]
@@ -806,7 +800,6 @@ pub(crate) fn unfilter(
                     }
                 }
                 BytesPerPixel::Six => {
-                    // Doesn't help performance on ARM, so not enabled to reduce on complexity
                     #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
                     simd::unfilter_paeth6(previous, current);
 
@@ -844,7 +837,7 @@ pub(crate) fn unfilter(
                     }
                 }
                 BytesPerPixel::Eight => {
-                    #[cfg(feature = "unstable")]
+                    #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
                     simd::unfilter_paeth_u8::<8>(previous, current);
 
                     #[cfg(not(feature = "unstable"))]

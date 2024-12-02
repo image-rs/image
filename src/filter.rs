@@ -293,7 +293,8 @@ fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
 
 #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
 fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
-    // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
+    // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD types.
+    // Used for bpp=3 and bpp=6
     let thresh = c * 3 - (a + b);
     let lo = a.min(b);
     let hi = a.max(b);
@@ -304,31 +305,12 @@ fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
 
 #[cfg(not(target_arch = "x86_64"))]
 fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
-    // Decoding seems to optimize better with this algorithm
+    // On ARM this algorithm performs much better than the one above adapted from stb,
+    // and this is the better-studied algorithm we've always used here,
+    // so we default to it on all non-x86 platforms.
     let pa = (i16::from(b) - i16::from(c)).abs();
     let pb = (i16::from(a) - i16::from(c)).abs();
     let pc = ((i16::from(a) - i16::from(c)) + (i16::from(b) - i16::from(c))).abs();
-
-    let mut out = a;
-    let mut min = pa;
-
-    if pb < min {
-        min = pb;
-        out = b;
-    }
-    if pc < min {
-        out = c;
-    }
-
-    out
-}
-
-#[cfg(all(feature = "unstable", not(target_arch = "x86_64")))]
-fn filter_paeth_decode_i16(a: i16, b: i16, c: i16) -> i16 {
-    // Like `filter_paeth_decode` but vectorizes better when wrapped in SIMD
-    let pa = (b - c).abs();
-    let pb = (a - c).abs();
-    let pc = ((a - c) + (b - c)).abs();
 
     let mut out = a;
     let mut min = pa;
@@ -754,7 +736,8 @@ pub(crate) fn unfilter(
                     }
                 }
                 BytesPerPixel::Three => {
-                    #[cfg(feature = "unstable")]
+                    // Do not enable this algorithm on ARM, that would be a big performance hit
+                    #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
                     simd::unfilter_paeth3(previous, current);
 
                     #[cfg(not(feature = "unstable"))]
@@ -813,7 +796,8 @@ pub(crate) fn unfilter(
                     }
                 }
                 BytesPerPixel::Six => {
-                    #[cfg(feature = "unstable")]
+                    // Doesn't help performance on ARM, so not enabled to reduce on complexity
+                    #[cfg(all(feature = "unstable", target_arch = "x86_64"))]
                     simd::unfilter_paeth6(previous, current);
 
                     #[cfg(not(feature = "unstable"))]

@@ -54,7 +54,10 @@ jobs:
         rustup target add powerpc-unknown-linux-gnu
         cargo build --target powerpc-unknown-linux-gnu
   test_all:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest] # macos-latest is ARM
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - run: rustup default stable

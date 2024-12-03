@@ -17,8 +17,8 @@ pub use self::affine::{
 
 /// Image sampling
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
-    sample_nearest, thumbnail, unsharpen,
+    blur, filter3x3, gaussian_blur_dyn_image, interpolate_bilinear, interpolate_nearest, resize,
+    sample_bilinear, sample_nearest, thumbnail, unsharpen,
 };
 
 /// Color operations
@@ -32,6 +32,7 @@ mod affine;
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
 mod fast_blur;
+mod filter_1d;
 mod sample;
 
 pub use fast_blur::fast_blur;

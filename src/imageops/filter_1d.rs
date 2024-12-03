@@ -4,7 +4,6 @@ use crate::ImageError;
 use num_traits::{AsPrimitive, MulAdd};
 use std::mem::size_of;
 use std::ops::{Add, Mul};
-use std::time::Instant;
 
 #[cfg(any(
     all(
@@ -797,8 +796,6 @@ where
 
     let mut transient_image = vec![T::default(); image_size.width * image_size.height * N];
 
-    let start_time = Instant::now();
-
     for (y, dst) in transient_image
         .chunks_exact_mut(image_size.width * N)
         .enumerate()
@@ -831,8 +828,6 @@ where
         );
     }
 
-    println!("Horizontal time {:?}", start_time.elapsed());
-
     let column_kernel_shape = KernelShape {
         width: 0,
         height: scanned_column_kernel.len(),
@@ -856,8 +851,6 @@ where
     let transient_image_slice = transient_image.as_slice();
 
     let src_stride = image_size.width * N;
-
-    let start_time = Instant::now();
 
     for (y, dst) in destination
         .chunks_exact_mut(image_size.width * N)
@@ -892,8 +885,6 @@ where
             &scanned_column_kernel,
         );
     }
-
-    println!("Vertical time {:?}", start_time.elapsed());
 
     Ok(())
 }

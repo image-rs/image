@@ -2,7 +2,9 @@
 use crate::error::{LimitError, LimitErrorKind};
 use crate::ImageError;
 use num_traits::{AsPrimitive, MulAdd};
+use std::mem::size_of;
 use std::ops::{Add, Mul};
+use std::time::Instant;
 
 #[cfg(any(
     all(
@@ -401,33 +403,55 @@ fn filter_symmetric_column<T, F>(
 
     let mut cx = 0usize;
 
-    while cx + 32 < dst_stride {
-        let coeff = kernel[half_len];
+    if size_of::<T>() == 1 {
+        while cx + 32 < dst_stride {
+            let coeff = kernel[half_len];
 
-        let mut store: [F; 32] = [F::default(); 32];
+            let mut store0: [F; 16] = [F::default(); 16];
+            let mut store1: [F; 16] = [F::default(); 16];
 
-        let v_src = &arena_src[half_len][cx..(cx + 32)];
+            let v_src0 = &arena_src[half_len][cx..(cx + 16)];
+            let v_src1 = &arena_src[half_len][(cx + 16)..(cx + 32)];
 
-        for (dst, src) in store.iter_mut().zip(v_src) {
-            *dst = src.as_().mul(coeff);
-        }
-
-        for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
-            let rollback = length - i - 1;
-            let fw = &arena_src[i][cx..(cx + 32)];
-            let bw = &arena_src[rollback][cx..(cx + 32)];
-
-            for ((dst, fw), bw) in store.iter_mut().zip(fw).zip(bw) {
-                *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+            for (dst, src) in store0.iter_mut().zip(v_src0) {
+                *dst = src.as_().mul(coeff);
             }
-        }
+            for (dst, src) in store1.iter_mut().zip(v_src1) {
+                *dst = src.as_().mul(coeff);
+            }
 
-        let shaped_dst = &mut dst_row[cx..(cx + 32)];
-        for (src, dst) in store.iter().zip(shaped_dst.iter_mut()) {
-            *dst = src.to_();
-        }
+            for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
+                let rollback = length - i - 1;
+                let fw_src = arena_src[i];
+                let rw_src = arena_src[rollback];
+                let fw0 = &fw_src[cx..(cx + 16)];
+                let bw0 = &rw_src[cx..(cx + 16)];
+                let fw1 = &fw_src[(cx + 16)..(cx + 32)];
+                let bw1 = &rw_src[(cx + 16)..(cx + 32)];
 
-        cx += 32;
+                for ((dst, fw), bw) in store0.iter_mut().zip(fw0).zip(bw0) {
+                    *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+                }
+
+                for ((dst, fw), bw) in store1.iter_mut().zip(fw1).zip(bw1) {
+                    *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+                }
+            }
+
+            let shaped_dst0 = &mut dst_row[cx..(cx + 16)];
+
+            for (src, dst) in store0.iter().zip(shaped_dst0.iter_mut()) {
+                *dst = src.to_();
+            }
+
+            let shaped_dst1 = &mut dst_row[(cx + 16)..(cx + 32)];
+
+            for (src, dst) in store1.iter().zip(shaped_dst1.iter_mut()) {
+                *dst = src.to_();
+            }
+
+            cx += 32;
+        }
     }
 
     while cx + 16 < dst_stride {
@@ -773,6 +797,8 @@ where
 
     let mut transient_image = vec![T::default(); image_size.width * image_size.height * N];
 
+    let start_time = Instant::now();
+
     for (y, dst) in transient_image
         .chunks_exact_mut(image_size.width * N)
         .enumerate()
@@ -805,6 +831,8 @@ where
         );
     }
 
+    println!("Horizontal time {:?}", start_time.elapsed());
+
     let column_kernel_shape = KernelShape {
         width: 0,
         height: scanned_column_kernel.len(),
@@ -828,6 +856,8 @@ where
     let transient_image_slice = transient_image.as_slice();
 
     let src_stride = image_size.width * N;
+
+    let start_time = Instant::now();
 
     for (y, dst) in destination
         .chunks_exact_mut(image_size.width * N)
@@ -862,6 +892,8 @@ where
             &scanned_column_kernel,
         );
     }
+
+    println!("Vertical time {:?}", start_time.elapsed());
 
     Ok(())
 }

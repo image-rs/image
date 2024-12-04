@@ -32,8 +32,9 @@ jobs:
   feature_check:
     strategy:
       matrix:
-        features: ["", "benchmarks"]
-    runs-on: ubuntu-latest
+        features: ["", "unstable", "benchmarks"]
+        os: [ubuntu-latest, macos-latest] # macos-latest is ARM
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions-rs/toolchain@v1
@@ -54,7 +55,10 @@ jobs:
         rustup target add powerpc-unknown-linux-gnu
         cargo build --target powerpc-unknown-linux-gnu
   test_all:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest] # macos-latest is ARM
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - run: rustup default stable

@@ -7,7 +7,7 @@
 * Add support for parsing the sBIT chunk ([#524])
 * Add support for parsing the bKGD chunk ([#538])
 * Add support for parsing the cICP chunk ([#529])
-* Add support for parsing mDCv and cLLi chunks ([#528])
+* Add support for parsing mDCv and cLLi chunks ([#528], ([#543]))
 
 ### Changed
 
@@ -29,6 +29,7 @@
 [#529]: https://github.com/image-rs/image-png/pull/529
 [#538]: https://github.com/image-rs/image-png/pull/538
 [#539]: https://github.com/image-rs/image-png/pull/539
+[#543]: https://github.com/image-rs/image-png/pull/543
 
 ## 0.17.14
 

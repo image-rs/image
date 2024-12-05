@@ -121,8 +121,8 @@ struct ArenaColumns<T>
 where
     T: Copy,
 {
-    pub top_pad: Vec<T>,
-    pub bottom_pad: Vec<T>,
+    top_pad: Vec<T>,
+    bottom_pad: Vec<T>,
 }
 
 /// Pads a column image with *clamp* strategy

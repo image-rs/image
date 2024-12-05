@@ -509,10 +509,10 @@ pub struct CodingIndependentCodePoints {
     pub is_video_full_range_image: bool,
 }
 
-/// Mastering Display Color Volume (mDCv) used at the point of content creation,
+/// Mastering Display Color Volume (mDCV) used at the point of content creation,
 /// as specified in [SMPTE-ST-2086](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8353899).
 ///
-/// See https://www.w3.org/TR/png-3/#mDCv-chunk for more details.
+/// See https://www.w3.org/TR/png-3/#mDCV-chunk for more details.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MasteringDisplayColorVolume {
     /// Mastering display chromaticities.
@@ -533,7 +533,7 @@ pub struct MasteringDisplayColorVolume {
 
 /// Content light level information of HDR content.
 ///
-/// See https://www.w3.org/TR/png-3/#cLLi-chunk for more details.
+/// See https://www.w3.org/TR/png-3/#cLLI-chunk for more details.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContentLightLevelInfo {
     /// Maximum Content Light Level indicates the maximum light level of any

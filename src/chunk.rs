@@ -38,9 +38,9 @@ pub const iCCP: ChunkType = ChunkType(*b"iCCP");
 /// Coding-independent code points for video signal type identification chunk
 pub const cICP: ChunkType = ChunkType(*b"cICP");
 /// Mastering Display Color Volume chunk
-pub const mDCv: ChunkType = ChunkType(*b"mDCv");
+pub const mDCV: ChunkType = ChunkType(*b"mDCV");
 /// Content Light Level Information chunk
-pub const cLLi: ChunkType = ChunkType(*b"cLLi");
+pub const cLLI: ChunkType = ChunkType(*b"cLLI");
 /// EXIF metadata chunk
 pub const eXIf: ChunkType = ChunkType(*b"eXIf");
 /// Latin-1 uncompressed textual data

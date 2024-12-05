@@ -986,8 +986,8 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::cICP => Ok(self.parse_cicp()),
-            chunk::mDCv => Ok(self.parse_mdcv()),
-            chunk::cLLi => Ok(self.parse_clli()),
+            chunk::mDCV => Ok(self.parse_mdcv()),
+            chunk::cLLI => Ok(self.parse_clli()),
             chunk::bKGD => Ok(self.parse_bkgd()),
             chunk::iCCP if !self.decode_options.ignore_iccp_chunk => self.parse_iccp(),
             chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
@@ -1439,7 +1439,7 @@ impl StreamingDecoder {
                 // `ScaledFloat::SCALING` is hardcoded to 100_000, which works
                 // well for the `cHRM` chunk where the spec says that "a value
                 // of 0.3127 would be stored as the integer 31270".  In the
-                // `mDCv` chunk the spec says that "0.708, 0.292)" is stored as
+                // `mDCV` chunk the spec says that "0.708, 0.292)" is stored as
                 // "{ 35400, 14600 }", using a scaling factor of 50_000, so we
                 // multiply by 2 before converting.
                 ScaledFloat::from_scaled((chunk as u32) * 2)
@@ -1462,8 +1462,8 @@ impl StreamingDecoder {
             })
         }
 
-        // The spec requires that the mDCv chunk MUST come before the PLTE and IDAT chunks.
-        // Additionally, we ignore a second, duplicated mDCv chunk (if any).
+        // The spec requires that the mDCV chunk MUST come before the PLTE and IDAT chunks.
+        // Additionally, we ignore a second, duplicated mDCV chunk (if any).
         let info = self.info.as_mut().unwrap();
         let is_before_plte_and_idat = !self.have_idat && info.palette.is_none();
         if is_before_plte_and_idat && info.mastering_display_color_volume.is_none() {
@@ -1489,7 +1489,7 @@ impl StreamingDecoder {
             })
         }
 
-        // We ignore a second, duplicated cLLi chunk (if any).
+        // We ignore a second, duplicated cLLI chunk (if any).
         let info = self.info.as_mut().unwrap();
         if info.content_light_level.is_none() {
             info.content_light_level = parse(&self.current_chunk.raw_bytes[..]).ok();
@@ -2117,7 +2117,7 @@ mod tests {
         assert!(decoder.read_info().is_ok());
     }
 
-    /// Test handling of `mDCv` and `cLLi` chunks.`
+    /// Test handling of `mDCV` and `cLLI` chunks.`
     #[test]
     fn test_mdcv_and_clli_chunks() {
         let decoder = crate::Decoder::new(File::open("tests/bugfixes/cicp_pq.png").unwrap());

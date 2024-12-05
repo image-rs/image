@@ -15,6 +15,7 @@ use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
+use crate::imageops::gaussian_blur_dyn_image;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
@@ -829,7 +830,8 @@ impl DynamicImage {
     /// accurate version.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::blur(p, sigma))
+        gaussian_blur_dyn_image(self, sigma)
+        // dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
     /// Performs a fast blur on this image.

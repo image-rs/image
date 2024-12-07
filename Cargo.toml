@@ -39,7 +39,7 @@ rand = "0.8.4"
 term = "0.7"
 
 [features]
-unstable = []
+unstable = ["crc32fast/nightly"]
 benchmarks = []
 
 [[bench]]

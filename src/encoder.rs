@@ -268,9 +268,23 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// Mark the image data as conforming to the SRGB color space with the specified rendering intent.
     ///
     /// Matching source gamma and chromaticities chunks are added automatically.
-    /// Any manually specified source gamma or chromaticities will be ignored.
+    /// Any manually specified source gamma, chromaticities, or ICC profiles will be ignored.
+    #[doc(hidden)]
+    #[deprecated(note = "use set_source_srgb")]
     pub fn set_srgb(&mut self, rendering_intent: super::SrgbRenderingIntent) {
-        self.info.srgb = Some(rendering_intent);
+        self.info.set_source_srgb(rendering_intent);
+        self.info.source_gamma = Some(crate::srgb::substitute_gamma());
+        self.info.source_chromaticities = Some(crate::srgb::substitute_chromaticities());
+    }
+
+    /// Mark the image data as conforming to the SRGB color space with the specified rendering intent.
+    ///
+    /// Any ICC profiles will be ignored.
+    ///
+    /// Source gamma and chromaticities will be written only if they're set to fallback
+    /// values specified in [11.3.2.5](https://www.w3.org/TR/png-3/#sRGB-gAMA-cHRM).
+    pub fn set_source_srgb(&mut self, rendering_intent: super::SrgbRenderingIntent) {
+        self.info.set_source_srgb(rendering_intent);
     }
 
     /// Start encoding by writing the header data.

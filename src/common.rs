@@ -766,7 +766,7 @@ impl Info<'_> {
                 chrms.encode(&mut w)?;
             }
             if let Some(iccp) = &self.icc_profile {
-                encoder::write_chunk(&mut w, chunk::iCCP, iccp)?;
+                encoder::write_iccp_chunk(&mut w, "_", iccp)?
             }
         }
 

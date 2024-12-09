@@ -13,7 +13,7 @@ use crate::common::{
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::text_metadata::{
-    EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk,
+    encode_iso_8859_1, EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk,
 };
 use crate::traits::WriteBytesExt;
 
@@ -1038,6 +1038,36 @@ impl<W: Write> Drop for Writer<W> {
             let _ = self.write_iend();
         }
     }
+}
+
+// This should be moved to Writer after `Info::encoding` is gone
+pub(crate) fn write_iccp_chunk<W: Write>(
+    w: &mut W,
+    profile_name: &str,
+    icc_profile: &[u8],
+) -> Result<()> {
+    let profile_name = encode_iso_8859_1(profile_name)?;
+    if profile_name.len() < 1 || profile_name.len() > 79 {
+        return Err(TextEncodingError::InvalidKeywordSize.into());
+    }
+
+    let estimated_compressed_size = icc_profile.len() * 3 / 4;
+    let chunk_size = profile_name
+        .len()
+        .checked_add(2) // string NUL + compression type. Checked add optimizes out later Vec reallocations.
+        .and_then(|s| s.checked_add(estimated_compressed_size))
+        .ok_or(EncodingError::LimitsExceeded)?;
+
+    let mut data = Vec::new();
+    data.try_reserve_exact(chunk_size)
+        .map_err(|_| EncodingError::LimitsExceeded)?;
+
+    data.extend(profile_name.into_iter().chain([0, 0]));
+
+    let mut encoder = ZlibEncoder::new(data, flate2::Compression::default());
+    encoder.write_all(icc_profile)?;
+
+    write_chunk(w, chunk::iCCP, &encoder.finish()?)
 }
 
 enum ChunkOutput<'a, W: Write> {

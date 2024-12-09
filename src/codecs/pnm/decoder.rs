@@ -692,8 +692,8 @@ where
 
     let token = reader
         .bytes()
-        .skip_while(|v| v.as_ref().ok().map_or(false, is_separator))
-        .take_while(|v| v.as_ref().ok().map_or(false, |c| !is_separator(c)))
+        .skip_while(|v| v.as_ref().ok().is_some_and(is_separator))
+        .take_while(|v| v.as_ref().ok().is_some_and(|c| !is_separator(c)))
         .collect::<Result<Vec<u8>, _>>()?;
 
     if !token.is_ascii() {

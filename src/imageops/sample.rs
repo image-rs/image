@@ -870,6 +870,7 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
+    #[allow(clippy::redundant_guards)]
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         x if x == 0.0 => 1.0,
         sum => sum,

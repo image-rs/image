@@ -6,6 +6,7 @@
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 //!
 
+use std::borrow::Cow;
 use std::fmt;
 use std::io::{BufRead, Seek, Write};
 
@@ -482,6 +483,7 @@ pub struct PngEncoder<W: Write> {
     w: W,
     compression: CompressionType,
     filter: FilterType,
+    icc_profile: Vec<u8>,
 }
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
@@ -535,6 +537,7 @@ impl<W: Write> PngEncoder<W> {
             w,
             compression: CompressionType::default(),
             filter: FilterType::default(),
+            icc_profile: Vec::new(),
         }
     }
 
@@ -559,6 +562,7 @@ impl<W: Write> PngEncoder<W> {
             w,
             compression,
             filter,
+            icc_profile: Vec::new(),
         }
     }
 
@@ -604,7 +608,15 @@ impl<W: Write> PngEncoder<W> {
             FilterType::Adaptive => (png::FilterType::Sub, png::AdaptiveFilterType::Adaptive),
         };
 
-        let mut encoder = png::Encoder::new(self.w, width, height);
+        let mut info = png::Info::with_size(width, height);
+
+        if !self.icc_profile.is_empty() {
+            info.icc_profile = Some(Cow::Borrowed(&self.icc_profile));
+        }
+
+        let mut encoder =
+            png::Encoder::with_info(self.w, info).map_err(|e| ImageError::IoError(e.into()))?;
+
         encoder.set_color(ct);
         encoder.set_depth(bits);
         encoder.set_compression(comp);
@@ -668,6 +680,11 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 BadPngRepresentation::ColorType(color_type),
             ))),
         }
+    }
+
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.icc_profile = icc_profile;
+        Ok(())
     }
 }
 

@@ -282,7 +282,7 @@ impl SampleLayout {
     /// Check if a buffer of length `len` is large enough.
     #[must_use]
     pub fn fits(&self, len: usize) -> bool {
-        self.min_length().map_or(false, |min| len >= min)
+        self.min_length().is_some_and(|min| len >= min)
     }
 
     /// The extents of this array, in order of increasing strides.
@@ -747,10 +747,7 @@ impl<Buffer> FlatSamples<Buffer> {
     where
         Buffer: AsRef<[T]>,
     {
-        let min_length = match self.min_length() {
-            None => return None,
-            Some(index) => index,
-        };
+        let min_length = self.min_length()?;
 
         let slice = self.samples.as_ref();
         if slice.len() < min_length {
@@ -765,10 +762,7 @@ impl<Buffer> FlatSamples<Buffer> {
     where
         Buffer: AsMut<[T]>,
     {
-        let min_length = match self.min_length() {
-            None => return None,
-            Some(index) => index,
-        };
+        let min_length = self.min_length()?;
 
         let slice = self.samples.as_mut();
         if slice.len() < min_length {

@@ -19,15 +19,8 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "MIT",
-    "MIT-0",
-    "MPL-2.0",
-    "Unicode-DFS-2016",
+    "Unicode-3.0",
 ]
-
-[[licenses.exceptions]]
-allow = ["WTFPL"]
-name = "pcx"
-version = "*"
 
 [advisories]
 yanked = "deny"
@@ -41,5 +34,4 @@ deny = []
 skip = [
     { name = "bitflags" },   # Some deps depend on 1.3.2 while others on 2.6.0
     { name = "hashbrown" },  # Some deps depend on 0.13.2 while others on 0.14.5
-    { name = "miniz_oxide" } # Some deps depend on 0.7.4 while others on 0.8.0
 ]

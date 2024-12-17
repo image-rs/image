@@ -15,12 +15,12 @@ pub use self::affine::{
     rotate90, rotate90_in,
 };
 
+pub(crate) use self::sample::gaussian_blur_dyn_image;
 /// Image sampling
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize,
-    sample_bilinear, sample_nearest, thumbnail, unsharpen,
+    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
+    sample_nearest, thumbnail, unsharpen,
 };
-pub(crate) use self::sample::gaussian_blur_dyn_image;
 
 /// Color operations
 pub use self::colorops::{

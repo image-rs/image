@@ -17,9 +17,10 @@ pub use self::affine::{
 
 /// Image sampling
 pub use self::sample::{
-    blur, filter3x3, gaussian_blur_dyn_image, interpolate_bilinear, interpolate_nearest, resize,
+    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize,
     sample_bilinear, sample_nearest, thumbnail, unsharpen,
 };
+pub(crate) use self::sample::gaussian_blur_dyn_image;
 
 /// Color operations
 pub use self::colorops::{

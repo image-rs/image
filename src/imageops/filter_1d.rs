@@ -929,6 +929,26 @@ pub(crate) fn filter_1d_rgba(
     filter_1d::<u8, f32, i32, 4>(image, destination, image_size, row_kernel, column_kernel)
 }
 
+pub(crate) fn filter_1d_la_f32(
+    image: &[f32],
+    destination: &mut [f32],
+    image_size: FilterImageSize,
+    row_kernel: &[f32],
+    column_kernel: &[f32],
+) -> Result<(), ImageError> {
+    filter_1d::<f32, f32, f32, 2>(image, destination, image_size, row_kernel, column_kernel)
+}
+
+pub(crate) fn filter_1d_plane_f32(
+    image: &[f32],
+    destination: &mut [f32],
+    image_size: FilterImageSize,
+    row_kernel: &[f32],
+    column_kernel: &[f32],
+) -> Result<(), ImageError> {
+    filter_1d::<f32, f32, f32, 1>(image, destination, image_size, row_kernel, column_kernel)
+}
+
 pub(crate) fn filter_1d_rgb_f32(
     image: &[f32],
     destination: &mut [f32],

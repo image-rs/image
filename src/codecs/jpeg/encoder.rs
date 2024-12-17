@@ -30,6 +30,7 @@ static SOS: u8 = 0xDA;
 static DQT: u8 = 0xDB;
 // Application segments start and end
 static APP0: u8 = 0xE0;
+static APP2: u8 = 0xE2;
 
 // section K.1
 // table K.1
@@ -346,6 +347,8 @@ pub struct JpegEncoder<W> {
     chroma_actable: Cow<'static, [(u8, u16); 256]>,
 
     pixel_density: PixelDensity,
+
+    icc_profile: Vec<u8>,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -415,6 +418,8 @@ impl<W: Write> JpegEncoder<W> {
             chroma_actable: Cow::Borrowed(&STD_CHROMA_AC_HUFF_LUT),
 
             pixel_density: PixelDensity::default(),
+
+            icc_profile: Vec::new(),
         }
     }
 
@@ -493,6 +498,9 @@ impl<W: Write> JpegEncoder<W> {
 
         build_jfif_header(&mut buf, self.pixel_density);
         self.writer.write_segment(APP0, &buf)?;
+
+        // Write ICC profile chunks if present
+        self.write_icc_profile_chunks()?;
 
         build_frame_header(
             &mut buf,
@@ -648,6 +656,43 @@ impl<W: Write> JpegEncoder<W> {
 
         Ok(())
     }
+
+    fn write_icc_profile_chunks(&mut self) -> io::Result<()> {
+        if self.icc_profile.is_empty() {
+            return Ok(());
+        }
+
+        const MAX_CHUNK_SIZE: usize = 65533 - 14;
+        const MAX_CHUNK_COUNT: usize = 255;
+        const MAX_ICC_PROFILE_SIZE: usize = MAX_CHUNK_SIZE * MAX_CHUNK_COUNT;
+
+        if self.icc_profile.len() > MAX_ICC_PROFILE_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ICC profile too large",
+            ));
+        }
+
+        let chunk_iter = self.icc_profile.chunks(MAX_CHUNK_SIZE);
+        let num_chunks = chunk_iter.len() as u8;
+        let mut segment = Vec::new();
+
+        for (i, chunk) in chunk_iter.enumerate() {
+            let chunk_number = (i + 1) as u8;
+            let length = 14 + chunk.len();
+
+            segment.clear();
+            segment.reserve(length);
+            segment.extend_from_slice(b"ICC_PROFILE\0");
+            segment.push(chunk_number);
+            segment.push(num_chunks);
+            segment.extend_from_slice(chunk);
+
+            self.writer.write_segment(APP2, &segment)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
@@ -660,6 +705,11 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
+    }
+
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.icc_profile = icc_profile;
+        Ok(())
     }
 }
 

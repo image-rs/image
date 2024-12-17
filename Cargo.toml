@@ -43,10 +43,10 @@ num-traits = { version = "0.2.0" }
 color_quant = { version = "1.1", optional = true }
 dav1d = { version = "0.10.3", optional = true }
 exr = { version = "1.5.0", optional = true }
-gif = { version = "0.13", optional = true }
+gif = { version = "0.13.1", optional = true }
 image-webp = { version = "0.2.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
-png = { version = "0.17.6", optional = true }
+png = { version = "0.17.11", optional = true }
 qoi = { version = "0.4", optional = true }
 ravif = { version = "0.11.11", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }

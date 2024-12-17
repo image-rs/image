@@ -1048,8 +1048,9 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
 
 /// In previous implementation sigma means radius, which is not the same one
 pub(crate) fn gaussian_blur_dyn_image(image: &DynamicImage, sigma: f32) -> DynamicImage {
-    let kernel_size = sigma.max(1.) as usize * 2 + 1;
-    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, sigma);
+    let min_sigma = sigma.max(0.1);
+    let kernel_size = min_sigma as usize * 2 + 1;
+    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);
 
     let filter_image_size = FilterImageSize {
         width: image.width() as usize,
@@ -1251,8 +1252,10 @@ where
 
     let mut transient_dst = vec![0f32; image.width() as usize * image.height() as usize * CN];
 
-    let kernel_size = sigma.max(1.) as usize * 2 + 1;
-    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, sigma);
+    let min_sigma = sigma.max(0.1);
+
+    let kernel_size = min_sigma as usize * 2 + 1;
+    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);
 
     let filter_image_size = FilterImageSize {
         width: image.width() as usize,

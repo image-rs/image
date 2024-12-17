@@ -1201,7 +1201,7 @@ pub(crate) fn gaussian_blur_dyn_image(image: &DynamicImage, sigma: f32) -> Dynam
     }
 }
 
-pub(crate) fn gaussian_blur_indirect<I: GenericImageView>(
+fn gaussian_blur_indirect<I: GenericImageView>(
     image: &I,
     sigma: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>

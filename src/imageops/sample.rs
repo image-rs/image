@@ -1002,25 +1002,6 @@ pub fn blur<I: GenericImageView>(
 where
     I::Pixel: 'static,
 {
-    // let sigma = if sigma <= 0.0 { 1.0 } else { sigma };
-    //
-    // let mut method = Filter {
-    //     kernel: Box::new(|x| gaussian(x, sigma)),
-    //     support: 2.0 * sigma,
-    // };
-    //
-    // let (width, height) = image.dimensions();
-    // let is_empty = width == 0 || height == 0;
-    //
-    // if is_empty {
-    //     return ImageBuffer::new(width, height);
-    // }
-    //
-    // // Keep width and height the same for horizontal and
-    // // vertical sampling.
-    // // Note: tmp is not necessarily actually Rgba
-    // let tmp: Rgba32FImage = vertical_sample(image, height, &mut method);
-    // horizontal_sample(&tmp, width, &mut method)
     gaussian_blur_indirect(image, sigma)
 }
 
@@ -1046,9 +1027,8 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
     kernel
 }
 
-/// In previous implementation sigma means radius, which is not the same one
 pub(crate) fn gaussian_blur_dyn_image(image: &DynamicImage, sigma: f32) -> DynamicImage {
-    let min_sigma = sigma.max(0.1);
+    let min_sigma = sigma.max(1.0f32);
     let kernel_size = min_sigma as usize * 2 + 1;
     let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);
 
@@ -1252,7 +1232,7 @@ where
 
     let mut transient_dst = vec![0f32; image.width() as usize * image.height() as usize * CN];
 
-    let min_sigma = sigma.max(0.1);
+    let min_sigma = sigma.max(1.0);
 
     let kernel_size = min_sigma as usize * 2 + 1;
     let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);

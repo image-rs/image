@@ -831,7 +831,6 @@ impl DynamicImage {
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         gaussian_blur_dyn_image(self, sigma)
-        // dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
     /// Performs a fast blur on this image.

@@ -1315,11 +1315,6 @@ impl StreamingDecoder {
             };
 
             info.chrm_chunk = Some(source_chromaticities);
-            // Ignore chromaticities if sRGB profile is used.
-            if info.srgb.is_none() {
-                info.source_chromaticities = Some(source_chromaticities);
-            }
-
             Ok(Decoded::Nothing)
         }
     }
@@ -1340,11 +1335,6 @@ impl StreamingDecoder {
             let source_gamma = ScaledFloat::from_scaled(source_gamma);
 
             info.gama_chunk = Some(source_gamma);
-            // Ignore chromaticities if sRGB profile is used.
-            if info.srgb.is_none() {
-                info.source_gamma = Some(source_gamma);
-            }
-
             Ok(Decoded::Nothing)
         }
     }
@@ -1368,8 +1358,6 @@ impl StreamingDecoder {
 
             // Set srgb and override source gamma and chromaticities.
             info.srgb = Some(rendering_intent);
-            info.source_gamma = Some(crate::srgb::substitute_gamma());
-            info.source_chromaticities = Some(crate::srgb::substitute_chromaticities());
             Ok(Decoded::Nothing)
         }
     }
@@ -1846,7 +1834,7 @@ mod tests {
         fn trial(path: &str, expected: Option<ScaledFloat>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
             let reader = decoder.read_info().unwrap();
-            let actual: Option<ScaledFloat> = reader.info().source_gamma;
+            let actual: Option<ScaledFloat> = reader.info().gamma();
             assert!(actual == expected);
         }
         trial("tests/pngsuite/f00n0g08.png", None);
@@ -1887,7 +1875,7 @@ mod tests {
         fn trial(path: &str, expected: Option<SourceChromaticities>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
             let reader = decoder.read_info().unwrap();
-            let actual: Option<SourceChromaticities> = reader.info().source_chromaticities;
+            let actual: Option<SourceChromaticities> = reader.info().chromaticities();
             assert!(actual == expected);
         }
         trial(

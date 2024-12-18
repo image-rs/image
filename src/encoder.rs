@@ -2183,7 +2183,7 @@ mod tests {
             let decoder = crate::Decoder::new(Cursor::new(buffer));
             let mut reader = decoder.read_info()?;
             assert_eq!(
-                reader.info().source_gamma,
+                reader.info().gamma(),
                 gamma,
                 "Deviation with gamma {:?}",
                 gamma

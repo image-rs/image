@@ -731,6 +731,24 @@ impl Info<'_> {
             .raw_row_length_from_width(self.bit_depth, width)
     }
 
+    /// Gamma dependent on sRGB chunk
+    pub fn gamma(&self) -> Option<ScaledFloat> {
+        if self.srgb.is_some() {
+            Some(crate::srgb::substitute_gamma())
+        } else {
+            self.gama_chunk
+        }
+    }
+
+    /// Chromaticities dependent on sRGB chunk
+    pub fn chromaticities(&self) -> Option<SourceChromaticities> {
+        if self.srgb.is_some() {
+            Some(crate::srgb::substitute_chromaticities())
+        } else {
+            self.chrm_chunk
+        }
+    }
+
     /// Mark the image data as conforming to the SRGB color space with the specified rendering intent.
     ///
     /// Any ICC profiles will be ignored.

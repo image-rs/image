@@ -1,5 +1,5 @@
 //! Common types shared between the encoder and decoder
-use crate::text_metadata::{EncodableTextChunk, ITXtChunk, TEXtChunk, ZTXtChunk};
+use crate::text_metadata::{ITXtChunk, TEXtChunk, ZTXtChunk};
 use crate::{chunk, encoder};
 use io::Write;
 use std::{borrow::Cow, convert::TryFrom, fmt, io};
@@ -734,91 +734,6 @@ impl Info<'_> {
     pub(crate) fn set_source_srgb(&mut self, rendering_intent: SrgbRenderingIntent) {
         self.srgb = Some(rendering_intent);
         self.icc_profile = None;
-    }
-
-    /// Encode this header to the writer.
-    ///
-    /// Note that this does _not_ include the PNG signature, it starts with the IHDR chunk and then
-    /// includes other chunks that were added to the header.
-    #[deprecated(note = "Use Encoder+Writer instead")]
-    pub fn encode<W: Write>(&self, mut w: W) -> encoder::Result<()> {
-        // Encode the IHDR chunk
-        let mut data = [0; 13];
-        data[..4].copy_from_slice(&self.width.to_be_bytes());
-        data[4..8].copy_from_slice(&self.height.to_be_bytes());
-        data[8] = self.bit_depth as u8;
-        data[9] = self.color_type as u8;
-        data[12] = self.interlaced as u8;
-        encoder::write_chunk(&mut w, chunk::IHDR, &data)?;
-
-        // Encode the pHYs chunk
-        if let Some(pd) = self.pixel_dims {
-            let mut phys_data = [0; 9];
-            phys_data[0..4].copy_from_slice(&pd.xppu.to_be_bytes());
-            phys_data[4..8].copy_from_slice(&pd.yppu.to_be_bytes());
-            match pd.unit {
-                Unit::Meter => phys_data[8] = 1,
-                Unit::Unspecified => phys_data[8] = 0,
-            }
-            encoder::write_chunk(&mut w, chunk::pHYs, &phys_data)?;
-        }
-
-        // If specified, the sRGB information overrides the source gamma and chromaticities.
-        if let Some(srgb) = &self.srgb {
-            srgb.encode(&mut w)?;
-
-            // gAMA and cHRM are optional, for backwards compatibility
-            let srgb_gamma = crate::srgb::substitute_gamma();
-            if Some(srgb_gamma) == self.source_gamma {
-                srgb_gamma.encode_gama(&mut w)?
-            }
-            let srgb_chromaticities = crate::srgb::substitute_chromaticities();
-            if Some(srgb_chromaticities) == self.source_chromaticities {
-                srgb_chromaticities.encode(&mut w)?;
-            }
-        } else {
-            if let Some(gma) = self.source_gamma {
-                gma.encode_gama(&mut w)?
-            }
-            if let Some(chrms) = self.source_chromaticities {
-                chrms.encode(&mut w)?;
-            }
-            if let Some(iccp) = &self.icc_profile {
-                encoder::write_iccp_chunk(&mut w, "_", iccp)?
-            }
-        }
-
-        if let Some(exif) = &self.exif_metadata {
-            encoder::write_chunk(&mut w, chunk::eXIf, exif)?;
-        }
-
-        if let Some(actl) = self.animation_control {
-            actl.encode(&mut w)?;
-        }
-
-        // The position of the PLTE chunk is important, it must come before the tRNS chunk and after
-        // many of the other metadata chunks.
-        if let Some(p) = &self.palette {
-            encoder::write_chunk(&mut w, chunk::PLTE, p)?;
-        };
-
-        if let Some(t) = &self.trns {
-            encoder::write_chunk(&mut w, chunk::tRNS, t)?;
-        }
-
-        for text_chunk in &self.uncompressed_latin1_text {
-            text_chunk.encode(&mut w)?;
-        }
-
-        for text_chunk in &self.compressed_latin1_text {
-            text_chunk.encode(&mut w)?;
-        }
-
-        for text_chunk in &self.utf8_text {
-            text_chunk.encode(&mut w)?;
-        }
-
-        Ok(())
     }
 }
 

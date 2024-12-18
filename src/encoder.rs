@@ -9,7 +9,7 @@ use flate2::write::ZlibEncoder;
 use crate::chunk::{self, ChunkType};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
-    FrameControl, Info, ParameterError, ParameterErrorKind, PixelDimensions, ScaledFloat,
+    FrameControl, Info, ParameterError, ParameterErrorKind, PixelDimensions, ScaledFloat, Unit,
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::text_metadata::{
@@ -589,11 +589,92 @@ impl<W: Write> Writer<W> {
             ));
         }
 
-        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
-        #[allow(deprecated)]
-        info.encode(&mut self.w)?;
+        self.encode_header(info)?;
 
         Ok(self)
+    }
+
+    /// Encode PNG signature, IHDR, and then chunks that were added to the `Info`
+    fn encode_header(&mut self, info: &Info<'_>) -> Result<()> {
+        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
+
+        // Encode the IHDR chunk
+        let mut data = [0; 13];
+        data[..4].copy_from_slice(&info.width.to_be_bytes());
+        data[4..8].copy_from_slice(&info.height.to_be_bytes());
+        data[8] = info.bit_depth as u8;
+        data[9] = info.color_type as u8;
+        data[12] = info.interlaced as u8;
+        self.write_chunk(chunk::IHDR, &data)?;
+
+        // Encode the pHYs chunk
+        if let Some(pd) = info.pixel_dims {
+            let mut phys_data = [0; 9];
+            phys_data[0..4].copy_from_slice(&pd.xppu.to_be_bytes());
+            phys_data[4..8].copy_from_slice(&pd.yppu.to_be_bytes());
+            match pd.unit {
+                Unit::Meter => phys_data[8] = 1,
+                Unit::Unspecified => phys_data[8] = 0,
+            }
+            self.write_chunk(chunk::pHYs, &phys_data)?;
+        }
+
+        // If specified, the sRGB information overrides the source gamma and chromaticities.
+        if let Some(srgb) = &info.srgb {
+            srgb.encode(&mut self.w)?;
+
+            // gAMA and cHRM are optional, for backwards compatibility
+            let srgb_gamma = crate::srgb::substitute_gamma();
+            if Some(srgb_gamma) == info.source_gamma {
+                srgb_gamma.encode_gama(&mut self.w)?
+            }
+            let srgb_chromaticities = crate::srgb::substitute_chromaticities();
+            if Some(srgb_chromaticities) == info.source_chromaticities {
+                srgb_chromaticities.encode(&mut self.w)?;
+            }
+        } else {
+            if let Some(gma) = info.source_gamma {
+                gma.encode_gama(&mut self.w)?
+            }
+            if let Some(chrms) = info.source_chromaticities {
+                chrms.encode(&mut self.w)?;
+            }
+            if let Some(iccp) = &info.icc_profile {
+                self.write_iccp_chunk("_", iccp)?
+            }
+        }
+
+        if let Some(exif) = &info.exif_metadata {
+            self.write_chunk(chunk::eXIf, exif)?;
+        }
+
+        if let Some(actl) = info.animation_control {
+            actl.encode(&mut self.w)?;
+        }
+
+        // The position of the PLTE chunk is important, it must come before the tRNS chunk and after
+        // many of the other metadata chunks.
+        if let Some(p) = &info.palette {
+            self.write_chunk(chunk::PLTE, p)?;
+        };
+
+        if let Some(t) = &info.trns {
+            self.write_chunk(chunk::tRNS, t)?;
+        }
+
+        for text_chunk in &info.uncompressed_latin1_text {
+            self.write_text_chunk(text_chunk)?;
+        }
+
+        for text_chunk in &info.compressed_latin1_text {
+            self.write_text_chunk(text_chunk)?;
+        }
+
+        for text_chunk in &info.utf8_text {
+            self.write_text_chunk(text_chunk)?;
+        }
+
+        Ok(())
     }
 
     /// Write a raw chunk of PNG data.
@@ -613,6 +694,31 @@ impl<W: Write> Writer<W> {
 
     pub fn write_text_chunk<T: EncodableTextChunk>(&mut self, text_chunk: &T) -> Result<()> {
         text_chunk.encode(&mut self.w)
+    }
+
+    fn write_iccp_chunk(&mut self, profile_name: &str, icc_profile: &[u8]) -> Result<()> {
+        let profile_name = encode_iso_8859_1(profile_name)?;
+        if profile_name.len() < 1 || profile_name.len() > 79 {
+            return Err(TextEncodingError::InvalidKeywordSize.into());
+        }
+
+        let estimated_compressed_size = icc_profile.len() * 3 / 4;
+        let chunk_size = profile_name
+            .len()
+            .checked_add(2) // string NUL + compression type. Checked add optimizes out later Vec reallocations.
+            .and_then(|s| s.checked_add(estimated_compressed_size))
+            .ok_or(EncodingError::LimitsExceeded)?;
+
+        let mut data = Vec::new();
+        data.try_reserve_exact(chunk_size)
+            .map_err(|_| EncodingError::LimitsExceeded)?;
+
+        data.extend(profile_name.into_iter().chain([0, 0]));
+
+        let mut encoder = ZlibEncoder::new(data, flate2::Compression::default());
+        encoder.write_all(icc_profile)?;
+
+        self.write_chunk(chunk::iCCP, &encoder.finish()?)
     }
 
     /// Check if we should allow writing another image.
@@ -1053,36 +1159,6 @@ impl<W: Write> Drop for Writer<W> {
             let _ = self.write_iend();
         }
     }
-}
-
-// This should be moved to Writer after `Info::encoding` is gone
-pub(crate) fn write_iccp_chunk<W: Write>(
-    w: &mut W,
-    profile_name: &str,
-    icc_profile: &[u8],
-) -> Result<()> {
-    let profile_name = encode_iso_8859_1(profile_name)?;
-    if profile_name.len() < 1 || profile_name.len() > 79 {
-        return Err(TextEncodingError::InvalidKeywordSize.into());
-    }
-
-    let estimated_compressed_size = icc_profile.len() * 3 / 4;
-    let chunk_size = profile_name
-        .len()
-        .checked_add(2) // string NUL + compression type. Checked add optimizes out later Vec reallocations.
-        .and_then(|s| s.checked_add(estimated_compressed_size))
-        .ok_or(EncodingError::LimitsExceeded)?;
-
-    let mut data = Vec::new();
-    data.try_reserve_exact(chunk_size)
-        .map_err(|_| EncodingError::LimitsExceeded)?;
-
-    data.extend(profile_name.into_iter().chain([0, 0]));
-
-    let mut encoder = ZlibEncoder::new(data, flate2::Compression::default());
-    encoder.write_all(icc_profile)?;
-
-    write_chunk(w, chunk::iCCP, &encoder.finish()?)
 }
 
 enum ChunkOutput<'a, W: Write> {

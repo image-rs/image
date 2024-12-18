@@ -514,33 +514,20 @@ impl PartialInfo {
     }
 
     fn bpp_in_prediction(&self) -> BytesPerPixel {
-        // Passthrough
-        self.to_info().bpp_in_prediction()
+        BytesPerPixel::from_usize(self.bytes_per_pixel())
+    }
+
+    fn bytes_per_pixel(&self) -> usize {
+        self.color_type.bytes_per_pixel(self.bit_depth)
     }
 
     fn raw_row_length(&self) -> usize {
-        // Passthrough
-        self.to_info().raw_row_length()
+        self.raw_row_length_from_width(self.width)
     }
 
     fn raw_row_length_from_width(&self, width: u32) -> usize {
-        // Passthrough
-        self.to_info().raw_row_length_from_width(width)
-    }
-
-    /// Converts this partial info to an owned Info struct,
-    /// setting missing values to their defaults
-    fn to_info(&self) -> Info<'static> {
-        Info {
-            width: self.width,
-            height: self.height,
-            bit_depth: self.bit_depth,
-            color_type: self.color_type,
-            frame_control: self.frame_control,
-            animation_control: self.animation_control,
-            compression: self.compression,
-            ..Default::default()
-        }
+        self.color_type
+            .raw_row_length_from_width(self.bit_depth, width)
     }
 }
 

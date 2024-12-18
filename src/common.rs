@@ -77,6 +77,16 @@ impl ColorType {
                 || self == ColorType::Rgba))
             || (bit_depth == BitDepth::Sixteen && self == ColorType::Indexed)
     }
+
+    pub(crate) fn bits_per_pixel(&self, bit_depth: BitDepth) -> usize {
+        self.samples() * bit_depth as usize
+    }
+
+    pub(crate) fn bytes_per_pixel(&self, bit_depth: BitDepth) -> usize {
+        // If adjusting this for expansion or other transformation passes, remember to keep the old
+        // implementation for bpp_in_prediction, which is internal to the png specification.
+        self.samples() * ((bit_depth as usize + 7) >> 3)
+    }
 }
 
 /// Bit depth of the PNG file.
@@ -683,14 +693,14 @@ impl Info<'_> {
 
     /// Returns the number of bits per pixel.
     pub fn bits_per_pixel(&self) -> usize {
-        self.color_type.samples() * self.bit_depth as usize
+        self.color_type.bits_per_pixel(self.bit_depth)
     }
 
     /// Returns the number of bytes per pixel.
     pub fn bytes_per_pixel(&self) -> usize {
         // If adjusting this for expansion or other transformation passes, remember to keep the old
         // implementation for bpp_in_prediction, which is internal to the png specification.
-        self.color_type.samples() * ((self.bit_depth as usize + 7) >> 3)
+        self.color_type.bytes_per_pixel(self.bit_depth)
     }
 
     /// Return the number of bytes for this pixel used in prediction.

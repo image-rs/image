@@ -158,6 +158,7 @@ struct Options {
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
     validate_sequence: bool,
+    compression: Compression,
 }
 
 impl<'a, W: Write> Encoder<'a, W> {
@@ -313,7 +314,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// Accepts a `Compression` or any type that can transform into a `Compression`. Notably `deflate::Compression` and
     /// `deflate::CompressionOptions` which "just work".
     pub fn set_compression(&mut self, compression: Compression) {
-        self.info.compression = compression;
+        self.options.compression = compression;
     }
 
     /// Set the used filter type.
@@ -495,7 +496,6 @@ struct PartialInfo {
     color_type: ColorType,
     frame_control: Option<FrameControl>,
     animation_control: Option<AnimationControl>,
-    compression: Compression,
     has_palette: bool,
 }
 
@@ -508,7 +508,6 @@ impl PartialInfo {
             color_type: info.color_type,
             frame_control: info.frame_control,
             animation_control: info.animation_control,
-            compression: info.compression,
             has_palette: info.palette.is_some(),
         }
     }
@@ -787,7 +786,7 @@ impl<W: Write> Writer<W> {
         let filter_method = self.options.filter;
         let adaptive_method = self.options.adaptive_filter;
 
-        let zlib_encoded = match self.info.compression {
+        let zlib_encoded = match self.options.compression {
             Compression::Fast => {
                 let mut compressor = fdeflate::Compressor::new(std::io::Cursor::new(Vec::new()))?;
 
@@ -832,7 +831,7 @@ impl<W: Write> Writer<W> {
             _ => {
                 let mut current = vec![0; in_len];
 
-                let mut zlib = ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
+                let mut zlib = ZlibEncoder::new(Vec::new(), self.options.compression.to_options());
                 for line in data.chunks(in_len) {
                     let filter_type = filter(
                         filter_method,
@@ -1417,13 +1416,13 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             width,
             height,
             frame_control: fctl,
-            compression,
             ..
         } = writer.info;
 
         let bpp = writer.info.bpp_in_prediction();
         let in_len = writer.info.raw_row_length() - 1;
         let filter = writer.options.filter;
+        let compression = writer.options.compression;
         let adaptive_filter = writer.options.adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];

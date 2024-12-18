@@ -597,7 +597,6 @@ pub struct Info<'a> {
 
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
-    pub compression: Compression,
     /// Gamma of the source system.
     /// Set by both `gAMA` as well as to a replacement by `sRGB` chunk.
     pub source_gamma: Option<ScaledFloat>,
@@ -643,9 +642,6 @@ impl Default for Info<'_> {
             pixel_dims: None,
             frame_control: None,
             animation_control: None,
-            // Default to `deflate::Compression::Fast` and `filter::FilterType::Sub`
-            // to maintain backward compatible output.
-            compression: Compression::Fast,
             source_gamma: None,
             source_chromaticities: None,
             srgb: None,

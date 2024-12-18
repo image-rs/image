@@ -36,7 +36,7 @@ getopts = "0.2.14"
 glium = { version = "0.32", features = ["glutin"], default-features = false }
 glob = "0.3"
 rand = "0.8.4"
-term = "0.7"
+term = "1.0.1"
 
 [features]
 unstable = ["crc32fast/nightly"]

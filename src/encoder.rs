@@ -1737,9 +1737,18 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn roundtrip() {
+    fn roundtrip1() {
+        roundtrip_inner();
+    }
+
+    #[test]
+    fn roundtrip2() {
+        roundtrip_inner();
+    }
+
+    fn roundtrip_inner() {
         // More loops = more random testing, but also more test wait time
-        for _ in 0..10 {
+        for _ in 0..5 {
             for path in glob::glob("tests/pngsuite/*.png")
                 .unwrap()
                 .map(|r| r.unwrap())
@@ -1783,9 +1792,18 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_stream() {
+    fn roundtrip_stream1() {
+        roundtrip_stream_inner();
+    }
+
+    #[test]
+    fn roundtrip_stream2() {
+        roundtrip_stream_inner();
+    }
+
+    fn roundtrip_stream_inner() {
         // More loops = more random testing, but also more test wait time
-        for _ in 0..10 {
+        for _ in 0..5 {
             for path in glob::glob("tests/pngsuite/*.png")
                 .unwrap()
                 .map(|r| r.unwrap())

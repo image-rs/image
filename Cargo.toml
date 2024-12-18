@@ -42,6 +42,9 @@ term = "0.7"
 unstable = ["crc32fast/nightly"]
 benchmarks = []
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
+
 [[bench]]
 path = "benches/decoder.rs"
 name = "decoder"

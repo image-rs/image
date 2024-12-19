@@ -590,6 +590,7 @@ impl<W: Write> Writer<W> {
         }
 
         self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
+        #[allow(deprecated)]
         info.encode(&mut self.w)?;
 
         Ok(self)

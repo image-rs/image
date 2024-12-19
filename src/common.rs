@@ -740,6 +740,7 @@ impl Info<'_> {
     ///
     /// Note that this does _not_ include the PNG signature, it starts with the IHDR chunk and then
     /// includes other chunks that were added to the header.
+    #[deprecated(note = "Use Encoder+Writer instead")]
     pub fn encode<W: Write>(&self, mut w: W) -> encoder::Result<()> {
         // Encode the IHDR chunk
         let mut data = [0; 13];

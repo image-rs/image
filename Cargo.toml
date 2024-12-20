@@ -21,7 +21,7 @@ include = [
 ]
 
 [dependencies]
-bitflags = "1.0"
+bitflags = "2.0"
 crc32fast = "1.2.0"
 fdeflate = "0.3.3"
 flate2 = "1.0.11"

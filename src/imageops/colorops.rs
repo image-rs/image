@@ -1,7 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
-use std::f64::consts::PI;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::image::{GenericImage, GenericImageView};
@@ -230,8 +229,8 @@ where
 
     let angle: f64 = NumCast::from(value).unwrap();
 
-    let cosv = (angle * PI / 180.0).cos();
-    let sinv = (angle * PI / 180.0).sin();
+    let cosv = angle.to_radians().cos();
+    let sinv = angle.to_radians().sin();
     let matrix: [f64; 9] = [
         // Reds
         0.213 + cosv * 0.787 - sinv * 0.213,
@@ -294,8 +293,8 @@ where
 
     let angle: f64 = NumCast::from(value).unwrap();
 
-    let cosv = (angle * PI / 180.0).cos();
-    let sinv = (angle * PI / 180.0).sin();
+    let cosv = angle.to_radians().cos();
+    let sinv = angle.to_radians().sin();
     let matrix: [f64; 9] = [
         // Reds
         0.213 + cosv * 0.787 - sinv * 0.213,
@@ -586,7 +585,7 @@ mod test {
         let cmap = BiLevel;
         dither(&mut image, &cmap);
         assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
-        assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0])
+        assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0]);
     }
 
     #[test]

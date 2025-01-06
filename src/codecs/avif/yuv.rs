@@ -265,7 +265,6 @@ fn qrshr<const PRECISION: i32, const BIT_DEPTH: usize>(val: i32) -> i32 {
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv400_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgba: &mut [u8],
@@ -285,7 +284,6 @@ pub(crate) fn yuv400_to_rgba8(
 /// * `rgba`: RGBA image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 pub(crate) fn yuv400_to_rgba10(
     image: YuvPlanarImage<u16>,
@@ -307,7 +305,6 @@ pub(crate) fn yuv400_to_rgba10(
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv400_to_rgba12(
     image: YuvPlanarImage<u16>,
     rgba: &mut [u16],
@@ -327,7 +324,6 @@ pub(crate) fn yuv400_to_rgba12(
 /// * `rgba`: RGBA image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 #[inline]
 fn yuv400_to_rgbx_impl<
@@ -447,7 +443,6 @@ where
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv420_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgb: &mut [u8],
@@ -468,7 +463,6 @@ pub(crate) fn yuv420_to_rgba8(
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv420_to_rgba10(
     image: YuvPlanarImage<u16>,
     rgb: &mut [u16],
@@ -488,7 +482,6 @@ pub(crate) fn yuv420_to_rgba10(
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 pub(crate) fn yuv420_to_rgba12(
     image: YuvPlanarImage<u16>,
@@ -627,7 +620,6 @@ fn process_halved_chroma_row<
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 #[inline]
 fn yuv420_to_rgbx<
@@ -790,7 +782,6 @@ where
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv422_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgb: &mut [u8],
@@ -810,7 +801,6 @@ pub(crate) fn yuv422_to_rgba8(
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 pub(crate) fn yuv422_to_rgba10(
     image: YuvPlanarImage<u16>,
@@ -832,7 +822,6 @@ pub(crate) fn yuv422_to_rgba10(
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv422_to_rgba12(
     image: YuvPlanarImage<u16>,
     rgb: &mut [u16],
@@ -852,7 +841,6 @@ pub(crate) fn yuv422_to_rgba12(
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 fn yuv422_to_rgbx_impl<
     V: Copy + AsPrimitive<i32> + 'static + Sized,
@@ -979,7 +967,6 @@ where
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(crate) fn yuv444_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgba: &mut [u8],
@@ -1003,7 +990,6 @@ pub(crate) fn yuv444_to_rgba8(
 /// * `rgba`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 pub(super) fn yuv444_to_rgba10(
     image: YuvPlanarImage<u16>,
@@ -1029,7 +1015,6 @@ pub(super) fn yuv444_to_rgba10(
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
 ///
-///
 pub(super) fn yuv444_to_rgba12(
     image: YuvPlanarImage<u16>,
     rgba: &mut [u16],
@@ -1053,7 +1038,6 @@ pub(super) fn yuv444_to_rgba12(
 /// * `rgba`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 /// * `matrix`: see [YuvStandardMatrix]
-///
 ///
 #[inline]
 fn yuv444_to_rgbx_impl<
@@ -1172,7 +1156,6 @@ where
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
 ///
-///
 fn gbr_to_rgba8(
     image: YuvPlanarImage<u8>,
     rgb: &mut [u8],
@@ -1190,7 +1173,6 @@ fn gbr_to_rgba8(
 /// * `image`: see [YuvPlanarImage]
 /// * `rgba`: RGBx image layout
 /// * `range`: see [YuvIntensityRange]
-///
 ///
 fn gbr_to_rgba10(
     image: YuvPlanarImage<u16>,
@@ -1210,7 +1192,6 @@ fn gbr_to_rgba10(
 /// * `rgba`: RGBx image layout
 /// * `range`: see [YuvIntensityRange]
 ///
-///
 fn gbr_to_rgba12(
     image: YuvPlanarImage<u16>,
     rgba: &mut [u16],
@@ -1228,7 +1209,6 @@ fn gbr_to_rgba12(
 /// * `image`: see [YuvPlanarImage]
 /// * `rgb`: RGB image layout
 /// * `range`: see [YuvIntensityRange]
-///
 ///
 #[inline]
 fn gbr_to_rgbx_impl<

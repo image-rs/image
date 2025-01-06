@@ -880,7 +880,7 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 /// use image::{GenericImageView, Rgb, RgbImage};
 ///
 /// let buffer = RgbImage::new(10, 10);
-/// let image: &dyn GenericImageView<Pixel=Rgb<u8>> = &buffer;
+/// let image: &dyn GenericImageView<Pixel = Rgb<u8>> = &buffer;
 /// ```
 pub trait GenericImageView {
     /// The type of pixel.
@@ -1269,6 +1269,7 @@ where
     I: Deref,
 {
     type Target = SubImageInner<I>;
+
     fn deref(&self) -> &Self::Target {
         &self.inner
     }

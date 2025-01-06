@@ -1500,7 +1500,7 @@ mod test {
     fn slice_buffer() {
         let data = [0; 9];
         let buf: ImageBuffer<Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
-        assert_eq!(&*buf, &data[..])
+        assert_eq!(&*buf, &data[..]);
     }
 
     macro_rules! new_buffer_zero_test {
@@ -1535,7 +1535,7 @@ mod test {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
         }
-        assert_eq!(a.get_pixel(0, 1)[0], 255)
+        assert_eq!(a.get_pixel(0, 1)[0], 255);
     }
 
     #[test]

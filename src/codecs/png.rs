@@ -4,7 +4,6 @@
 //!
 //! # Related Links
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
-//!
 
 use std::borrow::Cow;
 use std::fmt;

@@ -822,9 +822,9 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
     let [r, g, b] = pixel.to_rgb().0;
-    let r: i32 = r.to_u8().unwrap() as i32;
-    let g: i32 = g.to_u8().unwrap() as i32;
-    let b: i32 = b.to_u8().unwrap() as i32;
+    let r: i32 = i32::from(r.to_u8().unwrap());
+    let g: i32 = i32::from(g.to_u8().unwrap());
+    let b: i32 = i32::from(b.to_u8().unwrap());
 
     /*
        JPEG RGB -> YCbCr is defined as following equations using Bt.601 Full Range matrix:
@@ -1016,7 +1016,7 @@ mod tests {
         let result = encoder.write_image(&img, 65_536, 1, ExtendedColorType::L8);
         match result {
             Err(ImageError::Parameter(err)) => {
-                assert_eq!(err.kind(), DimensionMismatch)
+                assert_eq!(err.kind(), DimensionMismatch);
             }
             other => {
                 panic!(
@@ -1065,7 +1065,7 @@ mod tests {
         build_frame_header(&mut buf, 5, 100, 150, &components);
         assert_eq!(
             buf,
-            [5, 0, 150, 0, 100, 2, 1, 1 << 4 | 1, 5, 2, 1 << 4 | 1, 4]
+            [5, 0, 150, 0, 100, 2, 1, (1 << 4) | 1, 5, 2, (1 << 4) | 1, 4]
         );
     }
 
@@ -1093,7 +1093,7 @@ mod tests {
             },
         ];
         build_scan_header(&mut buf, &components);
-        assert_eq!(buf, [2, 1, 5 << 4 | 5, 2, 4 << 4 | 4, 0, 63, 0]);
+        assert_eq!(buf, [2, 1, (5 << 4) | 5, 2, (4 << 4) | 4, 0, 63, 0]);
     }
 
     #[test]
@@ -1123,7 +1123,7 @@ mod tests {
         let mut expected = vec![];
         expected.push(1);
         expected.extend_from_slice(&[0; 64]);
-        assert_eq!(buf, expected)
+        assert_eq!(buf, expected);
     }
 
     #[cfg(feature = "benchmarks")]

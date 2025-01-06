@@ -688,7 +688,7 @@ fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) 
 where
     T::Err: Display,
 {
-    let is_separator = |v: &u8| matches! { *v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' };
+    let is_separator = |v: &u8| matches!(*v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ');
 
     let token = reader
         .bytes()

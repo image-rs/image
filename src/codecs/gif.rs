@@ -76,6 +76,7 @@ impl<R> Read for GifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
+
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         if self.0.position() == 0 && buf.is_empty() {
             mem::swap(buf, self.0.get_mut());

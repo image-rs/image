@@ -169,7 +169,6 @@ pub fn overlay_bounds(
 /// In particular, we want to ensure that all these coordinate accesses are safe:
 /// 1. `bottom.get_pixel(origin_bottom_x + [0..x_range), origin_bottom_y + [0..y_range))`
 /// 2. `top.get_pixel(origin_top_y + [0..x_range), origin_top_y + [0..y_range))`
-///
 fn overlay_bounds_ext(
     (bottom_width, bottom_height): (u32, u32),
     (top_width, top_height): (u32, u32),
@@ -246,7 +245,7 @@ where
 ///
 /// # Examples
 /// ```no_run
-/// use image::{RgbaImage};
+/// use image::RgbaImage;
 ///
 /// let mut img = RgbaImage::new(1920, 1080);
 /// let tile = image::open("tile.png").unwrap();
@@ -561,7 +560,7 @@ mod tests {
         let error = image_blurred_gauss_bytes
             .iter()
             .zip(image_blurred_fast_bytes.iter())
-            .map(|(a, b)| ((*a as f32 - *b as f32) / (*a as f32)))
+            .map(|(a, b)| ((f32::from(*a) - f32::from(*b)) / f32::from(*a)))
             .sum::<f32>()
             / (image_blurred_gauss_bytes.len() as f32);
         assert!(error < 0.05);

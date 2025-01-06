@@ -28,6 +28,7 @@ impl<'a> Frames<'a> {
 
 impl Iterator for Frames<'_> {
     type Item = ImageResult<Frame>;
+
     fn next(&mut self) -> Option<ImageResult<Frame>> {
         self.iterator.next()
     }
@@ -356,7 +357,7 @@ impl Ord for Ratio {
         // We cast the types from `u32` to `u64` in order
         // to not overflow the multiplications.
 
-        (a as u64 * d as u64).cmp(&(c as u64 * b as u64))
+        (u64::from(a) * u64::from(d)).cmp(&(u64::from(c) * u64::from(b)))
     }
 }
 

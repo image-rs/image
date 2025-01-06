@@ -46,10 +46,10 @@ mod test {
             if old_w == 0 || new_w == 0 { return true; }
             // In this case, the scaling is limited by scaling of height.
             // We could check that case separately but it does not conform to the same expectation.
-            if new_w as u64 * 400u64 >= old_w as u64 * u64::from(u32::MAX) { return true; }
+            if u64::from(new_w) * 400u64 >= u64::from(old_w) * u64::from(u32::MAX) { return true; }
 
             let result = super::resize_dimensions(old_w, 400, new_w, u32::MAX, false);
-            let exact = (400_f64 * new_w as f64 / old_w as f64).round() as u32;
+            let exact = (400_f64 * f64::from(new_w) / f64::from(old_w)).round() as u32;
             result.0 == new_w && result.1 == exact.max(1)
         }
     }
@@ -59,10 +59,10 @@ mod test {
             if old_h == 0 || new_h == 0 { return true; }
             // In this case, the scaling is limited by scaling of width.
             // We could check that case separately but it does not conform to the same expectation.
-            if 400u64 * new_h as u64 >= old_h as u64 * u64::from(u32::MAX) { return true; }
+            if 400u64 * u64::from(new_h) >= u64::from(old_h) * u64::from(u32::MAX) { return true; }
 
             let result = super::resize_dimensions(400, old_h, u32::MAX, new_h, false);
-            let exact = (400_f64 * new_h as f64 / old_h as f64).round() as u32;
+            let exact = (400_f64 * f64::from(new_h) / f64::from(old_h)).round() as u32;
             result.1 == new_h && result.0 == exact.max(1)
         }
     }

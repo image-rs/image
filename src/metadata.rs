@@ -32,6 +32,7 @@ pub enum Orientation {
 
 impl Orientation {
     /// Converts from [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html)
+    #[must_use]
     pub fn from_exif(exif_orientation: u8) -> Option<Self> {
         match exif_orientation {
             1 => Some(Self::NoTransforms),
@@ -47,6 +48,7 @@ impl Orientation {
     }
 
     /// Converts into [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html)
+    #[must_use]
     pub fn to_exif(self) -> u8 {
         match self {
             Self::NoTransforms => 1,
@@ -69,7 +71,7 @@ impl Orientation {
         match magic {
             [0x49, 0x49, 42, 0] => {
                 let ifd_offset = reader.read_u32::<LittleEndian>().ok()?;
-                reader.set_position(ifd_offset as u64);
+                reader.set_position(u64::from(ifd_offset));
                 let entries = reader.read_u16::<LittleEndian>().ok()?;
                 for _ in 0..entries {
                     let tag = reader.read_u16::<LittleEndian>().ok()?;
@@ -84,7 +86,7 @@ impl Orientation {
             }
             [0x4d, 0x4d, 0, 42] => {
                 let ifd_offset = reader.read_u32::<BigEndian>().ok()?;
-                reader.set_position(ifd_offset as u64);
+                reader.set_position(u64::from(ifd_offset));
                 let entries = reader.read_u16::<BigEndian>().ok()?;
                 for _ in 0..entries {
                     let tag = reader.read_u16::<BigEndian>().ok()?;

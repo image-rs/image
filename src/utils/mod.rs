@@ -53,7 +53,7 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
             // skip the pixels that can be neglected because scanlines should
             // start at byte boundaries
             if i % (row_len as usize) < (row_size as usize) {
-                let pixel = (v & mask << shift as usize) >> shift as usize;
+                let pixel = (v & (mask << shift as usize)) >> shift as usize;
                 p.push(pixel * scaling_factor);
             }
             i += 1;

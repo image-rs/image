@@ -5,6 +5,7 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// Approximation of Gaussian blur after
 /// Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
 /// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
+#[must_use]
 pub fn fast_blur<P: Pixel>(
     image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,
     sigma: f32,
@@ -42,7 +43,7 @@ fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {
     let w_ideal = f32::sqrt((12.0 * sigma.powi(2) / (n as f32)) + 1.0);
     let mut w_l = w_ideal.floor();
     if w_l % 2.0 == 0.0 {
-        w_l -= 1.0
+        w_l -= 1.0;
     };
     let w_u = w_l + 2.0;
 
@@ -90,7 +91,7 @@ fn horizontal_fast_blur_half<P: Primitive>(
                     .to_f32()
                     .unwrap_or(0.0)
                 })
-                .sum()
+                .sum();
         }
 
         for column in 0..width {
@@ -129,7 +130,7 @@ fn horizontal_fast_blur_half<P: Primitive>(
                         channel_num,
                     )
                     .to_f32()
-                    .unwrap_or(0.0)
+                    .unwrap_or(0.0);
             }
         }
     }

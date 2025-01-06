@@ -943,7 +943,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
     ///
     /// let background = Rgb([20, 20, 20]);
-    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
+    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);
     ///
     /// let mut image = RgbImage::new(200, 200);
     /// paint_something(&mut image);
@@ -986,7 +986,6 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
 ///
 /// * For all indices inside bounds, the corresponding index is valid in the buffer
 /// * `P::channel_count()` agrees with `self.inner.layout.channels`
-///
 #[derive(Clone, Debug)]
 pub struct View<Buffer, P: Pixel>
 where
@@ -1009,7 +1008,6 @@ where
 /// * There is no aliasing of samples
 /// * The samples are packed, i.e. `self.inner.layout.sample_stride == 1`
 /// * `P::channel_count()` agrees with `self.inner.layout.channels`
-///
 #[derive(Clone, Debug)]
 pub struct ViewMut<Buffer, P: Pixel>
 where

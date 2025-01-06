@@ -5,7 +5,6 @@
 //!
 //! # Related Links
 //! * <http://www.w3.org/Graphics/JPEG/itu-t81.pdf> - The JPEG specification
-//!
 
 pub use self::decoder::JpegDecoder;
 pub use self::encoder::{JpegEncoder, PixelDensity, PixelDensityUnit};

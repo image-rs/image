@@ -381,7 +381,7 @@ fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
         let mut bit = 0x80;
         loop {
             if let Some(pixel) = pixel_iter.next() {
-                let rgb = palette[((idx & bit) != 0) as usize];
+                let rgb = palette[usize::from((idx & bit) != 0)];
                 pixel[0] = rgb[0];
                 pixel[1] = rgb[1];
                 pixel[2] = rgb[2];
@@ -432,7 +432,7 @@ impl Bitfield {
             4 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b00_1111) as usize],
             5 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b01_1111) as usize],
             6 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data & 0b11_1111) as usize],
-            7 => ((data & 0x7f) << 1 | (data & 0x7f) >> 6) as u8,
+            7 => (((data & 0x7f) << 1) | ((data & 0x7f) >> 6)) as u8,
             8 => (data & 0xff) as u8,
             _ => panic!(),
         }
@@ -1389,9 +1389,9 @@ mod test {
             let bitfield = Bitfield { shift: 0, len };
             for i in 0..(1 << len) {
                 let read = bitfield.read(i);
-                let calc = (i as f64 / ((1 << len) - 1) as f64 * 255f64).round() as u8;
+                let calc = (f64::from(i) / f64::from((1 << len) - 1) * 255f64).round() as u8;
                 if read != calc {
-                    println!("len:{} i:{} read:{} calc:{}", len, i, read, calc);
+                    println!("len:{len} i:{i} read:{read} calc:{calc}");
                 }
                 assert_eq!(read, calc);
             }

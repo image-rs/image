@@ -181,6 +181,7 @@ impl<'a> NorunCombineIterator<'a> {
 // Combines sequential noruns produced by RunIterator
 impl Iterator for NorunCombineIterator<'_> {
     type Item = RunOrNot;
+
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match self.prev.take() {

@@ -984,7 +984,7 @@ where
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-/// Use [crate::imageops::fast_blur()] for a faster but less
+/// Use [`crate::imageops::fast_blur()`] for a faster but less
 /// accurate version.
 pub fn blur<I: GenericImageView>(
     image: &I,
@@ -1082,7 +1082,7 @@ mod tests {
         use std::path::Path;
         let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
-        assert!(img.pixels().eq(resize.pixels()))
+        assert!(img.pixels().eq(resize.pixels()));
     }
 
     #[test]

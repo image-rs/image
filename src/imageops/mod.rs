@@ -15,6 +15,7 @@ pub use self::affine::{
     rotate90, rotate90_in,
 };
 
+pub(crate) use self::sample::gaussian_blur_dyn_image;
 /// Image sampling
 pub use self::sample::{
     blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
@@ -32,6 +33,7 @@ mod affine;
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
 mod fast_blur;
+mod filter_1d;
 mod sample;
 
 pub use fast_blur::fast_blur;

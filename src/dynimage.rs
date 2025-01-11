@@ -557,7 +557,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit RGBA image
+    /// Return a mutable reference to an 32bit RGBA image
     pub fn as_mut_rgba32f(&mut self) -> Option<&mut Rgba32FImage> {
         match *self {
             DynamicImage::ImageRgba32F(ref mut p) => Some(p),

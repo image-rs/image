@@ -124,7 +124,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 25] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 26] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),

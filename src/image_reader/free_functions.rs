@@ -146,6 +146,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 25] = [
     (b"farbfeld", ImageFormat::Farbfeld),
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
     (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
+    (b"\0\0\0\x18ftypavif", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
     (b"qoif", ImageFormat::Qoi),
     (&[0x0a, 0x02], ImageFormat::Pcx),

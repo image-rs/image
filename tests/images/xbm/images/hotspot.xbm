@@ -1,0 +1,6 @@
+#define hotspot_width 5 
+#define hotspot_height 5
+#define hotspot_x_hot -1 
+#define hotspot_y_hot 2
+static	unsigned  char hotspot_bits[] = {
+ 0x55, 0x55, 0x55, 0x55, 0x55 };

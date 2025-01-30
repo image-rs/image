@@ -228,8 +228,10 @@ pub mod flat;
 /// | TGA      | Yes                                       | Yes                                     |
 /// | TIFF     | Yes                                       | Yes                                     |
 /// | WebP     | Yes                                       | Yes (lossless only)                     |
+/// | XBM      | Yes \*\*                                  | ---                                     |
 ///
 /// - \* Requires the `avif-native` feature, uses the libdav1d C library.
+/// - \*\* `XBM` is disabled by default and requires the `xbm` feature.
 ///
 /// ## A note on format specific features
 ///
@@ -285,6 +287,8 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
+    #[cfg(feature = "xbm")]
+    pub mod xbm;
 
     #[cfg(feature = "dds")]
     mod dxt;

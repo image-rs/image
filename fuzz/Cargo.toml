@@ -11,6 +11,7 @@ cargo-fuzz = true
 
 [dependencies.image]
 path = ".."
+features = ["xbm"]
 [dependencies.libfuzzer-sys]
 version = "0.3"
 
@@ -65,6 +66,10 @@ path = "fuzzers/fuzzer_script_hdr.rs"
 [[bin]]
 name = "fuzzer_script_exr"
 path = "fuzzers/fuzzer_script_exr.rs"
+
+[[bin]]
+name = "fuzzer_script_xbm"
+path = "fuzzers/fuzzer_script_xbm.rs"
 
 [[bin]]
 name = "roundtrip_webp"

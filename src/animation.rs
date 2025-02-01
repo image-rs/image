@@ -304,6 +304,14 @@ impl From<Delay> for Duration {
     }
 }
 
+#[inline]
+const fn gcd(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        (a, b) = (b, a.rem_euclid(b));
+    }
+    a
+}
+
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Ratio {
     numer: u32,
@@ -314,9 +322,10 @@ impl Ratio {
     #[inline]
     pub(crate) fn new(numerator: u32, denominator: u32) -> Self {
         assert_ne!(denominator, 0);
+        let divisor = gcd(numerator, denominator);
         Self {
-            numer: numerator,
-            denom: denominator,
+            numer: numerator / divisor,
+            denom: denominator / divisor,
         }
     }
 

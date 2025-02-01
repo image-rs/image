@@ -56,13 +56,13 @@
 //! The two main types for storing images:
 //! * [`ImageBuffer`] which holds statically typed image contents.
 //! * [`DynamicImage`] which is an enum over the supported `ImageBuffer` formats
-//!     and supports conversions between them.
+//!   and supports conversions between them.
 //!
 //! As well as a few more specialized options:
 //! * [`GenericImage`] trait for a mutable image buffer.
 //! * [`GenericImageView`] trait for read only references to a `GenericImage`.
 //! * [`flat`] module containing types for interoperability with generic channel
-//!     matrices and foreign interfaces.
+//!   matrices and foreign interfaces.
 //!
 //! [`GenericImageView`]: trait.GenericImageView.html
 //! [`GenericImage`]: trait.GenericImage.html
@@ -328,7 +328,7 @@ mod utils;
 macro_rules! insert_as_doc {
     { $content:expr } => {
         #[allow(unused_doc_comments)]
-        #[doc = $content] extern { }
+        #[doc = $content] extern "Rust" { }
     }
 }
 

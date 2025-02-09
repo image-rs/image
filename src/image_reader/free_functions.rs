@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufWriter, Seek};
+use std::iter;
 use std::path::Path;
 
 use crate::{codecs::*, ExtendedColorType, ImageReader};
@@ -124,33 +125,34 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 26] = [
-    (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
-    (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
-    (b"GIF89a", ImageFormat::Gif),
-    (b"GIF87a", ImageFormat::Gif),
-    (b"RIFF", ImageFormat::WebP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
-    (b"MM\x00*", ImageFormat::Tiff),
-    (b"II*\x00", ImageFormat::Tiff),
-    (b"DDS ", ImageFormat::Dds),
-    (b"BM", ImageFormat::Bmp),
-    (&[0, 0, 1, 0], ImageFormat::Ico),
-    (b"#?RADIANCE", ImageFormat::Hdr),
-    (b"P1", ImageFormat::Pnm),
-    (b"P2", ImageFormat::Pnm),
-    (b"P3", ImageFormat::Pnm),
-    (b"P4", ImageFormat::Pnm),
-    (b"P5", ImageFormat::Pnm),
-    (b"P6", ImageFormat::Pnm),
-    (b"P7", ImageFormat::Pnm),
-    (b"farbfeld", ImageFormat::Farbfeld),
-    (b"\0\0\0 ftypavif", ImageFormat::Avif),
-    (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
-    (b"\0\0\0\x18ftypavif", ImageFormat::Avif),
-    (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
-    (b"qoif", ImageFormat::Qoi),
-    (&[0x0a, 0x02], ImageFormat::Pcx),
-    (&[0x0a, 0x05], ImageFormat::Pcx),
+static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [
+    (b"\x89PNG\r\n\x1a\n", b"", ImageFormat::Png),
+    (&[0xff, 0xd8, 0xff], b"", ImageFormat::Jpeg),
+    (b"GIF89a", b"", ImageFormat::Gif),
+    (b"GIF87a", b"", ImageFormat::Gif),
+    (
+        b"RIFF\0\0\0\0WEBP",
+        b"\xFF\xFF\xFF\xFF\0\0\0\0",
+        ImageFormat::WebP,
+    ),
+    (b"MM\x00*", b"", ImageFormat::Tiff),
+    (b"II*\x00", b"", ImageFormat::Tiff),
+    (b"DDS ", b"", ImageFormat::Dds),
+    (b"BM", b"", ImageFormat::Bmp),
+    (&[0, 0, 1, 0], b"", ImageFormat::Ico),
+    (b"#?RADIANCE", b"", ImageFormat::Hdr),
+    (b"\0\0\0\0ftypavif", b"\xFF\xFF\0\0", ImageFormat::Avif),
+    (&[0x76, 0x2f, 0x31, 0x01], b"", ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
+    (b"qoif", b"", ImageFormat::Qoi),
+    (b"P1", b"", ImageFormat::Pnm),
+    (b"P2", b"", ImageFormat::Pnm),
+    (b"P3", b"", ImageFormat::Pnm),
+    (b"P4", b"", ImageFormat::Pnm),
+    (b"P5", b"", ImageFormat::Pnm),
+    (b"P6", b"", ImageFormat::Pnm),
+    (b"P7", b"", ImageFormat::Pnm),
+    (b"farbfeld", b"", ImageFormat::Farbfeld),
+    (&[0x0a, 0x0], b"\xFF\xF8", ImageFormat::Pcx),
 ];
 
 /// Guess image format from memory block
@@ -166,9 +168,20 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
 }
 
 pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
-    for &(signature, format) in &MAGIC_BYTES {
-        if buffer.starts_with(signature) {
-            return Some(format);
+    for &(signature, mask, format) in &MAGIC_BYTES {
+        if mask.is_empty() {
+            if buffer.starts_with(signature) {
+                return Some(format);
+            }
+        } else if buffer.len() >= signature.len() {
+            if buffer
+                .iter()
+                .zip(signature.iter())
+                .zip(mask.iter().chain(iter::repeat(&0xFF)))
+                .all(|((&byte, &sig), &mask)| byte & mask == sig)
+            {
+                return Some(format);
+            }
         }
     }
 

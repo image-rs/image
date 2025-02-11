@@ -173,11 +173,13 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
             if buffer.starts_with(signature) {
                 return Some(format);
             }
-        } else if buffer.len() >= signature.len() && buffer
+        } else if buffer.len() >= signature.len()
+            && buffer
                 .iter()
                 .zip(signature.iter())
                 .zip(mask.iter().chain(iter::repeat(&0xFF)))
-                .all(|((&byte, &sig), &mask)| byte & mask == sig) {
+                .all(|((&byte, &sig), &mask)| byte & mask == sig)
+        {
             return Some(format);
         }
     }

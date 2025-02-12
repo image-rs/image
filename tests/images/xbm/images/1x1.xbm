@@ -1,0 +1,3 @@
+#define onepx_width 1
+#define onepx_height 1
+static char onepx_bits[] = { 0xaA };

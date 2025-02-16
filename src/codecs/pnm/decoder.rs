@@ -3,7 +3,7 @@ use std::fmt::{self, Display};
 use std::io::{self, Read};
 use std::mem::size_of;
 use std::num::ParseIntError;
-use std::str::{self, FromStr};
+use std::str;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
@@ -28,8 +28,8 @@ enum DecoderError {
     NonAsciiByteInHeader(u8),
     /// The PAM header contained a non-ASCII byte
     NonAsciiLineInPamHeader,
-    /// A sample string contained a non-ASCII byte
-    NonAsciiSample,
+    /// Couldn't parse an integer: expected but did not get an ASCII digit
+    InvalidDigit(ErrorDataSource),
 
     /// The byte after the P7 magic was not 0x0A NEWLINE
     NotNewlineAfterP7Magic(u8),
@@ -95,8 +95,8 @@ impl Display for DecoderError {
                 f.write_fmt(format_args!("Non-ASCII character {c:#04X?} in header"))
             }
             DecoderError::NonAsciiLineInPamHeader => f.write_str("Non-ASCII line in PAM header"),
-            DecoderError::NonAsciiSample => {
-                f.write_str("Non-ASCII character where sample value was expected")
+            DecoderError::InvalidDigit(src) => {
+                f.write_fmt(format_args!("Non-ASCII-digit character when parsing number in {src}"))
             }
 
             DecoderError::NotNewlineAfterP7Magic(c) => f.write_fmt(format_args!(
@@ -684,29 +684,24 @@ impl<R: Read> PnmDecoder<R> {
     }
 }
 
-fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) -> ImageResult<T>
-where
-    T::Err: Display,
-{
+fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T> {
     let is_separator = |v: &u8| matches!(*v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ');
 
-    let token = reader
+    let mut v: u16 = 0;
+    for rc in reader
         .bytes()
         .skip_while(|v| v.as_ref().ok().is_some_and(is_separator))
         .take_while(|v| v.as_ref().ok().is_some_and(|c| !is_separator(c)))
-        .collect::<Result<Vec<u8>, _>>()?;
-
-    if !token.is_ascii() {
-        return Err(DecoderError::NonAsciiSample.into());
+    {
+        let c = rc?;
+        let digit = match c {
+            b'0'..=b'9' => (c - b'0') as u16,
+            _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Sample).into()),
+        };
+        v = v.checked_mul(10).ok_or(DecoderError::Overflow)?;
+        v = v.checked_add(digit).ok_or(DecoderError::Overflow)?;
     }
-
-    let string = str::from_utf8(&token)
-        // We checked the precondition ourselves a few lines before with `token.is_ascii()`.
-        .unwrap_or_else(|_| unreachable!("Only ASCII characters should be decoded"));
-
-    string.parse().map_err(|err| {
-        DecoderError::UnparsableValue(ErrorDataSource::Sample, string.to_owned(), err).into()
-    })
+    Ok(T::try_from(v).or(Err(DecoderError::Overflow))?)
 }
 
 impl Sample for U8 {

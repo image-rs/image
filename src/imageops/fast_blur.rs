@@ -5,6 +5,7 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// Approximation of Gaussian blur after
 /// Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
 /// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
+/// This method requires alpha pre-multiplication for images that contain non-constant alpha.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
     image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,

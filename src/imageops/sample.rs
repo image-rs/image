@@ -930,7 +930,7 @@ where
 /// Resize the supplied image to the specified dimensions.
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-/// This method requires alpha pre-multiplication for images that contain non-constant alpha.
+/// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 pub fn resize<I: GenericImageView>(
     image: &I,
     nwidth: u32,
@@ -990,7 +990,7 @@ where
 /// ```sigma``` is a measure of how much to blur by.
 /// Use [`crate::imageops::fast_blur()`] for a faster but less
 /// accurate version.
-/// This method requires alpha pre-multiplication for images that contain non-constant alpha.
+/// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,

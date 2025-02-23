@@ -1021,7 +1021,7 @@ where
 ///
 /// The biggest use case being `ImageBuffer` which expects closely packed
 /// samples in a row major matrix representation. But this error type may be
-/// resused for other import functions. A more versatile user may also try to
+/// reused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Error {

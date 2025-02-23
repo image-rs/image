@@ -246,7 +246,7 @@ fn decode_dxt5_block(source: &[u8], dest: &mut [u8]) {
         .rev()
         .fold(0, |t, &b| (t << 8) | u64::from(b));
 
-    // alhpa level decode
+    // alpha level decode
     let alphas = alpha_table_dxt5(source[0], source[1]);
 
     // serialize alpha

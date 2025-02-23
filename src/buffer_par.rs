@@ -384,7 +384,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics when the resulting image is larger the the maximum size of a vector.
+    /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: Fn(u32, u32) -> P + Send + Sync,

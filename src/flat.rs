@@ -140,7 +140,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `height` direction would be larger than `usize::MAX`. On other platforms
-    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    /// where it can surely accommodate `u8::MAX * u32::MAX`, this can never happen.
     #[must_use]
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let height_stride = (channels as usize).checked_mul(width as usize).expect(
@@ -171,7 +171,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `width` direction would be larger than `usize::MAX`. On other platforms
-    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    /// where it can surely accommodate `u8::MAX * u32::MAX`, this can never happen.
     #[must_use]
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let width_stride = (channels as usize).checked_mul(height as usize).expect(
@@ -228,7 +228,7 @@ impl SampleLayout {
     /// # Explanation
     ///
     /// Note that there is a difference between `min_length` and the index of the sample
-    /// 'one-past-the-end`. This is due to strides that may be larger than the dimension below.
+    /// 'one-past-the-end'. This is due to strides that may be larger than the dimension below.
     ///
     /// ## Example with holes
     ///
@@ -816,7 +816,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// # Explanation
     ///
     /// Note that there is a difference between `min_length` and the index of the sample
-    /// 'one-past-the-end`. This is due to strides that may be larger than the dimension below.
+    /// 'one-past-the-end'. This is due to strides that may be larger than the dimension below.
     ///
     /// ## Example with holes
     ///

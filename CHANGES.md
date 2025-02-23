@@ -106,7 +106,7 @@ New features:
 Bug fixes:
 - Correct limit tests for TIFF.
 - Avoid overflow in gif::Decoder::buffer_size.
-- Return error instead of using asssertion for Avif decoder unsupported or
+- Return error instead of using assertions for Avif decoder unsupported or
   invalid bit depth.
 
 ### Version 0.24.8

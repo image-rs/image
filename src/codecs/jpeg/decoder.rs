@@ -67,13 +67,21 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
+        let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(&self.input, options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         Ok(decoder.icc_profile())
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
+        let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(&self.input, options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         let exif = decoder.exif().cloned();
 

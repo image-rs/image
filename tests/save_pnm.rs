@@ -10,7 +10,7 @@ use image::{GenericImageView as _, Luma, Rgb};
 fn save_16bit_to_pbm() {
     let output_dir = "tests/output/pbm/images";
     fs::create_dir_all(output_dir).expect("failed to create output directory");
-    let output_file = "tests/output/pbm/images/basi0g16.pbm"; 
+    let output_file = "tests/output/pbm/images/basi0g16.pbm";
 
     let img = image::open("tests/images/png/16bpc/basi0g16.png").expect("failed to load image");
     img.save(output_file).expect("failed to save image");
@@ -32,7 +32,7 @@ fn save_16bit_to_pbm() {
 fn save_16bit_to_ppm() {
     let output_dir = "tests/output/ppm/images";
     fs::create_dir_all(output_dir).expect("failed to create output directory");
-    let output_file = "tests/output/ppm/images/basn2c16.ppm"; 
+    let output_file = "tests/output/ppm/images/basn2c16.ppm";
 
     let img = image::open("tests/images/png/16bpc/basn2c16.png").expect("failed to load image");
     img.save(output_file).expect("failed to save image");

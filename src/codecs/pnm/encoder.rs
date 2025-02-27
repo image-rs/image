@@ -417,7 +417,9 @@ impl<'a> CheckedDimensions<'a> {
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La8) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb8) => (),
+                (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb16) => (),
                 (&Some(ArbitraryTuplType::RGBAlpha), ExtendedColorType::Rgba8) => (),
+                (&Some(ArbitraryTuplType::RGBAlpha), ExtendedColorType::Rgba16) => (),
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
@@ -477,6 +479,28 @@ impl<'a> CheckedHeaderColor<'a> {
                     ),
                 ));
             }
+        };
+
+        // reinterpret image samples if color type is 16 bits per channel,
+        // required due to the narrowing of the image buffer to &[u8]
+        // on dynamic image writing
+        let image = match (image, self.color) {
+            (
+                FlatSamples::U8(samples),
+                ExtendedColorType::L16
+                | ExtendedColorType::La16
+                | ExtendedColorType::Rgb16
+                | ExtendedColorType::Rgba16,
+            ) => FlatSamples::U16(bytemuck::try_cast_slice(samples).map_err(|_e| {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Pnm.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "16-bit sampling from the given image buffer".to_owned(),
+                    ),
+                ))
+            })?),
+            // should not be necessary for any other case
+            _ => image,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

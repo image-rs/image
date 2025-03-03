@@ -110,8 +110,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Jpeg.into(),
                 format!(
-                    "Length of the decoded data {actual_len}\
-                    doesn't match the advertised dimensions of the image\
+                    "Length of the decoded data {actual_len} \
+                    doesn't match the advertised dimensions of the image \
                     that imply length {advertised_len}"
                 ),
             )));

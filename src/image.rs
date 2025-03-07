@@ -177,7 +177,7 @@ impl ImageFormat {
             "image/x-targa" | "image/x-tga" => Some(ImageFormat::Tga),
             "image/vnd-ms.dds" => Some(ImageFormat::Dds),
             "image/bmp" => Some(ImageFormat::Bmp),
-            "image/x-icon" => Some(ImageFormat::Ico),
+            "image/x-icon" | "image/vnd.microsoft.icon" => Some(ImageFormat::Ico),
             "image/vnd.radiance" => Some(ImageFormat::Hdr),
             "image/x-exr" => Some(ImageFormat::OpenExr),
             "image/x-portable-bitmap"

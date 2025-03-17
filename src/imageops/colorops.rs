@@ -642,14 +642,18 @@ mod test {
 
     #[test]
     fn test_invert() {
-        let image: GrayImage =
+        let base_image: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let image: GrayImage = base_image.clone();
 
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
 
         let image_out = invert(&image);
         assert_pixels_eq!(&image_out, &expected);
+        // assert the original image is unchanged
+        assert_pixels_eq!(&image, &base_image);
     }
 
     #[test]

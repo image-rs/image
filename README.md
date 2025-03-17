@@ -111,31 +111,32 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## Image Processing Functions
-These are the functions defined in the `imageops` module. All functions operate on types that implement the `GenericImage` trait.
+
+These are the functions defined in the [`imageops`](https://docs.rs/image/latest/image/imageops/index.html) module. All functions operate on types that implement the [`GenericImage`](https://docs.rs/image/latest/image/trait.GenericImage.html) trait.
 Note that some of the functions are very slow in debug mode. Make sure to use release mode if you experience any performance issues.
 
-+ **blur**: Performs a Gaussian blur on the supplied image.
-+ **brighten**: Brighten the supplied image.
-+ **huerotate**: Hue rotate the supplied image by degrees.
-+ **contrast**: Adjust the contrast of the supplied image.
-+ **crop**: Return a mutable view into an image.
-+ **filter3x3**: Perform a 3x3 box filter on the supplied image.
-+ **flip_horizontal**: Flip an image horizontally.
-+ **flip_vertical**: Flip an image vertically.
-+ **grayscale**: Convert the supplied image to grayscale.
-+ **invert**: Invert each pixel within the supplied image This function operates in place.
-+ **resize**: Resize the supplied image to the specified dimensions.
-+ **rotate180**: Rotate an image 180 degrees clockwise.
-+ **rotate270**: Rotate an image 270 degrees clockwise.
-+ **rotate90**: Rotate an image 90 degrees clockwise.
-+ **unsharpen**: Performs an unsharpen mask on the supplied image.
++ [**blur**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.blur): Performs a Gaussian blur on the supplied image.
++ [**brighten**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.brighten): Brighten the supplied image.
++ [**huerotate**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.huerotate): Hue rotate the supplied image by degrees.
++ [**contrast**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.adjust_contrast): Adjust the contrast of the supplied image.
++ [**crop**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.crop): Return a mutable view into an image.
++ [**filter3x3**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.filter3x3): Perform a 3x3 box filter on the supplied image.
++ [**flip_horizontal**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.fliph): Flip an image horizontally.
++ [**flip_vertical**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.flipv): Flip an image vertically.
++ [**grayscale**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.grayscale): Convert the supplied image to grayscale.
++ [**invert**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.invert): Invert each pixel within the supplied image This function operates in place.
++ [**resize**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.resize): Resize the supplied image to the specified dimensions.
++ [**rotate180**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.rotate180): Rotate an image 180 degrees clockwise.
++ [**rotate270**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.rotate270): Rotate an image 270 degrees clockwise.
++ [**rotate90**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.rotate90): Rotate an image 90 degrees clockwise.
++ [**unsharpen**](https://docs.rs/image/latest/image/enum.DynamicImage.html#method.unsharpen): Performs an unsharpen mask on the supplied image.
 
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 
 ## Examples
 ### Opening and Saving Images
 
-`image` provides the `open` function for opening images from a path.  The image
+`image` provides the [`open`](https://docs.rs/image/latest/image/fn.open.html) function for opening images from a path.  The image
 format is determined from the path's file extension. An `io` module provides a
 reader which offer some more control.
 
@@ -206,7 +207,7 @@ Example output:
 <img src="examples/fractal.png" alt="A Julia Fractal, c: -0.4 + 0.6i" width="500" />
 
 ### Writing raw buffers
-If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
+If the high level interface is not needed because the image was obtained by other means, `image` provides the function [`save_buffer`](https://docs.rs/image/latest/image/fn.save_buffer.html) to save a buffer to a file.
 
 ```rust,no_run
 let buffer: &[u8] = unimplemented!(); // Generate the image data

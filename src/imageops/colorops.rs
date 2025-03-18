@@ -3,11 +3,10 @@
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
-use crate::error::{ParameterError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
-use crate::{ImageBuffer, ImageError};
+use crate::ImageBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
@@ -66,7 +65,15 @@ where
 }
 
 /// Invert each pixel within the supplied image.
-pub fn invert<I: GenericImage>(
+/// Use [`invert_in_place`] for an in-place version.
+/// See also [`invert_to`].
+pub fn invert<I: GenericImage>(image: &mut I) {
+    invert_in_place(image)
+}
+
+/// Invert each pixel within the supplied image.
+/// See also [`invert_in_place`] for an in-place version.
+pub fn invert_to<I: GenericImage>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
@@ -76,39 +83,20 @@ where
     let (width, height) = image.dimensions();
 
     let mut out = ImageBuffer::new(width, height);
-    let _ = invert_in(image, &mut out);
-    out
-}
-
-/// Invert an image and put the result into the destination [`ImageBuffer`].
-pub fn invert_in<I, Container>(
-    image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
-) -> crate::ImageResult<()>
-where
-    I: GenericImageView,
-    I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
-{
-    let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
-    if w0 != w1 || h0 != h1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
-    }
     let (width, height) = image.dimensions();
     for y in 0..height {
         for x in 0..width {
             let mut p = image.get_pixel(x, y);
             p.invert();
 
-            destination.put_pixel(x, y, p);
+            out.put_pixel(x, y, p);
         }
     }
-    Ok(())
+    out
 }
 
 /// Invert an image vertically in place.
+/// See also [`invert_to`] for a non-in-place version.
 pub fn invert_in_place<I: GenericImage>(image: &mut I) {
     let (width, height) = image.dimensions();
     for y in 0..height {
@@ -641,7 +629,7 @@ mod test {
     }
 
     #[test]
-    fn test_invert() {
+    fn test_invert_to() {
         let base_image: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
@@ -650,10 +638,22 @@ mod test {
         let expected: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
 
-        let image_out = invert(&image);
+        let image_out = invert_to(&image);
         assert_pixels_eq!(&image_out, &expected);
         // assert the original image is unchanged
         assert_pixels_eq!(&image, &base_image);
+    }
+
+    #[test]
+    fn test_invert() {
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+
+        invert(&mut image);
+        assert_pixels_eq!(&image, &expected);
     }
 
     #[test]

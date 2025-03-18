@@ -742,7 +742,7 @@ impl DynamicImage {
     }
 
     /// Invert the colors of this image.
-    /// Use [`DynamicImage::invert_in_place()`] for an in-place version.
+    /// Use [`DynamicImage::invert_in_place()`] directly instead of this function
     pub fn invert(&mut self) {
         self.invert_in_place();
     }

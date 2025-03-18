@@ -65,7 +65,7 @@ where
 }
 
 /// Invert each pixel within the supplied image.
-/// Use [`invert_in_place`] for an in-place version.
+/// Use [`invert_in_place`] directly instead of this function
 /// See also [`invert_to`].
 pub fn invert<I: GenericImage>(image: &mut I) {
     invert_in_place(image)

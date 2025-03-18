@@ -6,6 +6,17 @@
 
 ## Changes
 
+### Version 0.25.6
+
+Features:
+  - [Improved format detection](https://github.com/image-rs/image/pull/2418)
+
+Bug fixes:
+  - [JPEG encoding bugfix](https://github.com/image-rs/image/pull/2387)
+  - Fixed ICO format detection
+  - [Fixed EXR bug with NaNs](https://github.com/image-rs/image/pull/2381)
+  - Various documentation improvements
+
 ### Version 0.25.5
 
 Features:

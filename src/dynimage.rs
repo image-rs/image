@@ -10,7 +10,7 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color::{self, IntoColor};
+use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
@@ -226,31 +226,20 @@ impl DynamicImage {
     #[inline]
     pub fn to<
         T: Pixel
-            + color::FromColor<color::Rgb<u8>>
-            + color::FromColor<color::Rgb<f32>>
-            + color::FromColor<color::Rgba<u8>>
-            + color::FromColor<color::Rgba<u16>>
-            + color::FromColor<color::Rgba<f32>>
-            + color::FromColor<color::Rgb<u16>>
-            + color::FromColor<Luma<u8>>
-            + color::FromColor<Luma<u16>>
-            + color::FromColor<LumaA<u16>>
-            + color::FromColor<LumaA<u8>>,
+            + FromColor<color::Rgb<u8>>
+            + FromColor<color::Rgb<f32>>
+            + FromColor<color::Rgba<u8>>
+            + FromColor<color::Rgba<u16>>
+            + FromColor<color::Rgba<f32>>
+            + FromColor<color::Rgb<u16>>
+            + FromColor<Luma<u8>>
+            + FromColor<Luma<u16>>
+            + FromColor<LumaA<u16>>
+            + FromColor<LumaA<u8>>,
     >(
         &self,
     ) -> ImageBuffer<T, Vec<T::Subpixel>> {
-        match self {
-            DynamicImage::ImageLuma8(ref p) => p.convert(),
-            DynamicImage::ImageLumaA8(ref p) => p.convert(),
-            DynamicImage::ImageRgb8(ref p) => p.convert(),
-            DynamicImage::ImageRgba8(ref p) => p.convert(),
-            DynamicImage::ImageLuma16(ref p) => p.convert(),
-            DynamicImage::ImageLumaA16(ref p) => p.convert(),
-            DynamicImage::ImageRgb16(ref p) => p.convert(),
-            DynamicImage::ImageRgba16(ref p) => p.convert(),
-            DynamicImage::ImageRgb32F(ref p) => p.convert(),
-            DynamicImage::ImageRgba32F(ref p) => p.convert(),
-        }
+        dynamic_map!(*self, ref p, p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.

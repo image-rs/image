@@ -83,7 +83,7 @@ impl ColorType {
     }
 
     /// Returns the color type for a Pixel
-    pub fn from_type<P: Pixel, T>() -> Self {
+    pub fn from_pixel<P: Pixel, T>() -> Self {
         match (P::CHANNEL_COUNT, size_of::<T>()) {
             (1, 1) => ColorType::L8,
             (1, 2) => ColorType::L16,
@@ -407,7 +407,7 @@ impl<T> Index<usize> for $ident<T> {
 
 impl<T: $($bound+)*> From<$ident<T>> for ColorType {
     fn from(_p: $ident<T>) -> Self {
-        ColorType::from_type::<$ident<T>, T>()
+        ColorType::from_pixel::<$ident<T>, T>()
     }
 }
 

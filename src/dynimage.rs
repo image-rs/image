@@ -222,6 +222,36 @@ impl DynamicImage {
         decoder_to_image(decoder)
     }
 
+    /// Encodes a dynamic image into a buffer.
+    pub fn to<
+        T: Pixel
+            + color::FromColor<color::Rgb<u8>>
+            + color::FromColor<color::Rgb<f32>>
+            + color::FromColor<color::Rgba<u8>>
+            + color::FromColor<color::Rgba<u16>>
+            + color::FromColor<color::Rgba<f32>>
+            + color::FromColor<color::Rgb<u16>>
+            + color::FromColor<Luma<u8>>
+            + color::FromColor<Luma<u16>>
+            + color::FromColor<LumaA<u16>>
+            + color::FromColor<LumaA<u8>>,
+    >(
+        &self,
+    ) -> ImageBuffer<T, Vec<T::Subpixel>> {
+        match self {
+            DynamicImage::ImageLuma8(ref p) => p.convert(),
+            DynamicImage::ImageLumaA8(ref p) => p.convert(),
+            DynamicImage::ImageRgb8(ref p) => p.convert(),
+            DynamicImage::ImageRgba8(ref p) => p.convert(),
+            DynamicImage::ImageLuma16(ref p) => p.convert(),
+            DynamicImage::ImageLumaA16(ref p) => p.convert(),
+            DynamicImage::ImageRgb16(ref p) => p.convert(),
+            DynamicImage::ImageRgba16(ref p) => p.convert(),
+            DynamicImage::ImageRgb32F(ref p) => p.convert(),
+            DynamicImage::ImageRgba32F(ref p) => p.convert(),
+        }
+    }
+
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb8(&self) -> RgbImage {
@@ -1365,7 +1395,7 @@ mod bench {
 
 #[cfg(test)]
 mod test {
-    use crate::color::ColorType;
+    use crate::{buffer_::Gray16Image, color::ColorType};
 
     #[test]
     fn test_empty_file() {
@@ -1493,5 +1523,17 @@ mod test {
 
         let bytes: Vec<u8> = img.into_bytes();
         assert_eq!(bytes, vec![0xFF; 64 * 64 * 2]);
+    }
+
+    #[test]
+    fn test_convert_to() {
+        use crate::Luma;
+        let image_luma8 = super::DynamicImage::new_luma8(1, 1);
+        let image_luma16 = super::DynamicImage::new_luma16(1, 1);
+        assert_eq!(image_luma8.to_luma16(), image_luma16.to_luma16());
+
+        // test conversion
+        let conv: Gray16Image = image_luma8.to::<Luma<u16>>();
+        assert_eq!(image_luma8.to_luma16(), conv);
     }
 }

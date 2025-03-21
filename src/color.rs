@@ -81,6 +81,23 @@ impl ColorType {
         let e: ExtendedColorType = self.into();
         e.channel_count()
     }
+
+    /// Returns the color type for a Pixel
+    pub fn from_type<P: Pixel, T>() -> Self {
+        match (P::CHANNEL_COUNT, size_of::<T>()) {
+            (1, 1) => ColorType::L8,
+            (1, 2) => ColorType::L16,
+            (2, 1) => ColorType::La8,
+            (2, 2) => ColorType::La16,
+            (3, 1) => ColorType::Rgb8,
+            (3, 2) => ColorType::Rgb16,
+            (3, 4) => ColorType::Rgb32F,
+            (4, 1) => ColorType::Rgba8,
+            (4, 2) => ColorType::Rgba16,
+            (4, 4) => ColorType::Rgba32F,
+            _ => panic!("Unsupported pixel type"),
+        }
+    }
 }
 
 /// An enumeration of color types encountered in image formats.
@@ -385,6 +402,12 @@ impl<T> Index<usize> for $ident<T> {
     #[inline(always)]
     fn index(&self, _index: usize) -> &T {
         &self.0[_index]
+    }
+}
+
+impl<T: $($bound+)*> From<$ident<T>> for ColorType {
+    fn from(_p: $ident<T>) -> Self {
+        ColorType::from_type::<$ident<T>, T>()
     }
 }
 
@@ -1043,5 +1066,17 @@ mod tests {
         let pixel = Rgb::from([13, 13, 13]);
         let Luma([luma]) = pixel.to_luma();
         assert_eq!(luma, 13);
+    }
+
+    #[test]
+    fn test_color_type_from_color() {
+        use crate::color::ColorType;
+        use crate::color::Rgb;
+        let rgb: Rgb<u8> = Rgb([0, 0, 0]);
+        let color_type: ColorType = rgb.into();
+        assert_eq!(color_type, ColorType::Rgb8);
+        let rgb: Rgb<f32> = Rgb([0.0, 0.0, 0.0]);
+        let color_type: ColorType = rgb.into();
+        assert_eq!(color_type, ColorType::Rgb32F);
     }
 }

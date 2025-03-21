@@ -223,6 +223,7 @@ impl DynamicImage {
     }
 
     /// Encodes a dynamic image into a buffer.
+    #[inline]
     pub fn to<
         T: Pixel
             + color::FromColor<color::Rgb<u8>>
@@ -255,73 +256,73 @@ impl DynamicImage {
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb8(&self) -> RgbImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb16(&self) -> Rgb16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb32f(&self) -> Rgb32FImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba8(&self) -> RgbaImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba16(&self) -> Rgba16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba32f(&self) -> Rgba32FImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma8(&self) -> GrayImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma16(&self) -> Gray16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Consume the image and returns a RGB image.

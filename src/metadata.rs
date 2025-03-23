@@ -11,6 +11,7 @@ use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt};
 ///
 /// You can apply it to an image via [`DynamicImage::apply_orientation`](crate::DynamicImage::apply_orientation).
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Orientation {
     /// Do not perform any transformations.
     NoTransforms,

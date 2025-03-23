@@ -160,10 +160,12 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
-        echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
+        echo '#![deny(exported_private_dependencies)]' | cat - src/lib.rs > src/lib.rs.0
         mv src/lib.rs.0 src/lib.rs
-        echo 'cargo-features = ["public-dependency"]' | cat - Cargo.toml | sed 's/rayon = { ver/rayon = { public = true, ver/' > Cargo.toml.0
+        echo 'cargo-features = ["public-dependency"]' | cat - Cargo.toml > Cargo.toml.0
         mv Cargo.toml.0 Cargo.toml
+        sed -i 's/rayon = { ver/rayon = { public = true, ver/' Cargo.toml # mark rayon as public
+        sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml # mark rayon as public
         cargo check
 
   build_benchmarks:

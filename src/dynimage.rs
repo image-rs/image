@@ -1522,8 +1522,12 @@ mod test {
         let image_luma16 = super::DynamicImage::new_luma16(1, 1);
         assert_eq!(image_luma8.to_luma16(), image_luma16.to_luma16());
 
-        // test conversion
-        let conv: Gray16Image = image_luma8.to::<Luma<u16>>();
+        // test conversion using typed result
+        let conv: Gray16Image = image_luma8.to();
         assert_eq!(image_luma8.to_luma16(), conv);
+
+        // test conversion using turbofish syntax
+        let converted = image_luma8.to::<Luma<u16>>();
+        assert_eq!(image_luma8.to_luma16(), converted);
     }
 }

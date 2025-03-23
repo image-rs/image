@@ -164,8 +164,11 @@ jobs:
         mv src/lib.rs.0 src/lib.rs
         echo 'cargo-features = ["public-dependency"]' | cat - Cargo.toml > Cargo.toml.0
         mv Cargo.toml.0 Cargo.toml
-        sed -i 's/rayon = { ver/rayon = { public = true, ver/' Cargo.toml # mark rayon as public
-        sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml # mark rayon as public
+        # mark rayon crate as public
+        sed -i 's/rayon = { ver/rayon = { public = true, ver/' Cargo.toml
+        # mark num-traits crate as public
+        sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml
+        # cargo +nightly check
         cargo check
 
   build_benchmarks:

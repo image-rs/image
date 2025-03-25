@@ -6,6 +6,7 @@ use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ColorType {
     /// Pixel is 8-bit luminance
@@ -92,6 +93,7 @@ impl ColorType {
 /// Another purpose is to advise users of a rough estimate of the accuracy and effort of the
 /// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ExtendedColorType {
     /// Pixel is 8-bit alpha

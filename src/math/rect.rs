@@ -1,5 +1,6 @@
 /// A Rectangle defined by its top left corner, width and height.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     /// The x coordinate of the top left corner.
     pub x: u32,

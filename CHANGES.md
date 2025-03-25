@@ -6,6 +6,18 @@
 
 ## Changes
 
+### Version 0.25.6
+
+Features:
+  - Improved format detection ([#2418](https://github.com/image-rs/image/pull/2418))
+  - Implement writing ICC profiles for JPEG and PNG images ([#2389](https://github.com/image-rs/image/pull/2389))
+
+Bug fixes:
+  - JPEG encoding bugfix ([#2387](https://github.com/image-rs/image/pull/2387))
+  - Expanded ICO format detection ([#2434](https://github.com/image-rs/image/pull/2434))
+  - Fixed EXR bug with NaNs ([#2381](https://github.com/image-rs/image/pull/2381))
+  - Various documentation improvements
+
 ### Version 0.25.5
 
 Features:

@@ -10,7 +10,7 @@ use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
-use crate::color::{self, IntoColor};
+use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
@@ -222,76 +222,96 @@ impl DynamicImage {
         decoder_to_image(decoder)
     }
 
+    /// Encodes a dynamic image into a buffer.
+    #[inline]
+    pub fn to<
+        T: Pixel
+            + FromColor<color::Rgb<u8>>
+            + FromColor<color::Rgb<f32>>
+            + FromColor<color::Rgba<u8>>
+            + FromColor<color::Rgba<u16>>
+            + FromColor<color::Rgba<f32>>
+            + FromColor<color::Rgb<u16>>
+            + FromColor<Luma<u8>>
+            + FromColor<Luma<u16>>
+            + FromColor<LumaA<u16>>
+            + FromColor<LumaA<u8>>,
+    >(
+        &self,
+    ) -> ImageBuffer<T, Vec<T::Subpixel>> {
+        dynamic_map!(*self, ref p, p.convert())
+    }
+
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb8(&self) -> RgbImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb16(&self) -> Rgb16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb32f(&self) -> Rgb32FImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba8(&self) -> RgbaImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba16(&self) -> Rgba16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba32f(&self) -> Rgba32FImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma8(&self) -> GrayImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma16(&self) -> Gray16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-        dynamic_map!(*self, ref p, p.convert())
+        self.to()
     }
 
     /// Consume the image and returns a RGB image.
@@ -1365,7 +1385,7 @@ mod bench {
 
 #[cfg(test)]
 mod test {
-    use crate::color::ColorType;
+    use crate::{buffer_::Gray16Image, color::ColorType};
 
     #[test]
     fn test_empty_file() {
@@ -1493,5 +1513,21 @@ mod test {
 
         let bytes: Vec<u8> = img.into_bytes();
         assert_eq!(bytes, vec![0xFF; 64 * 64 * 2]);
+    }
+
+    #[test]
+    fn test_convert_to() {
+        use crate::Luma;
+        let image_luma8 = super::DynamicImage::new_luma8(1, 1);
+        let image_luma16 = super::DynamicImage::new_luma16(1, 1);
+        assert_eq!(image_luma8.to_luma16(), image_luma16.to_luma16());
+
+        // test conversion using typed result
+        let conv: Gray16Image = image_luma8.to();
+        assert_eq!(image_luma8.to_luma16(), conv);
+
+        // test conversion using turbofish syntax
+        let converted = image_luma8.to::<Luma<u16>>();
+        assert_eq!(image_luma8.to_luma16(), converted);
     }
 }

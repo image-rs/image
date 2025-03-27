@@ -12,7 +12,7 @@ cargo-fuzz = true
 [dependencies.image]
 path = ".."
 [dependencies.libfuzzer-sys]
-version = "0.3"
+version = "0.4"
 
 # Prevent this from interfering with workspaces
 [workspace]

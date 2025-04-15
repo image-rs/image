@@ -18,7 +18,7 @@ use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
-use ravif::{Encoder, Img, RGB8, RGBA8};
+use ravif::{BitDepth, Encoder, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
 /// AVIF Encoder.
@@ -72,7 +72,7 @@ impl<W: Write> AvifEncoder<W> {
             .with_quality(f32::from(quality))
             .with_alpha_quality(f32::from(quality))
             .with_speed(speed)
-            .with_depth(Some(8));
+            .with_bit_depth(BitDepth::Eight);
 
         AvifEncoder { inner: w, encoder }
     }
@@ -81,7 +81,7 @@ impl<W: Write> AvifEncoder<W> {
     pub fn with_colorspace(mut self, color_space: ColorSpace) -> Self {
         self.encoder = self
             .encoder
-            .with_internal_color_space(color_space.to_ravif());
+            .with_internal_color_model(color_space.to_ravif());
         self
     }
 

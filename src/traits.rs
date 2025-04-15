@@ -76,7 +76,7 @@ pub trait Enlargeable: Sized + Bounded + NumCast {
     type Larger: Copy + NumCast + Num + PartialOrd<Self::Larger> + Clone + Bounded + AddAssign;
 
     /// Convert `Larger` type  to `Self` type.
-    /// Clamp values exeed the max value and min value of `Self` type.
+    /// Clamp value that exceeds the max value and min value of `Self` type.
     fn clamp_from(n: Self::Larger) -> Self {
         if n > Self::max_value().to_larger() {
             Self::max_value()

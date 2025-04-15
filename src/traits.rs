@@ -71,8 +71,12 @@ declare_primitive!(f64: (0.0)..1.0);
 /// An `Enlargable::Larger` value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
 pub trait Enlargeable: Sized + Bounded + NumCast {
+    /// A type with larger capacity to calculate
+    /// the sum (average) of a few hundred or thousand Enlargeable values.
     type Larger: Copy + NumCast + Num + PartialOrd<Self::Larger> + Clone + Bounded + AddAssign;
 
+    /// Convert `Larger` type  to `Self` type.
+    /// Clamp values exeed the max value and min value of `Self` type.
     fn clamp_from(n: Self::Larger) -> Self {
         if n > Self::max_value().to_larger() {
             Self::max_value()
@@ -83,6 +87,7 @@ pub trait Enlargeable: Sized + Bounded + NumCast {
         }
     }
 
+    /// Convert `Self` type to `Larger` type.
     fn to_larger(self) -> Self::Larger {
         NumCast::from(self).unwrap()
     }

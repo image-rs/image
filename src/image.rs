@@ -800,7 +800,7 @@ pub trait ImageEncoder {
     /// This function takes a slice of bytes of the pixel data of the image
     /// and encodes them. Just like for [`ImageDecoder::read_image`], no particular
     /// alignment is required and data is expected to be in native endian.
-    /// The implementor will reorder the endianness as necessary for the target encoding format.
+    /// The implementation will reorder the endianness as necessary for the target encoding format.
     ///
     /// # Panics
     ///

@@ -680,9 +680,10 @@ pub trait ImageDecoder {
     /// Returns all the bytes in the image.
     ///
     /// This function takes a slice of bytes and writes the pixel data of the image into it.
-    /// Although not required, for certain color types callers may want to pass buffers which are
-    /// aligned to 2 or 4 byte boundaries to the slice can be cast to a [u16] or [u32]. To accommodate
-    /// such casts, the returned contents will always be in native endian.
+    /// While no specific alignment is required for `buf`, for certain color types callers
+    /// may want to pass buffers which are aligned to 2 or 4 byte boundaries so the slice can
+    /// be cast to `[u16]` or `[u32]` for improved performance. To accommodate such casts,
+    /// the returned contents will always be in native endian.
     ///
     /// # Panics
     ///
@@ -690,11 +691,11 @@ pub trait ImageDecoder {
     ///
     /// # Examples
     ///
-    /// ```no_build
-    /// use zerocopy::{AsBytes, FromBytes};
-    /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<16> {
-    ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes()/2];
-    ///     decoder.read_image(buf.as_bytes());
+    /// ```rust,no_build
+    /// use zerocopy::IntoBytes;
+    /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<u16> {
+    ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes() / 2];
+    ///     decoder.read_image(buf.as_mut_bytes());
     ///     buf
     /// }
     /// ```
@@ -725,7 +726,7 @@ pub trait ImageDecoder {
     ///
     /// Note to implementors: This method should be implemented by calling `read_image` on
     /// the boxed decoder...
-    /// ```no_build
+    /// ```rust,no_build
     ///     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
     ///        (*self).read_image(buf)
     ///    }
@@ -797,13 +798,9 @@ pub trait ImageEncoder {
     /// Writes all the bytes in an image to the encoder.
     ///
     /// This function takes a slice of bytes of the pixel data of the image
-    /// and encodes them. Unlike particular format encoders inherent impl encode
-    /// methods where endianness is not specified, here image data bytes should
-    /// always be in native endian. The implementor will reorder the endianness
-    /// as necessary for the target encoding format.
-    ///
-    /// See also `ImageDecoder::read_image` which reads byte buffers into
-    /// native endian.
+    /// and encodes them. Just like for [`ImageDecoder::read_image`], no particular
+    /// alignment is required and data is expected to be in native endian.
+    /// The implementor will reorder the endianness as necessary for the target encoding format.
     ///
     /// # Panics
     ///

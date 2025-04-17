@@ -40,10 +40,10 @@ pub enum ColorSpace {
 }
 
 impl ColorSpace {
-    fn to_ravif(self) -> ravif::ColorSpace {
+    fn to_ravif(self) -> ravif::ColorModel {
         match self {
-            Self::Srgb => ravif::ColorSpace::RGB,
-            Self::Bt709 => ravif::ColorSpace::YCbCr,
+            Self::Srgb => ravif::ColorModel::RGB,
+            Self::Bt709 => ravif::ColorModel::YCbCr,
         }
     }
 }

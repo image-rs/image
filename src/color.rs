@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::traits::{Pixel, Primitive, PrimitiveExt};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -411,11 +411,11 @@ define_colors! {
     ///
     /// For the purpose of color conversion, as well as blending, the implementation of `Pixel`
     /// assumes an `sRGB` color space of its data.
-    pub struct Rgb<T: Primitive Enlargeable>([T; 3, 0]) = "RGB";
+    pub struct Rgb<T: PrimitiveExt>([T; 3, 0]) = "RGB";
     /// Grayscale colors.
     pub struct Luma<T: Primitive>([T; 1, 0]) = "Y";
     /// RGB colors + alpha channel
-    pub struct Rgba<T: Primitive Enlargeable>([T; 4, 1]) = "RGBA";
+    pub struct Rgba<T: PrimitiveExt>([T; 4, 1]) = "RGBA";
     /// Grayscale colors + alpha channel
     pub struct LumaA<T: Primitive>([T; 2, 1]) = "YA";
 }
@@ -532,7 +532,7 @@ const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
 const SRGB_LUMA_DIV: u32 = 10000;
 
 #[inline]
-fn rgb_to_luma<T: Primitive + Enlargeable>(rgb: &[T]) -> T {
+fn rgb_to_luma<T: PrimitiveExt>(rgb: &[T]) -> T {
     let l = <T::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * rgb[0].to_larger()
         + <T::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * rgb[1].to_larger()
         + <T::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * rgb[2].to_larger();
@@ -560,7 +560,7 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for Luma<T>
+impl<S: PrimitiveExt, T: Primitive> FromColor<Rgb<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
@@ -571,7 +571,7 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for Luma<T>
+impl<S: PrimitiveExt, T: Primitive> FromColor<Rgba<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
@@ -597,7 +597,7 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
+impl<S: PrimitiveExt, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {
@@ -609,7 +609,7 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
+impl<S: Primitive + PrimitiveExt, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {

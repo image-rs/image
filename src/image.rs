@@ -691,7 +691,7 @@ pub trait ImageDecoder {
     ///
     /// # Examples
     ///
-    /// ```rust,no_build
+    /// ```ignore
     /// use zerocopy::IntoBytes;
     /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<u16> {
     ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes() / 2];
@@ -726,10 +726,10 @@ pub trait ImageDecoder {
     ///
     /// Note to implementors: This method should be implemented by calling `read_image` on
     /// the boxed decoder...
-    /// ```rust,no_build
-    ///     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-    ///        (*self).read_image(buf)
-    ///    }
+    /// ```ignore
+    /// fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+    ///     (*self).read_image(buf)
+    /// }
     /// ```
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()>;
 }

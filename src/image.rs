@@ -691,11 +691,11 @@ pub trait ImageDecoder {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use zerocopy::IntoBytes;
+    /// ```
+    /// # use image::ImageDecoder;
     /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<u16> {
-    ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes() / 2];
-    ///     decoder.read_image(buf.as_mut_bytes());
+    ///     let mut buf: Vec<u16> = vec![0; (decoder.total_bytes() / 2) as usize];
+    ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf));
     ///     buf
     /// }
     /// ```

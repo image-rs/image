@@ -690,6 +690,7 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
     let is_separator = |v: &u8| matches!(*v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ');
 
     let mut v: u16 = 0;
+    let mut had_any = false;
     #[allow(clippy::unbuffered_bytes)]
     for rc in reader
         .bytes()
@@ -703,7 +704,13 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
         };
         v = v.checked_mul(10).ok_or(DecoderError::Overflow)?;
         v = v.checked_add(digit).ok_or(DecoderError::Overflow)?;
+        had_any = true;
     }
+
+    if !had_any {
+        return Err(DecoderError::InputTooShort.into());
+    }
+
     Ok(T::try_from(v).or(Err(DecoderError::Overflow))?)
 }
 
@@ -1294,5 +1301,14 @@ ENDHDR
         let decoder = PnmDecoder::new(&data[..]).unwrap();
         let mut image = vec![0; decoder.total_bytes() as usize];
         let _ = decoder.read_image(&mut image);
+    }
+
+    #[test]
+    fn data_too_short() {
+        let data = b"P3 16 16 1\n";
+        let decoder = PnmDecoder::new(&data[..]).unwrap();
+        let mut image = vec![0; decoder.total_bytes() as usize];
+
+        let _ = decoder.read_image(&mut image).unwrap_err();
     }
 }

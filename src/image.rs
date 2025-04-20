@@ -680,10 +680,12 @@ pub trait ImageDecoder {
     /// Returns all the bytes in the image.
     ///
     /// This function takes a slice of bytes and writes the pixel data of the image into it.
-    /// While no specific alignment is required for `buf`, for certain color types callers
-    /// may want to pass buffers which are aligned to 2 or 4 byte boundaries so the slice can
-    /// be cast to `[u16]` or `[u32]` for improved performance. To accommodate such casts,
-    /// the returned contents will always be in native endian.
+    /// `buf` does not need to be aligned to any byte boundaries. However,
+    /// alignment to 2 or 4 byte boundaries may result in small performance
+    /// improvements for certain decoder implementations.
+    ///
+    /// The returned pixel data will always be in native endian. This allows
+    /// `[u16]` and `[f32]` slices to be cast to `[u8]` and used for this method.
     ///
     /// # Panics
     ///

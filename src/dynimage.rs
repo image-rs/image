@@ -847,6 +847,8 @@ impl DynamicImage {
     /// `sigma` is a measure of how much to blur by.
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
@@ -854,7 +856,9 @@ impl DynamicImage {
 
     /// Performs a fast blur on this image.
     /// `sigma` is the standard deviation of the
-    /// (approximated) Gaussian
+    /// (approximated) Gaussian.
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
@@ -865,12 +869,16 @@ impl DynamicImage {
     /// `threshold` is a control of how much to sharpen.
     ///
     /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
 
     /// Filters this image with the specified 3x3 kernel.
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         assert_eq!(9, kernel.len(), "filter must be 3 x 3");

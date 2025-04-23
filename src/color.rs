@@ -231,19 +231,6 @@ impl ExtendedColorType {
     /// Returns the ColorType that is equivalent to this ExtendedColorType.
     pub fn color_type(&self) -> Option<ColorType> {
         match *self {
-            ExtendedColorType::A8 => Some(ColorType::L8),
-            ExtendedColorType::L1 => Some(ColorType::L8),
-            ExtendedColorType::La1 => Some(ColorType::La8),
-            ExtendedColorType::Rgb1 => Some(ColorType::Rgb8),
-            ExtendedColorType::Rgba1 => Some(ColorType::Rgba8),
-            ExtendedColorType::L2 => Some(ColorType::L8),
-            ExtendedColorType::La2 => Some(ColorType::La8),
-            ExtendedColorType::Rgb2 => Some(ColorType::Rgb8),
-            ExtendedColorType::Rgba2 => Some(ColorType::Rgba8),
-            ExtendedColorType::L4 => Some(ColorType::L8),
-            ExtendedColorType::La4 => Some(ColorType::La8),
-            ExtendedColorType::Rgb4 => Some(ColorType::Rgb8),
-            ExtendedColorType::Rgba4 => Some(ColorType::Rgba8),
             ExtendedColorType::L8 => Some(ColorType::L8),
             ExtendedColorType::La8 => Some(ColorType::La8),
             ExtendedColorType::Rgb8 => Some(ColorType::Rgb8),

@@ -7,7 +7,7 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// # Arguments
 ///
 /// * `image_buffer` - source image.
-/// * `sigma` - gaussian bell flattening level, controls image smoothing level.
+/// * `sigma` - value controls image flattening level.
 ///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 ///

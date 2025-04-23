@@ -6,6 +6,8 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
 /// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
     image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,

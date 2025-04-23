@@ -6,7 +6,7 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
 use crate::color::{Luma, LumaA, Rgb, Rgba};
-use crate::{ColorType, ExtendedColorType};
+use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -175,51 +175,39 @@ pub trait PixelWithColorType: Pixel + private::SealedPixelWithColorType {
     /// This is needed for automatically detecting
     /// a color format when saving an image as a file.
     const COLOR_TYPE: ExtendedColorType;
-    /// The simple `ColorType` of this pixel.
-    const SIMPLE_COLOR_TYPE: ColorType;
 }
 
 impl PixelWithColorType for Rgb<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgb8;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgb8;
 }
 impl PixelWithColorType for Rgb<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgb16;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgb16;
 }
 impl PixelWithColorType for Rgb<f32> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgb32F;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgb32F;
 }
 
 impl PixelWithColorType for Rgba<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgba8;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgba8;
 }
 impl PixelWithColorType for Rgba<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgba16;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgba16;
 }
 impl PixelWithColorType for Rgba<f32> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::Rgba32F;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::Rgba32F;
 }
 
 impl PixelWithColorType for Luma<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L8;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::L8;
 }
 impl PixelWithColorType for Luma<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::L16;
 }
 impl PixelWithColorType for LumaA<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::La8;
 }
 impl PixelWithColorType for LumaA<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
-    const SIMPLE_COLOR_TYPE: ColorType = ColorType::La16;
 }
 
 /// Prevents down-stream users from implementing the `Primitive` trait

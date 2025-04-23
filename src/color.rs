@@ -228,6 +228,34 @@ impl ExtendedColorType {
         }
     }
 
+    /// Returns the ColorType that is equivalent to this ExtendedColorType.
+    pub fn color_type(&self) -> Option<ColorType> {
+        match *self {
+            ExtendedColorType::A8 => Some(ColorType::L8),
+            ExtendedColorType::L1 => Some(ColorType::L8),
+            ExtendedColorType::La1 => Some(ColorType::La8),
+            ExtendedColorType::Rgb1 => Some(ColorType::Rgb8),
+            ExtendedColorType::Rgba1 => Some(ColorType::Rgba8),
+            ExtendedColorType::L2 => Some(ColorType::L8),
+            ExtendedColorType::La2 => Some(ColorType::La8),
+            ExtendedColorType::Rgb2 => Some(ColorType::Rgb8),
+            ExtendedColorType::Rgba2 => Some(ColorType::Rgba8),
+            ExtendedColorType::L4 => Some(ColorType::L8),
+            ExtendedColorType::La4 => Some(ColorType::La8),
+            ExtendedColorType::Rgb4 => Some(ColorType::Rgb8),
+            ExtendedColorType::Rgba4 => Some(ColorType::Rgba8),
+            ExtendedColorType::L8 => Some(ColorType::L8),
+            ExtendedColorType::La8 => Some(ColorType::La8),
+            ExtendedColorType::Rgb8 => Some(ColorType::Rgb8),
+            ExtendedColorType::Rgba8 => Some(ColorType::Rgba8),
+            ExtendedColorType::L16 => Some(ColorType::L16),
+            ExtendedColorType::La16 => Some(ColorType::La16),
+            ExtendedColorType::Rgb16 => Some(ColorType::Rgb16),
+            ExtendedColorType::Rgba16 => Some(ColorType::Rgba16),
+            _ => None,
+        }
+    }
+
     /// Returns the number of bytes required to hold a width x height image of this color type.
     pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
@@ -249,6 +277,14 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
         }
+    }
+}
+
+impl TryInto<ColorType> for ExtendedColorType {
+    type Error = ();
+
+    fn try_into(self) -> Result<ColorType, Self::Error> {
+        self.color_type().ok_or(())
     }
 }
 

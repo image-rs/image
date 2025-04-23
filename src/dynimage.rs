@@ -848,7 +848,7 @@ impl DynamicImage {
     /// # Arguments
     ///
     /// * `sigma` - is a measure of how much to blur by.
-    /// 
+    ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
     ///

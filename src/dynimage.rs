@@ -844,33 +844,59 @@ impl DynamicImage {
     }
 
     /// Performs a Gaussian blur on this image.
-    /// `sigma` is a measure of how much to blur by.
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - is a measure of how much to blur by.
+    ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
+    ///
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
     /// Performs a fast blur on this image.
-    /// `sigma` is the standard deviation of the
-    /// (approximated) Gaussian
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - value controls image flattening level.
+    ///
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
     }
 
     /// Performs an unsharpen mask on this image.
-    /// `sigma` is the amount to blur the image by.
-    /// `threshold` is a control of how much to sharpen.
     ///
-    /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
+    /// # Arguments
+    ///
+    /// * `sigma` - value controls image flattening level.
+    /// * `threshold` - is a control of how much to sharpen.
+    ///
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
+    ///
+    /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
+    /// for more information
     #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
 
     /// Filters this image with the specified 3x3 kernel.
+    ///
+    /// # Arguments
+    ///
+    /// * `kernel` - slice contains filter. Only slice len is 9 length is accepted.
+    ///
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
     #[must_use]
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         assert_eq!(9, kernel.len(), "filter must be 3 x 3");

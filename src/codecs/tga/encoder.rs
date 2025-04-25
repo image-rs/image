@@ -276,8 +276,7 @@ mod tests {
             }
             other => panic!(
                 "Encoding an image that is too wide should return a InvalidWidth \
-                it returned {:?} instead",
-                other
+                it returned {other:?} instead"
             ),
         }
     }
@@ -306,8 +305,7 @@ mod tests {
             }
             other => panic!(
                 "Encoding an image that is too tall should return a InvalidHeight \
-                it returned {:?} instead",
-                other
+                it returned {other:?} instead"
             ),
         }
     }

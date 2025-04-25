@@ -1296,9 +1296,7 @@ mod tests {
                 let alpha = pixel.0[3];
                 assert!(
                     alpha != 254 && alpha != 253,
-                    "alpha value: {}, {:?}",
-                    alpha,
-                    filter
+                    "alpha value: {alpha}, {filter:?}"
                 );
             }
         }

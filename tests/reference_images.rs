@@ -18,7 +18,7 @@ where
 {
     let base: PathBuf = BASE_PATH.iter().collect();
     let decoders = &[
-        "tga", "tiff", "png", "gif", "bmp", "ico", "hdr", "pbm", "webp", "pcx",
+        "tga", "tiff", "png", "gif", "bmp", "ico", "hdr", "pbm", "webp", "pcx", "xbm",
     ];
     for decoder in decoders {
         let mut path = base.clone();

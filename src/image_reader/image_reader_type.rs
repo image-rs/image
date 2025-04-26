@@ -179,6 +179,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             ImageFormat::Qoi => Box::new(qoi::QoiDecoder::new(reader)?),
             #[cfg(feature = "pcx")]
             ImageFormat::Pcx => Box::new(pcx::PCXDecoder::new(reader)?),
+            #[cfg(feature = "xbm")]
+            ImageFormat::Xbm => Box::new(xbm::XbmDecoder::new(reader)?),
             format => {
                 return Err(ImageError::Unsupported(
                     ImageFormatHint::Exact(format).into(),

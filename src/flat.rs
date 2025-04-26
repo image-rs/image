@@ -1710,8 +1710,8 @@ mod tests {
 
         assert_eq!(buffer.layout, expected_layout);
 
-        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)| {
-            panic!("Expected buffer to be convertible but {:?}", error)
-        });
+        let _: GrayAlphaImage = buffer
+            .try_into_buffer()
+            .unwrap_or_else(|(error, _)| panic!("Expected buffer to be convertible but {error:?}"));
     }
 }

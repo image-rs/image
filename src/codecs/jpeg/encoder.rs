@@ -1021,8 +1021,7 @@ mod tests {
             other => {
                 panic!(
                     "Encoding an image that is too large should return a DimensionError \
-                                it returned {:?} instead",
-                    other
+                                it returned {other:?} instead"
                 )
             }
         }

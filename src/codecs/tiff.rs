@@ -39,7 +39,12 @@ where
 {
     /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let options = tiff::decoder::DecoderOptions {
+            expand_samples_to_bytes: true,
+        };
+
+        let mut inner = tiff::decoder::Decoder::new_with_options(r, options)
+            .map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
@@ -54,6 +59,7 @@ where
         };
 
         let color_type = match tiff_color_type {
+            tiff::ColorType::Gray(1) => ColorType::L8, // see `with_expand_samples_to_bytes` above
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -73,6 +79,10 @@ where
             tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
                 return Err(err_unknown_color_type(n.saturating_mul(4)))
             }
+            tiff::ColorType::Multiband {
+                bit_depth,
+                num_samples: _,
+            } => return Err(err_unknown_color_type(bit_depth)),
         };
 
         let original_color_type = match tiff_color_type {

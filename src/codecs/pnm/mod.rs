@@ -1,8 +1,9 @@
 //! Decoding of netpbm image formats (pbm, pgm, ppm and pam).
 //!
-//! The formats pbm, pgm and ppm are fully supported. The pam decoder recognizes the tuple types
-//! `BLACKANDWHITE`, `GRAYSCALE` and `RGB` and explicitly recognizes but rejects their `_ALPHA`
-//! variants for now as alpha color types are unsupported.
+//! The formats pbm, pgm and ppm are fully supported. Only the official subformats
+//! (`BLACKANDWHITE`, `GRAYSCALE`, `RGB`, `BLACKANDWHITE_ALPHA`, `GRAYSCALE_ALPHA`,
+//! and `RGB_ALPHA`) of pam are supported; custom tuple types have no clear
+//! interpretation as an image and will be rejected.
 use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
 pub use self::encoder::PnmEncoder;

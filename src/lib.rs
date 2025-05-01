@@ -231,7 +231,7 @@ pub mod flat;
 ///
 /// - \* Requires the `avif-native` feature, uses the libdav1d C library.
 /// - \*\* See the documentation of the [`dds` crate](https://github.com/image-rs/image-dds) for a
-///    full list of supported formats.
+///   full list of supported formats.
 ///
 /// ## A note on format specific features
 ///

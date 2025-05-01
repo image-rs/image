@@ -46,7 +46,7 @@ image format encoders and decoders.
 | -------- | ----------------------------------------- | --------------------------------------- |
 | AVIF     | Yes \*                                    | Yes (lossy only)                        |
 | BMP      | Yes                                       | Yes                                     |
-| DDS      | Yes                                       | ---                                     |
+| DDS      | Yes                                       | Yes \*\*                                |
 | Farbfeld | Yes                                       | Yes                                     |
 | GIF      | Yes                                       | Yes                                     |
 | HDR      | Yes                                       | Yes                                     |
@@ -61,6 +61,7 @@ image format encoders and decoders.
 | WebP     | Yes                                       | Yes (lossless only)                     |
 
 - \* Requires the `avif-native` feature, uses the libdav1d C library.
+- \*\* See the documentation of the [`dds` crate](https://github.com/image-rs/image-dds) for a full list of supported formats.
 
 ## Image Types
 

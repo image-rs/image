@@ -1,341 +1,224 @@
-//!  Decoding of DDS images
+//! Decoding and encoding DDS images
 //!
-//!  DDS (DirectDraw Surface) is a container format for storing DXT (S3TC) compressed images.
+//! DDS (DirectDraw Surface) is a container format for storing DXT (S3TC) compressed images.
 //!
-//!  # Related Links
-//!  * <https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide> - Description of the DDS format.
+//! # Related Links
+//!
+//! * <https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide> - Description of the DDS format.
 
-use std::io::Read;
-use std::{error, fmt};
+use std::io::{Read, Seek, Write};
 
-use byteorder_lite::{LittleEndian, ReadBytesExt};
+use dds::{Channels, Precision};
 
-#[allow(deprecated)]
-use crate::codecs::dxt::{DxtDecoder, DxtVariant};
-use crate::color::ColorType;
+use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 
-/// Errors that can occur during decoding and parsing a DDS image
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::enum_variant_names)]
-enum DecoderError {
-    /// Wrong DDS channel width
-    PixelFormatSizeInvalid(u32),
-    /// Wrong DDS header size
-    HeaderSizeInvalid(u32),
-    /// Wrong DDS header flags
-    HeaderFlagsInvalid(u32),
-
-    /// Invalid DXGI format in DX10 header
-    DxgiFormatInvalid(u32),
-    /// Invalid resource dimension
-    ResourceDimensionInvalid(u32),
-    /// Invalid flags in DX10 header
-    Dx10FlagsInvalid(u32),
-    /// Invalid array size in DX10 header
-    Dx10ArraySizeInvalid(u32),
-
-    /// DDS "DDS " signature invalid or missing
-    DdsSignatureInvalid,
-}
-
-impl fmt::Display for DecoderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DecoderError::PixelFormatSizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS PixelFormat size: {s}"))
+impl From<dds::DecodingError> for ImageError {
+    fn from(e: dds::DecodingError) -> ImageError {
+        match e {
+            dds::DecodingError::Io(e) => ImageError::IoError(e),
+            dds::DecodingError::MemoryLimitExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError))
             }
-            DecoderError::HeaderSizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS header size: {s}"))
-            }
-            DecoderError::HeaderFlagsInvalid(fs) => {
-                f.write_fmt(format_args!("Invalid DDS header flags: {fs:#010X}"))
-            }
-            DecoderError::DxgiFormatInvalid(df) => {
-                f.write_fmt(format_args!("Invalid DDS DXGI format: {df}"))
-            }
-            DecoderError::ResourceDimensionInvalid(d) => {
-                f.write_fmt(format_args!("Invalid DDS resource dimension: {d}"))
-            }
-            DecoderError::Dx10FlagsInvalid(fs) => {
-                f.write_fmt(format_args!("Invalid DDS DX10 header flags: {fs:#010X}"))
-            }
-            DecoderError::Dx10ArraySizeInvalid(s) => {
-                f.write_fmt(format_args!("Invalid DDS DX10 array size: {s}"))
-            }
-            DecoderError::DdsSignatureInvalid => f.write_str("DDS signature not found"),
+            _ => ImageError::Decoding(DecodingError::new(ImageFormat::Dds.into(), e)),
         }
     }
 }
 
-impl From<DecoderError> for ImageError {
-    fn from(e: DecoderError) -> ImageError {
-        ImageError::Decoding(DecodingError::new(ImageFormat::Dds.into(), e))
+impl From<dds::EncodingError> for ImageError {
+    fn from(e: dds::EncodingError) -> ImageError {
+        match e {
+            dds::EncodingError::Io(e) => ImageError::IoError(e),
+            _ => ImageError::Encoding(EncodingError::new(ImageFormat::Dds.into(), e)),
+        }
     }
 }
 
-impl error::Error for DecoderError {}
-
-/// Header used by DDS image files
-#[derive(Debug)]
-struct Header {
-    _flags: u32,
-    height: u32,
-    width: u32,
-    _pitch_or_linear_size: u32,
-    _depth: u32,
-    _mipmap_count: u32,
-    pixel_format: PixelFormat,
-    _caps: u32,
-    _caps2: u32,
-}
-
-/// Extended DX10 header used by some DDS image files
-#[derive(Debug)]
-struct DX10Header {
-    dxgi_format: u32,
-    resource_dimension: u32,
-    misc_flag: u32,
-    array_size: u32,
-    misc_flags_2: u32,
-}
-
-/// DDS pixel format
-#[derive(Debug)]
-struct PixelFormat {
-    flags: u32,
-    fourcc: [u8; 4],
-    _rgb_bit_count: u32,
-    _r_bit_mask: u32,
-    _g_bit_mask: u32,
-    _b_bit_mask: u32,
-    _a_bit_mask: u32,
-}
-
-impl PixelFormat {
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let size = r.read_u32::<LittleEndian>()?;
-        if size != 32 {
-            return Err(DecoderError::PixelFormatSizeInvalid(size).into());
-        }
-
-        Ok(Self {
-            flags: r.read_u32::<LittleEndian>()?,
-            fourcc: {
-                let mut v = [0; 4];
-                r.read_exact(&mut v)?;
-                v
-            },
-            _rgb_bit_count: r.read_u32::<LittleEndian>()?,
-            _r_bit_mask: r.read_u32::<LittleEndian>()?,
-            _g_bit_mask: r.read_u32::<LittleEndian>()?,
-            _b_bit_mask: r.read_u32::<LittleEndian>()?,
-            _a_bit_mask: r.read_u32::<LittleEndian>()?,
-        })
+fn to_color_type(color: dds::ColorFormat) -> ColorType {
+    match (color.channels, color.precision) {
+        (Channels::Alpha | Channels::Rgba, Precision::U8) => ColorType::Rgba8,
+        (Channels::Alpha | Channels::Rgba, Precision::U16) => ColorType::Rgba16,
+        (Channels::Alpha | Channels::Rgba, Precision::F32) => ColorType::Rgba32F,
+        (Channels::Rgb, Precision::U8) => ColorType::Rgb8,
+        (Channels::Rgb, Precision::U16) => ColorType::Rgb16,
+        (Channels::Rgb, Precision::F32) => ColorType::Rgb32F,
+        (Channels::Grayscale, Precision::U8) => ColorType::L8,
+        (Channels::Grayscale, Precision::U16) => ColorType::L16,
+        (Channels::Grayscale, Precision::F32) => ColorType::Rgb32F,
     }
 }
 
-impl Header {
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let size = r.read_u32::<LittleEndian>()?;
-        if size != 124 {
-            return Err(DecoderError::HeaderSizeInvalid(size).into());
-        }
+fn to_dds_color(color: ExtendedColorType) -> Option<dds::ColorFormat> {
+    match color {
+        ExtendedColorType::A8 => Some(dds::ColorFormat::ALPHA_U8),
 
-        const REQUIRED_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x1000;
-        const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x0080_0000;
-        let flags = r.read_u32::<LittleEndian>()?;
-        if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
-            return Err(DecoderError::HeaderFlagsInvalid(flags).into());
-        }
+        ExtendedColorType::L8 => Some(dds::ColorFormat::GRAYSCALE_U8),
+        ExtendedColorType::L16 => Some(dds::ColorFormat::GRAYSCALE_U16),
 
-        let height = r.read_u32::<LittleEndian>()?;
-        let width = r.read_u32::<LittleEndian>()?;
-        let pitch_or_linear_size = r.read_u32::<LittleEndian>()?;
-        let depth = r.read_u32::<LittleEndian>()?;
-        let mipmap_count = r.read_u32::<LittleEndian>()?;
-        // Skip `dwReserved1`
-        {
-            let mut skipped = [0; 4 * 11];
-            r.read_exact(&mut skipped)?;
-        }
-        let pixel_format = PixelFormat::from_reader(r)?;
-        let caps = r.read_u32::<LittleEndian>()?;
-        let caps2 = r.read_u32::<LittleEndian>()?;
-        // Skip `dwCaps3`, `dwCaps4`, `dwReserved2` (unused)
-        {
-            let mut skipped = [0; 4 + 4 + 4];
-            r.read_exact(&mut skipped)?;
-        }
+        ExtendedColorType::Rgb8 => Some(dds::ColorFormat::RGB_U8),
+        ExtendedColorType::Rgb16 => Some(dds::ColorFormat::RGB_U16),
+        ExtendedColorType::Rgb32F => Some(dds::ColorFormat::RGB_F32),
 
-        Ok(Self {
-            _flags: flags,
-            height,
-            width,
-            _pitch_or_linear_size: pitch_or_linear_size,
-            _depth: depth,
-            _mipmap_count: mipmap_count,
-            pixel_format,
-            _caps: caps,
-            _caps2: caps2,
-        })
+        ExtendedColorType::Rgba8 => Some(dds::ColorFormat::RGBA_U8),
+        ExtendedColorType::Rgba16 => Some(dds::ColorFormat::RGBA_U16),
+        ExtendedColorType::Rgba32F => Some(dds::ColorFormat::RGBA_F32),
+
+        _ => None,
     }
 }
 
-impl DX10Header {
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        let dxgi_format = r.read_u32::<LittleEndian>()?;
-        let resource_dimension = r.read_u32::<LittleEndian>()?;
-        let misc_flag = r.read_u32::<LittleEndian>()?;
-        let array_size = r.read_u32::<LittleEndian>()?;
-        let misc_flags_2 = r.read_u32::<LittleEndian>()?;
-
-        let dx10_header = Self {
-            dxgi_format,
-            resource_dimension,
-            misc_flag,
-            array_size,
-            misc_flags_2,
-        };
-        dx10_header.validate()?;
-
-        Ok(dx10_header)
-    }
-
-    fn validate(&self) -> Result<(), ImageError> {
-        // Note: see https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dds-header-dxt10 for info on valid values
-        if self.dxgi_format > 132 {
-            // Invalid format
-            return Err(DecoderError::DxgiFormatInvalid(self.dxgi_format).into());
-        }
-
-        if self.resource_dimension < 2 || self.resource_dimension > 4 {
-            // Invalid dimension
-            // Only 1D (2), 2D (3) and 3D (4) resource dimensions are allowed
-            return Err(DecoderError::ResourceDimensionInvalid(self.resource_dimension).into());
-        }
-
-        if self.misc_flag != 0x0 && self.misc_flag != 0x4 {
-            // Invalid flag
-            // Only no (0x0) and DDS_RESOURCE_MISC_TEXTURECUBE (0x4) flags are allowed
-            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flag).into());
-        }
-
-        if self.resource_dimension == 4 && self.array_size != 1 {
-            // Invalid array size
-            // 3D textures (resource dimension == 4) must have an array size of 1
-            return Err(DecoderError::Dx10ArraySizeInvalid(self.array_size).into());
-        }
-
-        if self.misc_flags_2 > 0x4 {
-            // Invalid alpha flags
-            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flags_2).into());
-        }
-
-        Ok(())
-    }
-}
-
-/// The representation of a DDS decoder
+/// DDS decoder
 pub struct DdsDecoder<R: Read> {
-    #[allow(deprecated)]
-    inner: DxtDecoder<R>,
+    inner: dds::Decoder<R>,
+    is_cubemap: bool,
+    size: dds::Size,
+    color: dds::ColorFormat,
 }
 
 impl<R: Read> DdsDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
-    pub fn new(mut r: R) -> ImageResult<Self> {
-        let mut magic = [0; 4];
-        r.read_exact(&mut magic)?;
-        if magic != b"DDS "[..] {
-            return Err(DecoderError::DdsSignatureInvalid.into());
-        }
+    pub fn new(r: R) -> ImageResult<Self> {
+        let options = dds::header::ParseOptions::new_permissive(None);
+        let decoder = dds::Decoder::new_with_options(r, &options)?;
+        let layout = decoder.layout();
 
-        let header = Header::from_reader(&mut r)?;
-
-        if header.pixel_format.flags & 0x4 != 0 {
-            #[allow(deprecated)]
-            let variant = match &header.pixel_format.fourcc {
-                b"DXT1" => DxtVariant::DXT1,
-                b"DXT3" => DxtVariant::DXT3,
-                b"DXT5" => DxtVariant::DXT5,
-                b"DX10" => {
-                    let dx10_header = DX10Header::from_reader(&mut r)?;
-                    // Format equivalents were taken from https://docs.microsoft.com/en-us/windows/win32/direct3d11/texture-block-compression-in-direct3d-11
-                    // The enum integer values were taken from https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
-                    // DXT1 represents the different BC1 variants, DTX3 represents the different BC2 variants and DTX5 represents the different BC3 variants
-                    match dx10_header.dxgi_format {
-                        70..=72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
-                        73..=75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
-                        76..=78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
-                        _ => {
-                            return Err(ImageError::Unsupported(
-                                UnsupportedError::from_format_and_kind(
-                                    ImageFormat::Dds.into(),
-                                    UnsupportedErrorKind::GenericFeature(format!(
-                                        "DDS DXGI Format {}",
-                                        dx10_header.dxgi_format
-                                    )),
-                                ),
-                            ))
-                        }
-                    }
-                }
-                fourcc => {
-                    return Err(ImageError::Unsupported(
-                        UnsupportedError::from_format_and_kind(
-                            ImageFormat::Dds.into(),
-                            UnsupportedErrorKind::GenericFeature(format!("DDS FourCC {fourcc:?}")),
-                        ),
-                    ))
-                }
-            };
-
-            #[allow(deprecated)]
-            let bytes_per_pixel = variant.color_type().bytes_per_pixel();
-
-            if crate::utils::check_dimension_overflow(header.width, header.height, bytes_per_pixel)
-            {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Dds.into(),
-                        UnsupportedErrorKind::GenericFeature(format!(
-                            "Image dimensions ({}x{}) are too large",
-                            header.width, header.height
-                        )),
-                    ),
-                ));
-            }
-
-            #[allow(deprecated)]
-            let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
-            Ok(Self { inner })
-        } else {
-            // For now, supports only DXT variants
-            Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
+        // We only support DDS files with:
+        // - A single main image with any number of mipmaps
+        // - A texture array of length 1 representing a cube map
+        match &layout {
+            dds::DataLayout::Volume(_) => {
+                return Err(ImageError::Decoding(DecodingError::new(
                     ImageFormat::Dds.into(),
-                    UnsupportedErrorKind::Format(ImageFormatHint::Name("DDS".to_string())),
-                ),
-            ))
+                    "DDS volume textures are not supported for decoding",
+                )))
+            }
+            dds::DataLayout::TextureArray(texture_array) => {
+                let supported_length = match texture_array.kind() {
+                    dds::TextureArrayKind::Textures => 1,
+                    dds::TextureArrayKind::CubeMaps => 6,
+                    dds::TextureArrayKind::PartialCubeMap(cube_map_faces) => cube_map_faces.count(),
+                };
+                if texture_array.len() != supported_length as usize {
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Dds.into(),
+                        "DDS texture arrays are not supported for decoding",
+                    )));
+                }
+            }
+            _ => {}
         }
+
+        let mut size = decoder.main_size();
+        let mut color = decoder.native_color();
+        let is_cubemap = layout.is_cube_map();
+
+        // all cube map faces are read as one RGBA image
+        if is_cubemap {
+            if let (Some(width), Some(height)) =
+                (size.width.checked_mul(4), size.height.checked_mul(3))
+            {
+                size.width = width;
+                size.height = height;
+                color.channels = Channels::Rgba;
+            } else {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Dds.into(),
+                    "DDS cube map faces are too large to decode",
+                )));
+            }
+        }
+
+        Ok(DdsDecoder {
+            inner: decoder,
+            is_cubemap,
+            size,
+            color,
+        })
+    }
+
+    /// Set the color type for the decoder.
+    ///
+    /// The DDS decoder supports decoding images not just in their native color
+    /// format, but any user-defined color format. This is useful for decoding
+    /// images that do not cleanly fit into the native formats. E.g. the DDS
+    /// format `B5G6R5_UNORM` is decoded as [`ColorType::Rgb8`] by default, but
+    /// you may want to decode it as [`ColorType::Rgb32F`] instead to avoid the
+    /// rounding error when converting to `u8`. Similarly, your application may
+    /// only support 8-bit images, while the DDS file is in a 16/32-bit format.
+    /// Decoding directly into the final color type is more efficient than
+    /// decoding into the native format and then converting.
+    ///
+    /// # Panics
+    ///
+    /// [`ColorType::La8`] and [`ColorType::La16`] are not supported for decoding
+    /// DDS files. This function will panic if you try to set the color type to
+    /// these formats.
+    #[track_caller]
+    pub fn set_color_type(&mut self, color: ColorType) {
+        self.color = match color {
+            ColorType::L8 => dds::ColorFormat::GRAYSCALE_U8,
+            ColorType::Rgb8 => dds::ColorFormat::RGB_U8,
+            ColorType::Rgba8 => dds::ColorFormat::RGBA_U8,
+            ColorType::L16 => dds::ColorFormat::GRAYSCALE_U16,
+            ColorType::Rgb16 => dds::ColorFormat::RGB_U16,
+            ColorType::Rgba16 => dds::ColorFormat::RGBA_U16,
+            ColorType::Rgb32F => dds::ColorFormat::RGB_F32,
+            ColorType::Rgba32F => dds::ColorFormat::RGBA_F32,
+            ColorType::La8 | ColorType::La16 => {
+                panic!("La8 and La16 are not supported for decoding DDS files")
+            }
+        };
     }
 }
 
-impl<R: Read> ImageDecoder for DdsDecoder<R> {
+impl<R: Read + Seek> ImageDecoder for DdsDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
+        (self.size.width, self.size.height)
     }
 
     fn color_type(&self) -> ColorType {
-        self.inner.color_type()
+        to_color_type(self.color)
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        self.inner.read_image(buf)
+    fn original_color_type(&self) -> ExtendedColorType {
+        use dds::Format;
+
+        match self.inner.format() {
+            Format::R1_UNORM => ExtendedColorType::L1,
+            Format::B4G4R4A4_UNORM | Format::A4B4G4R4_UNORM => ExtendedColorType::Rgba4,
+            Format::A8_UNORM => ExtendedColorType::A8,
+            _ => to_color_type(self.inner.native_color()).into(),
+        }
+    }
+
+    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
+        limits.check_dimensions(self.size.width, self.size.height)?;
+
+        if let Some(max_alloc) = limits.max_alloc {
+            self.inner.options.memory_limit = max_alloc.try_into().unwrap_or(usize::MAX);
+        }
+
+        Ok(())
+    }
+
+    #[track_caller]
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let color = self.color;
+        let size = self.size;
+
+        let image = dds::ImageViewMut::new(buf, size, color).expect("Invalid buffer length");
+
+        if self.is_cubemap {
+            self.inner.read_cube_map(image)?;
+        } else {
+            self.inner.read_surface(image)?;
+        }
+
+        Ok(())
     }
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
@@ -343,24 +226,451 @@ impl<R: Read> ImageDecoder for DdsDecoder<R> {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
+impl<R: Read + Seek> ImageDecoderRect for DdsDecoder<R> {
+    fn read_rect(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        buf: &mut [u8],
+        row_pitch: usize,
+    ) -> ImageResult<()> {
+        // reading rectangles is not supported for cube maps
+        if self.is_cubemap {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Dds.into(),
+                "Reading rects from cubemaps is not supported",
+            )));
+        }
 
-    #[test]
-    fn dimension_overflow() {
-        // A DXT1 header set to 0xFFFF_FFFC width and height (the highest u32%4 == 0)
-        let header = [
-            0x44, 0x44, 0x53, 0x20, 0x7C, 0x0, 0x0, 0x0, 0x7, 0x10, 0x8, 0x0, 0xFC, 0xFF, 0xFF,
-            0xFF, 0xFC, 0xFF, 0xFF, 0xFF, 0x0, 0xC0, 0x12, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
-            0x0, 0x49, 0x4D, 0x41, 0x47, 0x45, 0x4D, 0x41, 0x47, 0x49, 0x43, 0x4B, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x20, 0x0, 0x0, 0x0,
-            0x4, 0x0, 0x0, 0x0, 0x44, 0x58, 0x54, 0x31, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x10, 0x0, 0x0, 0x0,
-            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-        ];
+        self.inner.read_surface_rect(
+            buf,
+            row_pitch,
+            dds::Rect::new(x, y, width, height),
+            self.color,
+        )?;
+        self.inner.rewind_to_previous_surface()?;
 
-        assert!(DdsDecoder::new(&header[..]).is_err());
+        Ok(())
+    }
+}
+
+/// The preferred header format for DDS files.
+///
+/// DDS supports 2 header formats:
+///
+/// - DX9: This is the legacy header format that was used before DirectX 10.
+/// - DX10: The modern header format that was introduced with DirectX 10.
+///
+/// Both formats are widely supported nowadays, but the DX10 format is the
+/// preferred format for a few reasons:
+///
+/// 1. It supports more features (such as texture arrays).
+/// 2. It uses the DXGI format, which is more consistent, easier to work with,
+///    and supports more and more varied formats.
+///
+///    DX9 has 2 ways to specify the pixel format of a file: FourCC and channel
+///    bit masks. Neither are fully standardized, so formats are supported on
+///    a best-effort basis.
+/// 3. It is better-specified in general, meaning that the problem of two DDS
+///    decoders interpreting the same file differently is virtually non-existent.
+///
+/// However, if compatibility with older software is a concern, DX9 may be
+/// the only choice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum HeaderFormat {
+    /// The legacy header format used in DirectX 9 and earlier.
+    Dx9,
+    /// The modern header format used in DirectX 10 and later.
+    #[default]
+    Dx10,
+}
+
+/// The speed-quality tradeoff for compression.
+///
+/// This will generally only affect compressed formats, such as the BCn formats.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CompressionQuality {
+    /// Fastest compression, lowest quality.
+    Fastest,
+    /// A good balance between speed and quality.
+    #[default]
+    Default,
+    /// Slowest compression, highest quality.
+    High,
+}
+
+/// Format used for encoding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum DdsFormat {
+    /// The encoder will automatically pick a linear uncompressed format.
+    #[default]
+    AutoUncompressed,
+
+    /// 8-bit uncompressed alpha.
+    A8Unorm,
+    /// 8-bit uncompressed Grayscale.
+    R8Unorm,
+    /// 8-bit uncompressed RG.
+    R8G8Unorm,
+    /// 8-bit uncompressed RGBA.
+    R8G8B8A8Unorm,
+    /// 8-bit uncompressed RGBA.
+    ///
+    /// This format requires DX10.
+    R8G8B8A8UnormSrgb,
+
+    /// 16-bit uncompressed Grayscale.
+    R16Unorm,
+    /// 16-bit uncompressed RG.
+    R16G16Unorm,
+    /// 16-bit uncompressed RGBA.
+    R16G16B16A16Unorm,
+
+    /// 16-bit floating-point uncompressed Grayscale.
+    R16Float,
+    /// 16-bit floating-point uncompressed RG.
+    R16G16Float,
+    /// 16-bit floating-point uncompressed RGBA.
+    R16G16B16A16Float,
+
+    /// 32-bit floating-point uncompressed Grayscale.
+    R32Float,
+    /// 32-bit floating-point uncompressed RG.
+    R32G32Float,
+    /// 32-bit floating-point uncompressed RGB.
+    ///
+    /// This format requires DX10.
+    R32G32B32Float,
+    /// 32-bit floating-point uncompressed RGBA.
+    R32G32B32A32Float,
+
+    /// 8-bit uncompressed BGR.
+    ///
+    /// This format requires DX9.
+    B8G8R8Unorm,
+    /// 4-bit uncompressed BGRA.
+    B4G4R4A4Unorm,
+    /// 5-bit uncompressed BGR with 1-bit alpha.
+    B5G5R5A1Unorm,
+    /// Uncompressed BGRA with 5 bits for blue, 6 bits for green, and 5 bits for red.
+    B5G6R5Unorm,
+    /// 10-bit uncompressed RGB with 2-bit alpha.
+    R10G10B10A2Unorm,
+
+    /// An HDR format that can store floating-point numbers between 0.0 and 65408.0.
+    ///
+    /// This format requires DX10.
+    R9G9B9E5Float,
+    /// An HDR format that stores components as unsigned 11/10-bit floating-point numbers.
+    ///
+    /// This format requires DX10.
+    R11G11B10Float,
+
+    /// 8-bit YUV, 4:2:2 sub-sampled.
+    YUY2,
+
+    /// Linear BC1. This is also called `DXT1` in DX9.
+    BC1Unorm,
+    /// sRGB BC1.
+    ///
+    /// This format requires DX10.
+    BC1UnormSrgb,
+    /// Linear BC2. This is also called `DXT3` in DX9.
+    BC2Unorm,
+    /// sRGB BC2.
+    ///
+    /// This format requires DX10.
+    BC2UnormSrgb,
+    /// Linear BC3. This is also called `DXT5` in DX9.
+    BC3Unorm,
+    /// sRGB BC3.
+    ///
+    /// This format requires DX10.
+    BC3UnormSrgb,
+    /// Unsigned BC4. This is also called `ATI1` or `BC4U` in DX9.
+    BC4Unorm,
+    /// Signed BC4. This is also called `BC4S` in DX9.
+    BC4Snorm,
+    /// Unsigned BC5. This is also called `ATI2` or `BC5U` in DX9.
+    BC5Unorm,
+    /// Signed BC5. This is also called `BC5S` in DX9.
+    BC5Snorm,
+}
+impl DdsFormat {
+    fn to_format(self, color: ExtendedColorType) -> (dds::Format, bool) {
+        use dds::Format;
+
+        match self {
+            DdsFormat::AutoUncompressed => {
+                let format = match color {
+                    // formats that can be represented exactly
+                    ExtendedColorType::A8 => Format::A8_UNORM,
+                    ExtendedColorType::L1 => Format::R1_UNORM,
+                    ExtendedColorType::L8 => Format::R8_UNORM,
+                    ExtendedColorType::Rgb8 | ExtendedColorType::Bgr8 => Format::B8G8R8_UNORM,
+                    ExtendedColorType::Rgba8 | ExtendedColorType::Bgra8 => Format::R8G8B8A8_UNORM,
+                    ExtendedColorType::L16 => Format::R16_UNORM,
+                    ExtendedColorType::Rgba16 => Format::R16G16B16A16_UNORM,
+                    ExtendedColorType::Rgb32F => Format::R32G32B32_FLOAT,
+                    ExtendedColorType::Rgba32F => Format::R32G32B32A32_FLOAT,
+
+                    // pick a format that can represent all values
+                    ExtendedColorType::La8 => Format::R8G8B8A8_UNORM,
+                    ExtendedColorType::La16 => Format::R16G16B16A16_UNORM,
+                    ExtendedColorType::Rgb16 => Format::R16G16B16A16_UNORM,
+                    ExtendedColorType::L2 | ExtendedColorType::L4 => Format::R8_UNORM,
+                    ExtendedColorType::La1
+                    | ExtendedColorType::Rgb1
+                    | ExtendedColorType::Rgba1
+                    | ExtendedColorType::La2
+                    | ExtendedColorType::Rgb2
+                    | ExtendedColorType::Rgba2
+                    | ExtendedColorType::La4
+                    | ExtendedColorType::Rgb4
+                    | ExtendedColorType::Rgba4 => Format::B4G4R4A4_UNORM,
+
+                    ExtendedColorType::Cmyk8 | ExtendedColorType::Unknown(_) => unreachable!(),
+                };
+
+                (format, false)
+            }
+
+            DdsFormat::A8Unorm => (Format::A8_UNORM, false),
+            DdsFormat::R8Unorm => (Format::R8_UNORM, false),
+            DdsFormat::R8G8Unorm => (Format::R8G8_UNORM, false),
+            DdsFormat::R8G8B8A8Unorm => (Format::R8G8B8A8_UNORM, false),
+            DdsFormat::R8G8B8A8UnormSrgb => (Format::R8G8B8A8_UNORM, true),
+            DdsFormat::R16Unorm => (Format::R16_UNORM, false),
+            DdsFormat::R16G16Unorm => (Format::R16G16_UNORM, false),
+            DdsFormat::R16G16B16A16Unorm => (Format::R16G16B16A16_UNORM, false),
+            DdsFormat::R16Float => (Format::R16_FLOAT, false),
+            DdsFormat::R16G16Float => (Format::R16G16_FLOAT, false),
+            DdsFormat::R16G16B16A16Float => (Format::R16G16B16A16_FLOAT, false),
+            DdsFormat::R32Float => (Format::R32_FLOAT, false),
+            DdsFormat::R32G32Float => (Format::R32G32_FLOAT, false),
+            DdsFormat::R32G32B32Float => (Format::R32G32B32_FLOAT, false),
+            DdsFormat::R32G32B32A32Float => (Format::R32G32B32A32_FLOAT, false),
+            DdsFormat::B8G8R8Unorm => (Format::B8G8R8_UNORM, false),
+            DdsFormat::B4G4R4A4Unorm => (Format::B4G4R4A4_UNORM, false),
+            DdsFormat::B5G5R5A1Unorm => (Format::B5G5R5A1_UNORM, false),
+            DdsFormat::B5G6R5Unorm => (Format::B5G6R5_UNORM, false),
+            DdsFormat::R10G10B10A2Unorm => (Format::R10G10B10A2_UNORM, false),
+            DdsFormat::R9G9B9E5Float => (Format::R9G9B9E5_SHAREDEXP, false),
+            DdsFormat::R11G11B10Float => (Format::R11G11B10_FLOAT, false),
+            DdsFormat::YUY2 => (Format::YUY2, false),
+
+            DdsFormat::BC1Unorm => (Format::BC1_UNORM, false),
+            DdsFormat::BC1UnormSrgb => (Format::BC1_UNORM, true),
+            DdsFormat::BC2Unorm => (Format::BC2_UNORM, false),
+            DdsFormat::BC2UnormSrgb => (Format::BC2_UNORM, true),
+            DdsFormat::BC3Unorm => (Format::BC3_UNORM, false),
+            DdsFormat::BC3UnormSrgb => (Format::BC3_UNORM, true),
+            DdsFormat::BC4Unorm => (Format::BC4_UNORM, false),
+            DdsFormat::BC4Snorm => (Format::BC4_SNORM, false),
+            DdsFormat::BC5Unorm => (Format::BC5_UNORM, false),
+            DdsFormat::BC5Snorm => (Format::BC5_SNORM, false),
+        }
+    }
+}
+
+/// Whether and how many mipmaps to generate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Mipmaps {
+    /// No mipmaps will be generated. Only the main surface will be stored in the file.
+    #[default]
+    None,
+    /// The full mipmap chain will be generated.
+    Full,
+    /// The first `n` mipmaps of the mipmap chain will be generated.
+    ///
+    /// If the number is 0 or 1, this is equivalent to [`None`].
+    ///
+    /// If the number is greater than the number of mipmaps in the full mipmap
+    /// chain, the chain will include have a tail of multiple 1x1 mipmaps.
+    Fixed(u8),
+}
+
+/// DDS encoder
+pub struct DdsEncoder<W: Write> {
+    writer: W,
+    format: DdsFormat,
+    preferred_header: HeaderFormat,
+    quality: dds::CompressionQuality,
+    error_metric: dds::ErrorMetric,
+    dithering: dds::Dithering,
+    straight_alpha: bool,
+    mipmaps: Mipmaps,
+}
+
+impl<W: Write> DdsEncoder<W> {
+    /// Create a new encoder that encodes to the stream `w`
+    pub fn new(w: W) -> Self {
+        DdsEncoder {
+            writer: w,
+            format: DdsFormat::AutoUncompressed,
+            preferred_header: HeaderFormat::Dx10,
+            quality: dds::CompressionQuality::Normal,
+            error_metric: dds::ErrorMetric::Uniform,
+            dithering: dds::Dithering::None,
+            straight_alpha: true,
+            mipmaps: Mipmaps::None,
+        }
+    }
+
+    /// Create a DDS file with the given format.
+    pub fn with_format(mut self, format: DdsFormat) -> Self {
+        self.format = format;
+        self
+    }
+
+    /// Create a DDS file with the given header format.
+    ///
+    /// Note that the specified DDS format takes precedence over the preferred
+    /// header format. So if a DDS format does not support the preferred header
+    /// format, the encoder will use the header format specified by the DDS
+    /// format.
+    ///
+    /// By default, the encoder will use the DX10 header format.
+    pub fn with_preferred_header(mut self, header: HeaderFormat) -> Self {
+        self.preferred_header = header;
+        self
+    }
+
+    /// Set the compression quality for the encoder.
+    ///
+    /// By default, the compression quality is set to [`CompressionQuality::Default`].
+    pub fn with_compression_quality(mut self, quality: CompressionQuality) -> Self {
+        self.quality = match quality {
+            CompressionQuality::Fastest => dds::CompressionQuality::Fast,
+            CompressionQuality::Default => dds::CompressionQuality::Normal,
+            CompressionQuality::High => dds::CompressionQuality::High,
+        };
+        self
+    }
+
+    /// Use a perceptual error metric for compression.
+    ///
+    /// By default, the encoder uses a uniform error metric for compression,
+    /// meaning that it tries to minimize the mean squared error (MSE) between the
+    /// original and compressed image.
+    ///
+    /// Better visual results can be achieved by using a perceptual error
+    /// metric for albedo, diffuse, and photographic textures. This metric
+    /// accounts for how the human eye perceives color, and will produce better
+    /// results for these types of images.
+    ///
+    /// However, a perceptual error metric is not recommended for normal maps,
+    /// specular maps, and height maps, as it will produce worse artifacts.
+    ///
+    /// Note: The perceptual error metric assumes that image data is in sRGB,
+    /// irrespective of whether the DDS format is linear or sRGB. Do not use the
+    /// perceptual error metric if the image data is in linear RGB or any other
+    /// color space.
+    pub fn with_perceptual_error_metric(mut self) -> Self {
+        self.error_metric = dds::ErrorMetric::Perceptual;
+        self
+    }
+
+    /// Enables dithering when encoding images with a higher bit depth to a
+    /// lower bit depth.
+    ///
+    /// Note: Not all formats support dithering. The encoder will ignore this option
+    /// if the format does not support dithering.
+    pub fn with_dithering(mut self) -> Self {
+        self.dithering = dds::Dithering::ColorAndAlpha;
+        self
+    }
+
+    /// Create a DDS file with the given number of mipmaps.
+    ///
+    /// Mipmaps will be automatically generated from the main image.
+    ///
+    /// By default, no mipmaps are generated.
+    ///
+    /// Note: If the image contains an alpha channel that is **not** straight
+    /// alpha, you should use also use [`DdsEncoder::with_separate_alpha`] to
+    /// ensure that the other channels are not affected by the alpha channel.
+    pub fn with_mipmaps(mut self, mipmaps: Mipmaps) -> Self {
+        self.mipmaps = mipmaps;
+        self
+    }
+
+    /// Separate alpha from the other channels when resizing to generate mipmaps.
+    ///
+    /// By default, the encoder assumes straight alpha. This is necessary to
+    /// prevent color bleeding when resizing the image to generate mipmaps.
+    /// However, this also means that pixels for which the alpha channel is 0
+    /// will lose any and all color information. This is not a problem if the
+    /// alpha channels contains transparency information, but it is a problem
+    /// if the alpha channel is used for other purposes (e.g. a mask or height
+    /// map). In this case, use this function to specify that the alpha channel
+    /// should be treated as a separate channel and not as transparency.
+    pub fn with_separate_alpha(mut self) -> Self {
+        self.straight_alpha = false;
+        self
+    }
+}
+
+impl<W: Write> ImageEncoder for DdsEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        let color = to_dds_color(color_type).ok_or_else(|| {
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Dds.into(),
+                UnsupportedErrorKind::Color(color_type),
+            ))
+        })?;
+        let image = dds::ImageView::new(buf, dds::Size::new(width, height), color)
+            .expect("Invalid buffer length");
+
+        let (format, is_srgb) = self.format.to_format(color_type);
+
+        // create the header
+        use dds::header::Header;
+        let mut header: Header = if is_srgb {
+            // force DX10 header
+            let dxgi = dds::header::DxgiFormat::try_from(format).unwrap();
+            dds::header::Dx10Header::new_image(width, height, dxgi.to_srgb()).into()
+        } else {
+            let header = Header::new_image(width, height, format);
+            match self.preferred_header {
+                HeaderFormat::Dx9 => header.to_dx9().map(Header::from).unwrap_or(header),
+                HeaderFormat::Dx10 => header.to_dx10().map(Header::from).unwrap_or(header),
+            }
+        };
+
+        match self.mipmaps {
+            Mipmaps::None => {}
+            Mipmaps::Full => header = header.with_mipmaps(),
+            Mipmaps::Fixed(n) => {
+                if n > 1 {
+                    header = header.with_mipmap_count(n as u32);
+                }
+            }
+        }
+
+        // encode the image
+        let mut encoder = dds::Encoder::new(self.writer, format, &header)?;
+        encoder.options.dithering = self.dithering;
+        encoder.options.error_metric = self.error_metric;
+        encoder.options.quality = self.quality;
+
+        let options = dds::WriteOptions {
+            generate_mipmaps: true,
+            resize_straight_alpha: self.straight_alpha,
+            ..Default::default()
+        };
+
+        encoder.write_surface_with(image, None, &options)?;
+        encoder.finish()?;
+
+        Ok(())
     }
 }

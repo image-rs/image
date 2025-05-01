@@ -215,7 +215,7 @@ pub mod flat;
 /// | -------- | ----------------------------------------- | --------------------------------------- |
 /// | AVIF     | Yes \*                                    | Yes (lossy only)                        |
 /// | BMP      | Yes                                       | Yes                                     |
-/// | DDS      | Yes                                       | ---                                     |
+/// | DDS      | Yes                                       | Yes \*\*                                |
 /// | Farbfeld | Yes                                       | Yes                                     |
 /// | GIF      | Yes                                       | Yes                                     |
 /// | HDR      | Yes                                       | Yes                                     |
@@ -230,6 +230,8 @@ pub mod flat;
 /// | WebP     | Yes                                       | Yes (lossless only)                     |
 ///
 /// - \* Requires the `avif-native` feature, uses the libdav1d C library.
+/// - \*\* See the documentation of the [`dds` crate](https://github.com/image-rs/image-dds) for a
+///    full list of supported formats.
 ///
 /// ## A note on format specific features
 ///
@@ -285,9 +287,6 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
-
-    #[cfg(feature = "dds")]
-    mod dxt;
 }
 
 mod animation;

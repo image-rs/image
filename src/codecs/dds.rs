@@ -17,60 +17,6 @@ use crate::error::{
 };
 use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 
-impl From<dds::DecodingError> for ImageError {
-    fn from(e: dds::DecodingError) -> ImageError {
-        match e {
-            dds::DecodingError::Io(e) => ImageError::IoError(e),
-            dds::DecodingError::MemoryLimitExceeded => {
-                ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError))
-            }
-            _ => ImageError::Decoding(DecodingError::new(ImageFormat::Dds.into(), e)),
-        }
-    }
-}
-
-impl From<dds::EncodingError> for ImageError {
-    fn from(e: dds::EncodingError) -> ImageError {
-        match e {
-            dds::EncodingError::Io(e) => ImageError::IoError(e),
-            _ => ImageError::Encoding(EncodingError::new(ImageFormat::Dds.into(), e)),
-        }
-    }
-}
-
-fn to_color_type(color: dds::ColorFormat) -> ColorType {
-    match (color.channels, color.precision) {
-        (Channels::Alpha | Channels::Rgba, Precision::U8) => ColorType::Rgba8,
-        (Channels::Alpha | Channels::Rgba, Precision::U16) => ColorType::Rgba16,
-        (Channels::Alpha | Channels::Rgba, Precision::F32) => ColorType::Rgba32F,
-        (Channels::Rgb, Precision::U8) => ColorType::Rgb8,
-        (Channels::Rgb, Precision::U16) => ColorType::Rgb16,
-        (Channels::Rgb, Precision::F32) => ColorType::Rgb32F,
-        (Channels::Grayscale, Precision::U8) => ColorType::L8,
-        (Channels::Grayscale, Precision::U16) => ColorType::L16,
-        (Channels::Grayscale, Precision::F32) => ColorType::Rgb32F,
-    }
-}
-
-fn to_dds_color(color: ExtendedColorType) -> Option<dds::ColorFormat> {
-    match color {
-        ExtendedColorType::A8 => Some(dds::ColorFormat::ALPHA_U8),
-
-        ExtendedColorType::L8 => Some(dds::ColorFormat::GRAYSCALE_U8),
-        ExtendedColorType::L16 => Some(dds::ColorFormat::GRAYSCALE_U16),
-
-        ExtendedColorType::Rgb8 => Some(dds::ColorFormat::RGB_U8),
-        ExtendedColorType::Rgb16 => Some(dds::ColorFormat::RGB_U16),
-        ExtendedColorType::Rgb32F => Some(dds::ColorFormat::RGB_F32),
-
-        ExtendedColorType::Rgba8 => Some(dds::ColorFormat::RGBA_U8),
-        ExtendedColorType::Rgba16 => Some(dds::ColorFormat::RGBA_U16),
-        ExtendedColorType::Rgba32F => Some(dds::ColorFormat::RGBA_F32),
-
-        _ => None,
-    }
-}
-
 /// DDS decoder
 pub struct DdsDecoder<R: Read> {
     inner: dds::Decoder<R>,
@@ -83,7 +29,8 @@ impl<R: Read> DdsDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> ImageResult<Self> {
         let options = dds::header::ParseOptions::new_permissive(None);
-        let decoder = dds::Decoder::new_with_options(r, &options)?;
+        let decoder =
+            dds::Decoder::new_with_options(r, &options).map_err(ImageError::from_dds_decode)?;
         let layout = decoder.layout();
 
         // We only support DDS files with:
@@ -213,9 +160,13 @@ impl<R: Read + Seek> ImageDecoder for DdsDecoder<R> {
         let image = dds::ImageViewMut::new(buf, size, color).expect("Invalid buffer length");
 
         if self.is_cubemap {
-            self.inner.read_cube_map(image)?;
+            self.inner
+                .read_cube_map(image)
+                .map_err(ImageError::from_dds_decode)?;
         } else {
-            self.inner.read_surface(image)?;
+            self.inner
+                .read_surface(image)
+                .map_err(ImageError::from_dds_decode)?;
         }
 
         Ok(())
@@ -244,13 +195,17 @@ impl<R: Read + Seek> ImageDecoderRect for DdsDecoder<R> {
             )));
         }
 
-        self.inner.read_surface_rect(
-            buf,
-            row_pitch,
-            dds::Rect::new(x, y, width, height),
-            self.color,
-        )?;
-        self.inner.rewind_to_previous_surface()?;
+        self.inner
+            .read_surface_rect(
+                buf,
+                row_pitch,
+                dds::Rect::new(x, y, width, height),
+                self.color,
+            )
+            .map_err(ImageError::from_dds_decode)?;
+        self.inner
+            .rewind_to_previous_surface()
+            .map_err(ImageError::from_dds_decode)?;
 
         Ok(())
     }
@@ -657,7 +612,8 @@ impl<W: Write> ImageEncoder for DdsEncoder<W> {
         }
 
         // encode the image
-        let mut encoder = dds::Encoder::new(self.writer, format, &header)?;
+        let mut encoder =
+            dds::Encoder::new(self.writer, format, &header).map_err(ImageError::from_dds_encode)?;
         encoder.options.dithering = self.dithering;
         encoder.options.error_metric = self.error_metric;
         encoder.options.quality = self.quality;
@@ -668,9 +624,62 @@ impl<W: Write> ImageEncoder for DdsEncoder<W> {
             ..Default::default()
         };
 
-        encoder.write_surface_with(image, None, &options)?;
-        encoder.finish()?;
+        encoder
+            .write_surface_with(image, None, &options)
+            .map_err(ImageError::from_dds_encode)?;
+        encoder.finish().map_err(ImageError::from_dds_encode)?;
 
         Ok(())
+    }
+}
+
+fn to_color_type(color: dds::ColorFormat) -> ColorType {
+    match (color.channels, color.precision) {
+        (Channels::Alpha | Channels::Rgba, Precision::U8) => ColorType::Rgba8,
+        (Channels::Alpha | Channels::Rgba, Precision::U16) => ColorType::Rgba16,
+        (Channels::Alpha | Channels::Rgba, Precision::F32) => ColorType::Rgba32F,
+        (Channels::Rgb, Precision::U8) => ColorType::Rgb8,
+        (Channels::Rgb, Precision::U16) => ColorType::Rgb16,
+        (Channels::Rgb, Precision::F32) => ColorType::Rgb32F,
+        (Channels::Grayscale, Precision::U8) => ColorType::L8,
+        (Channels::Grayscale, Precision::U16) => ColorType::L16,
+        (Channels::Grayscale, Precision::F32) => ColorType::Rgb32F,
+    }
+}
+
+fn to_dds_color(color: ExtendedColorType) -> Option<dds::ColorFormat> {
+    match color {
+        ExtendedColorType::A8 => Some(dds::ColorFormat::ALPHA_U8),
+
+        ExtendedColorType::L8 => Some(dds::ColorFormat::GRAYSCALE_U8),
+        ExtendedColorType::L16 => Some(dds::ColorFormat::GRAYSCALE_U16),
+
+        ExtendedColorType::Rgb8 => Some(dds::ColorFormat::RGB_U8),
+        ExtendedColorType::Rgb16 => Some(dds::ColorFormat::RGB_U16),
+        ExtendedColorType::Rgb32F => Some(dds::ColorFormat::RGB_F32),
+
+        ExtendedColorType::Rgba8 => Some(dds::ColorFormat::RGBA_U8),
+        ExtendedColorType::Rgba16 => Some(dds::ColorFormat::RGBA_U16),
+        ExtendedColorType::Rgba32F => Some(dds::ColorFormat::RGBA_F32),
+
+        _ => None,
+    }
+}
+
+impl ImageError {
+    fn from_dds_decode(e: dds::DecodingError) -> Self {
+        match e {
+            dds::DecodingError::Io(e) => ImageError::IoError(e),
+            dds::DecodingError::MemoryLimitExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError))
+            }
+            _ => ImageError::Decoding(DecodingError::new(ImageFormat::Dds.into(), e)),
+        }
+    }
+    fn from_dds_encode(e: dds::EncodingError) -> ImageError {
+        match e {
+            dds::EncodingError::Io(e) => ImageError::IoError(e),
+            _ => ImageError::Encoding(EncodingError::new(ImageFormat::Dds.into(), e)),
+        }
     }
 }

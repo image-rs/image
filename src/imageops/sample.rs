@@ -844,7 +844,14 @@ where
 }
 
 /// Perform a 3x3 box filter on the supplied image.
-/// ```kernel``` is an array of the filter weights of length 9.
+///
+/// # Arguments:
+///
+/// * `image` - source image.
+/// * `kernel` - is an array of the filter weights of length 9.
+///
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -926,9 +933,17 @@ where
 }
 
 /// Resize the supplied image to the specified dimensions.
-/// ```nwidth``` and ```nheight``` are the new dimensions.
-/// ```filter``` is the sampling filter to use.
+///
+/// # Arguments:
+///
+/// * `nwidth` - new image width.
+/// * `nheight` - new image height.
+/// * `filter` -  is the sampling filter to use, see [FilterType] for mor information.
+///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+///
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
 pub fn resize<I: GenericImageView>(
     image: &I,
     nwidth: u32,
@@ -989,6 +1004,8 @@ where
 /// Use [`crate::imageops::fast_blur()`] for a faster but less
 /// accurate version.
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,
@@ -1018,10 +1035,16 @@ where
 }
 
 /// Performs an unsharpen mask on the supplied image.
-/// ```sigma``` is the amount to blur the image by.
-/// ```threshold``` is the threshold for minimal brightness change that will be sharpened.
 ///
-/// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
+/// # Arguments:
+///
+/// * `sigma` - is the amount to blur the image by.
+/// * `threshold` - is the threshold for minimal brightness change that will be sharpened.
+///
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
+///
+/// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -1273,9 +1296,7 @@ mod tests {
                 let alpha = pixel.0[3];
                 assert!(
                     alpha != 254 && alpha != 253,
-                    "alpha value: {}, {:?}",
-                    alpha,
-                    filter
+                    "alpha value: {alpha}, {filter:?}"
                 );
             }
         }

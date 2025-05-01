@@ -440,9 +440,7 @@ mod test {
                     // the RGBE u8x4 pixel quantization of the hdr image format
                     assert!(
                         (expected - found).abs() < 0.1,
-                        "expected {}, found {}",
-                        expected,
-                        found
+                        "expected {expected}, found {found}"
                     );
                 }
             }

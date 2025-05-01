@@ -2,10 +2,20 @@ use num_traits::clamp;
 
 use crate::{ImageBuffer, Pixel, Primitive};
 
-/// Approximation of Gaussian blur after
-/// Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
-/// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
+/// Approximation of Gaussian blur.
+///
+/// # Arguments
+///
+/// * `image_buffer` - source image.
+/// * `sigma` - value controls image flattening level.
+///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+///
+/// This method typically assumes that the input is scene-linear light.
+/// If it is not, color distortion may occur.
+///
+/// Source: Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
+/// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
     image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,

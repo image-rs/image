@@ -3,7 +3,9 @@
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
 
-use std::f32;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
@@ -11,6 +13,12 @@ use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float as _;
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+use num_traits::float::FloatCore as _;
 
 /// Available Sampling Filters.
 ///
@@ -137,6 +145,7 @@ impl ToPrimitive for FloatNearest {
 }
 
 // sinc function: the ideal sampling filter.
+#[cfg(any(feature = "std", feature = "libm"))]
 fn sinc(t: f32) -> f32 {
     let a = t * f32::consts::PI;
 
@@ -148,6 +157,7 @@ fn sinc(t: f32) -> f32 {
 }
 
 // lanczos kernel function. A windowed sinc function.
+#[cfg(any(feature = "std", feature = "libm"))]
 fn lanczos(x: f32, t: f32) -> f32 {
     if x.abs() < t {
         sinc(x) * sinc(x / t)
@@ -179,17 +189,20 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 
 /// The Gaussian Function.
 /// ```r``` is the standard deviation.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn gaussian(x: f32, r: f32) -> f32 {
     ((2.0 * f32::consts::PI).sqrt() * r).recip() * (-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
 /// Calculate the lanczos kernel with a window of 3
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn lanczos3_kernel(x: f32) -> f32 {
     lanczos(x, 3.0)
 }
 
 /// Calculate the gaussian function with a
 /// standard deviation of 0.5
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn gaussian_kernel(x: f32) -> f32 {
     gaussian(x, 0.5)
 }
@@ -984,14 +997,20 @@ where
             kernel: Box::new(catmullrom_kernel),
             support: 2.0,
         },
+        #[cfg(any(feature = "std", feature = "libm"))]
         FilterType::Gaussian => Filter {
             kernel: Box::new(gaussian_kernel),
             support: 3.0,
         },
+        #[cfg(any(feature = "std", feature = "libm"))]
         FilterType::Lanczos3 => Filter {
             kernel: Box::new(lanczos3_kernel),
             support: 3.0,
         },
+        #[cfg(not(any(feature = "std", feature = "libm")))]
+        FilterType::Gaussian | FilterType::Lanczos3 => {
+            unimplemented!("Gaussian and Lanczos3 filter types require either std or libm features to be enabled.")
+        }
     };
 
     // Note: tmp is not necessarily actually Rgba
@@ -1006,6 +1025,7 @@ where
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,
@@ -1045,6 +1065,7 @@ where
 /// If it is not, color distortion may occur.
 ///
 /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,

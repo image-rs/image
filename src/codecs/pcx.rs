@@ -7,10 +7,10 @@
 
 extern crate pcx;
 
+use core::iter;
+use core::marker::PhantomData;
+use core::mem;
 use std::io::{self, BufRead, Cursor, Read, Seek};
-use std::iter;
-use std::marker::PhantomData;
-use std::mem;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{ImageError, ImageResult};

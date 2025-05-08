@@ -1,8 +1,11 @@
 //! Types describing image metadata
 
+#[cfg(feature = "std")]
+use byteorder_lite::ReadBytesExt;
+#[cfg(feature = "std")]
 use std::io::{Cursor, Read};
 
-use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt};
+use byteorder_lite::{BigEndian, LittleEndian};
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
@@ -63,6 +66,7 @@ impl Orientation {
         }
     }
 
+    #[cfg(feature = "std")]
     pub(crate) fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
         let mut reader = Cursor::new(chunk);
 

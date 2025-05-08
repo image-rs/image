@@ -1,10 +1,15 @@
-use std::io::{self, Seek, Write};
-use std::path::Path;
+use alloc::borrow::ToOwned;
+use alloc::vec::Vec;
 
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
+
+#[cfg(feature = "std")]
+use std::io::{self, Seek, Write};
+#[cfg(feature = "std")]
+use std::path::Path;
 
 use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
@@ -13,15 +18,19 @@ use crate::buffer_::{
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::ImageFormat;
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder};
 use crate::image_reader::free_functions;
+use crate::imageops;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
-use crate::ImageReader;
+use crate::ExtendedColorType;
 use crate::{image, Luma, LumaA};
-use crate::{imageops, ExtendedColorType};
 use crate::{Rgb32FImage, Rgba32FImage};
+
+#[cfg(feature = "std")]
+use crate::ImageReader;
 
 /// A Dynamic Image
 ///
@@ -664,6 +673,7 @@ impl DynamicImage {
         )
     }
 
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
     // TODO: choose a name under which to expose?
     fn inner_bytes(&self) -> &[u8] {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
@@ -854,6 +864,7 @@ impl DynamicImage {
     ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    #[cfg(any(feature = "std", feature = "libm"))]
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
@@ -867,6 +878,7 @@ impl DynamicImage {
     ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    #[cfg(any(feature = "std", feature = "libm"))]
     #[must_use]
     pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
@@ -884,6 +896,7 @@ impl DynamicImage {
     ///
     /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
     /// for more information
+    #[cfg(any(feature = "std", feature = "libm"))]
     #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
@@ -924,6 +937,7 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
+    #[cfg(any(feature = "std", feature = "libm"))]
     #[must_use]
     pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
@@ -986,7 +1000,7 @@ impl DynamicImage {
     /// e.g. to correctly display a photo taken by a smartphone camera:
     ///
     /// ```
-    /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn core::error::Error>> {
     /// use image::{DynamicImage, ImageReader, ImageDecoder};
     ///
     /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
@@ -1028,6 +1042,7 @@ impl DynamicImage {
     ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
+    #[cfg(feature = "std")]
     pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.inner_bytes();
         let (width, height) = self.dimensions();
@@ -1063,6 +1078,7 @@ impl DynamicImage {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
+    #[cfg(feature = "std")]
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1075,6 +1091,7 @@ impl DynamicImage {
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
+    #[cfg(feature = "std")]
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1290,6 +1307,7 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
 ///
 /// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
 /// content before its path.
+#[cfg(feature = "std")]
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
@@ -1302,6 +1320,7 @@ where
 ///
 /// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
 /// content before its path or manually supplying the format.
+#[cfg(feature = "std")]
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
@@ -1316,6 +1335,7 @@ where
 ///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
+#[cfg(feature = "std")]
 pub fn save_buffer(
     path: impl AsRef<Path>,
     buf: &[u8],
@@ -1335,6 +1355,7 @@ pub fn save_buffer(
 /// This will lead to corrupted files if the buffer contains
 /// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
+#[cfg(feature = "std")]
 pub fn save_buffer_with_format(
     path: impl AsRef<Path>,
     buf: &[u8],
@@ -1361,6 +1382,7 @@ pub fn save_buffer_with_format(
 ///
 /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter` for
 /// best performance.
+#[cfg(feature = "std")]
 pub fn write_buffer_with_format<W: Write + Seek>(
     buffered_writer: &mut W,
     buf: &[u8],
@@ -1379,6 +1401,7 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// TGA is not supported by this function.
 ///
 /// Try [`ImageReader`] for more advanced uses.
+#[cfg(feature = "std")]
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
@@ -1392,6 +1415,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// Try [`ImageReader`] for more advanced uses.
 ///
 /// [`load`]: fn.load.html
+#[cfg(feature = "std")]
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);

@@ -1,7 +1,11 @@
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::num::{ParseFloatError, ParseIntError};
+use core::{error, fmt};
 use std::io::{self, Read};
-
-use std::num::{ParseFloatError, ParseIntError};
-use std::{error, fmt};
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{
@@ -701,7 +705,8 @@ fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, io::Cursor};
+    use alloc::borrow::Cow;
+    use std::io::Cursor;
 
     use super::*;
 

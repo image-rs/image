@@ -1,20 +1,26 @@
 //! Contains the generic `ImageBuffer` struct.
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
+use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut, Index, IndexMut, Range};
+use core::slice::{ChunksExact, ChunksExactMut};
 use num_traits::Zero;
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
-use std::path::Path;
-use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};
+use crate::image::ImageFormat;
+use crate::image::{GenericImage, GenericImageView, ImageEncoder};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::DynamicImage;
+
+#[cfg(feature = "std")]
+use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
+#[cfg(feature = "std")]
+use std::path::Path;
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -993,6 +999,7 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
+    #[cfg(feature = "std")]
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1019,6 +1026,7 @@ where
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
+    #[cfg(feature = "std")]
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1046,6 +1054,7 @@ where
     ///
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
     /// for best performance.
+    #[cfg(feature = "std")]
     pub fn write_to<W>(&self, writer: &mut W, format: ImageFormat) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,
@@ -1715,7 +1724,7 @@ mod test {
 
     #[test]
     fn exact_size_iter_size_hint() {
-        // The docs for `std::iter::ExactSizeIterator` requires that the implementation of
+        // The docs for `core::iter::ExactSizeIterator` requires that the implementation of
         // `size_hint` on the iterator returns the same value as the `len` implementation.
 
         // This test should work for any size image.

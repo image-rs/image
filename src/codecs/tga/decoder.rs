@@ -6,6 +6,9 @@ use crate::{
     },
     image::{ImageDecoder, ImageFormat},
 };
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use byteorder_lite::ReadBytesExt;
 use std::io::{self, Read};
 

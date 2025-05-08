@@ -1,8 +1,12 @@
-use std::cmp::{self, Ordering};
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::cmp::{self, Ordering};
+use core::iter::{repeat, Rev};
+use core::slice::ChunksMut;
+use core::{error, fmt};
 use std::io::{self, BufRead, Seek, SeekFrom};
-use std::iter::{repeat, Rev};
-use std::slice::ChunksMut;
-use std::{error, fmt};
 
 use byteorder_lite::{LittleEndian, ReadBytesExt};
 

@@ -7,8 +7,10 @@ use crate::error::{
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
 use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use alloc::borrow::Cow;
+use alloc::vec;
+use alloc::vec::Vec;
 use num_traits::ToPrimitive;
-use std::borrow::Cow;
 use std::io::{self, Write};
 
 use super::entropy::build_huff_lut_const;

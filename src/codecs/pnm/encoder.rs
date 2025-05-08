@@ -1,8 +1,9 @@
 //! Encoding of PNM Images
-use std::fmt;
-use std::io;
-
-use std::io::Write;
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::vec::Vec;
+use core::fmt;
+use std::io::{self, Write};
 
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};

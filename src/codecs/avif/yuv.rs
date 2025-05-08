@@ -1,8 +1,8 @@
 use crate::error::DecodingError;
 use crate::{ImageError, ImageFormat};
+use core::fmt::{Display, Formatter};
+use core::mem::size_of;
 use num_traits::AsPrimitive;
-use std::fmt::{Display, Formatter};
-use std::mem::size_of;
 
 #[derive(Debug, Copy, Clone)]
 /// Representation of inversion matrix
@@ -46,7 +46,7 @@ enum PlaneDefinition {
 }
 
 impl Display for PlaneDefinition {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
         match self {
             PlaneDefinition::Y => f.write_str("Luma"),
             PlaneDefinition::U => f.write_str("U chroma"),
@@ -62,7 +62,7 @@ enum YuvConversionError {
 }
 
 impl Display for YuvConversionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
                 f.write_fmt(format_args!(
@@ -80,7 +80,7 @@ impl Display for YuvConversionError {
     }
 }
 
-impl std::error::Error for YuvConversionError {}
+impl core::error::Error for YuvConversionError {}
 
 #[inline]
 fn check_yuv_plane_preconditions<V>(

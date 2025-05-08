@@ -7,6 +7,8 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
+use alloc::boxed::Box;
+use alloc::vec;
 use std::io::{self, Read};
 
 use crate::color::ColorType;

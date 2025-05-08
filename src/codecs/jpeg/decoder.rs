@@ -1,5 +1,8 @@
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 use std::io::{BufRead, Seek};
-use std::marker::PhantomData;
 
 use crate::color::ColorType;
 use crate::error::{

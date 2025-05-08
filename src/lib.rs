@@ -126,6 +126,12 @@
 // even to people using the crate as a dependency,
 // so we have to suppress those warnings.
 #![allow(unexpected_cfgs)]
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
+extern crate alloc;
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -170,12 +176,18 @@ pub use crate::flat::FlatSamples;
 pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
+#[cfg(feature = "std")]
 pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
     save_buffer_with_format, write_buffer_with_format,
 };
-pub use crate::image_reader::free_functions::{guess_format, load};
-pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
+pub use crate::image_reader::free_functions::guess_format;
+pub use crate::image_reader::{LimitSupport, Limits};
+
+#[cfg(feature = "std")]
+pub use crate::image_reader::free_functions::load;
+#[cfg(feature = "std")]
+pub use crate::image_reader::ImageReader;
 
 pub use crate::dynimage::DynamicImage;
 
@@ -303,6 +315,7 @@ pub mod metadata;
 //TODO delete this module after a few releases
 /// deprecated io module the original io module has been renamed to `image_reader`
 pub mod io {
+    #[cfg(feature = "std")]
     #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
     /// Deprecated re-export of `ImageReader` as `Reader`
     pub type Reader<R> = super::ImageReader<R>;

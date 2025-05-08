@@ -1,10 +1,13 @@
 //! Decoding and encoding of QOI images
 
+use alloc::boxed::Box;
+use alloc::format;
+use std::io::{Read, Write};
+
 use crate::error::{DecodingError, EncodingError};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
-use std::io::{Read, Write};
 
 /// QOI decoder
 pub struct QoiDecoder<R> {

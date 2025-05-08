@@ -1,10 +1,11 @@
 #![allow(clippy::too_many_arguments)]
-use std::ffi::OsStr;
-use std::io::{self, Write};
-use std::mem::size_of;
-use std::ops::{Deref, DerefMut};
-use std::path::Path;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::mem::size_of;
+use core::ops::{Deref, DerefMut};
 
+use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
@@ -15,7 +16,12 @@ use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
 
-use crate::animation::Frames;
+#[cfg(feature = "std")]
+use std::ffi::OsStr;
+#[cfg(feature = "std")]
+use std::io::{self, Write};
+#[cfg(feature = "std")]
+use std::path::Path;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
@@ -83,6 +89,7 @@ impl ImageFormat {
     /// let format = ImageFormat::from_extension("jpg");
     /// assert_eq!(format, Some(ImageFormat::Jpeg));
     /// ```
+    #[cfg(feature = "std")]
     #[inline]
     pub fn from_extension<S>(ext: S) -> Option<Self>
     where
@@ -128,6 +135,7 @@ impl ImageFormat {
     ///
     /// # Ok::<(), image::error::ImageError>(())
     /// ```
+    #[cfg(feature = "std")]
     #[inline]
     pub fn from_path<P>(path: P) -> ImageResult<Self>
     where
@@ -654,6 +662,7 @@ pub trait ImageDecoder {
     ///
     /// This is usually obtained from the Exif metadata, if present. Formats that don't support
     /// indicating orientation in their image metadata will return `Ok(Orientation::NoTransforms)`.
+    #[cfg(feature = "std")]
     fn orientation(&mut self) -> ImageResult<Orientation> {
         Ok(self
             .exif_metadata()?

@@ -1,8 +1,9 @@
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::{Deref, DerefMut};
 use rayon::iter::plumbing::*;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};
-use std::fmt;
-use std::ops::{Deref, DerefMut};
 
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -430,7 +431,7 @@ mod test {
     #[test]
     fn iter_parity() {
         let mut image1 = RgbImage::from_fn(17, 29, |x, y| {
-            Rgb(std::array::from_fn(|i| {
+            Rgb(core::array::from_fn(|i| {
                 ((x + y * 98 + i as u32 * 27) % 255) as u8
             }))
         });
@@ -487,9 +488,9 @@ mod benchmarks {
     }
 
     fn pixel_func() -> Rgb<u8> {
+        use core::hash::{BuildHasher, Hasher};
         use std::collections::hash_map::RandomState;
-        use std::hash::{BuildHasher, Hasher};
-        Rgb(std::array::from_fn(|_| {
+        Rgb(core::array::from_fn(|_| {
             RandomState::new().build_hasher().finish() as u8
         }))
     }

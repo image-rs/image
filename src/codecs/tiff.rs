@@ -8,9 +8,13 @@
 
 extern crate tiff;
 
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use core::mem;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{

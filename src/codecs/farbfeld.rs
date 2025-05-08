@@ -16,6 +16,8 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
+use alloc::boxed::Box;
+use alloc::format;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ExtendedColorType;

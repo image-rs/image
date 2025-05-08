@@ -2,7 +2,10 @@ use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
-use std::cmp::Ordering;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::cmp::Ordering;
 use std::io::{Result, Write};
 
 /// Radiance HDR encoder
@@ -466,7 +469,7 @@ fn noruncombine_test() {
     assert_eq!(rsi.next(), Some(Norun(129, 7)));
     assert_eq!(rsi.next(), None);
 
-    let v: Vec<_> = std::iter::repeat(())
+    let v: Vec<_> = core::iter::repeat(())
         .flat_map(|_| (0..2))
         .take(257)
         .collect();

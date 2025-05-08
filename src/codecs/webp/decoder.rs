@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use std::io::{BufRead, Read, Seek};
 
 use crate::buffer::ConvertBuffer;

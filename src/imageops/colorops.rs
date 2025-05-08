@@ -1,5 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
+use alloc::vec::Vec;
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
@@ -7,6 +8,12 @@ use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
 use crate::ImageBuffer;
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float as _;
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+use num_traits::float::FloatCore as _;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
@@ -218,6 +225,7 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate_in_place`.][huerotate_in_place]*
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -285,6 +293,7 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate`.][huerotate]*
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,

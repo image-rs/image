@@ -1,8 +1,11 @@
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Enlargeable, Pixel, Primitive};
+
+#[cfg(not(feature = "std"))]
+use num_traits::float::FloatCore as _;
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]

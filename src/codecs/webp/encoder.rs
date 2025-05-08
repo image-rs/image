@@ -1,5 +1,6 @@
 //! Encoding of WebP images.
 
+use alloc::vec::Vec;
 use std::io::Write;
 
 use crate::error::{EncodingError, UnsupportedError, UnsupportedErrorKind};

@@ -5,8 +5,12 @@
 //! # Related Links
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 
-use std::borrow::Cow;
-use std::fmt;
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::string::ToString;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
 use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DisposeOp};
@@ -720,7 +724,7 @@ impl fmt::Display for BadPngRepresentation {
     }
 }
 
-impl std::error::Error for BadPngRepresentation {}
+impl core::error::Error for BadPngRepresentation {}
 
 #[cfg(test)]
 mod tests {
@@ -754,7 +758,7 @@ mod tests {
 
     #[test]
     fn underlying_error() {
-        use std::error::Error;
+        use core::error::Error;
 
         let mut not_png =
             std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")

@@ -27,9 +27,13 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::marker::PhantomData;
+use core::mem;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};

@@ -1,9 +1,14 @@
-use std::error;
-use std::fmt::{self, Display};
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::error;
+use core::fmt::{self, Display};
+use core::mem::size_of;
+use core::num::ParseIntError;
+use core::str;
 use std::io::{self, Read};
-use std::mem::size_of;
-use std::num::ParseIntError;
-use std::str;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};

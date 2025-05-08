@@ -1,5 +1,5 @@
 //! Image Processing Functions
-use std::cmp;
+use core::cmp;
 
 use crate::image::{GenericImage, GenericImageView, SubImage};
 use crate::traits::{Lerp, Pixel, Primitive};
@@ -16,23 +16,31 @@ pub use self::affine::{
 };
 
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
-    sample_nearest, thumbnail, unsharpen,
+    filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear, sample_nearest,
+    thumbnail,
 };
+
+#[cfg(any(feature = "std", feature = "libm"))]
+pub use self::sample::{blur, unsharpen};
 
 /// Color operations
 pub use self::colorops::{
     brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
-    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+    grayscale_with_type_alpha, index_colors, invert, BiLevel, ColorMap,
 };
+
+#[cfg(any(feature = "std", feature = "libm"))]
+pub use self::colorops::huerotate;
 
 mod affine;
 // Public only because of Rust bug:
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
+#[cfg(any(feature = "std", feature = "libm"))]
 mod fast_blur;
 mod sample;
 
+#[cfg(any(feature = "std", feature = "libm"))]
 pub use fast_blur::fast_blur;
 
 /// Return a mutable view into an image

@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 use num_traits::clamp;
 
 use crate::{ImageBuffer, Pixel, Primitive};

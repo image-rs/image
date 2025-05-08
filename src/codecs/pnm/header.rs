@@ -1,4 +1,7 @@
-use std::{fmt, io};
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+use std::io;
 
 /// The kind of encoding used to store sample values
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

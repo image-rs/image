@@ -1,6 +1,8 @@
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use byteorder_lite::{LittleEndian, ReadBytesExt};
+use core::{error, fmt};
 use std::io::{BufRead, Read, Seek, SeekFrom};
-use std::{error, fmt};
 
 use crate::color::ColorType;
 use crate::error::{

@@ -105,12 +105,7 @@ impl<R: Read> DxtDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(
-            u64::try_from(buf.len()),
-            Ok(
-                self.scanline_bytes()
-            )
-        );
+        assert_eq!(u64::try_from(buf.len()), Ok(self.scanline_bytes()));
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];

@@ -521,7 +521,7 @@ fn process_halved_chroma_row<
     // preventing accidental use of invalid values from the trailing region.
 
     let y_plane = &image.y_plane[0..image.width];
-    let chroma_size = (image.width + 1) / 2;
+    let chroma_size = image.width.div_ceil(2);
     let u_plane = &image.u_plane[0..chroma_size];
     let v_plane = &image.v_plane[0..chroma_size];
     let rgba = &mut rgba[0..image.width * CHANNELS];
@@ -662,7 +662,7 @@ where
     let y_stride = image.y_stride;
     let u_stride = image.u_stride;
     let v_stride = image.v_stride;
-    let chroma_height = (image.height + 1) / 2;
+    let chroma_height = image.height.div_ceil(2);
 
     check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, image.height)?;
     check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, chroma_height)?;

@@ -401,11 +401,12 @@ impl ImageFormat {
 
 // This struct manages buffering associated with implementing `Read` and `Seek` on decoders that can
 // must decode ranges of bytes at a time.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) struct ImageReadBuffer {
     scanline_bytes: usize,
     buffer: Vec<u8>,
     consumed: usize,
-
     total_bytes: u64,
     offset: u64,
 }

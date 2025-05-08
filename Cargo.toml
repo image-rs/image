@@ -92,6 +92,7 @@ avif-native = ["dep:mp4parse", "dep:dav1d", "std"] # Enable native dependency li
 benchmarks = ["std"] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 serde = ["dep:serde"]
 std = ["byteorder-lite/std", "num-traits/std"]
+libm = ["num-traits/libm"]
 
 [[bench]]
 path = "benches/decode.rs"

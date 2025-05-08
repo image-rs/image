@@ -126,6 +126,9 @@
 // even to people using the crate as a dependency,
 // so we have to suppress those warnings.
 #![allow(unexpected_cfgs)]
+#![warn(clippy::alloc_instead_of_core)]
+#![warn(clippy::std_instead_of_alloc)]
+#![warn(clippy::alloc_instead_of_core)]
 #![no_std]
 
 #[cfg(feature = "std")]

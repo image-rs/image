@@ -108,7 +108,6 @@ impl<R: Read> DxtDecoder<R> {
         assert_eq!(
             u64::try_from(buf.len()),
             Ok(
-                #[allow(deprecated)]
                 self.scanline_bytes()
             )
         );
@@ -140,7 +139,6 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        #[allow(deprecated)]
         for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
             self.read_scanline(chunk)?;
         }
@@ -226,7 +224,7 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     } else {
         // linearly interpolate one other entry, keep the other at 0
         for i in 0..3 {
-            colors[2][i] = ((u16::from(colors[0][i]) + u16::from(colors[1][i]) + 1) / 2) as u8;
+            colors[2][i] = (u16::from(colors[0][i]) + u16::from(colors[1][i])).div_ceil(2) as u8;
         }
     }
 

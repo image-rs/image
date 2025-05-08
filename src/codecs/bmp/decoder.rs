@@ -1170,7 +1170,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 _ => {
                                     let mut length = op as usize;
                                     if self.image_type == ImageType::RLE4 {
-                                        length = (length + 1) / 2;
+                                        length = length.div_ceil(2);
                                     }
                                     length += length & 1;
                                     let mut buffer = vec![0; length];

@@ -5,6 +5,7 @@ use byteorder_lite::ReadBytesExt;
 #[cfg(feature = "std")]
 use std::io::{Cursor, Read};
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use byteorder_lite::{BigEndian, LittleEndian};
 
 /// Describes the transformations to be applied to the image.

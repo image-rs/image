@@ -172,10 +172,9 @@ impl ImageError {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
 #[deprecated]
 pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-#[allow(deprecated)]
+#[expect(deprecated)]
 impl<R> Read for TiffReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)

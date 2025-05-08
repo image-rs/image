@@ -10,6 +10,7 @@ use num_traits::Zero;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::image::ImageFormat;
 use crate::image::{GenericImage, GenericImageView, ImageEncoder};
 use crate::math::Rect;

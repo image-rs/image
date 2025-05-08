@@ -1,14 +1,24 @@
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use alloc::boxed::Box;
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::dynimage::DynamicImage;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::error::ImageFormatHint;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::error::UnsupportedError;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::error::UnsupportedErrorKind;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::image::ImageFormat;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ImageDecoder;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ImageError;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ImageResult;
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use super::free_functions;
 
 #[cfg(feature = "std")]
@@ -152,10 +162,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         reader: R,
         limits_for_png: super::Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
-        #[allow(unused)]
         use crate::codecs::*;
 
-        #[allow(unreachable_patterns)]
         // Default is unreachable if all features are supported.
         Ok(match format {
             #[cfg(feature = "avif-native")]

@@ -1465,12 +1465,12 @@ where
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }
 
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         *self.get_pixel_mut(x, y) = pixel;
     }
 
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.get_pixel_mut(x, y).blend(&pixel);
     }
@@ -1623,7 +1623,7 @@ mod tests {
                 .as_view_mut::<LumaA<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             for i in 0..9 {
                 *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
             }

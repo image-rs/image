@@ -18,13 +18,16 @@ use crate::buffer_::{
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::image::ImageFormat;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder};
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::image_reader::free_functions;
 use crate::imageops;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ExtendedColorType;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
@@ -1050,7 +1053,6 @@ impl DynamicImage {
 
         // TODO do not repeat this match statement across the crate
 
-        #[allow(deprecated)]
         match format {
             #[cfg(feature = "png")]
             ImageFormat::Png => {
@@ -1172,7 +1174,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
@@ -1185,7 +1186,7 @@ impl GenericImageView for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
+#[expect(deprecated)]
 impl GenericImage for DynamicImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
@@ -1541,7 +1542,7 @@ mod test {
         // Test that structs wrapping a DynamicImage are able to auto-derive the Default trait
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
-        #[allow(dead_code)]
+        #[expect(dead_code)]
         struct Foo {
             _image: super::DynamicImage,
         }

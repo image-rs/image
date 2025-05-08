@@ -34,7 +34,6 @@ where
 
 /// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
 /// every `row_size` entries there are padding bits up to the next byte boundary.
-#[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     // Note: this conversion assumes that the scanlines begin on byte boundaries
@@ -65,13 +64,12 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
 }
 
 /// Checks if the provided dimensions would cause an overflow.
-#[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel: u8) -> bool {
     u64::from(width) * u64::from(height) > u64::MAX / u64::from(bytes_per_pixel)
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn vec_copy_to_u8<T>(vec: &[T]) -> Vec<u8>
 where

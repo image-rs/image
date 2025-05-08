@@ -48,7 +48,6 @@ enum DecoderError {
     /// At least one of the required lines were missing from the header (are `None` here)
     ///
     /// Same names as [`PnmHeaderLine`](enum.PnmHeaderLine.html)
-    #[allow(missing_docs)]
     HeaderLineMissing {
         height: Option<u32>,
         width: Option<u32>,
@@ -375,7 +374,6 @@ trait HeaderReader: Read {
         let mut bytes = Vec::new();
 
         // pair input bytes with a bool mask to remove comments
-        #[allow(clippy::unbuffered_bytes)]
         let mark_comments = self.bytes().scan(true, |partof, read| {
             let byte = match read {
                 Err(err) => return Some((*partof, Err(err))),
@@ -495,7 +493,6 @@ trait HeaderReader: Read {
             }
         }
 
-        #[allow(clippy::unbuffered_bytes)]
         match self.bytes().next() {
             None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
             Some(Err(io)) => return Err(ImageError::IoError(io)),
@@ -520,7 +517,7 @@ trait HeaderReader: Read {
             if !line.is_ascii() {
                 return Err(DecoderError::NonAsciiLineInPamHeader.into());
             }
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let (identifier, rest) = line
                 .trim_left()
                 .split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
@@ -696,7 +693,6 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
 
     let mut v: u16 = 0;
     let mut had_any = false;
-    #[allow(clippy::unbuffered_bytes)]
     for rc in reader
         .bytes()
         .skip_while(|v| v.as_ref().ok().is_some_and(is_separator))
@@ -770,6 +766,7 @@ impl Sample for PbmBit {
 
     fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
+        #[expect(clippy::manual_slice_fill)]
         for b in &mut expanded {
             *b = !*b;
         }
@@ -778,7 +775,6 @@ impl Sample for PbmBit {
     }
 
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
-        #[allow(clippy::unbuffered_bytes)]
         let mut bytes = reader.bytes();
         for b in output_buf {
             loop {

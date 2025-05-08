@@ -164,7 +164,6 @@ pub struct LimitError {
 /// detailed information or to incorporate other resources types.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 #[non_exhaustive]
-#[allow(missing_copy_implementations)] // Might be non-Copy in the future.
 pub enum LimitErrorKind {
     /// The resulting image exceed dimension limits in either direction.
     DimensionError,
@@ -515,7 +514,7 @@ mod tests {
     use super::*;
     use core::mem::size_of;
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     // This will fail to compile if the size of this type is large.
     const ASSERT_SMALLISH: usize = [0][(size_of::<ImageError>() >= 200) as usize];
 

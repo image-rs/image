@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,

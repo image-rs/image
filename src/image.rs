@@ -1,4 +1,3 @@
-#![allow(clippy::too_many_arguments)]
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -12,6 +11,7 @@ use crate::error::{
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::math::Rect;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -401,8 +401,6 @@ impl ImageFormat {
 
 // This struct manages buffering associated with implementing `Read` and `Seek` on decoders that can
 // must decode ranges of bytes at a time.
-#[allow(dead_code)]
-// When no image formats that use it are enabled
 pub(crate) struct ImageReadBuffer {
     scanline_bytes: usize,
     buffer: Vec<u8>,
@@ -417,7 +415,7 @@ impl ImageReadBuffer {
     /// Panics if `scanline_bytes` doesn't fit into a usize, because that would mean reading anything
     /// from the image would take more RAM than the entire virtual address space. In other words,
     /// actually using this struct would instantly OOM so just get it out of the way now.
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     // When no image formats that use it are enabled
     pub(crate) fn new(scanline_bytes: u64, total_bytes: u64) -> Self {
         Self {
@@ -429,7 +427,8 @@ impl ImageReadBuffer {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(feature = "std")]
+    #[expect(dead_code)]
     // When no image formats that use it are enabled
     pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
     where
@@ -476,8 +475,8 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-#[allow(dead_code)]
-// When no image formats that use it are enabled
+#[cfg(feature = "std")]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn load_rect<D, F1, F2, E>(
     x: u32,
     y: u32,
@@ -1289,7 +1288,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImageView for SubImageInner<I>
 where
     I: Deref,
@@ -1306,13 +1304,13 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImage for SubImageInner<I>
 where
     I: DerefMut,
     I::Target: GenericImage + Sized,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+        #[expect(deprecated)]
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 
@@ -1323,6 +1321,7 @@ where
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+        #[expect(deprecated)]
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
     }
@@ -1343,7 +1342,7 @@ mod tests {
     use crate::{GrayImage, ImageBuffer};
 
     #[test]
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);

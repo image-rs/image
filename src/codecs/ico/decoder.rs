@@ -123,18 +123,18 @@ struct DirEntry {
     height: u8,
     // We ignore some header fields as they will be replicated in the PNG, BMP and they are not
     // necessary for determining the best_entry.
-    #[allow(unused)]
+    #[expect(unused)]
     color_count: u8,
     // Wikipedia has this to say:
     // Although Microsoft's technical documentation states that this value must be zero, the icon
     // encoder built into .NET (System.Drawing.Icon.Save) sets this value to 255. It appears that
     // the operating system ignores this value altogether.
-    #[allow(unused)]
+    #[expect(unused)]
     reserved: u8,
 
     // We ignore some header fields as they will be replicated in the PNG, BMP and they are not
     // necessary for determining the best_entry.
-    #[allow(unused)]
+    #[expect(unused)]
     num_color_planes: u16,
     bits_per_pixel: u16,
 
@@ -337,7 +337,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 let data_end = u64::from(self.selected_entry.image_offset)
                     + u64::from(self.selected_entry.image_length);
 
-                let mask_row_bytes = ((width + 31) / 32) * 4;
+                let mask_row_bytes = width.div_ceil(32) * 4;
                 let mask_length = u64::from(mask_row_bytes) * u64::from(height);
 
                 // data_end should be image_end + the mask length (mask_row_bytes * height).

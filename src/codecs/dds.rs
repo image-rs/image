@@ -13,7 +13,6 @@ use std::io::Read;
 
 use byteorder_lite::{LittleEndian, ReadBytesExt};
 
-#[allow(deprecated)]
 use crate::codecs::dxt::{DxtDecoder, DxtVariant};
 use crate::color::ColorType;
 use crate::error::{
@@ -23,7 +22,7 @@ use crate::image::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 enum DecoderError {
     /// Wrong DDS channel width
     PixelFormatSizeInvalid(u32),
@@ -244,7 +243,6 @@ impl DX10Header {
 
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
-    #[allow(deprecated)]
     inner: DxtDecoder<R>,
 }
 
@@ -260,7 +258,6 @@ impl<R: Read> DdsDecoder<R> {
         let header = Header::from_reader(&mut r)?;
 
         if header.pixel_format.flags & 0x4 != 0 {
-            #[allow(deprecated)]
             let variant = match &header.pixel_format.fourcc {
                 b"DXT1" => DxtVariant::DXT1,
                 b"DXT3" => DxtVariant::DXT3,
@@ -297,7 +294,6 @@ impl<R: Read> DdsDecoder<R> {
                 }
             };
 
-            #[allow(deprecated)]
             let bytes_per_pixel = variant.color_type().bytes_per_pixel();
 
             if crate::utils::check_dimension_overflow(header.width, header.height, bytes_per_pixel)
@@ -313,7 +309,6 @@ impl<R: Read> DdsDecoder<R> {
                 ));
             }
 
-            #[allow(deprecated)]
             let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
             Ok(Self { inner })
         } else {

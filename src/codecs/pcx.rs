@@ -45,10 +45,10 @@ impl ImageError {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[deprecated]
 pub struct PCXReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-#[allow(deprecated)]
+#[expect(deprecated)]
 impl<R> Read for PCXReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)

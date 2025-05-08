@@ -303,7 +303,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let vec = p.channels4();
 
                 t.0 += vec.0 * w;
@@ -312,7 +312,7 @@ where
                 t.3 += vec.3 * w;
             }
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
                 NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
@@ -543,7 +543,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
@@ -558,7 +558,7 @@ where
                 t.3 += vec.3 * w;
             }
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             // This is not necessarily Rgba.
             let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
 
@@ -587,7 +587,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 
     fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
         self.1 += Self::sample_val(pixel.1);
@@ -681,7 +681,7 @@ where
                 )
             };
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
             out.put_pixel(outx, outy, pixel);
         }
@@ -821,13 +821,13 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_bl = image.get_pixel(left, bottom).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_tl = image.get_pixel(left, bottom + 1).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_br = image.get_pixel(left + 1, bottom).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
@@ -891,7 +891,7 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
-    #[allow(clippy::redundant_guards)]
+    #[expect(clippy::redundant_guards)]
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         x if x == 0.0 => 1.0,
         sum => sum,
@@ -912,7 +912,7 @@ where
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec: (f32, f32, f32, f32) = (
@@ -930,7 +930,7 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),

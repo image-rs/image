@@ -256,7 +256,7 @@ where
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
 
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let (k1, k2, k3, k4) = p.channels4();
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -274,7 +274,7 @@ where
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let outpixel = Pixel::from_channels(
             NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -324,7 +324,7 @@ where
         for x in 0..width {
             let pixel = image.get_pixel(x, y);
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
 
             let vec: (f64, f64, f64, f64) = (
@@ -343,7 +343,7 @@ where
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let outpixel = Pixel::from_channels(
                 NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
                 NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -642,7 +642,7 @@ mod test {
         assert_pixels_eq!(&image, &expected);
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
     where
         I: GenericImage<Pixel = P>,

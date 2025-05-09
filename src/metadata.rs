@@ -1,12 +1,8 @@
 //! Types describing image metadata
 
-#[cfg(feature = "std")]
-use byteorder_lite::ReadBytesExt;
-#[cfg(feature = "std")]
-use std::io::{Cursor, Read};
+use core::mem::offset_of;
 
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use byteorder_lite::{BigEndian, LittleEndian};
+use byteorder_lite::{BigEndian, ByteOrder, LittleEndian};
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
@@ -67,46 +63,78 @@ impl Orientation {
         }
     }
 
-    #[cfg(feature = "std")]
     pub(crate) fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
-        let mut reader = Cursor::new(chunk);
-
-        let mut magic = [0; 4];
-        reader.read_exact(&mut magic).ok()?;
-
-        match magic {
-            [0x49, 0x49, 42, 0] => {
-                let ifd_offset = reader.read_u32::<LittleEndian>().ok()?;
-                reader.set_position(u64::from(ifd_offset));
-                let entries = reader.read_u16::<LittleEndian>().ok()?;
-                for _ in 0..entries {
-                    let tag = reader.read_u16::<LittleEndian>().ok()?;
-                    let format = reader.read_u16::<LittleEndian>().ok()?;
-                    let count = reader.read_u32::<LittleEndian>().ok()?;
-                    let value = reader.read_u16::<LittleEndian>().ok()?;
-                    let _padding = reader.read_u16::<LittleEndian>().ok()?;
-                    if tag == 0x112 && format == 3 && count == 1 {
-                        return Self::from_exif(value.min(255) as u8);
-                    }
-                }
-            }
-            [0x4d, 0x4d, 0, 42] => {
-                let ifd_offset = reader.read_u32::<BigEndian>().ok()?;
-                reader.set_position(u64::from(ifd_offset));
-                let entries = reader.read_u16::<BigEndian>().ok()?;
-                for _ in 0..entries {
-                    let tag = reader.read_u16::<BigEndian>().ok()?;
-                    let format = reader.read_u16::<BigEndian>().ok()?;
-                    let count = reader.read_u32::<BigEndian>().ok()?;
-                    let value = reader.read_u16::<BigEndian>().ok()?;
-                    let _padding = reader.read_u16::<BigEndian>().ok()?;
-                    if tag == 0x112 && format == 3 && count == 1 {
-                        return Self::from_exif(value.min(255) as u8);
-                    }
-                }
-            }
-            _ => {}
+        match chunk {
+            [0x49, 0x49, 42, 0, ..] => Self::parse_exif_chunk::<LittleEndian>(chunk),
+            [0x4d, 0x4d, 0, 42, ..] => Self::parse_exif_chunk::<BigEndian>(chunk),
+            _ => None,
         }
-        None
+    }
+
+    fn parse_exif_chunk<T: ByteOrder>(chunk: &[u8]) -> Option<Self> {
+        // First 4 bytes are magic
+        let mut i = 4usize;
+
+        if chunk.len() < i + size_of::<u32>() {
+            return None;
+        }
+        let ifd_offset = T::read_u32(&chunk[i..]);
+        i = usize::try_from(ifd_offset).ok()?;
+
+        if chunk.len() < i + size_of::<u16>() {
+            return None;
+        }
+        let entries = T::read_u16(&chunk[i..]);
+        i += size_of::<u16>();
+
+        let value = chunk[i..]
+            .chunks_exact(size_of::<ExifEntry>())
+            .take(usize::from(entries))
+            .filter_map(ExifEntry::try_from_bytes::<T>)
+            .find(|entry| entry.tag == 0x112 && entry.format == 3 && entry.count == 1)
+            .map(|entry| entry.value.min(255) as u8)?;
+
+        Self::from_exif(value)
+    }
+}
+
+#[repr(C)]
+struct ExifEntry {
+    tag: u16,
+    format: u16,
+    count: u32,
+    value: u16,
+    _padding: u16,
+}
+
+impl ExifEntry {
+    fn try_from_bytes<T: ByteOrder>(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < size_of::<Self>() {
+            return None;
+        }
+
+        let tag = T::read_u16(
+            &bytes[(offset_of!(Self, tag))..(offset_of!(Self, tag) + size_of::<u16>())],
+        );
+        let format = T::read_u16(
+            &bytes[(offset_of!(Self, format))..(offset_of!(Self, format) + size_of::<u16>())],
+        );
+        let count = T::read_u32(
+            &bytes[(offset_of!(Self, count))..(offset_of!(Self, count) + size_of::<u32>())],
+        );
+        let value = T::read_u16(
+            &bytes[(offset_of!(Self, value))..(offset_of!(Self, value) + size_of::<u16>())],
+        );
+        let _padding = T::read_u16(
+            &bytes[(offset_of!(Self, _padding))..(offset_of!(Self, _padding) + size_of::<u16>())],
+        );
+
+        Some(Self {
+            tag,
+            format,
+            count,
+            value,
+            _padding,
+        })
     }
 }

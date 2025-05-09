@@ -11,7 +11,6 @@ use crate::error::{
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::math::Rect;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -662,7 +661,6 @@ pub trait ImageDecoder {
     ///
     /// This is usually obtained from the Exif metadata, if present. Formats that don't support
     /// indicating orientation in their image metadata will return `Ok(Orientation::NoTransforms)`.
-    #[cfg(feature = "std")]
     fn orientation(&mut self) -> ImageResult<Orientation> {
         Ok(self
             .exif_metadata()?

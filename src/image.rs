@@ -18,8 +18,6 @@ use crate::ImageBuffer;
 #[cfg(feature = "std")]
 use std::ffi::OsStr;
 #[cfg(feature = "std")]
-use std::io::{self, Write};
-#[cfg(feature = "std")]
 use std::path::Path;
 
 /// An enumeration of supported image formats.
@@ -94,9 +92,27 @@ impl ImageFormat {
     where
         S: AsRef<OsStr>,
     {
+        Self::from_extension_str(ext.as_ref().to_str()?)
+    }
+
+    /// Return the image format specified by a path's file extension.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_extension_str("jpg");
+    /// assert_eq!(format, Some(ImageFormat::Jpeg));
+    /// ```
+    #[inline]
+    pub fn from_extension_str<S>(ext: S) -> Option<Self>
+    where
+        S: AsRef<str>,
+    {
         // thin wrapper function to strip generics
-        fn inner(ext: &OsStr) -> Option<ImageFormat> {
-            let ext = ext.to_str()?.to_ascii_lowercase();
+        fn inner(ext: &str) -> Option<ImageFormat> {
+            let ext = ext.to_ascii_lowercase();
 
             Some(match ext.as_str() {
                 "avif" => ImageFormat::Avif,
@@ -427,12 +443,11 @@ impl ImageReadBuffer {
         }
     }
 
-    #[cfg(feature = "std")]
     #[expect(dead_code)]
     // When no image formats that use it are enabled
-    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    pub(crate) fn read<F, E>(&mut self, buf: &mut [u8], mut read_scanline: F) -> Result<usize, E>
     where
-        F: FnMut(&mut [u8]) -> io::Result<usize>,
+        F: FnMut(&mut [u8]) -> Result<usize, E>,
     {
         if self.buffer.len() == self.consumed {
             if self.offset == self.total_bytes {

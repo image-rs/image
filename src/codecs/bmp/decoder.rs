@@ -1373,7 +1373,7 @@ impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
             row_pitch,
             self,
             self.total_bytes() as usize,
-            |_, _| Ok(()),
+            |_, _| ImageResult::Ok(()),
             |s, buf| s.read_image_data(buf),
         )?;
         self.reader.seek(SeekFrom::Start(start))?;

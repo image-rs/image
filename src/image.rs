@@ -475,9 +475,9 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-#[cfg(feature = "std")]
+#[allow(dead_code)]
 #[expect(clippy::too_many_arguments)]
-pub(crate) fn load_rect<D, F1, F2, E>(
+pub(crate) fn load_rect<D, F1, F2, E1, E2>(
     x: u32,
     y: u32,
     width: u32,
@@ -491,9 +491,9 @@ pub(crate) fn load_rect<D, F1, F2, E>(
 ) -> ImageResult<()>
 where
     D: ImageDecoder,
-    F1: FnMut(&mut D, u64) -> io::Result<()>,
-    F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
-    ImageError: From<E>,
+    F1: FnMut(&mut D, u64) -> Result<(), E1>,
+    F2: FnMut(&mut D, &mut [u8]) -> Result<(), E2>,
+    ImageError: From<E1> + From<E2>,
 {
     let scanline_bytes = u64::try_from(scanline_bytes).unwrap();
     let row_pitch = u64::try_from(row_pitch).unwrap();
@@ -535,9 +535,8 @@ where
                         .min(scanline_bytes - offset)
                         .min(end - position);
 
-                    output
-                        .write_all(&tmp[offset as usize..][..len as usize])
-                        .unwrap();
+                    let tmp = &tmp[offset as usize..][..len as usize];
+                    output[..tmp.len()].copy_from_slice(tmp);
                     start += len;
 
                     if start == end {
@@ -566,9 +565,8 @@ where
                             .min(scanline_bytes - offset)
                             .min(end - position);
 
-                        output
-                            .write_all(&tmp[offset as usize..][..len as usize])
-                            .unwrap();
+                        let tmp = &tmp[offset as usize..][..len as usize];
+                        output[..tmp.len()].copy_from_slice(tmp);
                     }
 
                     current_scanline += 1;

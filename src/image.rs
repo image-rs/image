@@ -551,7 +551,11 @@ where
                         .min(end - position);
 
                     let tmp = &tmp[offset as usize..][..len as usize];
-                    output[..tmp.len()].copy_from_slice(tmp);
+                    let amt = tmp.len();
+                    let (a, b) = core::mem::take(&mut output).split_at_mut(amt);
+                    a.copy_from_slice(tmp);
+                    output = b;
+
                     start += len;
 
                     if start == end {
@@ -581,7 +585,10 @@ where
                             .min(end - position);
 
                         let tmp = &tmp[offset as usize..][..len as usize];
-                        output[..tmp.len()].copy_from_slice(tmp);
+                        let amt = tmp.len();
+                        let (a, b) = core::mem::take(&mut output).split_at_mut(amt);
+                        a.copy_from_slice(tmp);
+                        output = b;
                     }
 
                     current_scanline += 1;

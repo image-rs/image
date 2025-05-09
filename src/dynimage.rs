@@ -29,11 +29,10 @@ use crate::metadata::Orientation;
 use crate::traits::Pixel;
 #[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ExtendedColorType;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
-
-#[cfg(feature = "std")]
-use crate::ImageReader;
 
 /// A Dynamic Image
 ///

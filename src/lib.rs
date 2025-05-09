@@ -189,7 +189,6 @@ pub use crate::image_reader::{LimitSupport, Limits};
 
 #[cfg(feature = "std")]
 pub use crate::image_reader::free_functions::load;
-#[cfg(feature = "std")]
 pub use crate::image_reader::ImageReader;
 
 pub use crate::dynimage::DynamicImage;
@@ -318,7 +317,6 @@ pub mod metadata;
 //TODO delete this module after a few releases
 /// deprecated io module the original io module has been renamed to `image_reader`
 pub mod io {
-    #[cfg(feature = "std")]
     #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
     /// Deprecated re-export of `ImageReader` as `Reader`
     pub type Reader<R> = super::ImageReader<R>;

@@ -16,8 +16,7 @@ use crate::image::ImageFormat;
 use crate::image::{ImageDecoder, ImageEncoder};
 #[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ExtendedColorType;
-
-#[cfg(feature = "std")]
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::ImageReader;
 
 #[cfg(feature = "std")]

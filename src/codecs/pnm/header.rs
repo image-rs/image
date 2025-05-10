@@ -1,6 +1,10 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
+
+#[cfg(feature = "std")]
 use std::io;
 
 /// The kind of encoding used to store sample values
@@ -259,6 +263,7 @@ impl PnmHeader {
     }
 
     /// Write the header back into a binary stream
+    #[cfg(feature = "std")]
     pub fn write(&self, writer: &mut dyn io::Write) -> io::Result<()> {
         writer.write_all(self.subtype().magic_constant())?;
         match *self {

@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
@@ -8,7 +10,6 @@ use core::fmt::{self, Display};
 use core::mem::size_of;
 use core::num::ParseIntError;
 use core::str;
-use std::io::{self, Read};
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
@@ -20,6 +21,9 @@ use crate::image::{ImageDecoder, ImageFormat};
 use crate::utils;
 
 use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
+
+#[cfg(feature = "std")]
+use std::io::{self, Read};
 
 /// All errors that can occur when attempting to parse a PNM
 #[derive(Debug, Clone)]
@@ -242,6 +246,8 @@ trait Sample {
         Ok((width * height * samples * Self::sample_size()) as usize)
     }
     fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()>;
+
+    #[cfg(feature = "std")]
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()>;
 }
 
@@ -261,6 +267,7 @@ pub struct PnmDecoder<R> {
     tuple: TupleType,
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> PnmDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
     pub fn new(mut buffered_read: R) -> ImageResult<PnmDecoder<R>> {
@@ -302,11 +309,6 @@ impl<R: Read> PnmDecoder<R> {
         }
 
         Ok(decoder)
-    }
-
-    /// Extract the reader and header after an image has been read.
-    pub fn into_inner(self) -> (R, PnmHeader) {
-        (self.reader, self.header)
     }
 
     fn read_bitmap_header(mut reader: R, encoding: SampleEncoding) -> ImageResult<PnmDecoder<R>> {
@@ -361,6 +363,14 @@ impl<R: Read> PnmDecoder<R> {
     }
 }
 
+impl<R> PnmDecoder<R> {
+    /// Extract the reader and header after an image has been read.
+    pub fn into_inner(self) -> (R, PnmHeader) {
+        (self.reader, self.header)
+    }
+}
+
+#[cfg(feature = "std")]
 trait HeaderReader: Read {
     /// Reads the two magic constant bytes
     fn read_magic_constant(&mut self) -> ImageResult<[u8; 2]> {
@@ -579,8 +589,10 @@ trait HeaderReader: Read {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R> HeaderReader for R where R: Read {}
 
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for PnmDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.header.width(), self.header.height())
@@ -625,6 +637,7 @@ impl<R: Read> ImageDecoder for PnmDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
@@ -683,13 +696,16 @@ impl<R: Read> PnmDecoder<R> {
     fn read_ascii<Basic: Sample>(&mut self, output_buf: &mut [u8]) -> ImageResult<()> {
         Basic::from_ascii(&mut self.reader, output_buf)
     }
+}
 
+impl<R> PnmDecoder<R> {
     /// Get the pnm subtype, depending on the magic constant contained in the header
     pub fn subtype(&self) -> PnmSubtype {
         self.header.subtype()
     }
 }
 
+#[cfg(feature = "std")]
 fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T> {
     let is_separator = |v: &u8| matches!(*v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ');
 
@@ -726,6 +742,7 @@ impl Sample for U8 {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
         for b in output_buf {
             *b = read_separated_ascii(reader)?;
@@ -746,6 +763,7 @@ impl Sample for U16 {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
         for chunk in output_buf.chunks_exact_mut(2) {
             let v = read_separated_ascii::<u16>(reader)?;
@@ -776,6 +794,7 @@ impl Sample for PbmBit {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
         #[allow(clippy::unbuffered_bytes)]
         let mut bytes = reader.bytes();
@@ -810,6 +829,7 @@ impl Sample for BWBit {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn from_ascii(_reader: &mut dyn Read, _output_buf: &mut [u8]) -> ImageResult<()> {
         unreachable!("BW bits from anymaps are never encoded as ASCII")
     }

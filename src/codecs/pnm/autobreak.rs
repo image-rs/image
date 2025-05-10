@@ -1,11 +1,16 @@
 //! Insert line breaks between written buffers when they would overflow the line length.
+
+#![cfg_attr(not(feature = "std"), expect(dead_code))]
+
 use alloc::vec::Vec;
+
+#[cfg(feature = "std")]
 use std::io;
 
 // The pnm standard says to insert line breaks after 70 characters. Assumes that no line breaks
 // are actually written. We have to be careful to fully commit buffers or not commit them at all,
 // otherwise we might insert a newline in the middle of a token.
-pub(crate) struct AutoBreak<W: io::Write> {
+pub(crate) struct AutoBreak<W> {
     wrapped: W,
     line_capacity: usize,
     line: Vec<u8>,
@@ -13,7 +18,7 @@ pub(crate) struct AutoBreak<W: io::Write> {
     panicked: bool, // see https://github.com/rust-lang/rust/issues/30888
 }
 
-impl<W: io::Write> AutoBreak<W> {
+impl<W> AutoBreak<W> {
     pub(crate) fn new(writer: W, line_capacity: usize) -> Self {
         AutoBreak {
             wrapped: writer,
@@ -23,7 +28,10 @@ impl<W: io::Write> AutoBreak<W> {
             panicked: false,
         }
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: io::Write> AutoBreak<W> {
     fn flush_buf(&mut self) -> io::Result<()> {
         // from BufWriter
         let mut written = 0;
@@ -56,6 +64,7 @@ impl<W: io::Write> AutoBreak<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: io::Write> io::Write for AutoBreak<W> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         if self.has_newline {
@@ -80,6 +89,7 @@ impl<W: io::Write> io::Write for AutoBreak<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: io::Write> Drop for AutoBreak<W> {
     fn drop(&mut self) {
         if !self.panicked {

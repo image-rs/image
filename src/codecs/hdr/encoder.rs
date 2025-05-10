@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
@@ -6,13 +8,22 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
 use core::cmp::Ordering;
+
+#[cfg(feature = "std")]
 use std::io::{Result, Write};
 
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float;
+
+#[cfg(all(not(feature = "std"), not(feature = "libm")))]
+use num_traits::float::FloatCore;
+
 /// Radiance HDR encoder
-pub struct HdrEncoder<W: Write> {
+pub struct HdrEncoder<W> {
     w: W,
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for HdrEncoder<W> {
     fn write_image(
         self,
@@ -40,12 +51,15 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
     }
 }
 
-impl<W: Write> HdrEncoder<W> {
+impl<W> HdrEncoder<W> {
     /// Creates encoder
     pub fn new(w: W) -> HdrEncoder<W> {
         HdrEncoder { w }
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: Write> HdrEncoder<W> {
     /// Encodes the image ```rgb```
     /// that has dimensions ```width``` and ```height```
     pub fn encode(self, rgb: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
@@ -273,11 +287,13 @@ fn rle_compress(data: &[u8], rle: &mut Vec<u8>) {
     }
 }
 
+#[cfg(feature = "std")]
 fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
     w.write_all(&[v.c[0], v.c[1], v.c[2], v.e])
 }
 
 /// Converts ```Rgb<f32>``` into ```Rgbe8Pixel```
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
     let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));

@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -5,13 +7,18 @@ use alloc::vec::Vec;
 use alloc::{format, vec};
 use core::num::{ParseFloatError, ParseIntError};
 use core::{error, fmt};
-use std::io::{self, Read};
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
+
+#[cfg(feature = "std")]
+use std::io::{self, Read};
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float;
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,6 +153,7 @@ pub(crate) fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
 
 impl Rgbe8Pixel {
     /// Converts `Rgbe8Pixel` into `Rgb<f32>` linearly
+    #[cfg(any(feature = "std", feature = "libm"))]
     #[inline]
     pub(crate) fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -162,6 +170,7 @@ impl Rgbe8Pixel {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream ```r```
     /// if the header is valid, creates `HdrDecoder`
@@ -261,11 +270,6 @@ impl<R: Read> HdrDecoder<R> {
         })
     } // end with_strictness
 
-    /// Returns file metadata. Refer to `HdrMetadata` for details.
-    pub fn metadata(&self) -> HdrMetadata {
-        self.meta.clone()
-    }
-
     /// Consumes decoder and returns a vector of transformed pixels
     fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
         mut self,
@@ -297,6 +301,14 @@ impl<R: Read> HdrDecoder<R> {
     }
 }
 
+impl<R> HdrDecoder<R> {
+    /// Returns file metadata. Refer to `HdrMetadata` for details.
+    pub fn metadata(&self) -> HdrMetadata {
+        self.meta.clone()
+    }
+}
+
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.meta.width, self.meta.height)
@@ -325,6 +337,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
 }
 
 // Precondition: buf.len() > 0
+#[cfg(feature = "std")]
 fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {
     assert!(!buf.is_empty());
     let width = buf.len();
@@ -345,6 +358,7 @@ fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> 
     Ok(())
 }
 
+#[cfg(feature = "std")]
 #[inline(always)]
 fn read_byte<R: Read>(r: &mut R) -> io::Result<u8> {
     let mut buf = [0u8];
@@ -353,6 +367,7 @@ fn read_byte<R: Read>(r: &mut R) -> io::Result<u8> {
 }
 
 // Guarantees that first parameter of set_component will be within pos .. pos+width
+#[cfg(feature = "std")]
 #[inline]
 fn decode_component<R: Read, S: FnMut(usize, u8)>(
     r: &mut R,
@@ -401,6 +416,7 @@ fn decode_component<R: Read, S: FnMut(usize, u8)>(
 // Decodes scanline, places it into buf
 // Precondition: buf.len() > 0
 // fb - first 4 bytes of scanline
+#[cfg(feature = "std")]
 fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {
     assert!(!buf.is_empty());
     let width = buf.len();
@@ -455,6 +471,7 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) ->
     Ok(())
 }
 
+#[cfg(feature = "std")]
 fn read_rgbe<R: Read>(r: &mut R) -> io::Result<Rgbe8Pixel> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf[..])?;
@@ -688,6 +705,7 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
+#[cfg(feature = "std")]
 fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
     loop {

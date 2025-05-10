@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: [std, default, rayon, avif, bmp, dds, exr, ff, gif, hdr, ico, jpeg, png, pnm, qoi, tga, tiff, webp]
+        features: ["", default, rayon, avif, bmp, dds, exr, ff, gif, hdr, ico, jpeg, png, pnm, qoi, tga, tiff, webp]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -28,8 +28,8 @@ jobs:
         FEATURES: ${{ matrix.features }}
     - name: test
       run: >
-        cargo test -v --no-default-features --features "$FEATURES" &&
-        cargo doc -v --no-default-features --features "$FEATURES"
+        cargo test -v --no-default-features --features "$FEATURES" --features std &&
+        cargo doc -v --no-default-features --features "$FEATURES" --features std
       env:
         FEATURES: ${{ matrix.features }}
 

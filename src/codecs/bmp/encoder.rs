@@ -1,13 +1,20 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::format;
 use alloc::string::String;
-use byteorder_lite::{LittleEndian, WriteBytesExt};
-use std::io::{self, Write};
+use byteorder_lite::LittleEndian;
 
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
 };
 use crate::image::ImageEncoder;
 use crate::{ExtendedColorType, ImageFormat};
+
+#[cfg(feature = "std")]
+use std::io::{self, Write};
+
+#[cfg(feature = "std")]
+use byteorder_lite::WriteBytesExt;
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -18,12 +25,15 @@ pub struct BmpEncoder<'a, W: 'a> {
     writer: &'a mut W,
 }
 
-impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
+impl<'a, W: 'a> BmpEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: &'a mut W) -> Self {
         BmpEncoder { writer: w }
     }
+}
 
+#[cfg(feature = "std")]
+impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// Encodes the image `image` that has dimensions `width` and `height` and `ExtendedColorType` `c`.
     ///
     /// # Panics
@@ -74,8 +84,13 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
-        let (dib_header_size, written_pixel_size, palette_color_count) =
-            get_pixel_info(c, palette)?;
+        let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c, palette)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    &get_unsupported_error_message(c)[..],
+                )
+            })?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
         let image_size = width
             .checked_mul(height)
@@ -274,6 +289,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for BmpEncoder<'_, W> {
     #[track_caller]
     fn write_image(
@@ -292,10 +308,7 @@ fn get_unsupported_error_message(c: ExtendedColorType) -> String {
 }
 
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).
-fn get_pixel_info(
-    c: ExtendedColorType,
-    palette: Option<&[[u8; 3]]>,
-) -> io::Result<(u32, u32, u32)> {
+fn get_pixel_info(c: ExtendedColorType, palette: Option<&[[u8; 3]]>) -> Option<(u32, u32, u32)> {
     let sizes = match c {
         ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
         ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
@@ -309,15 +322,10 @@ fn get_pixel_info(
             1,
             palette.map(|p| p.len()).unwrap_or(256) as u32,
         ),
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &get_unsupported_error_message(c)[..],
-            ))
-        }
+        _ => return None,
     };
 
-    Ok(sizes)
+    Some(sizes)
 }
 
 #[cfg(test)]

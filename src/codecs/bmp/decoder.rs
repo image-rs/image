@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -6,9 +8,8 @@ use core::cmp::{self, Ordering};
 use core::iter::{repeat, Rev};
 use core::slice::ChunksMut;
 use core::{error, fmt};
-use std::io::{self, BufRead, Seek, SeekFrom};
 
-use byteorder_lite::{LittleEndian, ReadBytesExt};
+use byteorder_lite::LittleEndian;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -16,6 +17,12 @@ use crate::error::{
 };
 use crate::image::{self, ImageDecoder, ImageFormat};
 use crate::ImageDecoderRect;
+
+#[cfg(feature = "std")]
+use std::io::{BufRead, Seek, SeekFrom};
+
+#[cfg(feature = "std")]
+use byteorder_lite::ReadBytesExt;
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -267,16 +274,16 @@ fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
 
 /// Call the provided function on each row of the provided buffer, returning Err if the provided
 /// function returns an error, extends the buffer if it's not large enough.
-fn with_rows<F>(
+fn with_rows<F, E>(
     buffer: &mut [u8],
     width: i32,
     height: i32,
     channels: usize,
     top_down: bool,
     mut func: F,
-) -> io::Result<()>
+) -> Result<(), E>
 where
-    F: FnMut(&mut [u8]) -> io::Result<()>,
+    F: FnMut(&mut [u8]) -> Result<(), E>,
 {
     // An overflow should already have been checked for when this is called,
     // though we check anyhow, as it somehow seems to increase performance slightly.
@@ -502,7 +509,7 @@ enum RLEInsn {
     PixelRun(u8, u8),
 }
 
-impl<R: BufRead + Seek> BmpDecoder<R> {
+impl<R> BmpDecoder<R> {
     fn new_decoder(reader: R) -> BmpDecoder<R> {
         BmpDecoder {
             reader,
@@ -526,6 +533,71 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
     }
 
+    /// If true, the palette in BMP does not apply to the image even if it is found.
+    /// In other words, the output image is the indexed color.
+    pub fn set_indexed_color(&mut self, indexed_color: bool) {
+        self.indexed_color = indexed_color;
+    }
+
+    #[cfg(feature = "ico")]
+    pub(crate) fn reader(&mut self) -> &mut R {
+        &mut self.reader
+    }
+
+    fn get_palette_size(&mut self) -> ImageResult<usize> {
+        match self.colors_used {
+            0 => Ok(1 << self.bit_count),
+            _ => {
+                if self.colors_used > 1 << self.bit_count {
+                    return Err(DecoderError::PaletteSizeExceeded {
+                        colors_used: self.colors_used,
+                        bit_count: self.bit_count,
+                    }
+                    .into());
+                }
+                Ok(self.colors_used as usize)
+            }
+        }
+    }
+
+    fn bytes_per_color(&self) -> usize {
+        match self.bmp_header_type {
+            BMPHeaderType::Core => 3,
+            _ => 4,
+        }
+    }
+
+    /// Get the palette that is embedded in the BMP image, if any.
+    pub fn get_palette(&self) -> Option<&[[u8; 3]]> {
+        self.palette.as_ref().map(|vec| &vec[..])
+    }
+
+    fn num_channels(&self) -> usize {
+        if self.indexed_color {
+            1
+        } else if self.add_alpha_channel {
+            4
+        } else {
+            3
+        }
+    }
+
+    fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
+        let stride = self.width as usize * self.num_channels();
+        if self.top_down {
+            RowIterator {
+                chunks: Chunker::FromTop(pixel_data.chunks_mut(stride)),
+            }
+        } else {
+            RowIterator {
+                chunks: Chunker::FromBottom(pixel_data.chunks_mut(stride).rev()),
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R: BufRead + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = Self::new_decoder(reader);
@@ -548,17 +620,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut decoder = Self::new_decoder(reader);
         decoder.read_metadata_in_ico_format()?;
         Ok(decoder)
-    }
-
-    /// If true, the palette in BMP does not apply to the image even if it is found.
-    /// In other words, the output image is the indexed color.
-    pub fn set_indexed_color(&mut self, indexed_color: bool) {
-        self.indexed_color = indexed_color;
-    }
-
-    #[cfg(feature = "ico")]
-    pub(crate) fn reader(&mut self) -> &mut R {
-        &mut self.reader
     }
 
     fn read_file_header(&mut self) -> ImageResult<()> {
@@ -858,29 +919,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    fn get_palette_size(&mut self) -> ImageResult<usize> {
-        match self.colors_used {
-            0 => Ok(1 << self.bit_count),
-            _ => {
-                if self.colors_used > 1 << self.bit_count {
-                    return Err(DecoderError::PaletteSizeExceeded {
-                        colors_used: self.colors_used,
-                        bit_count: self.bit_count,
-                    }
-                    .into());
-                }
-                Ok(self.colors_used as usize)
-            }
-        }
-    }
-
-    fn bytes_per_color(&self) -> usize {
-        match self.bmp_header_type {
-            BMPHeaderType::Core => 3,
-            _ => 4,
-        }
-    }
-
     fn read_palette(&mut self) -> ImageResult<()> {
         const MAX_PALETTE_SIZE: usize = 256; // Palette indices are u8.
 
@@ -920,34 +958,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.palette = Some(p);
 
         Ok(())
-    }
-
-    /// Get the palette that is embedded in the BMP image, if any.
-    pub fn get_palette(&self) -> Option<&[[u8; 3]]> {
-        self.palette.as_ref().map(|vec| &vec[..])
-    }
-
-    fn num_channels(&self) -> usize {
-        if self.indexed_color {
-            1
-        } else if self.add_alpha_channel {
-            4
-        } else {
-            3
-        }
-    }
-
-    fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
-        let stride = self.width as usize * self.num_channels();
-        if self.top_down {
-            RowIterator {
-                chunks: Chunker::FromTop(pixel_data.chunks_mut(stride)),
-            }
-        } else {
-            RowIterator {
-                chunks: Chunker::FromBottom(pixel_data.chunks_mut(stride).rev()),
-            }
-        }
     }
 
     fn read_palettized_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -994,7 +1004,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         _ => panic!(),
                     };
                 }
-                Ok(())
+                ImageResult::Ok(())
             },
         )?;
 
@@ -1075,7 +1085,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         }
                     }
                 }
-                Ok(())
+                ImageResult::Ok(())
             },
         )?;
 
@@ -1328,6 +1338,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
@@ -1353,6 +1364,7 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
     fn read_rect(
         &mut self,

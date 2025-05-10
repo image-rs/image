@@ -5,13 +5,14 @@
 //!  # Related Links
 //!  * <https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide> - Description of the DDS format.
 
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::ToString;
 use core::{error, fmt};
-use std::io::Read;
 
-use byteorder_lite::{LittleEndian, ReadBytesExt};
+use byteorder_lite::LittleEndian;
 
 use crate::codecs::dxt::{DxtDecoder, DxtVariant};
 use crate::color::ColorType;
@@ -19,6 +20,12 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
+
+#[cfg(feature = "std")]
+use std::io::Read;
+
+#[cfg(feature = "std")]
+use byteorder_lite::ReadBytesExt;
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -118,6 +125,7 @@ struct PixelFormat {
 }
 
 impl PixelFormat {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
@@ -141,6 +149,7 @@ impl PixelFormat {
 }
 
 impl Header {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
@@ -188,6 +197,7 @@ impl Header {
 }
 
 impl DX10Header {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let dxgi_format = r.read_u32::<LittleEndian>()?;
         let resource_dimension = r.read_u32::<LittleEndian>()?;
@@ -242,10 +252,11 @@ impl DX10Header {
 }
 
 /// The representation of a DDS decoder
-pub struct DdsDecoder<R: Read> {
+pub struct DdsDecoder<R> {
     inner: DxtDecoder<R>,
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> DdsDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(mut r: R) -> ImageResult<Self> {
@@ -323,6 +334,7 @@ impl<R: Read> DdsDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for DdsDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()

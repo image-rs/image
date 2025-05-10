@@ -1,5 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
+use alloc::vec::Vec;
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
@@ -7,6 +8,12 @@ use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
 use crate::ImageBuffer;
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float as _;
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+use num_traits::float::FloatCore as _;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
@@ -218,6 +225,7 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate_in_place`.][huerotate_in_place]*
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -248,7 +256,7 @@ where
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
 
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let (k1, k2, k3, k4) = p.channels4();
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -266,7 +274,7 @@ where
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let outpixel = Pixel::from_channels(
             NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -285,6 +293,7 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate`.][huerotate]*
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
@@ -315,7 +324,7 @@ where
         for x in 0..width {
             let pixel = image.get_pixel(x, y);
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
 
             let vec: (f64, f64, f64, f64) = (
@@ -334,7 +343,7 @@ where
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let outpixel = Pixel::from_channels(
                 NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
                 NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -633,7 +642,7 @@ mod test {
         assert_pixels_eq!(&image, &expected);
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
     where
         I: GenericImage<Pixel = P>,

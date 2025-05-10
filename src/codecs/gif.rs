@@ -25,11 +25,14 @@
 //! # Ok(())
 //! # }
 //! ```
-#![allow(clippy::while_let_loop)]
 
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::marker::PhantomData;
+use core::mem;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
@@ -68,10 +71,9 @@ impl<R: Read> GifDecoder<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
 #[deprecated]
 pub struct GifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-#[allow(deprecated)]
+#[expect(deprecated)]
 impl<R> Read for GifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)

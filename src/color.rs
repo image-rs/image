@@ -1,8 +1,11 @@
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Enlargeable, Pixel, Primitive};
+
+#[cfg(not(feature = "std"))]
+use num_traits::float::FloatCore as _;
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -231,9 +234,11 @@ impl ExtendedColorType {
     }
 
     /// Returns the number of bytes required to hold a width x height image of this color type.
+    #[allow(dead_code)]
+    // Only used with certain features
     pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
-        let row_pitch = (width as u64 * bpp + 7) / 8;
+        let row_pitch = (width as u64 * bpp).div_ceil(8);
         row_pitch.saturating_mul(height as u64)
     }
 }
@@ -443,7 +448,7 @@ impl<T: Primitive> FromPrimitive<T> for T {
 // 1.0 (white) was picked as firefox and chrome choose to map NaN to that.
 #[inline]
 fn normalize_float(float: f32, max: f32) -> f32 {
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    #[expect(clippy::neg_cmp_op_on_partial_ord)]
     let clamped = if !(float < 1.0) { 1.0 } else { float.max(0.0) };
     (clamped * max).round()
 }
@@ -501,7 +506,7 @@ impl FromPrimitive<u8> for u16 {
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention)]
     fn from_color(&mut self, _: &Other);
 }
 
@@ -510,7 +515,7 @@ pub trait FromColor<Other> {
 // rather than assuming sRGB.
 pub(crate) trait IntoColor<Other> {
     /// Constructs a pixel of the target type and converts this pixel into it.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention)]
     fn into_color(&self) -> Other;
 }
 
@@ -518,11 +523,10 @@ impl<O, S> IntoColor<O> for S
 where
     O: Pixel + FromColor<S>,
 {
-    #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let mut pix = O::from_channels(Zero::zero(), Zero::zero(), Zero::zero(), Zero::zero());
         pix.from_color(self);
         pix

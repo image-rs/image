@@ -1,13 +1,23 @@
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
-use std::path::Path;
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use alloc::boxed::Box;
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
-use crate::{ImageDecoder, ImageError, ImageResult};
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use crate::ImageDecoder;
+use crate::{ImageError, ImageResult};
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
 use super::free_functions;
+
+#[cfg(feature = "std")]
+use std::fs::File;
+#[cfg(feature = "std")]
+use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+#[cfg(feature = "std")]
+use std::path::Path;
 
 /// A multi-format image reader.
 ///
@@ -58,7 +68,7 @@ use super::free_functions;
 ///
 /// [`set_format`]: #method.set_format
 /// [`ImageDecoder`]: ../trait.ImageDecoder.html
-pub struct ImageReader<R: Read + Seek> {
+pub struct ImageReader<R> {
     /// The reader. Should be buffered.
     inner: R,
     /// The format, if one has been set or deduced.
@@ -67,7 +77,7 @@ pub struct ImageReader<R: Read + Seek> {
     limits: super::Limits,
 }
 
-impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
+impl<R> ImageReader<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
@@ -131,6 +141,19 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         self.inner
     }
 
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
+    fn require_format(&mut self) -> ImageResult<ImageFormat> {
+        self.format.ok_or_else(|| {
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Format(ImageFormatHint::Unknown),
+            ))
+        })
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// Makes a decoder.
     ///
     /// For all formats except PNG, the limits are ignored and can be set with
@@ -141,10 +164,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         reader: R,
         limits_for_png: super::Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
-        #[allow(unused)]
         use crate::codecs::*;
 
-        #[allow(unreachable_patterns)]
         // Default is unreachable if all features are supported.
         Ok(match format {
             #[cfg(feature = "avif-native")]
@@ -272,17 +293,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
         DynamicImage::from_decoder(decoder)
     }
-
-    fn require_format(&mut self) -> ImageResult<ImageFormat> {
-        self.format.ok_or_else(|| {
-            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Unknown),
-            ))
-        })
-    }
 }
 
+#[cfg(feature = "std")]
 impl ImageReader<BufReader<File>> {
     /// Open a file to read, format will be guessed from path.
     ///

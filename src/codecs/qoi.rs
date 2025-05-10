@@ -1,19 +1,25 @@
 //! Decoding and encoding of QOI images
 
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::boxed::Box;
 use alloc::format;
-use std::io::{Read, Write};
+use alloc::vec::Vec;
 
 use crate::error::{DecodingError, EncodingError};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
 
+#[cfg(feature = "std")]
+use std::io::{Read, Write};
+
 /// QOI decoder
 pub struct QoiDecoder<R> {
     decoder: qoi::Decoder<R>,
 }
 
+#[cfg(feature = "std")]
 impl<R> QoiDecoder<R>
 where
     R: Read,
@@ -25,6 +31,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for QoiDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.decoder.header().width, self.decoder.header().height)
@@ -47,12 +54,30 @@ impl<R: Read> ImageDecoder for QoiDecoder<R> {
     }
 }
 
+/// Wrapper to implement [`Error`](core::error::Error) for [`qoi::Error`].
+#[repr(transparent)]
+struct QoiError(qoi::Error);
+
+impl core::fmt::Debug for QoiError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        <qoi::Error as core::fmt::Debug>::fmt(&self.0, f)
+    }
+}
+
+impl core::fmt::Display for QoiError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        <qoi::Error as core::fmt::Display>::fmt(&self.0, f)
+    }
+}
+
+impl core::error::Error for QoiError {}
+
 fn decoding_error(error: qoi::Error) -> ImageError {
-    ImageError::Decoding(DecodingError::new(ImageFormat::Qoi.into(), error))
+    ImageError::Decoding(DecodingError::new(ImageFormat::Qoi.into(), QoiError(error)))
 }
 
 fn encoding_error(error: qoi::Error) -> ImageError {
-    ImageError::Encoding(EncodingError::new(ImageFormat::Qoi.into(), error))
+    ImageError::Encoding(EncodingError::new(ImageFormat::Qoi.into(), QoiError(error)))
 }
 
 /// QOI encoder
@@ -60,13 +85,14 @@ pub struct QoiEncoder<W> {
     writer: W,
 }
 
-impl<W: Write> QoiEncoder<W> {
+impl<W> QoiEncoder<W> {
     /// Creates a new encoder that writes its output to ```writer```
     pub fn new(writer: W) -> Self {
         Self { writer }
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for QoiEncoder<W> {
     #[track_caller]
     fn write_image(
@@ -76,26 +102,7 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        if !matches!(
-            color_type,
-            ExtendedColorType::Rgba8 | ExtendedColorType::Rgb8
-        ) {
-            return Err(ImageError::Encoding(EncodingError::new(
-                ImageFormat::Qoi.into(),
-                format!("unsupported color type {color_type:?}. Supported are Rgba8 and Rgb8."),
-            )));
-        }
-
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
-
-        // Encode data in QOI
-        let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;
+        let data = write_image_to_vec(buf, width, height, color_type)?;
 
         // Write data to buffer
         self.writer.write_all(&data[..])?;
@@ -103,6 +110,37 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
 
         Ok(())
     }
+}
+
+#[track_caller]
+fn write_image_to_vec(
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color_type: ExtendedColorType,
+) -> ImageResult<Vec<u8>> {
+    if !matches!(
+        color_type,
+        ExtendedColorType::Rgba8 | ExtendedColorType::Rgb8
+    ) {
+        return Err(ImageError::Encoding(EncodingError::new(
+            ImageFormat::Qoi.into(),
+            format!("unsupported color type {color_type:?}. Supported are Rgba8 and Rgb8."),
+        )));
+    }
+
+    let expected_buffer_len = color_type.buffer_size(width, height);
+    assert_eq!(
+        expected_buffer_len,
+        buf.len() as u64,
+        "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+        buf.len(),
+    );
+
+    // Encode data in QOI
+    let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;
+
+    Ok(data)
 }
 
 #[cfg(test)]

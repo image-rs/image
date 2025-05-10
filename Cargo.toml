@@ -47,7 +47,7 @@ gif = { version = "0.13.1", optional = true }
 image-webp = { version = "0.2.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.11", optional = true }
-qoi = { version = "0.4", optional = true }
+qoi = { version = "0.4", default-features = false, optional = true, features = ["alloc"] }
 ravif = { version = "0.11.12", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.48", default-features = false, optional = true }
@@ -82,7 +82,7 @@ ico = ["bmp", "png", "std"]
 jpeg = ["dep:zune-core", "dep:zune-jpeg", "std"]
 png = ["dep:png", "std"]
 pnm = ["std"]
-qoi = ["dep:qoi", "std"]
+qoi = ["dep:qoi"]
 tga = []
 tiff = ["dep:tiff", "std"]
 webp = ["dep:image-webp", "std"]
@@ -94,7 +94,7 @@ color_quant = ["dep:color_quant", "std"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dav1d", "std", "dep:num-bigint"] # Enable native dependency libdav1d
 benchmarks = ["std"] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 serde = ["dep:serde"]
-std = ["byteorder-lite/std", "num-traits/std"]
+std = ["byteorder-lite/std", "num-traits/std", "qoi?/std"]
 libm = ["num-traits/libm"]
 
 [[bench]]

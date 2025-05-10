@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use super::header::Header;
 use crate::{
     codecs::tga::header::ImageType, error::EncodingError, ExtendedColorType, ImageEncoder,
@@ -5,6 +7,8 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::{error, fmt};
+
+#[cfg(feature = "std")]
 use std::io::Write;
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -35,7 +39,7 @@ impl From<EncoderError> for ImageError {
 impl error::Error for EncoderError {}
 
 /// TGA encoder.
-pub struct TgaEncoder<W: Write> {
+pub struct TgaEncoder<W> {
     writer: W,
 
     /// Run-length encoding
@@ -50,7 +54,7 @@ enum PacketType {
     Rle,
 }
 
-impl<W: Write> TgaEncoder<W> {
+impl<W> TgaEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> TgaEncoder<W> {
         TgaEncoder {
@@ -64,7 +68,10 @@ impl<W: Write> TgaEncoder<W> {
         self.use_rle = false;
         self
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: Write> TgaEncoder<W> {
     /// Writes a raw packet to the writer
     fn write_raw_packet(&mut self, pixels: &[u8], counter: u8) -> ImageResult<()> {
         // Set high bit = 0 and store counter - 1 (because 0 would be useless)
@@ -235,6 +242,7 @@ impl<W: Write> TgaEncoder<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for TgaEncoder<W> {
     #[track_caller]
     fn write_image(

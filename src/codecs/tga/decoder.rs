@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -9,7 +11,11 @@ use crate::{
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
+
+#[cfg(feature = "std")]
 use byteorder_lite::ReadBytesExt;
+
+#[cfg(feature = "std")]
 use std::io::{self, Read};
 
 struct ColorMap {
@@ -20,6 +26,7 @@ struct ColorMap {
 }
 
 impl ColorMap {
+    #[cfg(feature = "std")]
     pub(crate) fn from_reader(
         r: &mut dyn Read,
         start_offset: u16,
@@ -62,48 +69,7 @@ pub struct TgaDecoder<R> {
     color_map: Option<ColorMap>,
 }
 
-impl<R: Read> TgaDecoder<R> {
-    /// Create a new decoder that decodes from the stream `r`
-    pub fn new(r: R) -> ImageResult<TgaDecoder<R>> {
-        let mut decoder = TgaDecoder {
-            r,
-
-            width: 0,
-            height: 0,
-            bytes_per_pixel: 0,
-            has_loaded_metadata: false,
-
-            image_type: ImageType::Unknown,
-            color_type: ColorType::L8,
-            original_color_type: None,
-
-            header: Header::default(),
-            color_map: None,
-        };
-        decoder.read_metadata()?;
-        Ok(decoder)
-    }
-
-    fn read_header(&mut self) -> ImageResult<()> {
-        self.header = Header::from_reader(&mut self.r)?;
-        self.image_type = ImageType::new(self.header.image_type);
-        self.width = self.header.image_width as usize;
-        self.height = self.header.image_height as usize;
-        self.bytes_per_pixel = (self.header.pixel_depth as usize).div_ceil(8);
-        Ok(())
-    }
-
-    fn read_metadata(&mut self) -> ImageResult<()> {
-        if !self.has_loaded_metadata {
-            self.read_header()?;
-            self.read_image_id()?;
-            self.read_color_map()?;
-            self.read_color_information()?;
-            self.has_loaded_metadata = true;
-        }
-        Ok(())
-    }
-
+impl<R> TgaDecoder<R> {
     /// Loads the color information for the decoder
     ///
     /// To keep things simple, we won't handle bit depths that aren't divisible
@@ -169,32 +135,8 @@ impl<R: Read> TgaDecoder<R> {
         Ok(())
     }
 
-    /// Read the image id field
-    ///
-    /// We're not interested in this field, so this function skips it if it
-    /// is present
-    fn read_image_id(&mut self) -> ImageResult<()> {
-        self.r
-            .read_exact(&mut vec![0; self.header.id_length as usize])?;
-        Ok(())
-    }
-
-    fn read_color_map(&mut self) -> ImageResult<()> {
-        if self.header.map_type == 1 {
-            // FIXME: we could reverse the map entries, which avoids having to reverse all pixels
-            // in the final output individually.
-            self.color_map = Some(ColorMap::from_reader(
-                &mut self.r,
-                self.header.map_origin,
-                self.header.map_length,
-                self.header.map_entry_size,
-            )?);
-        }
-        Ok(())
-    }
-
     /// Expands indices into its mapped color
-    fn expand_color_map(&self, pixel_data: &[u8]) -> io::Result<Vec<u8>> {
+    fn expand_color_map(&self, pixel_data: &[u8]) -> Option<Vec<u8>> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
             let mut result = 0usize;
@@ -208,77 +150,21 @@ impl<R: Read> TgaDecoder<R> {
         let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
 
         if self.bytes_per_pixel == 0 {
-            return Err(io::ErrorKind::Other.into());
+            return None;
         }
 
-        let color_map = self
-            .color_map
-            .as_ref()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
+        let color_map = self.color_map.as_ref()?;
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
             if let Some(color) = color_map.get(index) {
                 result.extend_from_slice(color);
             } else {
-                return Err(io::ErrorKind::Other.into());
+                return None;
             }
         }
 
-        Ok(result)
-    }
-
-    /// Reads a run length encoded data for given number of bytes
-    fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
-        let mut pixel_data = Vec::with_capacity(num_bytes);
-        let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
-
-        while pixel_data.len() < num_bytes {
-            let run_packet = self.r.read_u8()?;
-            // If the highest bit in `run_packet` is set, then we repeat pixels
-            //
-            // Note: the TGA format adds 1 to both counts because having a count
-            // of 0 would be pointless.
-            if (run_packet & 0x80) != 0 {
-                // high bit set, so we will repeat the data
-                let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                self.r
-                    .by_ref()
-                    .take(self.bytes_per_pixel as u64)
-                    .read_to_end(&mut repeat_buf)?;
-
-                // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
-                let data = repeat_buf
-                    .iter()
-                    .cycle()
-                    .take(repeat_count * self.bytes_per_pixel);
-                pixel_data.extend(data);
-                repeat_buf.clear();
-            } else {
-                // not set, so `run_packet+1` is the number of non-encoded pixels
-                let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
-                self.r
-                    .by_ref()
-                    .take(num_raw_bytes as u64)
-                    .read_to_end(&mut pixel_data)?;
-            }
-        }
-
-        if pixel_data.len() > num_bytes {
-            // FIXME: the last packet contained more data than we asked for!
-            // This is at least a warning. We truncate the data since some methods rely on the
-            // length to be accurate in the success case.
-            pixel_data.truncate(num_bytes);
-        }
-
-        Ok(pixel_data)
-    }
-
-    /// Reads a run length encoded packet
-    fn read_all_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
-        let num_bytes = self.width * self.height * self.bytes_per_pixel;
-
-        Ok(self.read_encoded_data(num_bytes)?)
+        Some(result)
     }
 
     /// Reverse from BGR encoding to RGB encoding
@@ -339,6 +225,128 @@ impl<R: Read> TgaDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
+impl<R: Read> TgaDecoder<R> {
+    /// Create a new decoder that decodes from the stream `r`
+    pub fn new(r: R) -> ImageResult<TgaDecoder<R>> {
+        let mut decoder = TgaDecoder {
+            r,
+
+            width: 0,
+            height: 0,
+            bytes_per_pixel: 0,
+            has_loaded_metadata: false,
+
+            image_type: ImageType::Unknown,
+            color_type: ColorType::L8,
+            original_color_type: None,
+
+            header: Header::default(),
+            color_map: None,
+        };
+        decoder.read_metadata()?;
+        Ok(decoder)
+    }
+
+    fn read_header(&mut self) -> ImageResult<()> {
+        self.header = Header::from_reader(&mut self.r)?;
+        self.image_type = ImageType::new(self.header.image_type);
+        self.width = self.header.image_width as usize;
+        self.height = self.header.image_height as usize;
+        self.bytes_per_pixel = (self.header.pixel_depth as usize).div_ceil(8);
+        Ok(())
+    }
+
+    fn read_metadata(&mut self) -> ImageResult<()> {
+        if !self.has_loaded_metadata {
+            self.read_header()?;
+            self.read_image_id()?;
+            self.read_color_map()?;
+            self.read_color_information()?;
+            self.has_loaded_metadata = true;
+        }
+        Ok(())
+    }
+
+    /// Read the image id field
+    ///
+    /// We're not interested in this field, so this function skips it if it
+    /// is present
+    fn read_image_id(&mut self) -> ImageResult<()> {
+        self.r
+            .read_exact(&mut vec![0; self.header.id_length as usize])?;
+        Ok(())
+    }
+
+    fn read_color_map(&mut self) -> ImageResult<()> {
+        if self.header.map_type == 1 {
+            // FIXME: we could reverse the map entries, which avoids having to reverse all pixels
+            // in the final output individually.
+            self.color_map = Some(ColorMap::from_reader(
+                &mut self.r,
+                self.header.map_origin,
+                self.header.map_length,
+                self.header.map_entry_size,
+            )?);
+        }
+        Ok(())
+    }
+
+    /// Reads a run length encoded data for given number of bytes
+    fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
+        let mut pixel_data = Vec::with_capacity(num_bytes);
+        let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
+
+        while pixel_data.len() < num_bytes {
+            let run_packet = self.r.read_u8()?;
+            // If the highest bit in `run_packet` is set, then we repeat pixels
+            //
+            // Note: the TGA format adds 1 to both counts because having a count
+            // of 0 would be pointless.
+            if (run_packet & 0x80) != 0 {
+                // high bit set, so we will repeat the data
+                let repeat_count = ((run_packet & !0x80) + 1) as usize;
+                self.r
+                    .by_ref()
+                    .take(self.bytes_per_pixel as u64)
+                    .read_to_end(&mut repeat_buf)?;
+
+                // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
+                let data = repeat_buf
+                    .iter()
+                    .cycle()
+                    .take(repeat_count * self.bytes_per_pixel);
+                pixel_data.extend(data);
+                repeat_buf.clear();
+            } else {
+                // not set, so `run_packet+1` is the number of non-encoded pixels
+                let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
+                self.r
+                    .by_ref()
+                    .take(num_raw_bytes as u64)
+                    .read_to_end(&mut pixel_data)?;
+            }
+        }
+
+        if pixel_data.len() > num_bytes {
+            // FIXME: the last packet contained more data than we asked for!
+            // This is at least a warning. We truncate the data since some methods rely on the
+            // length to be accurate in the success case.
+            pixel_data.truncate(num_bytes);
+        }
+
+        Ok(pixel_data)
+    }
+
+    /// Reads a run length encoded packet
+    fn read_all_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
+        let num_bytes = self.width * self.height * self.bytes_per_pixel;
+
+        Ok(self.read_encoded_data(num_bytes)?)
+    }
+}
+
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
@@ -385,7 +393,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
-            let pixel_data = self.expand_color_map(rawbuf)?;
+            let pixel_data = self
+                .expand_color_map(rawbuf)
+                .ok_or(io::Error::from(io::ErrorKind::Other))?;
             // not enough data to fill the buffer, or would overflow the buffer
             if pixel_data.len() != buf.len() {
                 return Err(ImageError::Limits(LimitError::from_kind(

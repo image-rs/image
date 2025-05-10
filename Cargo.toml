@@ -83,7 +83,7 @@ jpeg = ["dep:zune-core", "dep:zune-jpeg", "std"]
 png = ["dep:png", "std"]
 pnm = ["std"]
 qoi = ["dep:qoi", "std"]
-tga = ["std"]
+tga = []
 tiff = ["dep:tiff", "std"]
 webp = ["dep:image-webp", "std"]
 

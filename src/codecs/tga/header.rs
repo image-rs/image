@@ -1,7 +1,14 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::{ExtendedColorType, ImageError, ImageFormat, ImageResult};
-use byteorder_lite::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder_lite::LittleEndian;
+
+#[cfg(feature = "std")]
 use std::io::{Read, Write};
+
+#[cfg(feature = "std")]
+use byteorder_lite::{ReadBytesExt, WriteBytesExt};
 
 pub(crate) const ALPHA_BIT_MASK: u8 = 0b1111;
 pub(crate) const SCREEN_ORIGIN_BIT_MASK: u8 = 0b10_0000;
@@ -117,6 +124,7 @@ impl Header {
     }
 
     /// Load the header with values from the reader.
+    #[cfg(feature = "std")]
     pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         Ok(Self {
             id_length: r.read_u8()?,
@@ -135,6 +143,7 @@ impl Header {
     }
 
     /// Write out the header values.
+    #[cfg(feature = "std")]
     pub(crate) fn write_to(&self, w: &mut dyn Write) -> ImageResult<()> {
         w.write_u8(self.id_length)?;
         w.write_u8(self.map_type)?;

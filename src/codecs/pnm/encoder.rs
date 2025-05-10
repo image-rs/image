@@ -2,10 +2,6 @@
 
 #![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
 
-use alloc::borrow::ToOwned;
-use alloc::format;
-use alloc::vec::Vec;
-use core::fmt;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
 use crate::color::ExtendedColorType;
@@ -14,6 +10,10 @@ use crate::error::{
     UnsupportedErrorKind,
 };
 use crate::image::{ImageEncoder, ImageFormat};
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::vec::Vec;
+use core::fmt;
 
 use byteorder_lite::BigEndian;
 

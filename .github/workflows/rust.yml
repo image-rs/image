@@ -216,6 +216,6 @@ jobs:
       with:
         components: clippy
         targets: "wasm32v1-none"
-    - run: cargo clippy --no-default-features --target wasm32v1-none --features serde,libm,tga,qoi,bmp,dds -- -D warnings
+    - run: cargo clippy --no-default-features --target wasm32v1-none --features serde,libm,tga,qoi,bmp,dds,ff -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always

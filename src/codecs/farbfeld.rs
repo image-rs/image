@@ -16,9 +16,10 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use alloc::boxed::Box;
 use alloc::format;
-use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ExtendedColorType;
 use crate::error::{
@@ -27,8 +28,11 @@ use crate::error::{
 use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 use crate::ColorType;
 
+#[cfg(feature = "std")]
+use std::io::{self, Read, Seek, SeekFrom, Write};
+
 /// farbfeld Reader
-pub struct FarbfeldReader<R: Read> {
+pub struct FarbfeldReader<R> {
     width: u32,
     height: u32,
     inner: R,
@@ -37,6 +41,7 @@ pub struct FarbfeldReader<R: Read> {
     cached_byte: Option<u8>,
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> FarbfeldReader<R> {
     fn new(mut buffered_read: R) -> ImageResult<FarbfeldReader<R>> {
         fn read_dimm<R: Read>(from: &mut R) -> ImageResult<u32> {
@@ -87,6 +92,7 @@ impl<R: Read> FarbfeldReader<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> Read for FarbfeldReader<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let mut bytes_written = 0;
@@ -113,6 +119,7 @@ impl<R: Read> Read for FarbfeldReader<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read + Seek> Seek for FarbfeldReader<R> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         fn parse_offset(original_offset: u64, end_offset: u64, pos: SeekFrom) -> Option<i64> {
@@ -168,6 +175,7 @@ impl<R: Read + Seek> Seek for FarbfeldReader<R> {
     }
 }
 
+#[cfg(feature = "std")]
 fn consume_channel<R: Read>(from: &mut R, mut to: &mut [u8]) -> io::Result<()> {
     let mut ibuf = [0u8; 2];
     from.read_exact(&mut ibuf)?;
@@ -176,6 +184,7 @@ fn consume_channel<R: Read>(from: &mut R, mut to: &mut [u8]) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "std")]
 fn cache_byte<R: Read>(from: &mut R, cached_byte: &mut Option<u8>) -> io::Result<u8> {
     let mut obuf = [0u8; 2];
     consume_channel(from, &mut obuf)?;
@@ -184,10 +193,11 @@ fn cache_byte<R: Read>(from: &mut R, cached_byte: &mut Option<u8>) -> io::Result
 }
 
 /// farbfeld decoder
-pub struct FarbfeldDecoder<R: Read> {
+pub struct FarbfeldDecoder<R> {
     reader: FarbfeldReader<R>,
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> FarbfeldDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(buffered_read: R) -> ImageResult<FarbfeldDecoder<R>> {
@@ -197,6 +207,7 @@ impl<R: Read> FarbfeldDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.reader.width, self.reader.height)
@@ -217,6 +228,7 @@ impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read + Seek> ImageDecoderRect for FarbfeldDecoder<R> {
     fn read_rect(
         &mut self,
@@ -248,16 +260,19 @@ impl<R: Read + Seek> ImageDecoderRect for FarbfeldDecoder<R> {
 }
 
 /// farbfeld encoder
-pub struct FarbfeldEncoder<W: Write> {
+pub struct FarbfeldEncoder<W> {
     w: W,
 }
 
-impl<W: Write> FarbfeldEncoder<W> {
+impl<W> FarbfeldEncoder<W> {
     /// Create a new encoder that writes its output to ```w```. The writer should be buffered.
     pub fn new(buffered_writer: W) -> FarbfeldEncoder<W> {
         FarbfeldEncoder { w: buffered_writer }
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: Write> FarbfeldEncoder<W> {
     /// Encodes the image `data` (native endian) that has dimensions `width` and `height`.
     ///
     /// # Panics
@@ -291,6 +306,7 @@ impl<W: Write> FarbfeldEncoder<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
     #[track_caller]
     fn write_image(

@@ -6,8 +6,6 @@ use alloc::borrow::ToOwned;
 use alloc::format;
 use alloc::vec::Vec;
 use core::fmt;
-
-use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
 use crate::color::ExtendedColorType;
@@ -18,6 +16,9 @@ use crate::error::{
 use crate::image::{ImageEncoder, ImageFormat};
 
 use byteorder_lite::BigEndian;
+
+#[cfg(feature = "std")]
+use super::AutoBreak;
 
 #[cfg(feature = "std")]
 use std::io::{self, Write};

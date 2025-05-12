@@ -162,7 +162,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     fn make_decoder(
         format: ImageFormat,
         reader: R,
-        limits_for_png: super::Limits,
+        #[cfg_attr(not(feature = "png"), expect(unused_variables))] limits_for_png: super::Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         use crate::codecs::*;
 

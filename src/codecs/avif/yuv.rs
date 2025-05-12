@@ -706,7 +706,7 @@ fn process_halved_chroma_row_cbcr<
 fn process_halved_chroma_row_cgco<
     V: Copy + AsPrimitive<i32> + 'static + Sized,
     const PRECISION: i32,
-    const CN: usize,
+    const CHANNELS: usize,
     const BIT_DEPTH: usize,
 >(
     image: YuvPlanarImage<V>,
@@ -728,12 +728,12 @@ fn process_halved_chroma_row_cgco<
     let chroma_size = (image.width + 1) / 2;
     let u_plane = &image.u_plane[0..chroma_size];
     let v_plane = &image.v_plane[0..chroma_size];
-    let rgba = &mut rgba[0..image.width * CN];
+    let rgba = &mut rgba[0..image.width * CHANNELS];
 
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
     let y_iter = y_plane.chunks_exact(2);
-    let rgb_chunks = rgba.chunks_exact_mut(CN * 2);
+    let rgb_chunks = rgba.chunks_exact_mut(CHANNELS * 2);
 
     let r_coef = ((max_value as f32 / range.range_y as f32) * (1 << PRECISION) as f32) as i32;
 
@@ -748,12 +748,12 @@ fn process_halved_chroma_row_cgco<
         let b = qrshr::<PRECISION, BIT_DEPTH>((t0 - co_value) * r_coef);
         let g = qrshr::<PRECISION, BIT_DEPTH>((y_value0 + cg_value) * r_coef);
 
-        if CN == 4 {
+        if CHANNELS == 4 {
             rgb_dst[0] = r.as_();
             rgb_dst[1] = g.as_();
             rgb_dst[2] = b.as_();
             rgb_dst[3] = max_value.as_();
-        } else if CN == 3 {
+        } else if CHANNELS == 3 {
             rgb_dst[0] = r.as_();
             rgb_dst[1] = g.as_();
             rgb_dst[2] = b.as_();
@@ -769,12 +769,12 @@ fn process_halved_chroma_row_cgco<
         let b = qrshr::<PRECISION, BIT_DEPTH>((t1 - co_value) * r_coef);
         let g = qrshr::<PRECISION, BIT_DEPTH>((y_value1 + cg_value) * r_coef);
 
-        if CN == 4 {
+        if CHANNELS == 4 {
             rgb_dst[4] = r.as_();
             rgb_dst[5] = g.as_();
             rgb_dst[6] = b.as_();
             rgb_dst[7] = max_value.as_();
-        } else if CN == 3 {
+        } else if CHANNELS == 3 {
             rgb_dst[3] = r.as_();
             rgb_dst[4] = g.as_();
             rgb_dst[5] = b.as_();
@@ -787,9 +787,9 @@ fn process_halved_chroma_row_cgco<
     if image.width & 1 != 0 {
         let y_left = y_plane.chunks_exact(2).remainder();
         let rgb_chunks = rgba
-            .chunks_exact_mut(CN * 2)
+            .chunks_exact_mut(CHANNELS * 2)
             .into_remainder()
-            .chunks_exact_mut(CN);
+            .chunks_exact_mut(CHANNELS);
         let u_iter = u_plane.iter().rev();
         let v_iter = v_plane.iter().rev();
 
@@ -806,12 +806,12 @@ fn process_halved_chroma_row_cgco<
             let b = qrshr::<PRECISION, BIT_DEPTH>((t0 - co_value) * r_coef);
             let g = qrshr::<PRECISION, BIT_DEPTH>((y_value + cg_value) * r_coef);
 
-            if CN == 4 {
+            if CHANNELS == 4 {
                 rgb_dst[0] = r.as_();
                 rgb_dst[1] = g.as_();
                 rgb_dst[2] = b.as_();
                 rgb_dst[3] = max_value.as_();
-            } else if CN == 3 {
+            } else if CHANNELS == 3 {
                 rgb_dst[0] = r.as_();
                 rgb_dst[1] = g.as_();
                 rgb_dst[2] = b.as_();

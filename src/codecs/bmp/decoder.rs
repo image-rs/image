@@ -19,10 +19,10 @@ use crate::image::{self, ImageDecoder, ImageFormat};
 use crate::ImageDecoderRect;
 
 #[cfg(feature = "std")]
-use std::io::{BufRead, Seek, SeekFrom};
-
-#[cfg(feature = "std")]
-use byteorder_lite::ReadBytesExt;
+use {
+    byteorder_lite::ReadBytesExt,
+    std::io::{BufRead, Seek, SeekFrom},
+};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

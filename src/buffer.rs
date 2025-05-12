@@ -10,18 +10,20 @@ use num_traits::Zero;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::image::ImageFormat;
 use crate::image::{GenericImage, GenericImageView, ImageEncoder};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::DynamicImage;
 
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use crate::image::ImageFormat;
+
 #[cfg(feature = "std")]
-use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
-#[cfg(feature = "std")]
-use std::path::Path;
+use {
+    crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format},
+    std::path::Path,
+};
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>

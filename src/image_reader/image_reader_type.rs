@@ -1,23 +1,18 @@
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use alloc::boxed::Box;
-
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::ImageDecoder;
 use crate::{ImageError, ImageResult};
 
 #[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use super::free_functions;
+use {
+    super::free_functions, crate::dynimage::DynamicImage, crate::ImageDecoder, alloc::boxed::Box,
+};
 
 #[cfg(feature = "std")]
-use std::fs::File;
-#[cfg(feature = "std")]
-use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
-#[cfg(feature = "std")]
-use std::path::Path;
+use {
+    std::fs::File,
+    std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
+    std::path::Path,
+};
 
 /// A multi-format image reader.
 ///

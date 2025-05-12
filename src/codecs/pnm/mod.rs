@@ -3,8 +3,6 @@
 //! The formats pbm, pgm and ppm are fully supported. The pam decoder recognizes the tuple types
 //! `BLACKANDWHITE`, `GRAYSCALE` and `RGB` and explicitly recognizes but rejects their `_ALPHA`
 //! variants for now as alpha color types are unsupported.
-#[cfg(feature = "std")]
-use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
 pub use self::encoder::PnmEncoder;
 use self::header::HeaderRecord;
@@ -12,6 +10,9 @@ pub use self::header::{
     ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader,
 };
 pub use self::header::{PnmHeader, PnmSubtype, SampleEncoding};
+
+#[cfg(feature = "std")]
+use self::autobreak::AutoBreak;
 
 mod autobreak;
 mod decoder;

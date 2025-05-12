@@ -22,10 +22,7 @@ use crate::error::{
 use crate::image::{ImageDecoder, ImageFormat};
 
 #[cfg(feature = "std")]
-use std::io::Read;
-
-#[cfg(feature = "std")]
-use byteorder_lite::ReadBytesExt;
+use {byteorder_lite::ReadBytesExt, std::io::Read};
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

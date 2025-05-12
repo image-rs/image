@@ -13,10 +13,10 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 #[cfg(feature = "std")]
-use byteorder_lite::ReadBytesExt;
-
-#[cfg(feature = "std")]
-use std::io::{self, Read};
+use {
+    byteorder_lite::ReadBytesExt,
+    std::io::{self, Read},
+};
 
 struct ColorMap {
     /// sizes in bytes

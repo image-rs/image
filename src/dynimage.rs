@@ -6,11 +6,6 @@ use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
 
-#[cfg(feature = "std")]
-use std::io::{self, Seek, Write};
-#[cfg(feature = "std")]
-use std::path::Path;
-
 use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
@@ -18,21 +13,25 @@ use crate::buffer_::{
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::image::ImageFormat;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder};
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::image_reader::free_functions;
 use crate::imageops;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::ExtendedColorType;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::ImageReader;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
+
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use {
+    crate::image::ImageFormat, crate::image_reader::free_functions, crate::ExtendedColorType,
+    crate::ImageReader,
+};
+
+#[cfg(feature = "std")]
+use {
+    std::io::{self, Seek, Write},
+    std::path::Path,
+};
 
 /// A Dynamic Image
 ///

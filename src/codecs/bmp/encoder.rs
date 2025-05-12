@@ -11,10 +11,10 @@ use crate::image::ImageEncoder;
 use crate::{ExtendedColorType, ImageFormat};
 
 #[cfg(feature = "std")]
-use std::io::{self, Write};
-
-#[cfg(feature = "std")]
-use byteorder_lite::WriteBytesExt;
+use {
+    byteorder_lite::WriteBytesExt,
+    std::io::{self, Write},
+};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

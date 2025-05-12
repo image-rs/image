@@ -16,9 +16,7 @@ use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 #[cfg(feature = "std")]
-use std::ffi::OsStr;
-#[cfg(feature = "std")]
-use std::path::Path;
+use {std::ffi::OsStr, std::path::Path};
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.

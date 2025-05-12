@@ -18,7 +18,7 @@ use crate::image::{ImageDecoder, ImageFormat};
 use std::io::{self, Read};
 
 #[cfg(all(not(feature = "std"), feature = "libm"))]
-use num_traits::Float;
+use num_traits::Float as _;
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]

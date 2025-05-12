@@ -18,13 +18,11 @@ use core::fmt;
 use byteorder_lite::BigEndian;
 
 #[cfg(feature = "std")]
-use super::AutoBreak;
-
-#[cfg(feature = "std")]
-use std::io::{self, Write};
-
-#[cfg(feature = "std")]
-use byteorder_lite::WriteBytesExt;
+use {
+    super::AutoBreak,
+    byteorder_lite::WriteBytesExt,
+    std::io::{self, Write},
+};
 
 enum HeaderStrategy {
     Dynamic,

@@ -13,10 +13,10 @@ use core::cmp::Ordering;
 use std::io::{Result, Write};
 
 #[cfg(all(not(feature = "std"), feature = "libm"))]
-use num_traits::Float;
+use num_traits::Float as _;
 
 #[cfg(all(not(feature = "std"), not(feature = "libm")))]
-use num_traits::float::FloatCore;
+use num_traits::float::FloatCore as _;
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W> {

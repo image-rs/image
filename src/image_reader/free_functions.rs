@@ -1,30 +1,24 @@
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use alloc::format;
 use core::iter;
 
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::codecs::*;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::dynimage::DynamicImage;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::error::UnsupportedError;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::error::UnsupportedErrorKind;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
 use crate::image::ImageFormat;
+
 #[allow(unused_imports)] // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
+
 #[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::ExtendedColorType;
-#[cfg_attr(not(feature = "std"), expect(unused_imports))]
-use crate::ImageReader;
+use {
+    crate::codecs::*, crate::dynimage::DynamicImage, crate::error::UnsupportedError,
+    crate::error::UnsupportedErrorKind, crate::ExtendedColorType, crate::ImageReader,
+    alloc::format,
+};
 
 #[cfg(feature = "std")]
-use std::fs::File;
-#[cfg(feature = "std")]
-use std::io::{BufRead, BufWriter, Seek};
-#[cfg(feature = "std")]
-use std::path::Path;
+use {
+    std::fs::File,
+    std::io::{BufRead, BufWriter, Seek},
+    std::path::Path,
+};
 
 /// Create a new image from a Reader.
 ///

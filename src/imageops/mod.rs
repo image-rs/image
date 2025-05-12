@@ -20,17 +20,11 @@ pub use self::sample::{
     thumbnail,
 };
 
-#[cfg(any(feature = "std", feature = "libm"))]
-pub use self::sample::{blur, unsharpen};
-
 /// Color operations
 pub use self::colorops::{
     brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
     grayscale_with_type_alpha, index_colors, invert, BiLevel, ColorMap,
 };
-
-#[cfg(any(feature = "std", feature = "libm"))]
-pub use self::colorops::huerotate;
 
 mod affine;
 // Public only because of Rust bug:
@@ -41,7 +35,11 @@ mod fast_blur;
 mod sample;
 
 #[cfg(any(feature = "std", feature = "libm"))]
-pub use fast_blur::fast_blur;
+pub use {
+    self::colorops::huerotate,
+    self::sample::{blur, unsharpen},
+    fast_blur::fast_blur,
+};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.

@@ -17,33 +17,44 @@ pub struct QoiDecoder<R> {
     inner: R,
 }
 
-impl<R> QoiDecoder<(R, qoi::Header)>
+/// Intermediate Qoi decoder.
+pub struct ReaderDecoder<R> {
+    decoder: qoi::Decoder<R>,
+}
+
+/// Intermediate Qoi decoder.
+pub struct SliceDecoder<R> {
+    bytes: R,
+    header: qoi::Header,
+}
+
+impl<R> QoiDecoder<SliceDecoder<R>>
 where
     R: AsRef<[u8]>,
 {
     /// Creates a new decoder that decodes from the slice reference ```bytes```
     pub fn from_bytes(bytes: R) -> ImageResult<Self> {
         let header = qoi::decode_header(&bytes).map_err(decoding_error)?;
-        let inner = (bytes, header);
+        let inner = SliceDecoder { bytes, header };
 
         Ok(Self { inner })
     }
 }
 
-impl<R: AsRef<[u8]>> ImageDecoder for QoiDecoder<(R, qoi::Header)> {
+impl<R: AsRef<[u8]>> ImageDecoder for QoiDecoder<SliceDecoder<R>> {
     fn dimensions(&self) -> (u32, u32) {
-        (self.inner.1.width, self.inner.1.height)
+        (self.inner.header.width, self.inner.header.height)
     }
 
     fn color_type(&self) -> ColorType {
-        match self.inner.1.channels {
+        match self.inner.header.channels {
             qoi::Channels::Rgb => ColorType::Rgb8,
             qoi::Channels::Rgba => ColorType::Rgba8,
         }
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        qoi::decode_to_buf(buf, &self.inner.0).map_err(decoding_error)?;
+        qoi::decode_to_buf(buf, &self.inner.bytes).map_err(decoding_error)?;
         Ok(())
     }
 
@@ -53,33 +64,40 @@ impl<R: AsRef<[u8]>> ImageDecoder for QoiDecoder<(R, qoi::Header)> {
 }
 
 #[cfg(feature = "std")]
-impl<R> QoiDecoder<qoi::Decoder<R>>
+impl<R> QoiDecoder<ReaderDecoder<R>>
 where
     R: Read,
 {
     /// Creates a new decoder that decodes from the stream ```reader```
     pub fn new(reader: R) -> ImageResult<Self> {
-        let inner = qoi::Decoder::from_stream(reader).map_err(decoding_error)?;
+        let decoder = qoi::Decoder::from_stream(reader).map_err(decoding_error)?;
+        let inner = ReaderDecoder { decoder };
 
         Ok(Self { inner })
     }
 }
 
 #[cfg(feature = "std")]
-impl<R: Read> ImageDecoder for QoiDecoder<qoi::Decoder<R>> {
+impl<R: Read> ImageDecoder for QoiDecoder<ReaderDecoder<R>> {
     fn dimensions(&self) -> (u32, u32) {
-        (self.inner.header().width, self.inner.header().height)
+        (
+            self.inner.decoder.header().width,
+            self.inner.decoder.header().height,
+        )
     }
 
     fn color_type(&self) -> ColorType {
-        match self.inner.header().channels {
+        match self.inner.decoder.header().channels {
             qoi::Channels::Rgb => ColorType::Rgb8,
             qoi::Channels::Rgba => ColorType::Rgba8,
         }
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        self.inner.decode_to_buf(buf).map_err(decoding_error)?;
+        self.inner
+            .decoder
+            .decode_to_buf(buf)
+            .map_err(decoding_error)?;
         Ok(())
     }
 

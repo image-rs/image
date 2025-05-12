@@ -522,7 +522,8 @@ impl<'a> CheckedHeaderColor<'a> {
     }
 }
 
-impl CheckedHeader<'_> {
+#[cfg_attr(not(feature = "std"), expect(clippy::needless_lifetimes))]
+impl<'a> CheckedHeader<'a> {
     #[cfg(feature = "std")]
     fn write_header(self, writer: &mut dyn Write) -> ImageResult<TupleEncoding<'a>> {
         self.header().write(writer)?;

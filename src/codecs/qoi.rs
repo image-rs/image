@@ -19,6 +19,7 @@ pub struct QoiDecoder<R> {
 
 /// Intermediate Qoi decoder.
 pub struct ReaderDecoder<R> {
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
     decoder: qoi::Decoder<R>,
 }
 

@@ -524,7 +524,7 @@ impl<'a> CheckedHeaderColor<'a> {
     }
 }
 
-impl<'a> CheckedHeader<'a> {
+impl CheckedHeader<'_> {
     #[cfg(feature = "std")]
     fn write_header(self, writer: &mut dyn Write) -> ImageResult<TupleEncoding<'a>> {
         self.header().write(writer)?;

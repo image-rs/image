@@ -787,6 +787,7 @@ impl Sample for PbmBit {
 
     fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
+        #[allow(clippy::manual_slice_fill)]
         for b in &mut expanded {
             *b = !*b;
         }

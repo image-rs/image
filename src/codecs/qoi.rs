@@ -1,7 +1,5 @@
 //! Decoding and encoding of QOI images
 
-#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
-
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
@@ -16,36 +14,72 @@ use std::io::{Read, Write};
 
 /// QOI decoder
 pub struct QoiDecoder<R> {
-    decoder: qoi::Decoder<R>,
+    inner: R,
+}
+
+impl<R> QoiDecoder<(R, qoi::Header)>
+where
+    R: AsRef<[u8]>,
+{
+    /// Creates a new decoder that decodes from the slice reference ```bytes```
+    pub fn from_bytes(bytes: R) -> ImageResult<Self> {
+        let header = qoi::decode_header(&bytes).map_err(decoding_error)?;
+        let inner = (bytes, header);
+
+        Ok(Self { inner })
+    }
+}
+
+impl<R: AsRef<[u8]>> ImageDecoder for QoiDecoder<(R, qoi::Header)> {
+    fn dimensions(&self) -> (u32, u32) {
+        (self.inner.1.width, self.inner.1.height)
+    }
+
+    fn color_type(&self) -> ColorType {
+        match self.inner.1.channels {
+            qoi::Channels::Rgb => ColorType::Rgb8,
+            qoi::Channels::Rgba => ColorType::Rgba8,
+        }
+    }
+
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        qoi::decode_to_buf(buf, &self.inner.0).map_err(decoding_error)?;
+        Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
 #[cfg(feature = "std")]
-impl<R> QoiDecoder<R>
+impl<R> QoiDecoder<qoi::Decoder<R>>
 where
     R: Read,
 {
     /// Creates a new decoder that decodes from the stream ```reader```
     pub fn new(reader: R) -> ImageResult<Self> {
-        let decoder = qoi::Decoder::from_stream(reader).map_err(decoding_error)?;
-        Ok(Self { decoder })
+        let inner = qoi::Decoder::from_stream(reader).map_err(decoding_error)?;
+
+        Ok(Self { inner })
     }
 }
 
 #[cfg(feature = "std")]
-impl<R: Read> ImageDecoder for QoiDecoder<R> {
+impl<R: Read> ImageDecoder for QoiDecoder<qoi::Decoder<R>> {
     fn dimensions(&self) -> (u32, u32) {
-        (self.decoder.header().width, self.decoder.header().height)
+        (self.inner.header().width, self.inner.header().height)
     }
 
     fn color_type(&self) -> ColorType {
-        match self.decoder.header().channels {
+        match self.inner.header().channels {
             qoi::Channels::Rgb => ColorType::Rgb8,
             qoi::Channels::Rgba => ColorType::Rgba8,
         }
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        self.decoder.decode_to_buf(buf).map_err(decoding_error)?;
+        self.inner.decode_to_buf(buf).map_err(decoding_error)?;
         Ok(())
     }
 
@@ -107,6 +141,27 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         // Write data to buffer
         self.writer.write_all(&data[..])?;
         self.writer.flush()?;
+
+        Ok(())
+    }
+}
+
+// Note that ImageEncoder should only be implemented for QoiEncoder<W> where W would implement
+// std::io::Write with the std feature enabled.
+#[cfg(not(feature = "std"))]
+impl ImageEncoder for QoiEncoder<Vec<u8>> {
+    #[track_caller]
+    fn write_image(
+        mut self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        let mut data = write_image_to_vec(buf, width, height, color_type)?;
+
+        // Write data to buffer
+        self.writer.append(&mut data);
 
         Ok(())
     }

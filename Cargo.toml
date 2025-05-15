@@ -1,11 +1,11 @@
 [package]
 name = "image"
-version = "0.25.6"
+version = "0.26.0"
 edition = "2021"
 resolver = "2"
 
 # note: when changed, also update test runner in `.github/workflows/rust.yml`
-rust-version = "1.70.0"
+rust-version = "1.81.0"
 
 license = "MIT OR Apache-2.0"
 description = "Imaging library. Provides basic image processing and encoders/decoders for common image formats."
@@ -36,25 +36,28 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
-byteorder-lite = "0.1.0"
-num-traits = { version = "0.2.0" }
+byteorder-lite = { version = "0.1.0", default-features = false }
+num-traits = { version = "0.2.0", default-features = false }
 
 # Optional dependencies
 color_quant = { version = "1.1", optional = true }
-dav1d = { version = "0.10.3", optional = true }
+dav1d = { version = "0.10.4", optional = true }
 exr = { version = "1.5.0", optional = true }
 gif = { version = "0.13.1", optional = true }
 image-webp = { version = "0.2.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.17.11", optional = true }
-qoi = { version = "0.4", optional = true }
+qoi = { version = "0.4", default-features = false, optional = true, features = ["alloc"] }
 ravif = { version = "0.11.12", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.9.0", optional = true }
 zune-core = { version = "0.4.12", default-features = false, optional = true }
 zune-jpeg = { version = "0.4.13", optional = true }
-serde = { version = "1.0.214", optional = true, features = ["derive"] }
+serde = { version = "1.0.214", default-features = false, optional = true, features = ["derive"] }
+
+# Patches
+num-bigint = { version = "0.4.2", default-features = false, optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -64,33 +67,35 @@ quickcheck = "1"
 criterion = "0.5.0"
 
 [features]
-default = ["rayon", "default-formats"]
+default = ["std", "rayon", "default-formats"]
 
 # Format features
 default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
-avif = ["dep:ravif", "dep:rgb"]
+avif = ["dep:ravif", "dep:rgb", "std", "dep:num-bigint"]
 bmp = []
 dds = []
-exr = ["dep:exr"]
+exr = ["dep:exr", "std"]
 ff = [] # Farbfeld image format
-gif = ["dep:gif", "dep:color_quant"]
+gif = ["dep:gif", "dep:color_quant", "std"]
 hdr = []
-ico = ["bmp", "png"]
-jpeg = ["dep:zune-core", "dep:zune-jpeg"]
-png = ["dep:png"]
+ico = ["bmp", "png", "std"]
+jpeg = ["dep:zune-core", "dep:zune-jpeg", "std"]
+png = ["dep:png", "std"]
 pnm = []
 qoi = ["dep:qoi"]
 tga = []
-tiff = ["dep:tiff"]
-webp = ["dep:image-webp"]
+tiff = ["dep:tiff", "std"]
+webp = ["dep:image-webp", "std"]
 
 # Other features
-rayon = ["dep:rayon", "ravif?/threading"] # Enables multi-threading
-nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
+rayon = ["dep:rayon", "ravif?/threading", "std"] # Enables multi-threading
+nasm = ["ravif?/asm", "std"] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization
-avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d
-benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
+avif-native = ["dep:mp4parse", "dep:dav1d", "std", "dep:num-bigint"] # Enable native dependency libdav1d
+benchmarks = ["std"] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 serde = ["dep:serde"]
+std = ["byteorder-lite/std", "num-traits/std", "qoi?/std"]
+libm = ["num-traits/libm"]
 
 [[bench]]
 path = "benches/decode.rs"

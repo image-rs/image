@@ -1,10 +1,10 @@
-#![allow(clippy::too_many_arguments)]
-use std::ffi::OsStr;
-use std::io::{self, Write};
-use std::mem::size_of;
-use std::ops::{Deref, DerefMut};
-use std::path::Path;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::mem::size_of;
+use core::ops::{Deref, DerefMut};
 
+use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
@@ -15,7 +15,8 @@ use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
 
-use crate::animation::Frames;
+#[cfg(feature = "std")]
+use {std::ffi::OsStr, std::path::Path};
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
@@ -83,14 +84,33 @@ impl ImageFormat {
     /// let format = ImageFormat::from_extension("jpg");
     /// assert_eq!(format, Some(ImageFormat::Jpeg));
     /// ```
+    #[cfg(feature = "std")]
     #[inline]
     pub fn from_extension<S>(ext: S) -> Option<Self>
     where
         S: AsRef<OsStr>,
     {
+        Self::from_extension_str(ext.as_ref().to_str()?)
+    }
+
+    /// Return the image format specified by a path's file extension.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_extension_str("jpg");
+    /// assert_eq!(format, Some(ImageFormat::Jpeg));
+    /// ```
+    #[inline]
+    pub fn from_extension_str<S>(ext: S) -> Option<Self>
+    where
+        S: AsRef<str>,
+    {
         // thin wrapper function to strip generics
-        fn inner(ext: &OsStr) -> Option<ImageFormat> {
-            let ext = ext.to_str()?.to_ascii_lowercase();
+        fn inner(ext: &str) -> Option<ImageFormat> {
+            let ext = ext.to_ascii_lowercase();
 
             Some(match ext.as_str() {
                 "avif" => ImageFormat::Avif,
@@ -128,6 +148,7 @@ impl ImageFormat {
     ///
     /// # Ok::<(), image::error::ImageError>(())
     /// ```
+    #[cfg(feature = "std")]
     #[inline]
     pub fn from_path<P>(path: P) -> ImageResult<Self>
     where
@@ -399,7 +420,6 @@ pub(crate) struct ImageReadBuffer {
     scanline_bytes: usize,
     buffer: Vec<u8>,
     consumed: usize,
-
     total_bytes: u64,
     offset: u64,
 }
@@ -409,7 +429,7 @@ impl ImageReadBuffer {
     /// Panics if `scanline_bytes` doesn't fit into a usize, because that would mean reading anything
     /// from the image would take more RAM than the entire virtual address space. In other words,
     /// actually using this struct would instantly OOM so just get it out of the way now.
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     // When no image formats that use it are enabled
     pub(crate) fn new(scanline_bytes: u64, total_bytes: u64) -> Self {
         Self {
@@ -421,11 +441,11 @@ impl ImageReadBuffer {
         }
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     // When no image formats that use it are enabled
-    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    pub(crate) fn read<F, E>(&mut self, buf: &mut [u8], mut read_scanline: F) -> Result<usize, E>
     where
-        F: FnMut(&mut [u8]) -> io::Result<usize>,
+        F: FnMut(&mut [u8]) -> Result<usize, E>,
     {
         if self.buffer.len() == self.consumed {
             if self.offset == self.total_bytes {
@@ -469,8 +489,8 @@ impl ImageReadBuffer {
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
 #[allow(dead_code)]
-// When no image formats that use it are enabled
-pub(crate) fn load_rect<D, F1, F2, E>(
+#[expect(clippy::too_many_arguments)]
+pub(crate) fn load_rect<D, F1, F2, E1, E2>(
     x: u32,
     y: u32,
     width: u32,
@@ -484,9 +504,9 @@ pub(crate) fn load_rect<D, F1, F2, E>(
 ) -> ImageResult<()>
 where
     D: ImageDecoder,
-    F1: FnMut(&mut D, u64) -> io::Result<()>,
-    F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
-    ImageError: From<E>,
+    F1: FnMut(&mut D, u64) -> Result<(), E1>,
+    F2: FnMut(&mut D, &mut [u8]) -> Result<(), E2>,
+    ImageError: From<E1> + From<E2>,
 {
     let scanline_bytes = u64::try_from(scanline_bytes).unwrap();
     let row_pitch = u64::try_from(row_pitch).unwrap();
@@ -528,9 +548,12 @@ where
                         .min(scanline_bytes - offset)
                         .min(end - position);
 
-                    output
-                        .write_all(&tmp[offset as usize..][..len as usize])
-                        .unwrap();
+                    let tmp = &tmp[offset as usize..][..len as usize];
+                    let amt = tmp.len();
+                    let (a, b) = core::mem::take(&mut output).split_at_mut(amt);
+                    a.copy_from_slice(tmp);
+                    output = b;
+
                     start += len;
 
                     if start == end {
@@ -559,9 +582,11 @@ where
                             .min(scanline_bytes - offset)
                             .min(end - position);
 
-                        output
-                            .write_all(&tmp[offset as usize..][..len as usize])
-                            .unwrap();
+                        let tmp = &tmp[offset as usize..][..len as usize];
+                        let amt = tmp.len();
+                        let (a, b) = core::mem::take(&mut output).split_at_mut(amt);
+                        a.copy_from_slice(tmp);
+                        output = b;
                     }
 
                     current_scanline += 1;
@@ -1280,7 +1305,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImageView for SubImageInner<I>
 where
     I: Deref,
@@ -1297,13 +1321,13 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImage for SubImageInner<I>
 where
     I: DerefMut,
     I::Target: GenericImage + Sized,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+        #[expect(deprecated)]
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 
@@ -1314,6 +1338,7 @@ where
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+        #[expect(deprecated)]
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
     }
@@ -1334,7 +1359,7 @@ mod tests {
     use crate::{GrayImage, ImageBuffer};
 
     #[test]
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);

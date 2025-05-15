@@ -1,6 +1,13 @@
+use alloc::{vec, vec::Vec};
 use num_traits::clamp;
 
 use crate::{ImageBuffer, Pixel, Primitive};
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float as _;
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+use num_traits::float::FloatCore as _;
 
 /// Approximation of Gaussian blur.
 ///

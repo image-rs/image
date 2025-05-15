@@ -1,9 +1,15 @@
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
 use super::header::Header;
 use crate::{
     codecs::tga::header::ImageType, error::EncodingError, ExtendedColorType, ImageEncoder,
     ImageError, ImageFormat, ImageResult,
 };
-use std::{error, fmt, io::Write};
+use alloc::vec::Vec;
+use core::{error, fmt};
+
+#[cfg(feature = "std")]
+use std::io::Write;
 
 /// Errors that can occur during encoding and saving of a TGA image.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -33,7 +39,7 @@ impl From<EncoderError> for ImageError {
 impl error::Error for EncoderError {}
 
 /// TGA encoder.
-pub struct TgaEncoder<W: Write> {
+pub struct TgaEncoder<W> {
     writer: W,
 
     /// Run-length encoding
@@ -48,7 +54,7 @@ enum PacketType {
     Rle,
 }
 
-impl<W: Write> TgaEncoder<W> {
+impl<W> TgaEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> TgaEncoder<W> {
         TgaEncoder {
@@ -62,7 +68,10 @@ impl<W: Write> TgaEncoder<W> {
         self.use_rle = false;
         self
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: Write> TgaEncoder<W> {
     /// Writes a raw packet to the writer
     fn write_raw_packet(&mut self, pixels: &[u8], counter: u8) -> ImageResult<()> {
         // Set high bit = 0 and store counter - 1 (because 0 would be useless)
@@ -233,6 +242,7 @@ impl<W: Write> TgaEncoder<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for TgaEncoder<W> {
     #[track_caller]
     fn write_image(
@@ -250,7 +260,8 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
 mod tests {
     use super::{EncoderError, TgaEncoder};
     use crate::{codecs::tga::TgaDecoder, ExtendedColorType, ImageDecoder, ImageError};
-    use std::{error::Error, io::Cursor};
+    use core::error::Error;
+    use std::io::Cursor;
 
     #[test]
     fn test_image_width_too_large() {

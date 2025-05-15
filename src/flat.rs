@@ -7,8 +7,8 @@
 //! to help you transition from raw memory data to Rust representation.
 //!
 //! ```no_run
-//! use std::ptr;
-//! use std::slice;
+//! use core::ptr;
+//! use core::slice;
 //! use image::Rgb;
 //! use image::flat::{FlatSamples, SampleLayout};
 //! use image::imageops::thumbnail;
@@ -41,9 +41,10 @@
 //! }
 //! ```
 //!
-use std::marker::PhantomData;
-use std::ops::{Deref, Index, IndexMut};
-use std::{cmp, error, fmt};
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, IndexMut};
+use core::{cmp, error, fmt};
 
 use num_traits::Zero;
 
@@ -536,7 +537,7 @@ impl<Buffer> FlatSamples<Buffer> {
 
     /// Get a reference to a single sample.
     ///
-    /// This more restrictive than the method based on `std::ops::Index` but guarantees to properly
+    /// This more restrictive than the method based on `core::ops::Index` but guarantees to properly
     /// check all bounds and not panic as long as `Buffer::as_ref` does not do so.
     ///
     /// ```
@@ -565,7 +566,7 @@ impl<Buffer> FlatSamples<Buffer> {
 
     /// Get a mutable reference to a single sample.
     ///
-    /// This more restrictive than the method based on `std::ops::IndexMut` but guarantees to
+    /// This more restrictive than the method based on `core::ops::IndexMut` but guarantees to
     /// properly check all bounds and not panic as long as `Buffer::as_ref` does not do so.
     /// Contrary to conversion to `ViewMut`, this does not require that samples are packed since it
     /// does not need to convert samples to a color representation.
@@ -1464,12 +1465,12 @@ where
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }
 
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         *self.get_pixel_mut(x, y) = pixel;
     }
 
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.get_pixel_mut(x, y).blend(&pixel);
     }
@@ -1622,7 +1623,7 @@ mod tests {
                 .as_view_mut::<LumaA<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             for i in 0..9 {
                 *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
             }

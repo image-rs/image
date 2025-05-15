@@ -1,5 +1,7 @@
+use alloc::borrow::Cow;
+use alloc::format;
+use alloc::vec::Vec;
 use byteorder_lite::{LittleEndian, WriteBytesExt};
-use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};

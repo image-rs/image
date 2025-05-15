@@ -3,7 +3,9 @@
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
 
-use std::f32;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
@@ -11,6 +13,12 @@ use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
+
+#[cfg(all(not(feature = "std"), feature = "libm"))]
+use num_traits::Float as _;
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+use num_traits::float::FloatCore as _;
 
 /// Available Sampling Filters.
 ///
@@ -137,6 +145,7 @@ impl ToPrimitive for FloatNearest {
 }
 
 // sinc function: the ideal sampling filter.
+#[cfg(any(feature = "std", feature = "libm"))]
 fn sinc(t: f32) -> f32 {
     let a = t * f32::consts::PI;
 
@@ -148,6 +157,7 @@ fn sinc(t: f32) -> f32 {
 }
 
 // lanczos kernel function. A windowed sinc function.
+#[cfg(any(feature = "std", feature = "libm"))]
 fn lanczos(x: f32, t: f32) -> f32 {
     if x.abs() < t {
         sinc(x) * sinc(x / t)
@@ -179,17 +189,20 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 
 /// The Gaussian Function.
 /// ```r``` is the standard deviation.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn gaussian(x: f32, r: f32) -> f32 {
     ((2.0 * f32::consts::PI).sqrt() * r).recip() * (-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
 /// Calculate the lanczos kernel with a window of 3
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn lanczos3_kernel(x: f32) -> f32 {
     lanczos(x, 3.0)
 }
 
 /// Calculate the gaussian function with a
 /// standard deviation of 0.5
+#[cfg(any(feature = "std", feature = "libm"))]
 pub(crate) fn gaussian_kernel(x: f32) -> f32 {
     gaussian(x, 0.5)
 }
@@ -290,7 +303,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let vec = p.channels4();
 
                 t.0 += vec.0 * w;
@@ -299,7 +312,7 @@ where
                 t.3 += vec.3 * w;
             }
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
                 NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
@@ -530,7 +543,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
@@ -545,7 +558,7 @@ where
                 t.3 += vec.3 * w;
             }
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             // This is not necessarily Rgba.
             let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
 
@@ -574,7 +587,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 
     fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
         self.1 += Self::sample_val(pixel.1);
@@ -668,7 +681,7 @@ where
                 )
             };
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
             out.put_pixel(outx, outy, pixel);
         }
@@ -808,13 +821,13 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_bl = image.get_pixel(left, bottom).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_tl = image.get_pixel(left, bottom + 1).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_br = image.get_pixel(left + 1, bottom).channels4();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
@@ -878,7 +891,7 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
-    #[allow(clippy::redundant_guards)]
+    #[expect(clippy::redundant_guards)]
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         x if x == 0.0 => 1.0,
         sum => sum,
@@ -899,7 +912,7 @@ where
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec: (f32, f32, f32, f32) = (
@@ -917,7 +930,7 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -984,14 +997,20 @@ where
             kernel: Box::new(catmullrom_kernel),
             support: 2.0,
         },
+        #[cfg(any(feature = "std", feature = "libm"))]
         FilterType::Gaussian => Filter {
             kernel: Box::new(gaussian_kernel),
             support: 3.0,
         },
+        #[cfg(any(feature = "std", feature = "libm"))]
         FilterType::Lanczos3 => Filter {
             kernel: Box::new(lanczos3_kernel),
             support: 3.0,
         },
+        #[cfg(not(any(feature = "std", feature = "libm")))]
+        FilterType::Gaussian | FilterType::Lanczos3 => {
+            unimplemented!("Gaussian and Lanczos3 filter types require either std or libm features to be enabled.")
+        }
     };
 
     // Note: tmp is not necessarily actually Rgba
@@ -1006,6 +1025,7 @@ where
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,
@@ -1045,6 +1065,7 @@ where
 /// If it is not, color distortion may occur.
 ///
 /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
+#[cfg(any(feature = "std", feature = "libm"))]
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,

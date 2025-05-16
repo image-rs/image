@@ -13,4 +13,6 @@ mod decoder;
 #[cfg(feature = "avif")]
 mod encoder;
 #[cfg(feature = "avif-native")]
+mod ycgco;
+#[cfg(feature = "avif-native")]
 mod yuv;

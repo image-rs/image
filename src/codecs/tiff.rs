@@ -8,9 +8,13 @@
 
 extern crate tiff;
 
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use core::mem;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -168,10 +172,9 @@ impl ImageError {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
 #[deprecated]
 pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-#[allow(deprecated)]
+#[expect(deprecated)]
 impl<R> Read for TiffReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)

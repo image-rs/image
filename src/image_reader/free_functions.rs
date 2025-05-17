@@ -1,16 +1,24 @@
-use std::fs::File;
-use std::io::{BufRead, BufWriter, Seek};
-use std::iter;
-use std::path::Path;
+use core::iter;
 
-use crate::{codecs::*, ExtendedColorType, ImageReader};
-
-use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
-use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
+
 #[allow(unused_imports)] // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
+
+#[cfg_attr(not(feature = "std"), expect(unused_imports))]
+use {
+    crate::codecs::*, crate::dynimage::DynamicImage, crate::error::UnsupportedError,
+    crate::error::UnsupportedErrorKind, crate::ExtendedColorType, crate::ImageReader,
+    alloc::format,
+};
+
+#[cfg(feature = "std")]
+use {
+    std::fs::File,
+    std::io::{BufRead, BufWriter, Seek},
+    std::path::Path,
+};
 
 /// Create a new image from a Reader.
 ///
@@ -18,14 +26,15 @@ use crate::image::{ImageDecoder, ImageEncoder};
 /// consider wrapping the reader with a `BufReader::new()`.
 ///
 /// Try [`ImageReader`] for more advanced uses.
+#[cfg(feature = "std")]
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     let mut reader = ImageReader::new(r);
     reader.set_format(format);
     reader.decode()
 }
 
-#[allow(unused_variables)]
 // Most variables when no features are supported
+#[cfg(feature = "std")]
 pub(crate) fn save_buffer_impl(
     path: &Path,
     buf: &[u8],
@@ -37,8 +46,8 @@ pub(crate) fn save_buffer_impl(
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
-#[allow(unused_variables)]
 // Most variables when no features are supported
+#[cfg(feature = "std")]
 pub(crate) fn save_buffer_with_format_impl(
     path: &Path,
     buf: &[u8],
@@ -51,7 +60,7 @@ pub(crate) fn save_buffer_with_format_impl(
     write_buffer_impl(buffered_file_write, buf, width, height, color, format)
 }
 
-#[allow(unused_variables)]
+#[cfg(feature = "std")]
 // Most variables when no features are supported
 pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     buffered_write: &mut W,

@@ -27,6 +27,9 @@ use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
 
+use alloc::boxed::Box;
+use alloc::string::ToString;
+use alloc::{format, vec};
 use std::io::{BufRead, Seek, Write};
 
 /// An OpenEXR decoder. Immediately reads the meta data from the file.

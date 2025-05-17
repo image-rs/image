@@ -5,12 +5,15 @@
 //!  # Related Links
 //!  * <https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide> - Description of the DDS format.
 
-use std::io::Read;
-use std::{error, fmt};
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
 
-use byteorder_lite::{LittleEndian, ReadBytesExt};
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::ToString;
+use core::{error, fmt};
 
-#[allow(deprecated)]
+use byteorder_lite::LittleEndian;
+
 use crate::codecs::dxt::{DxtDecoder, DxtVariant};
 use crate::color::ColorType;
 use crate::error::{
@@ -18,9 +21,12 @@ use crate::error::{
 };
 use crate::image::{ImageDecoder, ImageFormat};
 
+#[cfg(feature = "std")]
+use {byteorder_lite::ReadBytesExt, std::io::Read};
+
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 enum DecoderError {
     /// Wrong DDS channel width
     PixelFormatSizeInvalid(u32),
@@ -116,6 +122,7 @@ struct PixelFormat {
 }
 
 impl PixelFormat {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
@@ -139,6 +146,7 @@ impl PixelFormat {
 }
 
 impl Header {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
@@ -186,6 +194,7 @@ impl Header {
 }
 
 impl DX10Header {
+    #[cfg(feature = "std")]
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let dxgi_format = r.read_u32::<LittleEndian>()?;
         let resource_dimension = r.read_u32::<LittleEndian>()?;
@@ -240,11 +249,11 @@ impl DX10Header {
 }
 
 /// The representation of a DDS decoder
-pub struct DdsDecoder<R: Read> {
-    #[allow(deprecated)]
+pub struct DdsDecoder<R> {
     inner: DxtDecoder<R>,
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> DdsDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(mut r: R) -> ImageResult<Self> {
@@ -257,7 +266,6 @@ impl<R: Read> DdsDecoder<R> {
         let header = Header::from_reader(&mut r)?;
 
         if header.pixel_format.flags & 0x4 != 0 {
-            #[allow(deprecated)]
             let variant = match &header.pixel_format.fourcc {
                 b"DXT1" => DxtVariant::DXT1,
                 b"DXT3" => DxtVariant::DXT3,
@@ -294,7 +302,6 @@ impl<R: Read> DdsDecoder<R> {
                 }
             };
 
-            #[allow(deprecated)]
             let bytes_per_pixel = variant.color_type().bytes_per_pixel();
 
             if crate::utils::check_dimension_overflow(header.width, header.height, bytes_per_pixel)
@@ -310,7 +317,6 @@ impl<R: Read> DdsDecoder<R> {
                 ));
             }
 
-            #[allow(deprecated)]
             let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
             Ok(Self { inner })
         } else {
@@ -325,6 +331,7 @@ impl<R: Read> DdsDecoder<R> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for DdsDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()

@@ -1,10 +1,7 @@
 //! Encoding of PNM Images
-use std::fmt;
-use std::io;
 
-use std::io::Write;
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
 
-use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
 use crate::color::ExtendedColorType;
@@ -13,8 +10,19 @@ use crate::error::{
     UnsupportedErrorKind,
 };
 use crate::image::{ImageEncoder, ImageFormat};
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::vec::Vec;
+use core::fmt;
 
-use byteorder_lite::{BigEndian, WriteBytesExt};
+use byteorder_lite::BigEndian;
+
+#[cfg(feature = "std")]
+use {
+    super::AutoBreak,
+    byteorder_lite::WriteBytesExt,
+    std::io::{self, Write},
+};
 
 enum HeaderStrategy {
     Dynamic,
@@ -22,6 +30,7 @@ enum HeaderStrategy {
     Chosen(PnmHeader),
 }
 
+#[cfg_attr(not(feature = "std"), expect(unreachable_pub))]
 #[derive(Clone, Copy)]
 pub enum FlatSamples<'a> {
     U8(&'a [u8]),
@@ -29,7 +38,7 @@ pub enum FlatSamples<'a> {
 }
 
 /// Encodes images to any of the `pnm` image formats.
-pub struct PnmEncoder<W: Write> {
+pub struct PnmEncoder<W> {
     writer: W,
     header: HeaderStrategy,
 }
@@ -78,7 +87,7 @@ enum TupleEncoding<'a> {
     },
 }
 
-impl<W: Write> PnmEncoder<W> {
+impl<W> PnmEncoder<W> {
     /// Create new `PnmEncoder` from the `writer`.
     ///
     /// The encoded images will have some `pnm` format. If more control over the image type is
@@ -134,7 +143,10 @@ impl<W: Write> PnmEncoder<W> {
             header: HeaderStrategy::Dynamic,
         }
     }
+}
 
+#[cfg(feature = "std")]
+impl<W: Write> PnmEncoder<W> {
     /// Encode an image whose samples are represented as `u8`.
     ///
     /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
@@ -282,6 +294,7 @@ impl<W: Write> PnmEncoder<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<W: Write> ImageEncoder for PnmEncoder<W> {
     #[track_caller]
     fn write_image(
@@ -509,7 +522,9 @@ impl<'a> CheckedHeaderColor<'a> {
     }
 }
 
+#[cfg_attr(not(feature = "std"), expect(clippy::needless_lifetimes))]
 impl<'a> CheckedHeader<'a> {
+    #[cfg(feature = "std")]
     fn write_header(self, writer: &mut dyn Write) -> ImageResult<TupleEncoding<'a>> {
         self.header().write(writer)?;
         Ok(self.encoding)
@@ -520,8 +535,10 @@ impl<'a> CheckedHeader<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 struct SampleWriter<'a>(&'a mut dyn Write);
 
+#[cfg(feature = "std")]
 impl SampleWriter<'_> {
     fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
     where
@@ -634,6 +651,7 @@ impl<'a> From<&'a [u16]> for FlatSamples<'a> {
 }
 
 impl TupleEncoding<'_> {
+    #[cfg(feature = "std")]
     fn write_image(&self, writer: &mut dyn Write) -> ImageResult<()> {
         match *self {
             TupleEncoding::PbmBits {

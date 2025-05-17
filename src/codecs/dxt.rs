@@ -7,11 +7,17 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
-use std::io::{self, Read};
+#![cfg_attr(not(feature = "std"), expect(dead_code, unused_imports))]
+
+use alloc::boxed::Box;
+use alloc::vec;
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageDecoder;
+
+#[cfg(feature = "std")]
+use std::io::{self, Read};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -57,7 +63,7 @@ impl DxtVariant {
 }
 
 /// DXT decoder
-pub(crate) struct DxtDecoder<R: Read> {
+pub(crate) struct DxtDecoder<R> {
     inner: R,
     width_blocks: u32,
     height_blocks: u32,
@@ -65,7 +71,7 @@ pub(crate) struct DxtDecoder<R: Read> {
     row: u32,
 }
 
-impl<R: Read> DxtDecoder<R> {
+impl<R> DxtDecoder<R> {
     /// Create a new DXT decoder that decodes from the stream ```r```.
     /// As DXT is often stored as raw buffers with the width/height
     /// somewhere else the width and height of the image need
@@ -101,15 +107,12 @@ impl<R: Read> DxtDecoder<R> {
     fn scanline_bytes(&self) -> u64 {
         self.variant.decoded_bytes_per_block() as u64 * u64::from(self.width_blocks)
     }
+}
 
+#[cfg(feature = "std")]
+impl<R: Read> DxtDecoder<R> {
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(
-            u64::try_from(buf.len()),
-            Ok(
-                #[allow(deprecated)]
-                self.scanline_bytes()
-            )
-        );
+        assert_eq!(u64::try_from(buf.len()), Ok(self.scanline_bytes()));
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -126,6 +129,7 @@ impl<R: Read> DxtDecoder<R> {
 
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
+#[cfg(feature = "std")]
 impl<R: Read> ImageDecoder for DxtDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width_blocks * 4, self.height_blocks * 4)
@@ -138,7 +142,6 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        #[allow(deprecated)]
         for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
             self.read_scanline(chunk)?;
         }
@@ -224,7 +227,7 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     } else {
         // linearly interpolate one other entry, keep the other at 0
         for i in 0..3 {
-            colors[2][i] = ((u16::from(colors[0][i]) + u16::from(colors[1][i]) + 1) / 2) as u8;
+            colors[2][i] = (u16::from(colors[0][i]) + u16::from(colors[1][i])).div_ceil(2) as u8;
         }
     }
 

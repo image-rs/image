@@ -1,8 +1,8 @@
 use crate::error::DecodingError;
 use crate::{ImageError, ImageFormat};
+use core::fmt::{Display, Formatter};
+use core::mem::size_of;
 use num_traits::AsPrimitive;
-use std::fmt::{Display, Formatter};
-use std::mem::size_of;
 
 #[derive(Debug, Copy, Clone)]
 /// Representation of inversion matrix
@@ -46,7 +46,7 @@ pub(crate) enum PlaneDefinition {
 }
 
 impl Display for PlaneDefinition {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
         match self {
             PlaneDefinition::Y => f.write_str("Luma"),
             PlaneDefinition::U => f.write_str("U chroma"),
@@ -62,7 +62,7 @@ enum YuvConversionError {
 }
 
 impl Display for YuvConversionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
                 f.write_fmt(format_args!(
@@ -80,7 +80,7 @@ impl Display for YuvConversionError {
     }
 }
 
-impl std::error::Error for YuvConversionError {}
+impl core::error::Error for YuvConversionError {}
 
 #[inline]
 pub(crate) fn check_yuv_plane_preconditions<V>(
@@ -560,7 +560,7 @@ fn process_halved_chroma_row_cbcr<
     // preventing accidental use of invalid values from the trailing region.
 
     let y_plane = &image.y_plane[0..image.width];
-    let chroma_size = (image.width + 1) / 2;
+    let chroma_size = image.width.div_ceil(2);
     let u_plane = &image.u_plane[0..chroma_size];
     let v_plane = &image.v_plane[0..chroma_size];
     let rgba = &mut rgba[0..image.width * CHANNELS];
@@ -672,7 +672,7 @@ where
     let y_stride = image.y_stride;
     let u_stride = image.u_stride;
     let v_stride = image.v_stride;
-    let chroma_height = (image.height + 1) / 2;
+    let chroma_height = image.height.div_ceil(2);
 
     check_yuv_plane_preconditions(y_plane, PlaneDefinition::Y, y_stride, image.height)?;
     check_yuv_plane_preconditions(u_plane, PlaneDefinition::U, u_stride, chroma_height)?;

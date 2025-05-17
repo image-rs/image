@@ -13,6 +13,11 @@ use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::marker::PhantomData;
 
+use crate::codecs::avif::ycgco::{
+    ycgco420_to_rgba10, ycgco420_to_rgba12, ycgco420_to_rgba8, ycgco422_to_rgba10,
+    ycgco422_to_rgba12, ycgco422_to_rgba8, ycgco444_to_rgba10, ycgco444_to_rgba12,
+    ycgco444_to_rgba8,
+};
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
 use mp4parse::{read_avif, ParseStrictness};

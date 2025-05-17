@@ -135,7 +135,12 @@ impl<W: Write> PnmEncoder<W> {
         }
     }
 
-    /// Encode an image whose samples are represented as `u8`.
+    /// Encode an image whose samples are represented as a sequence of `u8` or `u16` data.
+    ///
+    /// If `image` is a slice of `u8`, the samples will be interpreted based on the chosen `color` option.
+    /// Color types of 16-bit precision means that the bytes are reinterpreted as 16-bit samples,
+    /// otherwise they are treated as 8-bit samples.
+    /// If `image` is a slice of `u16`, the samples will be interpreted as 16-bit samples directly.
     ///
     /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
     /// certainly with any deviation from the original decoded image.
@@ -150,13 +155,58 @@ impl<W: Write> PnmEncoder<W> {
         S: Into<FlatSamples<'s>>,
     {
         let image = image.into();
+
+        // adapt samples so that they are aligned even in 16-bit samples,
+        // required due to the narrowing of the image buffer to &[u8]
+        // on dynamic image writing
+        let image = match (image, color) {
+            (
+                FlatSamples::U8(samples),
+                ExtendedColorType::L16
+                | ExtendedColorType::La16
+                | ExtendedColorType::Rgb16
+                | ExtendedColorType::Rgba16,
+            ) => {
+                match bytemuck::try_cast_slice(samples) {
+                    // proceed with aligned 16-bit samples
+                    Ok(samples) => FlatSamples::U16(samples),
+                    Err(_e) => {
+                        // reallocation is required
+                        let new_samples: Vec<u16> = samples
+                            .chunks(2)
+                            .map(|chunk| u16::from_ne_bytes([chunk[0], chunk[1]]))
+                            .collect();
+
+                        let image = FlatSamples::U16(&new_samples);
+
+                        // make a separate encoding path,
+                        // because the image buffer lifetime has changed
+                        return self.encode_impl(image, width, height, color);
+                    }
+                }
+            }
+            // should not be necessary for any other case
+            _ => image,
+        };
+
+        self.encode_impl(image, width, height, color)
+    }
+
+    /// Encode an image whose samples are already interpreted correctly.
+    fn encode_impl<'s>(
+        &mut self,
+        samples: FlatSamples<'s>,
+        width: u32,
+        height: u32,
+        color: ExtendedColorType,
+    ) -> ImageResult<()> {
         match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color),
+            HeaderStrategy::Dynamic => self.write_dynamic_header(samples, width, height, color),
             HeaderStrategy::Subtype(subtype) => {
-                self.write_subtyped_header(subtype, image, width, height, color)
+                self.write_subtyped_header(subtype, samples, width, height, color)
             }
             HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, image, width, height, color)
+                Self::write_with_header(&mut self.writer, header, samples, width, height, color)
             }
         }
     }
@@ -417,7 +467,9 @@ impl<'a> CheckedDimensions<'a> {
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La8) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb8) => (),
+                (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb16) => (),
                 (&Some(ArbitraryTuplType::RGBAlpha), ExtendedColorType::Rgba8) => (),
+                (&Some(ArbitraryTuplType::RGBAlpha), ExtendedColorType::Rgba16) => (),
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),

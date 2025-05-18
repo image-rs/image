@@ -297,6 +297,7 @@ mod buffer_;
 mod buffer_par;
 mod color;
 mod dynimage;
+pub mod hooks;
 mod image;
 mod image_reader;
 pub mod metadata;

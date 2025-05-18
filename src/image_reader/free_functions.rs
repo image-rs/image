@@ -80,6 +80,10 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageFormat::Ico => {
             ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
+        #[cfg(feature = "dds")]
+        ImageFormat::Dds => {
+            dds::DdsEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "bmp")]
         ImageFormat::Bmp => {
             bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color)

@@ -171,10 +171,12 @@ pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
 pub use crate::dynimage::{
-    image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
-    save_buffer_with_format, write_buffer_with_format,
+    image_dimensions, load_from_memory, load_from_memory_with_format, open,
+    write_buffer_with_format,
 };
-pub use crate::image_reader::free_functions::{guess_format, load};
+pub use crate::image_reader::free_functions::{
+    guess_format, load, save_buffer, save_buffer_with_format,
+};
 pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
 
 pub use crate::dynimage::DynamicImage;

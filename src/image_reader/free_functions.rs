@@ -26,11 +26,9 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
 
 /// Saves the supplied buffer to a file at the path specified.
 ///
-/// The image format is derived from the file extension. The buffer is assumed to have
-/// the correct format according to the specified color type.
-///
-/// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
+/// The image format is derived from the file extension. The buffer is assumed to have the correct
+/// format according to the specified color type. This will lead to corrupted files if the buffer
+/// contains malformed data.
 pub fn save_buffer(
     path: impl AsRef<Path>,
     buf: &[u8],
@@ -42,14 +40,10 @@ pub fn save_buffer(
     save_buffer_with_format(path, buf, width, height, color, format)
 }
 
-/// Saves the supplied buffer to a file at the path specified
-/// in the specified format.
+/// Saves the supplied buffer to a file given the path and desired format.
 ///
-/// The buffer is assumed to have the correct format according
-/// to the specified color type.
-/// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp, exr and
-/// tiff files are supported.
+/// The buffer is assumed to have the correct format according to the specified color type. This
+/// will lead to corrupted files if the buffer contains malformed data.
 pub fn save_buffer_with_format(
     path: impl AsRef<Path>,
     buf: &[u8],

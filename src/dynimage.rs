@@ -1379,8 +1379,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// TGA is not supported by this function.
 ///
 /// Try [`ImageReader`] for more advanced uses.
-pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    let format = free_functions::guess_format(buffer)?;
+pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
+    let format = free_functions::guess_format(buffer.as_ref())?;
     load_from_memory_with_format(buffer, format)
 }
 
@@ -1393,8 +1393,8 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::Cursor::new(buf);
+pub fn load_from_memory_with_format(buf: impl AsRef<[u8]>, format: ImageFormat) -> ImageResult<DynamicImage> {
+    let b = io::Cursor::new(buf.as_ref());
     free_functions::load(b, format)
 }
 

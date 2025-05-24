@@ -1393,7 +1393,10 @@ pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: impl AsRef<[u8]>, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load_from_memory_with_format(
+    buf: impl AsRef<[u8]>,
+    format: ImageFormat,
+) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf.as_ref());
     free_functions::load(b, format)
 }

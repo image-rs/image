@@ -53,7 +53,14 @@ pub fn save_buffer_with_format(
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-    write_buffer_impl(buffered_file_write, buf, width, height, color.into(), format)
+    write_buffer_impl(
+        buffered_file_write,
+        buf,
+        width,
+        height,
+        color.into(),
+        format,
+    )
 }
 
 #[allow(unused_variables)]

@@ -24,31 +24,42 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     reader.decode()
 }
 
-#[allow(unused_variables)]
-// Most variables when no features are supported
-pub(crate) fn save_buffer_impl(
-    path: &Path,
+/// Saves the supplied buffer to a file at the path specified.
+///
+/// The image format is derived from the file extension. The buffer is assumed to have
+/// the correct format according to the specified color type.
+///
+/// This will lead to corrupted files if the buffer contains malformed data. Currently only
+/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
+pub fn save_buffer(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: ExtendedColorType,
+    color: impl Into<ExtendedColorType>,
 ) -> ImageResult<()> {
-    let format = ImageFormat::from_path(path)?;
-    save_buffer_with_format_impl(path, buf, width, height, color, format)
+    let format = ImageFormat::from_path(path.as_ref())?;
+    save_buffer_with_format(path, buf, width, height, color, format)
 }
 
-#[allow(unused_variables)]
-// Most variables when no features are supported
-pub(crate) fn save_buffer_with_format_impl(
-    path: &Path,
+/// Saves the supplied buffer to a file at the path specified
+/// in the specified format.
+///
+/// The buffer is assumed to have the correct format according
+/// to the specified color type.
+/// This will lead to corrupted files if the buffer contains
+/// malformed data. Currently only jpeg, png, ico, bmp, exr and
+/// tiff files are supported.
+pub fn save_buffer_with_format(
+    path: impl AsRef<Path>,
     buf: &[u8],
     width: u32,
     height: u32,
-    color: ExtendedColorType,
+    color: impl Into<ExtendedColorType>,
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-    write_buffer_impl(buffered_file_write, buf, width, height, color, format)
+    write_buffer_impl(buffered_file_write, buf, width, height, color.into(), format)
 }
 
 #[allow(unused_variables)]

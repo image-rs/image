@@ -1309,51 +1309,6 @@ where
     ImageReader::open(path)?.into_dimensions()
 }
 
-/// Saves the supplied buffer to a file at the path specified.
-///
-/// The image format is derived from the file extension. The buffer is assumed to have
-/// the correct format according to the specified color type.
-///
-/// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
-pub fn save_buffer(
-    path: impl AsRef<Path>,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: impl Into<ExtendedColorType>,
-) -> ImageResult<()> {
-    // thin wrapper function to strip generics before calling save_buffer_impl
-    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color.into())
-}
-
-/// Saves the supplied buffer to a file at the path specified
-/// in the specified format.
-///
-/// The buffer is assumed to have the correct format according
-/// to the specified color type.
-/// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp, exr and
-/// tiff files are supported.
-pub fn save_buffer_with_format(
-    path: impl AsRef<Path>,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: impl Into<ExtendedColorType>,
-    format: ImageFormat,
-) -> ImageResult<()> {
-    // thin wrapper function to strip generics
-    free_functions::save_buffer_with_format_impl(
-        path.as_ref(),
-        buf,
-        width,
-        height,
-        color.into(),
-        format,
-    )
-}
-
 /// Writes the supplied buffer to a writer in the specified format.
 ///
 /// The buffer is assumed to have the correct format according to the specified color type. This

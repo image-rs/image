@@ -7,7 +7,7 @@ use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
+use crate::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};

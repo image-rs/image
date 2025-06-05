@@ -1397,6 +1397,9 @@ pub fn load_from_memory_with_format(
     buf: impl AsRef<[u8]>,
     format: ImageFormat,
 ) -> ImageResult<DynamicImage> {
+    // Note: this function (and `load_from_memory`) are generic over `AsRef<[u8]>` so that we do not
+    // monomorphize copies of all our decoders unless some downsteam crate actually calls one of
+    // these functions. See https://github.com/image-rs/image/pull/2470.
     let b = io::Cursor::new(buf.as_ref());
     free_functions::load(b, format)
 }

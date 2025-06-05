@@ -20,11 +20,17 @@ allow = [
     "BSD-3-Clause",
     "MIT",
     "Unicode-3.0",
+    # Only when you introduce feature dependencies (mp4parse)
+    "MPL-2.0",
 ]
 
 [advisories]
 yanked = "deny"
-ignore = []
+ignore = [
+    # `paste` (through rav1e) is unmaintained, migration <https://github.com/xiph/rav1e/issues/3418>
+    # However the crate still works with forseeable problems only in future editions.
+    "RUSTSEC-2024-0436",
+]
 
 
 [bans]

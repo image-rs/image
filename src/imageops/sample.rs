@@ -8,7 +8,7 @@ use std::f32;
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::traits::{Pixel, Primitive, PrimitiveExt};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
 
@@ -557,9 +557,9 @@ where
 }
 
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
-struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+struct ThumbnailSum<S: PrimitiveExt>(S::Larger, S::Larger, S::Larger, S::Larger);
 
-impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
+impl<S: PrimitiveExt> ThumbnailSum<S> {
     fn zeroed() -> Self {
         ThumbnailSum(
             S::Larger::zero(),
@@ -599,7 +599,7 @@ pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBu
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Enlargeable + 'static,
+    S: PrimitiveExt + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
@@ -688,7 +688,7 @@ fn thumbnail_sample_block<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Enlargeable,
+    S: PrimitiveExt,
 {
     let mut sum = ThumbnailSum::zeroed();
 
@@ -720,7 +720,7 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Enlargeable,
+    S: PrimitiveExt,
 {
     let fract = fraction_horizontal;
 
@@ -764,7 +764,7 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Enlargeable,
+    S: PrimitiveExt,
 {
     let fract = fraction_vertical;
 
@@ -806,7 +806,7 @@ fn thumbnail_sample_fraction_both<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Enlargeable,
+    S: PrimitiveExt,
 {
     #[allow(deprecated)]
     let k_bl = image.get_pixel(left, bottom).channels4();

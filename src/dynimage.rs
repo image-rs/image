@@ -7,7 +7,7 @@ use crate::codecs::gif;
 use crate::codecs::png;
 
 use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, PixelBuffer,
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self, FromColor, IntoColor};
@@ -31,7 +31,7 @@ use crate::{Rgb32FImage, Rgba32FImage};
 ///
 /// # Usage
 ///
-/// This type can act as a converter between specific `ImageBuffer` instances.
+/// This type can act as a converter between specific `PixelBuffer` instances.
 ///
 /// ```
 /// use image::{DynamicImage, GrayImage, RgbImage};
@@ -158,63 +158,63 @@ impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of gray pixels.
     #[must_use]
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
+        DynamicImage::ImageLuma8(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
     #[must_use]
     pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
+        DynamicImage::ImageLumaA8(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
     #[must_use]
     pub fn new_rgb8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb8(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgb8(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
     #[must_use]
     pub fn new_rgba8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgba8(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray pixels.
     #[must_use]
     pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
+        DynamicImage::ImageLuma16(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
     #[must_use]
     pub fn new_luma_a16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageLumaA16(ImageBuffer::new(w, h))
+        DynamicImage::ImageLumaA16(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
     #[must_use]
     pub fn new_rgb16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb16(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgb16(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
     #[must_use]
     pub fn new_rgba16(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba16(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgba16(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
     #[must_use]
     pub fn new_rgb32f(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgb32F(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgb32F(PixelBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
     #[must_use]
     pub fn new_rgba32f(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageRgba32F(ImageBuffer::new(w, h))
+        DynamicImage::ImageRgba32F(PixelBuffer::new(w, h))
     }
 
     /// Decodes an encoded image into a dynamic image.
@@ -238,7 +238,7 @@ impl DynamicImage {
             + FromColor<LumaA<u8>>,
     >(
         &self,
-    ) -> ImageBuffer<T, Vec<T::Subpixel>> {
+    ) -> PixelBuffer<T, Vec<T::Subpixel>> {
         dynamic_map!(*self, ref p, p.convert())
     }
 
@@ -292,7 +292,7 @@ impl DynamicImage {
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
-    pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
+    pub fn to_luma32f(&self) -> PixelBuffer<Luma<f32>, Vec<f32>> {
         self.to()
     }
 
@@ -310,7 +310,7 @@ impl DynamicImage {
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
-    pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
+    pub fn to_luma_alpha32f(&self) -> PixelBuffer<LumaA<f32>, Vec<f32>> {
         self.to()
     }
 
@@ -656,7 +656,7 @@ impl DynamicImage {
     /// Return this image's pixels as a native endian byte slice.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `PixelBuffer<_, Vec<_>>`
         dynamic_map!(
             *self,
             ref image_buffer,
@@ -666,7 +666,7 @@ impl DynamicImage {
 
     // TODO: choose a name under which to expose?
     fn inner_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `PixelBuffer<_, Vec<_>>`
         dynamic_map!(
             *self,
             ref image_buffer,
@@ -674,12 +674,12 @@ impl DynamicImage {
         )
     }
 
-    /// Return this image's pixels as a byte vector. If the `ImageBuffer`
+    /// Return this image's pixels as a byte vector. If the `PixelBuffer`
     /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
     /// is returned.
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        // we can do this because every variant contains an `PixelBuffer<_, Vec<_>>`
         dynamic_map!(self, image_buffer, {
             match bytemuck::allocation::try_cast_vec(image_buffer.into_raw()) {
                 Ok(vec) => vec,
@@ -1143,14 +1143,14 @@ impl From<Rgba32FImage> for DynamicImage {
     }
 }
 
-impl From<ImageBuffer<Luma<f32>, Vec<f32>>> for DynamicImage {
-    fn from(image: ImageBuffer<Luma<f32>, Vec<f32>>) -> Self {
+impl From<PixelBuffer<Luma<f32>, Vec<f32>>> for DynamicImage {
+    fn from(image: PixelBuffer<Luma<f32>, Vec<f32>>) -> Self {
         DynamicImage::ImageRgb32F(image.convert())
     }
 }
 
-impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
-    fn from(image: ImageBuffer<LumaA<f32>, Vec<f32>>) -> Self {
+impl From<PixelBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
+    fn from(image: PixelBuffer<LumaA<f32>, Vec<f32>>) -> Self {
         DynamicImage::ImageRgba32F(image.convert())
     }
 }
@@ -1228,52 +1228,52 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
     let image = match color_type {
         color::ColorType::Rgb8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
             let buf = image::decoder_to_vec(decoder)?;
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
+            PixelBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
     };
 
@@ -1358,7 +1358,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
-        let a = super::DynamicImage::ImageRgb8(crate::ImageBuffer::new(1000, 1000));
+        let a = super::DynamicImage::ImageRgb8(crate::PixelBuffer::new(1000, 1000));
         b.iter(|| a.to_luma8());
         b.bytes = 1000 * 1000 * 3
     }
@@ -1487,7 +1487,7 @@ mod test {
     #[test]
     fn issue_1705_can_turn_16bit_image_into_bytes() {
         let pixels = vec![65535u16; 64 * 64];
-        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+        let img = super::PixelBuffer::from_vec(64, 64, pixels).unwrap();
 
         let img = super::DynamicImage::ImageLuma16(img);
         assert!(img.as_luma16().is_some());

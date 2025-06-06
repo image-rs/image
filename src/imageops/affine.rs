@@ -3,17 +3,17 @@
 use crate::error::{ImageError, ParameterError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::PixelBuffer;
 
 /// Rotate an image 90 degrees clockwise.
 pub fn rotate90<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(height, width);
+    let mut out = PixelBuffer::new(height, width);
     let _ = rotate90_in(image, &mut out);
     out
 }
@@ -21,12 +21,12 @@ where
 /// Rotate an image 180 degrees clockwise.
 pub fn rotate180<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
     let _ = rotate180_in(image, &mut out);
     out
 }
@@ -34,20 +34,20 @@ where
 /// Rotate an image 270 degrees clockwise.
 pub fn rotate270<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(height, width);
+    let mut out = PixelBuffer::new(height, width);
     let _ = rotate270_in(image, &mut out);
     out
 }
 
-/// Rotate an image 90 degrees clockwise and put the result into the destination [`ImageBuffer`].
+/// Rotate an image 90 degrees clockwise and put the result into the destination [`PixelBuffer`].
 pub fn rotate90_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
+    destination: &mut PixelBuffer<I::Pixel, Container>,
 ) -> crate::ImageResult<()>
 where
     I: GenericImageView,
@@ -70,10 +70,10 @@ where
     Ok(())
 }
 
-/// Rotate an image 180 degrees clockwise and put the result into the destination [`ImageBuffer`].
+/// Rotate an image 180 degrees clockwise and put the result into the destination [`PixelBuffer`].
 pub fn rotate180_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
+    destination: &mut PixelBuffer<I::Pixel, Container>,
 ) -> crate::ImageResult<()>
 where
     I: GenericImageView,
@@ -96,10 +96,10 @@ where
     Ok(())
 }
 
-/// Rotate an image 270 degrees clockwise and put the result into the destination [`ImageBuffer`].
+/// Rotate an image 270 degrees clockwise and put the result into the destination [`PixelBuffer`].
 pub fn rotate270_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
+    destination: &mut PixelBuffer<I::Pixel, Container>,
 ) -> crate::ImageResult<()>
 where
     I: GenericImageView,
@@ -125,12 +125,12 @@ where
 /// Flip an image horizontally
 pub fn flip_horizontal<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
     let _ = flip_horizontal_in(image, &mut out);
     out
 }
@@ -138,20 +138,20 @@ where
 /// Flip an image vertically
 pub fn flip_vertical<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
     let _ = flip_vertical_in(image, &mut out);
     out
 }
 
-/// Flip an image horizontally and put the result into the destination [`ImageBuffer`].
+/// Flip an image horizontally and put the result into the destination [`PixelBuffer`].
 pub fn flip_horizontal_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
+    destination: &mut PixelBuffer<I::Pixel, Container>,
 ) -> crate::ImageResult<()>
 where
     I: GenericImageView,
@@ -174,10 +174,10 @@ where
     Ok(())
 }
 
-/// Flip an image vertically and put the result into the destination [`ImageBuffer`].
+/// Flip an image vertically and put the result into the destination [`PixelBuffer`].
 pub fn flip_vertical_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>,
+    destination: &mut PixelBuffer<I::Pixel, Container>,
 ) -> crate::ImageResult<()>
 where
     I: GenericImageView,
@@ -269,7 +269,7 @@ mod test {
     };
     use crate::image::GenericImage;
     use crate::traits::Pixel;
-    use crate::{GrayImage, ImageBuffer};
+    use crate::{GrayImage, PixelBuffer};
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{
@@ -305,10 +305,10 @@ mod test {
     #[test]
     fn test_rotate90() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(2, 3, vec![10u8, 0u8, 11u8, 1u8, 12u8, 2u8]).unwrap();
+            PixelBuffer::from_raw(2, 3, vec![10u8, 0u8, 11u8, 1u8, 12u8, 2u8]).unwrap();
 
         assert_pixels_eq!(&rotate90(&image), &expected);
     }
@@ -316,10 +316,10 @@ mod test {
     #[test]
     fn test_rotate180() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
 
         assert_pixels_eq!(&rotate180(&image), &expected);
     }
@@ -327,10 +327,10 @@ mod test {
     #[test]
     fn test_rotate270() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(2, 3, vec![2u8, 12u8, 1u8, 11u8, 0u8, 10u8]).unwrap();
+            PixelBuffer::from_raw(2, 3, vec![2u8, 12u8, 1u8, 11u8, 0u8, 10u8]).unwrap();
 
         assert_pixels_eq!(&rotate270(&image), &expected);
     }
@@ -338,10 +338,10 @@ mod test {
     #[test]
     fn test_rotate180_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![12u8, 11u8, 10u8, 2u8, 1u8, 0u8]).unwrap();
 
         rotate180_in_place(&mut image);
 
@@ -351,10 +351,10 @@ mod test {
     #[test]
     fn test_flip_horizontal() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
 
         assert_pixels_eq!(&flip_horizontal(&image), &expected);
     }
@@ -362,10 +362,10 @@ mod test {
     #[test]
     fn test_flip_vertical() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
 
         assert_pixels_eq!(&flip_vertical(&image), &expected);
     }
@@ -373,10 +373,10 @@ mod test {
     #[test]
     fn test_flip_horizontal_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![2u8, 1u8, 0u8, 12u8, 11u8, 10u8]).unwrap();
 
         flip_horizontal_in_place(&mut image);
 
@@ -386,10 +386,10 @@ mod test {
     #[test]
     fn test_flip_vertical_in_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 0u8, 1u8, 2u8]).unwrap();
 
         flip_vertical_in_place(&mut image);
 

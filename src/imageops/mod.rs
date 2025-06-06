@@ -358,7 +358,7 @@ mod tests {
     use crate::color::Rgb;
     use crate::GrayAlphaImage;
     use crate::GrayImage;
-    use crate::ImageBuffer;
+    use crate::PixelBuffer;
     use crate::RgbImage;
     use crate::RgbaImage;
 
@@ -401,8 +401,8 @@ mod tests {
     #[test]
     /// Test that images written into other images works
     fn test_image_in_image() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
+        let mut target = PixelBuffer::new(32, 32);
+        let source = PixelBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 0, 0);
         assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
         assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
@@ -414,8 +414,8 @@ mod tests {
     #[test]
     /// Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = PixelBuffer::new(32, 32);
+        let source = PixelBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 1, 1);
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
@@ -426,8 +426,8 @@ mod tests {
     /// Test that images written to coordinates out of the frame doesn't blow up
     /// (issue came up in #848)
     fn test_image_outside_image_no_wrap_around() {
-        let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = PixelBuffer::new(32, 32);
+        let source = PixelBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 33, 33);
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
@@ -437,8 +437,8 @@ mod tests {
     #[test]
     /// Test that images written to coordinates with overflow works
     fn test_image_coordinate_overflow() {
-        let mut target = ImageBuffer::new(16, 16);
-        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        let mut target = PixelBuffer::new(16, 16);
+        let source = PixelBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         // Overflows to 'sane' coordinates but top is larger than bot.
         overlay(
             &mut target,
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     /// Test that horizontal gradients are correctly generated
     fn test_image_horizontal_gradient_limits() {
-        let mut img = ImageBuffer::new(100, 1);
+        let mut img = PixelBuffer::new(100, 1);
 
         let start = Rgb([0u8, 128, 0]);
         let end = Rgb([255u8, 255, 255]);
@@ -470,7 +470,7 @@ mod tests {
     #[test]
     /// Test that vertical gradients are correctly generated
     fn test_image_vertical_gradient_limits() {
-        let mut img = ImageBuffer::new(1, 100);
+        let mut img = PixelBuffer::new(1, 100);
 
         let start = Rgb([0u8, 128, 0]);
         let end = Rgb([255u8, 255, 255]);

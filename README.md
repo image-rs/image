@@ -12,7 +12,7 @@ Maintainers: [@HeroicKatora](https://github.com/HeroicKatora), [@fintelia](https
 
 This crate provides basic image processing functions and methods for converting to and from various image formats.
 
-All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
+All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return a `PixelBuffer`.
 
 ## High level API
 
@@ -67,13 +67,13 @@ image format encoders and decoders.
 This crate provides a number of different types for representing images.
 Individual pixels within images are indexed with (0,0) at the top left corner.
 
-### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
+### [`PixelBuffer`](https://docs.rs/image/*/image/struct.PixelBuffer.html)
 An image parameterised by its Pixel type, represented by a width and height and
 a vector of pixels. It provides direct access to its pixels and implements the
 `GenericImageView` and `GenericImage` traits.
 
 ### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
-A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
+A `DynamicImage` is an enumeration over all supported `PixelBuffer<P>` types.
 Its exact image type is determined at runtime. It is the type returned when
 opening an image. For convenience `DynamicImage` reimplements all image
 processing functions.
@@ -168,7 +168,7 @@ let scalex = 3.0 / imgx as f32;
 let scaley = 3.0 / imgy as f32;
 
 // Create a new ImgBuf with width: imgx and height: imgy
-let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
+let mut imgbuf = image::PixelBuffer::new(imgx, imgy);
 
 // Iterate over the coordinates and pixels of the image
 for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {

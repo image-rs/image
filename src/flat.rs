@@ -54,11 +54,11 @@ use crate::error::{
 };
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::PixelBuffer;
 
 /// A flat buffer over a (multi channel) image.
 ///
-/// In contrast to `ImageBuffer`, this representation of a sample collection is much more lenient
+/// In contrast to `PixelBuffer`, this representation of a sample collection is much more lenient
 /// in the layout thereof. It also allows grouping by color planes instead of by pixel as long as
 /// the strides of each extent are constant. This struct itself has no invariants on the strides
 /// but not every possible configuration can be interpreted as a [`GenericImageView`] or
@@ -67,14 +67,14 @@ use crate::ImageBuffer;
 /// use [`is_normal`] or [`has_aliased_samples`].
 ///
 /// Instances can be constructed not only by hand. The buffer instances returned by library
-/// functions such as [`ImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
+/// functions such as [`PixelBuffer::as_flat_samples`] guarantee that the conversion to a generic
 /// image or generic view succeeds. A very different constructor is [`with_monocolor`]. It uses a
 /// single pixel as the backing storage for an arbitrarily sized read-only raster by mapping each
 /// pixel to the same samples by setting some strides to `0`.
 ///
 /// [`GenericImage`]: ../trait.GenericImage.html
 /// [`GenericImageView`]: ../trait.GenericImageView.html
-/// [`ImageBuffer::as_flat_samples`]: ../struct.ImageBuffer.html#method.as_flat_samples
+/// [`PixelBuffer::as_flat_samples`]: ../struct.PixelBuffer.html#method.as_flat_samples
 /// [`is_normal`]: #method.is_normal
 /// [`has_aliased_samples`]: #method.has_aliased_samples
 /// [`as_view`]: #method.as_view
@@ -128,7 +128,7 @@ impl SampleLayout {
     /// Describe a row-major image packed in all directions.
     ///
     /// The resulting will surely be `NormalForm::RowMajorPacked`. It can therefore be converted to
-    /// safely to an `ImageBuffer` with a large enough underlying buffer.
+    /// safely to an `PixelBuffer` with a large enough underlying buffer.
     ///
     /// ```
     /// # use image::flat::{NormalForm, SampleLayout};
@@ -680,11 +680,11 @@ impl<Buffer> FlatSamples<Buffer> {
     /// pixel must be packed (i.e. `channel_stride` is `1`). The number of channels must be
     /// consistent with the channel count expected by the pixel format.
     ///
-    /// This is similar to an `ImageBuffer` except it is a temporary view that is not normalized as
-    /// strongly. To get an owning version, consider copying the data into an `ImageBuffer`. This
+    /// This is similar to an `PixelBuffer` except it is a temporary view that is not normalized as
+    /// strongly. To get an owning version, consider copying the data into an `PixelBuffer`. This
     /// provides many more operations, is possibly faster (if not you may want to open an issue) is
     /// generally polished. You can also try to convert this buffer inline, see
-    /// `ImageBuffer::from_raw`.
+    /// `PixelBuffer::from_raw`.
     pub fn as_view_mut<P>(&mut self) -> Result<ViewMut<&mut [P::Subpixel], P>, Error>
     where
         P: Pixel,
@@ -777,7 +777,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// This does **not** convert the sample layout. The buffer needs to be in packed row-major form
     /// before calling this function. In case of an error, returns the buffer again so that it does
     /// not release any allocation.
-    pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
+    pub fn try_into_buffer<P>(self) -> Result<PixelBuffer<P, Buffer>, (Error, Self)>
     where
         P: Pixel + 'static,
         P::Subpixel: 'static,
@@ -799,7 +799,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         Ok(
-            ImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples)
+            PixelBuffer::from_raw(self.layout.width, self.layout.height, self.samples)
                 .unwrap_or_else(|| {
                     panic!("Preconditions should have been ensured before conversion")
                 }),
@@ -997,8 +997,8 @@ where
 
 /// A mutable owning version of a flat buffer.
 ///
-/// While this wraps a buffer similar to `ImageBuffer`, this is mostly intended as a utility. The
-/// library endorsed normalized representation is still `ImageBuffer`. Also, the implementation of
+/// While this wraps a buffer similar to `PixelBuffer`, this is mostly intended as a utility. The
+/// library endorsed normalized representation is still `PixelBuffer`. Also, the implementation of
 /// `AsMut<[P::Subpixel]>` must always yield the same buffer. Therefore there is no public way to
 /// construct this with an owning buffer.
 ///
@@ -1019,7 +1019,7 @@ where
 
 /// Denotes invalid flat sample buffers when trying to convert to stricter types.
 ///
-/// The biggest use case being `ImageBuffer` which expects closely packed
+/// The biggest use case being `PixelBuffer` which expects closely packed
 /// samples in a row major matrix representation. But this error type may be
 /// reused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.

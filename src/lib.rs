@@ -54,8 +54,8 @@
 //! # Image buffers
 //!
 //! The two main types for storing images:
-//! * [`ImageBuffer`] which holds statically typed image contents.
-//! * [`DynamicImage`] which is an enum over the supported `ImageBuffer` formats
+//! * [`PixelBuffer`] which holds statically typed image contents.
+//! * [`DynamicImage`] which is an enum over the supported `PixelBuffer` formats
 //!   and supports conversions between them.
 //!
 //! As well as a few more specialized options:
@@ -66,7 +66,7 @@
 //!
 //! [`GenericImageView`]: trait.GenericImageView.html
 //! [`GenericImage`]: trait.GenericImage.html
-//! [`ImageBuffer`]: struct.ImageBuffer.html
+//! [`PixelBuffer`]: struct.PixelBuffer.html
 //! [`DynamicImage`]: enum.DynamicImage.html
 //! [`flat`]: flat/index.html
 //!
@@ -157,7 +157,7 @@ pub use crate::buffer_::{
     GrayAlphaImage,
     GrayImage,
     // Image types
-    ImageBuffer,
+    PixelBuffer,
     Rgb32FImage,
     RgbImage,
     Rgba32FImage,
@@ -186,7 +186,7 @@ pub use crate::animation::{Delay, Frame, Frames};
 // More detailed error type
 pub mod error;
 
-/// Iterators and other auxiliary structure for the `ImageBuffer` type.
+/// Iterators and other auxiliary structure for the [`PixelBuffer`] type.
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::buffer_::{

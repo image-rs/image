@@ -6,7 +6,7 @@ use crate::error::{
 };
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use crate::{ExtendedColorType, GenericImageView, Luma, Pixel, PixelBuffer, Rgb};
 use num_traits::ToPrimitive;
 use std::borrow::Cow;
 use std::io::{self, Write};
@@ -457,13 +457,13 @@ impl<W: Write> JpegEncoder<W> {
 
         match color_type {
             ExtendedColorType::L8 => {
-                let image: ImageBuffer<Luma<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
+                let image: PixelBuffer<Luma<_>, _> =
+                    PixelBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
             ExtendedColorType::Rgb8 => {
-                let image: ImageBuffer<Rgb<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
+                let image: PixelBuffer<Rgb<_>, _> =
+                    PixelBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             }
             _ => Err(ImageError::Unsupported(

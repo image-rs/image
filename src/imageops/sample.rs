@@ -10,7 +10,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
-use crate::{ImageBuffer, Rgba32FImage};
+use crate::{PixelBuffer, Rgba32FImage};
 
 /// Available Sampling Filters.
 ///
@@ -228,7 +228,7 @@ fn horizontal_sample<P, S>(
     image: &Rgba32FImage,
     new_width: u32,
     filter: &mut Filter,
-) -> ImageBuffer<P, Vec<S>>
+) -> PixelBuffer<P, Vec<S>>
 where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
@@ -241,7 +241,7 @@ where
         "Unexpected prior allocation size. This case should have been handled by the caller"
     );
 
-    let mut out = ImageBuffer::new(new_width, height);
+    let mut out = PixelBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
@@ -491,7 +491,7 @@ where
         "Unexpected prior allocation size. This case should have been handled by the caller"
     );
 
-    let mut out = ImageBuffer::new(width, new_height);
+    let mut out = PixelBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
     let ratio = height as f32 / new_height as f32;
@@ -595,14 +595,14 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
 ///
 /// For speed reasons, all interpolation is performed linearly over the colour values.  It will not
 /// take the pixel colour spaces into account.
-pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
+pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(new_width, new_height);
+    let mut out = PixelBuffer::new(new_width, new_height);
     if height == 0 || width == 0 {
         return out;
     }
@@ -852,7 +852,7 @@ where
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
-pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
+pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
@@ -873,7 +873,7 @@ where
 
     let (width, height) = image.dimensions();
 
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -949,7 +949,7 @@ pub fn resize<I: GenericImageView>(
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Subpixel: 'static,
@@ -961,12 +961,12 @@ where
     };
 
     if is_empty {
-        return ImageBuffer::new(nwidth, nheight);
+        return PixelBuffer::new(nwidth, nheight);
     }
 
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
-        let mut tmp = ImageBuffer::new(image.width(), image.height());
+        let mut tmp = PixelBuffer::new(image.width(), image.height());
         tmp.copy_from(image, 0, 0).unwrap();
         return tmp;
     }
@@ -1009,7 +1009,7 @@ where
 pub fn blur<I: GenericImageView>(
     image: &I,
     sigma: f32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> PixelBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
@@ -1024,7 +1024,7 @@ where
     let is_empty = width == 0 || height == 0;
 
     if is_empty {
-        return ImageBuffer::new(width, height);
+        return PixelBuffer::new(width, height);
     }
 
     // Keep width and height the same for horizontal and
@@ -1045,7 +1045,7 @@ where
 /// If it is not, color distortion may occur.
 ///
 /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
-pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
+pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
@@ -1087,7 +1087,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, sample_bilinear, sample_nearest, FilterType};
-    use crate::{GenericImageView, ImageBuffer, RgbImage};
+    use crate::{GenericImageView, PixelBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn test_sample_bilinear_correctness() {
         use crate::Rgba;
-        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+        let img = PixelBuffer::from_fn(2, 2, |x, y| match (x, y) {
             (0, 0) => Rgba([255, 0, 0, 0]),
             (0, 1) => Rgba([0, 255, 0, 0]),
             (1, 0) => Rgba([0, 0, 255, 0]),
@@ -1186,7 +1186,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     fn bench_sample_bilinear(b: &mut test::Bencher) {
         use crate::Rgba;
-        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+        let img = PixelBuffer::from_fn(2, 2, |x, y| match (x, y) {
             (0, 0) => Rgba([255, 0, 0, 0]),
             (0, 1) => Rgba([0, 255, 0, 0]),
             (1, 0) => Rgba([0, 0, 255, 0]),
@@ -1200,7 +1200,7 @@ mod tests {
     #[test]
     fn test_sample_nearest_correctness() {
         use crate::Rgba;
-        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+        let img = PixelBuffer::from_fn(2, 2, |x, y| match (x, y) {
             (0, 0) => Rgba([255, 0, 0, 0]),
             (0, 1) => Rgba([0, 255, 0, 0]),
             (1, 0) => Rgba([0, 0, 255, 0]),
@@ -1236,7 +1236,7 @@ mod tests {
 
     #[test]
     fn test_issue_186() {
-        let img: RgbImage = ImageBuffer::new(100, 100);
+        let img: RgbImage = PixelBuffer::new(100, 100);
         let _ = resize(&img, 50, 50, FilterType::Lanczos3);
     }
 

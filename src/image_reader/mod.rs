@@ -130,9 +130,9 @@ impl Limits {
     }
 
     /// This function acts identically to [`reserve`], but accepts the width, height and color type
-    /// used to create an [`ImageBuffer`] and does all the math for you.
+    /// used to create an [`PixelBuffer`] and does all the math for you.
     ///
-    /// [`ImageBuffer`]: crate::ImageBuffer
+    /// [`PixelBuffer`]: crate::PixelBuffer
     /// [`reserve`]: #method.reserve
     pub fn reserve_buffer(
         &mut self,

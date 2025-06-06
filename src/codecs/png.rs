@@ -18,7 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
+use crate::{DynamicImage, GenericImage, Luma, LumaA, PixelBuffer, Rgb, Rgba, RgbaImage};
 use crate::{GenericImageView, Limits};
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -391,18 +391,18 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         limits.reserve_buffer(width, height, COLOR_TYPE)?;
         let source = match self.inner.color_type {
             ColorType::L8 => {
-                let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
+                let image = PixelBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
                 DynamicImage::ImageLuma8(image).into_rgba8()
             }
             ColorType::La8 => {
-                let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
+                let image = PixelBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
                 DynamicImage::ImageLumaA8(image).into_rgba8()
             }
             ColorType::Rgb8 => {
-                let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
+                let image = PixelBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
                 DynamicImage::ImageRgb8(image).into_rgba8()
             }
-            ColorType::Rgba8 => ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
+            ColorType::Rgba8 => PixelBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
             ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
                 // TODO: to enable remove restriction in `animatable_color_type` method.
                 unreachable!("16-bit apng not yet support")

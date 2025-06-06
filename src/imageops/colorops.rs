@@ -6,33 +6,33 @@ use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
-use crate::ImageBuffer;
+use crate::PixelBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> PixelBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>> {
     grayscale_with_type(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
 pub fn grayscale_alpha<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>> {
+) -> PixelBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>> {
     grayscale_with_type_alpha(image)
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
 pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> PixelBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
     NewPixel: Pixel + FromColor<Luma<Subpixel<I>>>,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma();
@@ -47,12 +47,12 @@ where
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
 pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
+) -> PixelBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
     NewPixel: Pixel + FromColor<LumaA<Subpixel<I>>>,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma_alpha();
@@ -85,14 +85,14 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 /// Negative values decrease the contrast and positive values increase the contrast.
 ///
 /// *[See also `contrast_in_place`.][contrast_in_place]*
-pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
+pub fn contrast<I, P, S>(image: &I, contrast: f32) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -152,14 +152,14 @@ where
 /// Negative values decrease the brightness and positive values increase it.
 ///
 /// *[See also `brighten_in_place`.][brighten_in_place]*
-pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
+pub fn brighten<I, P, S>(image: &I, value: i32) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
@@ -218,14 +218,14 @@ where
 /// just like the css webkit filter hue-rotate(180)
 ///
 /// *[See also `huerotate_in_place`.][huerotate_in_place]*
-pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
+pub fn huerotate<I, P, S>(image: &I, value: i32) -> PixelBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = PixelBuffer::new(width, height);
 
     let angle: f64 = NumCast::from(value).unwrap();
 
@@ -373,22 +373,22 @@ pub trait ColorMap {
 /// # Examples
 /// ```
 /// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
-/// use image::{ImageBuffer, Luma};
+/// use image::{PixelBuffer, Luma};
 ///
 /// let (w, h) = (16, 16);
 /// // Create an image with a smooth horizontal gradient from black (0) to white (255).
-/// let gray = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
+/// let gray = PixelBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
 /// // Mapping the gray image through the `BiLevel` filter should map gray pixels less than half
 /// // intensity (127) to black (0), and anything greater to white (255).
 /// let cmap = BiLevel;
 /// let palletized = index_colors(&gray, &cmap);
-/// let mapped = ImageBuffer::from_fn(w, h, |x, y| {
+/// let mapped = PixelBuffer::from_fn(w, h, |x, y| {
 ///     let p = palletized.get_pixel(x, y);
 ///     cmap.lookup(p.0[0] as usize)
 ///         .expect("indexed color out-of-range")
 /// });
 /// // Create an black and white image of expected output.
-/// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
+/// let bw = PixelBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
 ///     if x <= (w / 2) {
 ///         [0].into()
 ///     } else {
@@ -489,7 +489,7 @@ macro_rules! do_dithering(
 
 /// Reduces the colors of the image using the supplied `color_map` while applying
 /// Floyd-Steinberg dithering to improve the visual conception
-pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
+pub fn dither<Pix, Map>(image: &mut PixelBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
@@ -528,14 +528,14 @@ where
 
 /// Reduces the colors using the supplied `color_map` and returns an image of the indices
 pub fn index_colors<Pix, Map>(
-    image: &ImageBuffer<Pix, Vec<u8>>,
+    image: &PixelBuffer<Pix, Vec<u8>>,
     color_map: &Map,
-) -> ImageBuffer<Luma<u8>, Vec<u8>>
+) -> PixelBuffer<Luma<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
 {
-    let mut indices = ImageBuffer::new(image.width(), image.height());
+    let mut indices = PixelBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8]);
     }
@@ -581,7 +581,7 @@ mod test {
 
     #[test]
     fn test_dither() {
-        let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
+        let mut image = PixelBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
         assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
@@ -591,10 +591,10 @@ mod test {
     #[test]
     fn test_grayscale() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         assert_pixels_eq!(&grayscale(&image), &expected);
     }
@@ -602,10 +602,10 @@ mod test {
     #[test]
     fn test_invert() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
 
         invert(&mut image);
         assert_pixels_eq!(&image, &expected);
@@ -613,10 +613,10 @@ mod test {
     #[test]
     fn test_brighten() {
         let image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
 
         assert_pixels_eq!(&brighten(&image, 10), &expected);
     }
@@ -624,10 +624,10 @@ mod test {
     #[test]
     fn test_brighten_place() {
         let mut image: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+            PixelBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
 
         brighten_in_place(&mut image, 10);
         assert_pixels_eq!(&image, &expected);

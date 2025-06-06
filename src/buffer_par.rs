@@ -5,7 +5,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::PixelBuffer;
 
 /// Parallel iterator over pixel refs.
 #[derive(Clone)]
@@ -311,7 +311,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> PixelBuffer<P, Container>
 where
     P: Pixel + Sync,
     P::Subpixel: Sync,
@@ -341,7 +341,7 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
+impl<P, Container> PixelBuffer<P, Container>
 where
     P: Pixel + Send + Sync,
     P::Subpixel: Send + Sync,
@@ -372,12 +372,12 @@ where
     }
 }
 
-impl<P> ImageBuffer<P, Vec<P::Subpixel>>
+impl<P> PixelBuffer<P, Vec<P::Subpixel>>
 where
     P: Pixel + Send + Sync,
     P::Subpixel: Send + Sync,
 {
-    /// Constructs a new `ImageBuffer` by repeated application of the supplied function,
+    /// Constructs a new `PixelBuffer` by repeated application of the supplied function,
     /// utilizing multi-threading via `rayon`.
     ///
     /// The arguments to the function are the pixel's x and y coordinates.
@@ -385,11 +385,11 @@ where
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
-    pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
+    pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> PixelBuffer<P, Vec<P::Subpixel>>
     where
         F: Fn(u32, u32) -> P + Send + Sync,
     {
-        let mut buf = ImageBuffer::new(width, height);
+        let mut buf = PixelBuffer::new(width, height);
         buf.par_enumerate_pixels_mut().for_each(|(x, y, p)| {
             *p = f(x, y);
         });

@@ -340,7 +340,7 @@ mod test {
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, PixelBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -386,7 +386,7 @@ mod test {
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
-        ImageBuffer::from_raw(width, height, buffer)
+        PixelBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
             // even though such a large allocation would probably cause an error much earlier
             .ok_or_else(|| {
@@ -400,7 +400,7 @@ mod test {
         let (width, height) = decoder.dimensions();
         let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
 
-        ImageBuffer::from_raw(width, height, buffer)
+        PixelBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
             // even though such a large allocation would probably cause an error much earlier
             .ok_or_else(|| {
@@ -454,7 +454,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: Rgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: Rgba32FImage = PixelBuffer::from_fn(9, 31, |_x, _y| {
             Rgba([next_random(), next_random(), next_random(), next_random()])
         });
 
@@ -472,7 +472,7 @@ mod test {
             .cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: Rgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y| {
+        let generated_image: Rgb32FImage = PixelBuffer::from_fn(9, 31, |_x, _y| {
             Rgb([next_random(), next_random(), next_random()])
         });
 

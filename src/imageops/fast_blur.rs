@@ -1,6 +1,6 @@
 use num_traits::clamp;
 
-use crate::{ImageBuffer, Pixel, Primitive};
+use crate::{Pixel, PixelBuffer, Primitive};
 
 /// Approximation of Gaussian blur.
 ///
@@ -18,9 +18,9 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
-    image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,
+    image_buffer: &PixelBuffer<P, Vec<P::Subpixel>>,
     sigma: f32,
-) -> ImageBuffer<P, Vec<P::Subpixel>> {
+) -> PixelBuffer<P, Vec<P::Subpixel>> {
     let (width, height) = image_buffer.dimensions();
 
     if width == 0 || height == 0 {
@@ -47,7 +47,7 @@ pub fn fast_blur<P: Pixel>(
             P::CHANNEL_COUNT as usize,
         );
     }
-    ImageBuffer::from_raw(width, height, samples).unwrap()
+    PixelBuffer::from_raw(width, height, samples).unwrap()
 }
 
 fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {

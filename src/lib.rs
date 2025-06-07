@@ -150,8 +150,9 @@ pub use crate::image::{
     ImageFormat,
     // Iterators
     Pixels,
-    SubImage,
 };
+
+pub use crate::sub_image::SubImage;
 
 pub use crate::buffer_::{
     GrayAlphaImage,
@@ -315,6 +316,7 @@ pub mod io {
     /// Deprecated re-export of `LimitSupport`
     pub type LimitSupport = super::LimitSupport;
 }
+mod sub_image;
 mod traits;
 mod utils;
 

@@ -14,7 +14,7 @@ use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::image_reader::free_functions;
+use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;

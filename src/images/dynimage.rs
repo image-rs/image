@@ -6,14 +6,14 @@ use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
 
-use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
-};
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::images::buffer::{
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+};
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
@@ -1372,7 +1372,7 @@ mod bench {
 
 #[cfg(test)]
 mod test {
-    use crate::{buffer_::Gray16Image, color::ColorType};
+    use crate::{color::ColorType, images::dynimage::Gray16Image};
 
     #[test]
     fn test_empty_file() {

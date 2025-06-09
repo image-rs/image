@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::{codecs::*, ExtendedColorType, ImageReader};
 
-use crate::dynimage::DynamicImage;
+use crate::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
 use crate::error::{UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;

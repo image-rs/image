@@ -338,8 +338,8 @@ mod test {
     use std::io::{BufReader, Cursor};
     use std::path::{Path, PathBuf};
 
-    use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
+    use crate::images::buffer::{Rgb32FImage, Rgba32FImage};
     use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];

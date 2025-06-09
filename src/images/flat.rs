@@ -1576,8 +1576,8 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer_::GrayAlphaImage;
     use crate::color::{LumaA, Rgb};
+    use crate::images::buffer::GrayAlphaImage;
 
     #[test]
     fn aliasing_view() {

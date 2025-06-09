@@ -24,7 +24,8 @@ pub use self::sample::{
 /// Color operations
 pub use self::colorops::{
     brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
-    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+    grayscale_with_type_alpha, huerotate, index_colors, invert_in_place, invert, invert_to, BiLevel,
+    ColorMap,
 };
 
 mod affine;

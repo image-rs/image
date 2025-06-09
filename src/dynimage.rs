@@ -756,9 +756,21 @@ impl DynamicImage {
     }
 
     /// Invert the colors of this image.
-    /// This method operates inplace.
+    /// use [DynamicImage::invert_in_place()] for an in-place version.
+    pub fn invert_to(&self) -> DynamicImage {
+        dynamic_map!(*self, ref p =>  imageops::invert_to(p))
+    }
+
+    /// Invert the colors of this image.
+    /// Use [`DynamicImage::invert_in_place()`] directly instead of this function
     pub fn invert(&mut self) {
-        dynamic_map!(*self, ref mut p, imageops::invert(p));
+        self.invert_in_place();
+    }
+
+    /// Invert the colors of this image.
+    /// This method operates inplace.
+    pub fn invert_in_place(&mut self) {
+        dynamic_map!(*self, ref mut p, imageops::invert_in_place(p));
     }
 
     /// Resize this image using the specified filter algorithm.

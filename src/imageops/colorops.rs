@@ -65,11 +65,40 @@ where
 }
 
 /// Invert each pixel within the supplied image.
-/// This function operates in place.
+/// Use [`invert_in_place`] directly instead of this function
+/// See also [`invert_to`].
 pub fn invert<I: GenericImage>(image: &mut I) {
+    invert_in_place(image)
+}
+
+/// Invert each pixel within the supplied image.
+/// See also [`invert_in_place`] for an in-place version.
+pub fn invert_to<I: GenericImage>(
+    image: &I,
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+where
+    I::Pixel: 'static,
+{
     // TODO find a way to use pixels?
     let (width, height) = image.dimensions();
 
+    let mut out = ImageBuffer::new(width, height);
+    let (width, height) = image.dimensions();
+    for y in 0..height {
+        for x in 0..width {
+            let mut p = image.get_pixel(x, y);
+            p.invert();
+
+            out.put_pixel(x, y, p);
+        }
+    }
+    out
+}
+
+/// Invert an image vertically in place.
+/// See also [`invert_to`] for a non-in-place version.
+pub fn invert_in_place<I: GenericImage>(image: &mut I) {
+    let (width, height) = image.dimensions();
     for y in 0..height {
         for x in 0..width {
             let mut p = image.get_pixel(x, y);
@@ -600,6 +629,22 @@ mod test {
     }
 
     #[test]
+    fn test_invert_to() {
+        let base_image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let image: GrayImage = base_image.clone();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+
+        let image_out = invert_to(&image);
+        assert_pixels_eq!(&image_out, &expected);
+        // assert the original image is unchanged
+        assert_pixels_eq!(&image, &base_image);
+    }
+
+    #[test]
     fn test_invert() {
         let mut image: GrayImage =
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
@@ -608,6 +653,18 @@ mod test {
             ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
 
         invert(&mut image);
+        assert_pixels_eq!(&image, &expected);
+    }
+
+    #[test]
+    fn test_invert_in_place() {
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+
+        invert_in_place(&mut image);
         assert_pixels_eq!(&image, &expected);
     }
     #[test]

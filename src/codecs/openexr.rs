@@ -340,6 +340,7 @@ mod test {
 
     use crate::error::{LimitError, LimitErrorKind};
     use crate::images::buffer::{Rgb32FImage, Rgba32FImage};
+    use crate::io::free_functions::decoder_to_vec;
     use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
@@ -384,7 +385,7 @@ mod test {
     fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -398,7 +399,7 @@ mod test {
     fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = crate::image::decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,

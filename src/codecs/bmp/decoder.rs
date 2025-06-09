@@ -10,7 +10,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageFormat};
+use crate::io::free_functions::load_rect;
 use crate::ImageDecoderRect;
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -1360,7 +1361,7 @@ impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
         row_pitch: usize,
     ) -> ImageResult<()> {
         let start = self.reader.stream_position()?;
-        image::load_rect(
+        load_rect(
             x,
             y,
             width,

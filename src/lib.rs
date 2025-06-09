@@ -13,7 +13,7 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`](crate::image_reader::ImageReader):
+//! Load images using [`ImageReader`](crate::ImageReader):
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
@@ -150,8 +150,9 @@ pub use crate::image::{
     ImageFormat,
     // Iterators
     Pixels,
-    SubImage,
 };
+
+pub use crate::sub_image::SubImage;
 
 pub use crate::buffer_::{
     GrayAlphaImage,
@@ -174,10 +175,11 @@ pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open,
     write_buffer_with_format,
 };
-pub use crate::image_reader::free_functions::{
-    guess_format, load, save_buffer, save_buffer_with_format,
+pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
+pub use crate::io::{
+    image_reader_type::ImageReader,
+    limits::{LimitSupport, Limits},
 };
-pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
 
 pub use crate::dynimage::DynamicImage;
 
@@ -300,21 +302,12 @@ mod buffer_par;
 mod color;
 mod dynimage;
 mod image;
-mod image_reader;
+/// Deprecated io module the original io module has been renamed to `image_reader`.
+/// This is going to be internal.
+pub mod io;
 pub mod metadata;
 //TODO delete this module after a few releases
-/// deprecated io module the original io module has been renamed to `image_reader`
-pub mod io {
-    #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
-    /// Deprecated re-export of `ImageReader` as `Reader`
-    pub type Reader<R> = super::ImageReader<R>;
-    #[deprecated(note = "this type has been moved to image::Limits")]
-    /// Deprecated re-export of `Limits`
-    pub type Limits = super::Limits;
-    #[deprecated(note = "this type has been moved to image::LimitSupport")]
-    /// Deprecated re-export of `LimitSupport`
-    pub type LimitSupport = super::LimitSupport;
-}
+mod sub_image;
 mod traits;
 mod utils;
 

@@ -307,7 +307,7 @@ fn check_references() {
                 let filename = PathBuf::from(tmpdir).join(filename);
                 match test_img.save(&filename) {
                     Ok(()) => format!("\nNew reference saved to: {}", filename.display()),
-                    Err(e) => format!("\nFailed to save new reference: {}", e),
+                    Err(e) => format!("\nFailed to save new reference: {e}"),
                 }
             } else {
                 String::new()

@@ -176,7 +176,7 @@ impl<W: Write> AvifEncoder<W> {
 
         // Cast the input slice using few buffer allocations if possible.
         // In particular try not to allocate if the caller did the infallible reverse.
-        fn cast_buffer<Channel>(buf: &[u8]) -> ImageResult<Cow<[Channel]>>
+        fn cast_buffer<Channel>(buf: &[u8]) -> ImageResult<Cow<'_, [Channel]>>
         where
             Channel: Pod + Zero,
         {

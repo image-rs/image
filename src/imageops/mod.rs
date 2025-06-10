@@ -2,8 +2,8 @@
 use std::cmp;
 
 use crate::image::{GenericImage, GenericImageView};
-use crate::sub_image::SubImage;
 use crate::traits::{Lerp, Pixel, Primitive};
+use crate::SubImage;
 
 pub use self::sample::FilterType;
 

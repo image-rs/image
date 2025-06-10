@@ -2,10 +2,10 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
 use crate::io::limits::Limits;
+use crate::DynamicImage;
 use crate::{ImageDecoder, ImageError, ImageResult};
 
 use super::free_functions;

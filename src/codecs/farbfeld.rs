@@ -22,7 +22,8 @@ use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
+use crate::io::free_functions::load_rect;
 use crate::ColorType;
 
 /// farbfeld Reader
@@ -228,7 +229,7 @@ impl<R: Read + Seek> ImageDecoderRect for FarbfeldDecoder<R> {
         // A "scanline" (defined as "shortest non-caching read" in the doc) is just one channel in this case
 
         let start = self.reader.stream_position()?;
-        image::load_rect(
+        load_rect(
             x,
             y,
             width,

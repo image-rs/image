@@ -725,6 +725,7 @@ impl std::error::Error for BadPngRepresentation {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::free_functions::decoder_to_vec;
     use std::io::{BufReader, Cursor, Read};
 
     #[test]
@@ -743,7 +744,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
-        let correct_bytes = crate::image::decoder_to_vec(dec)
+        let correct_bytes = decoder_to_vec(dec)
             .expect("Unable to read file")
             .bytes()
             .map(|x| x.expect("Unable to read byte"))

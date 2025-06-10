@@ -1,4 +1,3 @@
-#![allow(clippy::too_many_arguments)]
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;

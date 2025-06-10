@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufWriter, Seek, Write as _};
 use std::path::Path;
-use std::{iter, mem};
+use std::{iter, mem::size_of};
 
 use crate::{codecs::*, ExtendedColorType, ImageReader};
 
@@ -204,7 +204,7 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
 #[allow(dead_code)]
-// When no image formats that use it are enabled
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn load_rect<D, F1, F2, E>(
     x: u32,
     y: u32,
@@ -352,7 +352,7 @@ where
         )));
     }
 
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / mem::size_of::<T>()];
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }

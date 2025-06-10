@@ -179,7 +179,7 @@ fn check_references() {
         img_path.push(IMAGE_DIR);
         img_path.push(decoder);
         img_path.push(testsuite.as_os_str());
-        img_path.push(case.orig_filename);
+        img_path.push(&case.orig_filename);
 
         // Load the test image
         let mut test_img = None;
@@ -298,10 +298,20 @@ fn check_references() {
 
         assert!(
             test_crc_actual == case.crc,
-            "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
+            "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).{}",
             img_path.display(),
             case.crc,
-            test_crc_actual
+            test_crc_actual,
+            if let Some(tmpdir) = std::env::var_os("TMPDIR") {
+                let filename = format!("{}.{:08x}.{}", case.orig_filename, test_crc_actual, "png");
+                let filename = PathBuf::from(tmpdir).join(filename);
+                match test_img.save(&filename) {
+                    Ok(()) => format!("\nNew reference saved to: {}", filename.display()),
+                    Err(e) => format!("\nFailed to save new reference: {}", e),
+                }
+            } else {
+                String::new()
+            }
         );
 
         assert!(

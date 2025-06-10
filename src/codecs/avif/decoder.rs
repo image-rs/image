@@ -155,7 +155,7 @@ fn transmute_y_plane16(
     stride: usize,
     width: usize,
     height: usize,
-) -> Plane16View {
+) -> Plane16View<'_> {
     let mut y_plane_stride = stride >> 1;
 
     let mut bind_y = vec![];
@@ -196,7 +196,7 @@ fn transmute_chroma_plane16(
     stride: usize,
     width: usize,
     height: usize,
-) -> Plane16View {
+) -> Plane16View<'_> {
     let plane_ref = plane.as_ref();
     let mut chroma_plane_stride = stride >> 1;
     let mut bind_chroma = vec![];

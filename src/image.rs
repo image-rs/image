@@ -924,7 +924,7 @@ pub trait GenericImageView {
     /// Returns an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with their value
-    fn pixels(&self) -> Pixels<Self>
+    fn pixels(&self) -> Pixels<'_, Self>
     where
         Self: Sized,
     {

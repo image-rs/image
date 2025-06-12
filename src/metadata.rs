@@ -93,7 +93,6 @@ impl Orientation {
                 ExifEndian::Big => writer.write_u16::<BigEndian>(no_orientation).unwrap(),
                 ExifEndian::Little => writer.write_u16::<LittleEndian>(no_orientation).unwrap(),
             }
-            writer.write(&[0, 0]).unwrap(); // we have just read this much data from this exact position, it's present
             Some(orientation)
         } else {
             None

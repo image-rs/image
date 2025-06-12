@@ -100,7 +100,7 @@ impl Orientation {
         }
     }
 
-    /// Returns the orientation and the offset in the Exif chunk where it was found,
+    /// Returns the orientation, the offset in the Exif chunk where it was found, and Exif chunk endianness
     #[must_use]
     fn from_exif_chunk_inner(chunk: &[u8]) -> Option<(Self, u64, ExifEndian)> {
         let mut reader = Cursor::new(chunk);

@@ -63,7 +63,16 @@ impl Orientation {
         }
     }
 
-    pub(crate) fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
+    /// Extracts the image orientation from a raw Exif chunk.
+    ///
+    /// You can obtain the Exif chunk using
+    /// [ImageDecoder::exif_metadata](crate::ImageDecoder::exif_metadata).
+    ///
+    /// It is more convenient to use [ImageDecoder::orientation](crate::ImageDecoder::orientation)
+    /// than to invoke this function.
+    /// Only use this function if you extract and process the Exif chunk separately.
+    #[must_use]
+    pub fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
         let mut reader = Cursor::new(chunk);
 
         let mut magic = [0; 4];

@@ -85,10 +85,14 @@ impl Orientation {
     /// If the Exif value is present but invalid, `None` is returned and the Exif chunk is not modified.
     #[must_use]
     pub fn remove_from_exif_chunk(chunk: &mut [u8]) -> Option<Self> {
-        if let Some((orientation, offset)) = Self::from_exif_chunk_inner(chunk) {
+        if let Some((orientation, offset, endian)) = Self::from_exif_chunk_inner(chunk) {
             let mut writer = Cursor::new(chunk);
             writer.set_position(offset);
-            // TODO: handle endianness
+            let no_orientation: u16 = Self::NoTransforms.to_exif().into();
+            match endian {
+                ExifEndian::Big => writer.write_u16::<BigEndian>(no_orientation).unwrap(),
+                ExifEndian::Little => writer.write_u16::<LittleEndian>(no_orientation).unwrap(),
+            }
             writer.write(&[0, 0]).unwrap(); // we have just read this much data from this exact position, it's present
             Some(orientation)
         } else {
@@ -96,9 +100,9 @@ impl Orientation {
         }
     }
 
-    /// Returns the orientation and the offset in the Exif chunk where it was found
+    /// Returns the orientation and the offset in the Exif chunk where it was found,
     #[must_use]
-    fn from_exif_chunk_inner(chunk: &[u8]) -> Option<(Self, u64)> {
+    fn from_exif_chunk_inner(chunk: &[u8]) -> Option<(Self, u64, ExifEndian)> {
         let mut reader = Cursor::new(chunk);
 
         let mut magic = [0; 4];
@@ -106,41 +110,45 @@ impl Orientation {
 
         match magic {
             [0x49, 0x49, 42, 0] => {
-                let ifd_offset = reader.read_u32::<LittleEndian>().ok()?;
-                reader.set_position(u64::from(ifd_offset));
-                let entries = reader.read_u16::<LittleEndian>().ok()?;
-                for _ in 0..entries {
-                    let tag = reader.read_u16::<LittleEndian>().ok()?;
-                    let format = reader.read_u16::<LittleEndian>().ok()?;
-                    let count = reader.read_u32::<LittleEndian>().ok()?;
-                    let value = reader.read_u16::<LittleEndian>().ok()?;
-                    let _padding = reader.read_u16::<LittleEndian>().ok()?;
-                    if tag == 0x112 && format == 3 && count == 1 {
-                        let offset = reader.position() - 4; // we've read 4 bytes (2 * u16) past the start of the value
-                        let orientation = Self::from_exif(value.min(255) as u8);
-                        return orientation.map(|orient| (orient, offset));
-                    }
-                }
+                return Self::locate_orientation_entry::<LittleEndian>(&mut reader)
+                    .map(|(orient, offset)| (orient, offset, ExifEndian::Little));
             }
             [0x4d, 0x4d, 0, 42] => {
-                let ifd_offset = reader.read_u32::<BigEndian>().ok()?;
-                reader.set_position(u64::from(ifd_offset));
-                let entries = reader.read_u16::<BigEndian>().ok()?;
-                for _ in 0..entries {
-                    let tag = reader.read_u16::<BigEndian>().ok()?;
-                    let format = reader.read_u16::<BigEndian>().ok()?;
-                    let count = reader.read_u32::<BigEndian>().ok()?;
-                    let value = reader.read_u16::<BigEndian>().ok()?;
-                    let _padding = reader.read_u16::<BigEndian>().ok()?;
-                    if tag == 0x112 && format == 3 && count == 1 {
-                        let offset = reader.position() - 4; // we've read 4 bytes (2 * u16) past the start of the value
-                        let orientation = Self::from_exif(value.min(255) as u8);
-                        return orientation.map(|orient| (orient, offset));
-                    }
-                }
+                return Self::locate_orientation_entry::<BigEndian>(&mut reader)
+                    .map(|(orient, offset)| (orient, offset, ExifEndian::Big));
             }
             _ => {}
         }
         None
     }
+
+    /// Extracted into a helper function to be generic over endianness
+    fn locate_orientation_entry<B>(reader: &mut Cursor<&[u8]>) -> Option<(Self, u64)>
+    where
+        B: byteorder_lite::ByteOrder,
+    {
+        let ifd_offset = reader.read_u32::<B>().ok()?;
+        reader.set_position(u64::from(ifd_offset));
+        let entries = reader.read_u16::<B>().ok()?;
+        for _ in 0..entries {
+            let tag = reader.read_u16::<B>().ok()?;
+            let format = reader.read_u16::<B>().ok()?;
+            let count = reader.read_u32::<B>().ok()?;
+            let value = reader.read_u16::<B>().ok()?;
+            let _padding = reader.read_u16::<B>().ok()?;
+            if tag == 0x112 && format == 3 && count == 1 {
+                let offset = reader.position() - 4; // we've read 4 bytes (2 * u16) past the start of the value
+                let orientation = Self::from_exif(value.min(255) as u8);
+                return orientation.map(|orient| (orient, offset));
+            }
+        }
+        // If we reached this point without returning early, there was no orientation
+        None
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum ExifEndian {
+    Big,
+    Little,
 }

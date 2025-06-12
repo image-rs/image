@@ -785,6 +785,10 @@ pub trait GenericImageView {
     /// Returns a subimage that is an immutable view into this image.
     /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     /// The coordinates set the position of the top left corner of the view.
+    ///
+    ///  # Panics
+    ///
+    /// Panics if the dimensions provided fall out of bounds.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
     where
         Self: Sized,

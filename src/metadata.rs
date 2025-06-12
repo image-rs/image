@@ -1,8 +1,8 @@
 //! Types describing image metadata
 
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 
-use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt};
+use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
@@ -73,6 +73,32 @@ impl Orientation {
     /// Only use this function if you extract and process the Exif chunk separately.
     #[must_use]
     pub fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
+        Self::from_exif_chunk_inner(chunk).map(|res| res.0)
+    }
+
+    /// Extracts the image orientation from a raw Exif chunk and sets the orientation in the Exif chunk to `Orientation::NoTransforms`.
+    /// This is useful if you want to apply the orientation yourself, and then encode the image with the rest of the Exif chunk intact.
+    ///
+    /// If the orientation data is not cleared from the Exif chunk after you apply the orientation data yourself,
+    /// the image will end up being rotated once again by any software that correctly handles Exif, leading to an incorrect result.
+    ///
+    /// If the Exif value is present but invalid, `None` is returned and the Exif chunk is not modified.
+    #[must_use]
+    pub fn remove_from_exif_chunk(chunk: &mut [u8]) -> Option<Self> {
+        if let Some((orientation, offset)) = Self::from_exif_chunk_inner(chunk) {
+            let mut writer = Cursor::new(chunk);
+            writer.set_position(offset);
+            // TODO: handle endianness
+            writer.write(&[0, 0]).unwrap(); // we have just read this much data from this exact position, it's present
+            Some(orientation)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the orientation and the offset in the Exif chunk where it was found
+    #[must_use]
+    fn from_exif_chunk_inner(chunk: &[u8]) -> Option<(Self, u64)> {
         let mut reader = Cursor::new(chunk);
 
         let mut magic = [0; 4];
@@ -90,7 +116,9 @@ impl Orientation {
                     let value = reader.read_u16::<LittleEndian>().ok()?;
                     let _padding = reader.read_u16::<LittleEndian>().ok()?;
                     if tag == 0x112 && format == 3 && count == 1 {
-                        return Self::from_exif(value.min(255) as u8);
+                        let offset = reader.position() - 4; // we've read 4 bytes (2 * u16) past the start of the value
+                        let orientation = Self::from_exif(value.min(255) as u8);
+                        return orientation.map(|orient| (orient, offset));
                     }
                 }
             }
@@ -105,7 +133,9 @@ impl Orientation {
                     let value = reader.read_u16::<BigEndian>().ok()?;
                     let _padding = reader.read_u16::<BigEndian>().ok()?;
                     if tag == 0x112 && format == 3 && count == 1 {
-                        return Self::from_exif(value.min(255) as u8);
+                        let offset = reader.position() - 4; // we've read 4 bytes (2 * u16) past the start of the value
+                        let orientation = Self::from_exif(value.min(255) as u8);
+                        return orientation.map(|orient| (orient, offset));
                     }
                 }
             }

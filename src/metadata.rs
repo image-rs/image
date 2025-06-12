@@ -151,3 +151,37 @@ enum ExifEndian {
     Big,
     Little,
 }
+
+// The tests module. It's conventional to put it at the end of the file.
+#[cfg(test)] // This attribute tells Rust to compile this code only when running tests.
+mod tests {
+    use crate::{codecs::jpeg::JpegDecoder, image::ImageDecoder};
+
+    // This brings all the items from the parent module into scope,
+    // so you can directly use `add` instead of `super::add`.
+    use super::*;
+
+    const TEST_IMAGE: &[u8] = include_bytes!("../tests/images/jpg/portrait_2.jpg");
+
+    #[test] // This attribute marks the function as a test function.
+    fn test_extraction_and_clearing() {
+        let reader = Cursor::new(TEST_IMAGE);
+        let mut decoder = JpegDecoder::new(reader).expect("Failed to decode test image");
+        let mut exif_chunk = decoder
+            .exif_metadata()
+            .expect("Failed to extract Exif chunk")
+            .expect("No Exif chunk found in test image");
+
+        let orientation = Orientation::from_exif_chunk(&exif_chunk)
+            .expect("Failed to extract orientation from Exif chunk");
+        assert_eq!(orientation, Orientation::FlipHorizontal);
+
+        let orientation = Orientation::remove_from_exif_chunk(&mut exif_chunk)
+            .expect("Failed to remove orientation from Exif chunk");
+        assert_eq!(orientation, Orientation::FlipHorizontal);
+        // Now that the orientation has been cleared, any subsequent extractions should return NoTransforms
+        let orientation = Orientation::from_exif_chunk(&exif_chunk)
+            .expect("Failed to extract orientation from Exif chunk after clearing it");
+        assert_eq!(orientation, Orientation::NoTransforms);
+    }
+}

@@ -152,8 +152,7 @@ enum ExifEndian {
     Little,
 }
 
-// The tests module. It's conventional to put it at the end of the file.
-#[cfg(test)] // This attribute tells Rust to compile this code only when running tests.
+#[cfg(all(test, feature = "jpeg"))]
 mod tests {
     use crate::{codecs::jpeg::JpegDecoder, image::ImageDecoder};
 

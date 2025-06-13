@@ -1,19 +1,20 @@
 #![allow(clippy::too_many_arguments)]
+use std::borrow::Cow;
+use std::io::{self, Write};
 
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::image::{ImageEncoder, ImageFormat};
+use crate::image::ImageEncoder;
+use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use crate::{ExtendedColorType, GenericImageView, ImageBuffer, ImageFormat, Luma, Pixel, Rgb};
+
 use num_traits::ToPrimitive;
-use std::borrow::Cow;
-use std::io::{self, Write};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
-use crate::traits::PixelWithColorType;
 
 // Markers
 // Baseline DCT

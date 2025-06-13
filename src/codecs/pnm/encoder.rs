@@ -12,7 +12,8 @@ use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::image::{ImageEncoder, ImageFormat};
+use crate::image::ImageEncoder;
+use crate::ImageFormat;
 
 use byteorder_lite::{BigEndian, WriteBytesExt};
 

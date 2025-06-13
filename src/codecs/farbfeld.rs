@@ -22,9 +22,9 @@ use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
+use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder};
 use crate::io::free_functions::load_rect;
-use crate::ColorType;
+use crate::{ColorType, ImageFormat};
 
 /// farbfeld Reader
 pub struct FarbfeldReader<R: Read> {

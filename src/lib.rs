@@ -158,7 +158,7 @@ pub use crate::images::buffer::{
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
+pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive, PrimitiveExt};
 
 // Opening and loading images
 pub use crate::images::dynimage::{

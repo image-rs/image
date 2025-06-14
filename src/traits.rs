@@ -51,6 +51,7 @@ macro_rules! declare_primitive {
             const DEFAULT_MAX_VALUE: Self = $to;
             const DEFAULT_MIN_VALUE: Self = $from;
         }
+        impl PrimitiveExt for $base {}
     };
 }
 
@@ -67,6 +68,12 @@ declare_primitive!(i32: (Self::MIN)..Self::MAX);
 declare_primitive!(i64: (Self::MIN)..Self::MAX);
 declare_primitive!(f32: (0.0)..1.0);
 declare_primitive!(f64: (0.0)..1.0);
+
+/// A sealed version of the `Primitive` trait.
+///
+/// In a future version, this trait will likely removed and the `Primitive` trait itself switched to
+/// being sealed.
+pub trait PrimitiveExt: Primitive + Enlargeable {}
 
 /// An `Enlargable::Larger` value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.

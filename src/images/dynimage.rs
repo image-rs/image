@@ -9,7 +9,6 @@ use crate::codecs::png;
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView};
 use crate::images::buffer::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
@@ -19,7 +18,8 @@ use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
-    imageops, ExtendedColorType, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
+    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageReader, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -1395,7 +1395,7 @@ mod test {
     }
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
-        use crate::image::{GenericImage, GenericImageView};
+        use crate::{GenericImage as _, GenericImageView as _};
         img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(

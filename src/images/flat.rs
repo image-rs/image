@@ -52,9 +52,8 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::{GenericImage, GenericImageView, ImageBuffer};
 
 /// A flat buffer over a (multi channel) image.
 ///

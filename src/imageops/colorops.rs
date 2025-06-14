@@ -3,10 +3,9 @@
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
-use crate::ImageBuffer;
+use crate::{GenericImage, GenericImageView, ImageBuffer};
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 

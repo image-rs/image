@@ -3,44 +3,6 @@ use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::SubImage;
 
-/// Immutable pixel iterator
-#[derive(Debug)]
-pub struct Pixels<'a, I: ?Sized + 'a> {
-    image: &'a I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-}
-
-impl<I: GenericImageView> Iterator for Pixels<'_, I> {
-    type Item = (u32, u32, I::Pixel);
-
-    fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
-        if self.x >= self.width {
-            self.x = 0;
-            self.y += 1;
-        }
-
-        if self.y >= self.height {
-            None
-        } else {
-            let pixel = self.image.get_pixel(self.x, self.y);
-            let p = (self.x, self.y, pixel);
-
-            self.x += 1;
-
-            Some(p)
-        }
-    }
-}
-
-impl<I: ?Sized> Clone for Pixels<'_, I> {
-    fn clone(&self) -> Self {
-        Pixels { ..*self }
-    }
-}
-
 /// Trait to inspect an image.
 ///
 /// ```
@@ -121,6 +83,44 @@ pub trait GenericImageView {
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
+    }
+}
+
+/// Immutable pixel iterator
+#[derive(Debug)]
+pub struct Pixels<'a, I: ?Sized + 'a> {
+    image: &'a I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+impl<I: GenericImageView> Iterator for Pixels<'_, I> {
+    type Item = (u32, u32, I::Pixel);
+
+    fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
+        if self.x >= self.width {
+            self.x = 0;
+            self.y += 1;
+        }
+
+        if self.y >= self.height {
+            None
+        } else {
+            let pixel = self.image.get_pixel(self.x, self.y);
+            let p = (self.x, self.y, pixel);
+
+            self.x += 1;
+
+            Some(p)
+        }
+    }
+}
+
+impl<I: ?Sized> Clone for Pixels<'_, I> {
+    fn clone(&self) -> Self {
+        Pixels { ..*self }
     }
 }
 

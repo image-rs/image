@@ -140,7 +140,7 @@ pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
-pub use crate::image::{GenericImage, GenericImageView, Pixels};
+pub use crate::images::generic_image::{GenericImage, GenericImageView, Pixels};
 
 pub use crate::images::sub_image::SubImage;
 
@@ -290,7 +290,6 @@ pub mod codecs {
 
 mod animation;
 mod color;
-mod image;
 mod images;
 /// Deprecated io module the original io module has been renamed to `image_reader`.
 /// This is going to be internal.

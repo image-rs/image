@@ -17,10 +17,9 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder};
 use crate::{
-    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageFormat, Limits, Luma, LumaA,
-    Rgb, Rgba, RgbaImage,
+    AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
+    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html

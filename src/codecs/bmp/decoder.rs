@@ -10,9 +10,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::ImageDecoder;
 use crate::io::free_functions::load_rect;
-use crate::{ImageDecoderRect, ImageFormat};
+use crate::{ImageDecoder, ImageDecoderRect, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

@@ -1,19 +1,18 @@
 //! Encoding of PNM Images
 use std::fmt;
 use std::io;
-
 use std::io::Write;
 
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
+
 use crate::color::ExtendedColorType;
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::image::ImageEncoder;
-use crate::ImageFormat;
+use crate::{ImageEncoder, ImageFormat};
 
 use byteorder_lite::{BigEndian, WriteBytesExt};
 

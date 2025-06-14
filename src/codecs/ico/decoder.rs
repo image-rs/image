@@ -6,8 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::ImageDecoder;
-use crate::ImageFormat;
+use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
 use crate::codecs::bmp::BmpDecoder;

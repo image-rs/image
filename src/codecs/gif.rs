@@ -40,9 +40,8 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{AnimationDecoder, ImageDecoder};
 use crate::traits::Pixel;
-use crate::{ExtendedColorType, ImageBuffer, ImageFormat, Limits};
+use crate::{AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageFormat, Limits};
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {

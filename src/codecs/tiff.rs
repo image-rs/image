@@ -17,9 +17,8 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageEncoder};
 use crate::metadata::Orientation;
-use crate::ImageFormat;
+use crate::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>

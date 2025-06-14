@@ -7,10 +7,9 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
-use crate::{ImageBuffer, Rgba32FImage};
+use crate::{GenericImage, GenericImageView, ImageBuffer, Rgba32FImage};
 
 /// Available Sampling Filters.
 ///

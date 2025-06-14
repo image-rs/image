@@ -1,5 +1,10 @@
 //! Input and output of images.
 
+/// The decoder traits.
+pub(crate) mod decoder;
+/// The encoder traits.
+pub(crate) mod encoder;
+
 pub(crate) mod format;
 pub(crate) mod free_functions;
 pub(crate) mod image_reader_type;

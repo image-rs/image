@@ -140,16 +140,7 @@ pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
-pub use crate::image::{
-    AnimationDecoder,
-    GenericImage,
-    GenericImageView,
-    ImageDecoder,
-    ImageDecoderRect,
-    ImageEncoder,
-    // Iterators
-    Pixels,
-};
+pub use crate::image::{GenericImage, GenericImageView, Pixels};
 
 pub use crate::images::sub_image::SubImage;
 
@@ -175,7 +166,10 @@ pub use crate::images::dynimage::{
     write_buffer_with_format,
 };
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
+
 pub use crate::io::{
+    decoder::{AnimationDecoder, ImageDecoder, ImageDecoderRect},
+    encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::ImageReader,
     limits::{LimitSupport, Limits},

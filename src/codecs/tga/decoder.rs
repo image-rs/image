@@ -4,8 +4,7 @@ use crate::{
     error::{
         ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
     },
-    image::ImageDecoder,
-    ImageFormat,
+    ImageDecoder, ImageFormat,
 };
 use byteorder_lite::ReadBytesExt;
 use std::io::{self, Read};

@@ -9,9 +9,9 @@ use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-#[allow(unused_imports)] // When no features are supported
-use crate::image::{ImageDecoder, ImageEncoder};
-use crate::{DynamicImage, ImageFormat};
+#[allow(unused_imports)] // When no codec features are enabled
+use crate::ImageEncoder as _;
+use crate::{DynamicImage, ImageDecoder, ImageFormat};
 
 /// Create a new image from a Reader.
 ///

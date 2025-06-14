@@ -154,7 +154,7 @@ enum ExifEndian {
 
 #[cfg(all(test, feature = "jpeg"))]
 mod tests {
-    use crate::{codecs::jpeg::JpegDecoder, image::ImageDecoder};
+    use crate::{codecs::jpeg::JpegDecoder, ImageDecoder as _};
 
     // This brings all the items from the parent module into scope,
     // so you can directly use `add` instead of `super::add`.

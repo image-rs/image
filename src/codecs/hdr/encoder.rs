@@ -1,9 +1,10 @@
+use std::cmp::Ordering;
+use std::io::{Result, Write};
+
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
-use std::cmp::Ordering;
-use std::io::{Result, Write};
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W: Write> {

@@ -3,11 +3,11 @@ use std::io::{self, Read};
 use std::num::{ParseFloatError, ParseIntError};
 use std::{error, fmt};
 
-use crate::color::{ColorType, Rgb};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
+use crate::image::ImageDecoder;
+use crate::{ColorType, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]

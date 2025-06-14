@@ -17,9 +17,11 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
-use crate::{GenericImageView, Limits};
+use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder};
+use crate::{
+    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageFormat, Limits, Luma, LumaA,
+    Rgb, Rgba, RgbaImage,
+};
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:

@@ -5,9 +5,9 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
+use crate::image::ImageDecoder;
 use crate::metadata::Orientation;
-use crate::Limits;
+use crate::{ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 

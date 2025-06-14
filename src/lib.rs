@@ -147,7 +147,6 @@ pub use crate::image::{
     ImageDecoder,
     ImageDecoderRect,
     ImageEncoder,
-    ImageFormat,
     // Iterators
     Pixels,
 };
@@ -177,6 +176,7 @@ pub use crate::images::dynimage::{
 };
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 pub use crate::io::{
+    format::ImageFormat,
     image_reader_type::ImageReader,
     limits::{LimitSupport, Limits},
 };

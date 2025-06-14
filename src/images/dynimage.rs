@@ -9,19 +9,16 @@ use crate::codecs::png;
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder};
 use crate::images::buffer::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+    Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
 };
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
-use crate::ImageReader;
-use crate::{imageops, ExtendedColorType};
-use crate::{Luma, LumaA};
-use crate::{Rgb32FImage, Rgba32FImage};
+use crate::{imageops, ExtendedColorType, ImageFormat, ImageReader, Luma, LumaA};
 
 /// A Dynamic Image
 ///

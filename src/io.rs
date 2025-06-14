@@ -1,5 +1,6 @@
 //! Input and output of images.
 
+pub(crate) mod format;
 pub(crate) mod free_functions;
 pub(crate) mod image_reader_type;
 pub(crate) mod limits;

@@ -88,6 +88,15 @@ where
             tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
                 return Err(err_unknown_color_type(n.saturating_mul(4)))
             }
+            tiff::ColorType::Multiband {
+                bit_depth,
+                num_samples,
+            } => {
+                return Err(err_unknown_color_type(
+                    bit_depth.saturating_mul(num_samples.min(255) as u8),
+                ))
+            }
+            _ => return Err(err_unknown_color_type(0)),
         };
 
         let original_color_type = match tiff_color_type {
@@ -301,6 +310,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             tiff::decoder::DecodingResult::F64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
+            tiff::decoder::DecodingResult::F16(_) => unreachable!(),
         }
         Ok(())
     }

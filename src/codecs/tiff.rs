@@ -60,7 +60,7 @@ where
             .unwrap_or_default();
 
         // Decode not supported for non Chunky Planar Configuration
-        if planar_config <= 1 {
+        if planar_config > 1 {
             Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tiff.into(),

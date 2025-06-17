@@ -11,6 +11,7 @@ extern crate tiff;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
+use std::str::FromStr;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -52,6 +53,21 @@ where
             Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         };
+
+        let planar_config = inner
+            .find_tag(tiff::tags::Tag::PlanarConfiguration)
+            .map(|res| res.and_then(|r| r.into_u16().ok()).unwrap_or_default())
+            .unwrap_or_default();
+
+        // Decode not supported for non Chunky Planar Configuration
+        if planar_config <= 1 {
+            Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(String::from("PlanarConfiguration = 2")),
+                ),
+            ))?;
+        }
 
         let color_type = match tiff_color_type {
             tiff::ColorType::Gray(8) => ColorType::L8,

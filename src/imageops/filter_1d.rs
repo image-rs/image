@@ -43,6 +43,40 @@ fn mla<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>
     acc + a * b
 }
 
+trait SafeMul<S> {
+    fn safe_mul(&self, rhs: S) -> Result<S, ImageError>;
+}
+
+trait SafeAdd<S> {
+    fn safe_add(&self, rhs: S) -> Result<S, ImageError>;
+}
+
+impl SafeMul<usize> for usize {
+    #[inline]
+    fn safe_mul(&self, rhs: usize) -> Result<usize, ImageError> {
+        if let Some(product) = self.checked_mul(rhs) {
+            Ok(product)
+        } else {
+            Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::DimensionError,
+            )))
+        }
+    }
+}
+
+impl SafeAdd<usize> for usize {
+    #[inline]
+    fn safe_add(&self, rhs: usize) -> Result<usize, ImageError> {
+        if let Some(product) = self.checked_add(rhs) {
+            Ok(product)
+        } else {
+            Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::DimensionError,
+            )))
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct KernelShape {
     width: usize,
@@ -65,7 +99,8 @@ fn make_arena_row<T, const N: usize>(
     source_y: usize,
     image_size: FilterImageSize,
     kernel_size: KernelShape,
-) where
+) -> Result<(), ImageError>
+where
     T: Default + Copy + Send + Sync + 'static,
     f64: AsPrimitive<T>,
 {
@@ -73,7 +108,10 @@ fn make_arena_row<T, const N: usize>(
 
     let pad_w = (kernel_size.width / 2).max(1);
 
-    let arena_width = image_size.width * N + pad_w * 2 * N;
+    let arena_width = image_size
+        .width
+        .safe_mul(N)?
+        .safe_add(pad_w.safe_mul(2 * N)?)?;
 
     let source_offset = source_y * image_size.width * N;
     assert_eq!(row_buffer.len(), arena_width);
@@ -105,6 +143,7 @@ fn make_arena_row<T, const N: usize>(
             *dst = *src;
         }
     }
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -178,14 +217,14 @@ impl ToStorage<u8> for u32 {
     #[inline(always)]
     #[allow(clippy::manual_clamp)]
     fn to_(self) -> u8 {
-        ((self + (1 << (Q0_15 - 1))) >> Q0_15).min(255).max(0) as u8
+        ((self + (1 << (Q0_15 - 1))) >> Q0_15).min(255) as u8
     }
 }
 
 impl ToStorage<u16> for f32 {
     #[inline(always)]
     fn to_(self) -> u16 {
-        self.round().min(u16::MAX as f32).max(0.) as u16
+        self.round().min(u16::MAX as f32) as u16
     }
 }
 
@@ -241,9 +280,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
             }
 
             for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
-                let other_size = length - i - 1;
+                let other_side = length - i - 1;
                 let fw_src = arena_src[i];
-                let rw_src = arena_src[other_size];
+                let rw_src = arena_src[other_side];
                 let fw0 = &fw_src[cx..(cx + 16)];
                 let bw0 = &rw_src[cx..(cx + 16)];
                 let fw1 = &fw_src[(cx + 16)..(cx + 32)];
@@ -284,9 +323,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
         }
 
         for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
-            let other_size = length - i - 1;
+            let other_side = length - i - 1;
             let fw = &arena_src[i][cx..(cx + 16)];
-            let bw = &arena_src[other_size][cx..(cx + 16)];
+            let bw = &arena_src[other_side][cx..(cx + 16)];
 
             for ((dst, fw), bw) in store.iter_mut().zip(fw).zip(bw) {
                 *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
@@ -310,9 +349,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
         let mut k3 = v_src[3].as_().mul(coeff);
 
         for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
-            let other_size = length - i - 1;
+            let other_side = length - i - 1;
             let fw = &arena_src[i][cx..(cx + 4)];
-            let bw = &arena_src[other_size][cx..(cx + 4)];
+            let bw = &arena_src[other_side][cx..(cx + 4)];
             k0 = mla(k0, fw[0].as_().add(bw[0].as_()), coeff);
             k1 = mla(k1, fw[1].as_().add(bw[1].as_()), coeff);
             k2 = mla(k2, fw[2].as_().add(bw[2].as_()), coeff);
@@ -334,9 +373,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
         let mut k0 = v_src[0].as_().mul(coeff);
 
         for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
-            let other_size = length - i - 1;
+            let other_side = length - i - 1;
             let fw = &arena_src[i][x..(x + 1)];
-            let bw = &arena_src[other_size][x..(x + 1)];
+            let bw = &arena_src[other_side][x..(x + 1)];
             k0 = mla(k0, fw[0].as_().add(bw[0].as_()), coeff);
         }
 
@@ -349,8 +388,6 @@ fn filter_symmetric_column<T, F, const N: usize>(
 /// Common convolution formula O(x,y)=∑K(k)⋅I(x+k,y); where sums goes from 0...R
 /// when filter is symmetric that we can half kernel reads by using formula
 /// O(x,y)=(∑K(k)⋅(I(x+k,y) + I(x+(R-k),y))) + K(R/2)⋅I(x+R/2,y); where sums goes from 0...R/2
-///
-/// It is important to use color groups because for whole group one weight must be applied
 fn filter_symmetric_row<T, F, const N: usize>(arena: &[T], dst_row: &mut [T], scanned_kernel: &[F])
 where
     T: Copy + AsPrimitive<F> + Default,
@@ -374,15 +411,19 @@ where
         let v_cx = x * 4;
         let src = &src[v_cx..];
 
-        let mut k0 = src[half_len * N].as_() * hc;
-        let mut k1 = src[half_len * N + 1].as_() * hc;
-        let mut k2 = src[half_len * N + 2].as_() * hc;
-        let mut k3 = src[half_len * N + 3].as_() * hc;
+        let chunk = &src[half_len * N..half_len * N + 4];
 
+        let mut k0 = chunk[0].as_() * hc;
+        let mut k1 = chunk[1].as_() * hc;
+        let mut k2 = chunk[2].as_() * hc;
+        let mut k3 = chunk[3].as_() * hc;
+
+        // Note why here is no window operators:
+        // https://github.com/image-rs/image/pull/2496#discussion_r2155171034
         for (i, &coeff) in scanned_kernel.iter().take(half_len).enumerate() {
-            let other_size = length - i - 1;
+            let other_side = length - i - 1;
             let fw = &src[(i * N)..(i * N) + 4];
-            let bw = &src[(other_size * N)..(other_size * N) + 4];
+            let bw = &src[(other_side * N)..(other_side * N) + 4];
             k0 = mla(k0, fw[0].as_() + bw[0].as_(), coeff);
             k1 = mla(k1, fw[1].as_() + bw[1].as_(), coeff);
             k2 = mla(k2, fw[2].as_() + bw[2].as_(), coeff);
@@ -405,9 +446,9 @@ where
         let mut k0 = src[half_len * N].as_() * hc;
 
         for (i, &coeff) in scanned_kernel.iter().take(half_len).enumerate() {
-            let other_size = length - i - 1;
+            let other_side = length - i - 1;
             let fw = &src[(i * N)..(i * N) + 1];
-            let bw = &src[(other_size * N)..(other_size * N) + 1];
+            let bw = &src[(other_side * N)..(other_side * N) + 1];
             k0 = mla(k0, fw[0].as_() + bw[0].as_(), coeff);
         }
 
@@ -457,16 +498,64 @@ where
 
 const RING_QUEUE_CIRCULAR_CUTOFF: usize = 55;
 
-fn filter_1d_ring_queue<T, F, I, const N: usize>(
+/// This is typical *Divide & Conquer* method with not typical *Sliding Window*.
+/// Thus, instead of transient image here sliding window is used in a ring queue form.
+///
+/// Let's define R(n) as row with number: R0,R1,R2,R3 and so forth.
+/// So to convolve an image the buffer that represents a ring is created with size:
+/// `image_width * channels_count * vertical_kernel_length` as our ring is representing
+/// columnar queue.
+///
+/// So at the very first time it's fully filled if we convolve image with vertical kernel size = 5,
+/// then it holds: R0,R1,R2,R3,R4, each is already blurred horizontally.
+/// Instead of removing/adding items from ring iterator position is hold
+/// and after iterator is adjusted the new row just replaces the old ones.
+/// Therefore, at the very moment of the first fulfilling we actually should blur now *R2*
+/// that is central item, but our iterator already at *R4*, thus our *ring queue* is always
+/// *ahead* of current row by `kernel_size/2`. So to send rows correctly to columnar pass,
+/// it's required to reshuffle as `(current_iterator_position+1)%vertical_kernel_size`
+/// our ring first ,since the iterator is always at the tail, advanced by
+/// `kernel_size/2` from current row, and ahead from start by `kernel_size`.
+///
+/// After columnar pass iterator is adjusted one position forward in a ring style:
+/// to fill the ring, the next row blurred, then it will replace leading row with a new one.
+/// The flow after the first fill looks like:
+/// - R0,R1,R2,R3,R4(iterator here, denoted as `I`)
+/// - R5(I),R1,R2,R3,R4
+/// - R5,R6(I),R2,R3,R4
+/// - R5,R6,R7(I),R3,R4
+/// - R5,R6,R7,R8(I),R4
+/// - R5,R6,R7,R8,R9(I)
+/// - R10(I),R6,R7,R8,R9
+///
+/// This approach is significantly more efficient for small kernels,
+/// and several times faster in multithreaded environments
+/// despite the presence of overlapping regions.
+///
+/// The algorithm consists of 3 stages that should be different for multithreaded and single-threaded  
+/// modes:
+///
+/// Single threaded:
+/// - Blurring horizontal R0 and copy it into a ring buffer
+///   up to `kernel_size/2 * channels_count * vertical_kernel_length` because we always clamp here
+///   and first row the same
+/// - Blur next row and adjust iterator until ring the first full ring fill.
+/// - Blur vertically ring buffer, store row into destination,
+///   adjust iterator, blur horizontally next row and repeat it until end
+///
+/// Multithreaded:
+/// - Fill the ring buffer from tile's Y starting before the first full ring fill.
+/// - Blur vertically ring buffer, store row into destination,
+///   adjust iterator, blur horizontally next row and repeat it until end.
+fn filter_2d_separable_ring_queue<T, I, const N: usize>(
     image: &[T],
     destination: &mut [T],
     image_size: FilterImageSize,
-    row_kernel: &[F],
-    column_kernel: &[F],
+    row_kernel: &[I],
+    column_kernel: &[I],
 ) -> Result<(), ImageError>
 where
-    T: Copy + AsPrimitive<F> + Default + Send + Sync + KernelTransformer<F, I> + AsPrimitive<I>,
-    F: Default + 'static + Copy,
+    T: Copy + Default + Send + Sync + AsPrimitive<I>,
     I: ToStorage<T>
         + Mul<I, Output = I>
         + Add<I, Output = I>
@@ -477,52 +566,23 @@ where
         + Default
         + 'static
         + Copy,
-    i32: AsPrimitive<F> + AsPrimitive<I>,
+    i32: AsPrimitive<I>,
     f64: AsPrimitive<T>,
 {
-    if image.len() != image_size.width * image_size.height * N {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::DimensionError,
-        )));
-    }
-    if destination.len() != image_size.width * image_size.height * N {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::DimensionError,
-        )));
-    }
+    let pad_w = (row_kernel.len() / 2).max(1);
 
-    let mut scanned_row_kernel = row_kernel
-        .iter()
-        .map(|&x| T::transform(x))
-        .collect::<Vec<I>>();
-    let mut scanned_column_kernel = column_kernel
-        .iter()
-        .map(|&x| T::transform(x))
-        .collect::<Vec<I>>();
-
-    scanned_row_kernel = prepare_symmetric_kernel(&scanned_row_kernel);
-    scanned_column_kernel = prepare_symmetric_kernel(&scanned_column_kernel);
-
-    if scanned_row_kernel.is_empty() || scanned_column_kernel.is_empty() {
-        for (dst, src) in destination.iter_mut().zip(image.iter()) {
-            *dst = *src;
-        }
-        return Ok(());
-    }
-
-    let pad_w = (scanned_row_kernel.len() / 2).max(1);
-
-    let arena_width = image_size.width * N + pad_w * 2 * N;
+    let arena_width = image_size
+        .width
+        .safe_mul(N)?
+        .safe_add(pad_w.safe_mul(2 * N)?)?;
     let mut row_buffer = vec![T::default(); arena_width];
-
-    // If column kernel is small better to use ring queue circular convolution
 
     let full_width = image_size.width * N;
 
-    // Flat ring queue
-    let mut buffer = vec![T::default(); image_size.width * N * scanned_column_kernel.len()];
+    // This is flat ring queue
+    let mut buffer = vec![T::default(); (image_size.width * N).safe_mul(column_kernel.len())?];
 
-    let column_kernel_len = scanned_column_kernel.len();
+    let column_kernel_len = column_kernel.len();
 
     let half_kernel = column_kernel_len / 2;
 
@@ -532,12 +592,15 @@ where
         0,
         image_size,
         KernelShape {
-            width: scanned_row_kernel.len(),
+            width: row_kernel.len(),
             height: 0,
         },
-    );
-    filter_symmetric_row::<T, I, N>(&row_buffer, &mut buffer[..full_width], &scanned_row_kernel);
+    )?;
 
+    // Blurring horizontally R0
+    filter_symmetric_row::<T, I, N>(&row_buffer, &mut buffer[..full_width], row_kernel);
+
+    // Distribute R0 up to half of kernel into a ring
     let (src_row, rest) = buffer.split_at_mut(full_width);
     for dst in rest.chunks_exact_mut(full_width).take(half_kernel) {
         for (dst, src) in dst.iter_mut().zip(src_row.iter()) {
@@ -549,6 +612,8 @@ where
 
     start_ky %= column_kernel_len;
 
+    // image_size.height + half_kernel is here because as in description
+    // we're always in advance on half of vertical kernel
     for y in 1..image_size.height + half_kernel {
         let new_y = if y < image_size.height {
             y
@@ -562,19 +627,21 @@ where
             new_y,
             image_size,
             KernelShape {
-                width: scanned_row_kernel.len(),
+                width: row_kernel.len(),
                 height: 0,
             },
-        );
+        )?;
 
         filter_symmetric_row::<T, I, N>(
             &row_buffer,
             &mut buffer[start_ky * full_width..(start_ky + 1) * full_width],
-            &scanned_row_kernel,
+            row_kernel,
         );
 
+        // As we always in advance on half of vertical kernel so half_kernel = R0
+        // this is real image start
         if y >= half_kernel {
-            let mut brows = vec![image.as_ref(); column_kernel_len];
+            let mut brows = vec![image; column_kernel_len];
 
             for (i, brow) in brows.iter_mut().enumerate() {
                 let ky = (i + start_ky + 1) % column_kernel_len;
@@ -585,7 +652,7 @@ where
 
             let dst = &mut destination[dy * full_width..(dy + 1) * full_width];
 
-            filter_symmetric_column::<T, I, N>(&brows, dst, image_size, &scanned_column_kernel);
+            filter_symmetric_column::<T, I, N>(&brows, dst, image_size, column_kernel);
         }
 
         start_ky += 1;
@@ -606,7 +673,9 @@ where
 /// * `image_size`: Image size see [FilterImageSize]
 /// * `row_kernel`: Row kernel, *size must be odd*!
 /// * `column_kernel`: Column kernel, *size must be odd*!
-fn filter_1d<T, F, I, const N: usize>(
+///
+/// If both kernels after kernel scan appears to the identity then just copy is performed.
+fn filter_2d_separable<T, F, I, const N: usize>(
     image: &[T],
     destination: &mut [T],
     image_size: FilterImageSize,
@@ -629,12 +698,12 @@ where
     i32: AsPrimitive<F> + AsPrimitive<I>,
     f64: AsPrimitive<T>,
 {
-    if image.len() != image_size.width * image_size.height * N {
+    if image.len() != image_size.width.safe_mul(image_size.height)?.safe_mul(N)? {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::DimensionError,
         )));
     }
-    if destination.len() != image_size.width * image_size.height * N {
+    if destination.len() != image.len() {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::DimensionError,
         )));
@@ -659,20 +728,18 @@ where
     scanned_row_kernel = prepare_symmetric_kernel(&scanned_row_kernel);
     scanned_column_kernel = prepare_symmetric_kernel(&scanned_column_kernel);
 
-    if scanned_row_kernel.is_empty() || scanned_column_kernel.is_empty() {
-        for (dst, src) in destination.iter_mut().zip(image.iter()) {
-            *dst = *src;
-        }
+    if scanned_row_kernel.is_empty() && scanned_column_kernel.is_empty() {
+        destination.copy_from_slice(image);
         return Ok(());
     }
 
     if column_kernel.len() < RING_QUEUE_CIRCULAR_CUTOFF {
-        return filter_1d_ring_queue::<T, F, I, N>(
+        return filter_2d_separable_ring_queue::<T, I, N>(
             image,
             destination,
             image_size,
-            row_kernel,
-            column_kernel,
+            &scanned_row_kernel,
+            &scanned_column_kernel,
         );
     }
 
@@ -703,7 +770,7 @@ where
                 width: scanned_row_kernel.len(),
                 height: 0,
             },
-        );
+        )?;
 
         filter_symmetric_row::<T, I, N>(&row_buffer, dst, &scanned_row_kernel);
     }
@@ -765,7 +832,13 @@ pub(crate) fn filter_1d_plane(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u8, f32, u32, 1>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u8, f32, u32, 1>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_la(
@@ -775,7 +848,13 @@ pub(crate) fn filter_1d_la(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u8, f32, u32, 2>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u8, f32, u32, 2>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgb(
@@ -785,7 +864,13 @@ pub(crate) fn filter_1d_rgb(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u8, f32, u32, 3>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u8, f32, u32, 3>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgba(
@@ -795,7 +880,13 @@ pub(crate) fn filter_1d_rgba(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u8, f32, u32, 4>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u8, f32, u32, 4>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_la_f32(
@@ -805,7 +896,13 @@ pub(crate) fn filter_1d_la_f32(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<f32, f32, f32, 2>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<f32, f32, f32, 2>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_plane_f32(
@@ -815,7 +912,13 @@ pub(crate) fn filter_1d_plane_f32(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<f32, f32, f32, 1>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<f32, f32, f32, 1>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgb_f32(
@@ -825,7 +928,13 @@ pub(crate) fn filter_1d_rgb_f32(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<f32, f32, f32, 3>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<f32, f32, f32, 3>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgba_f32(
@@ -835,7 +944,13 @@ pub(crate) fn filter_1d_rgba_f32(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<f32, f32, f32, 4>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<f32, f32, f32, 4>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgb_u16(
@@ -845,7 +960,13 @@ pub(crate) fn filter_1d_rgb_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u16, f32, f32, 3>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u16, f32, f32, 3>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_rgba_u16(
@@ -855,7 +976,13 @@ pub(crate) fn filter_1d_rgba_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u16, f32, f32, 4>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u16, f32, f32, 4>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_la_u16(
@@ -865,7 +992,13 @@ pub(crate) fn filter_1d_la_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u16, f32, f32, 2>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u16, f32, f32, 2>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }
 
 pub(crate) fn filter_1d_plane_u16(
@@ -875,5 +1008,11 @@ pub(crate) fn filter_1d_plane_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_1d::<u16, f32, f32, 1>(image, destination, image_size, row_kernel, column_kernel)
+    filter_2d_separable::<u16, f32, f32, 1>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+    )
 }

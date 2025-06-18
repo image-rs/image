@@ -11,7 +11,6 @@ extern crate tiff;
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
-use std::str::FromStr;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{

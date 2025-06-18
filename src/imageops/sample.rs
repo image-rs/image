@@ -3,14 +3,23 @@
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
 
-use std::f32;
-
 use num_traits::{NumCast, ToPrimitive, Zero};
+use std::f32;
+use std::ops::Mul;
 
+use crate::buffer_::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::image::{GenericImage, GenericImageView};
+use crate::imageops::filter_1d::{
+    filter_1d_la, filter_1d_la_f32, filter_1d_la_u16, filter_1d_plane, filter_1d_plane_f32,
+    filter_1d_plane_u16, filter_1d_rgb, filter_1d_rgb_f32, filter_1d_rgb_u16, filter_1d_rgba,
+    filter_1d_rgba_f32, filter_1d_rgba_u16, FilterImageSize,
+};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
-use crate::{ImageBuffer, Rgba32FImage};
+use crate::{
+    DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, Rgb32FImage, RgbImage, Rgba32FImage,
+    RgbaImage,
+};
 
 /// Available Sampling Filters.
 ///
@@ -1008,30 +1017,408 @@ where
 /// If it is not, color distortion may occur.
 pub fn blur<I: GenericImageView>(
     image: &I,
+    kernel_size: usize,
     sigma: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
-    let sigma = if sigma <= 0.0 { 1.0 } else { sigma };
+    gaussian_blur_indirect(image, kernel_size, sigma)
+}
 
-    let mut method = Filter {
-        kernel: Box::new(|x| gaussian(x, sigma)),
-        support: 2.0 * sigma,
-    };
+fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
+    let mut sum_norm: f32 = 0f32;
+    let mut kernel = vec![0f32; width];
+    let scale = 1f32 / (f32::sqrt(2f32 * f32::consts::PI) * sigma);
+    let mean = (width / 2) as f32;
 
-    let (width, height) = image.dimensions();
-    let is_empty = width == 0 || height == 0;
-
-    if is_empty {
-        return ImageBuffer::new(width, height);
+    for (x, weight) in kernel.iter_mut().enumerate() {
+        let new_weight = f32::exp(-0.5f32 * f32::powf((x as f32 - mean) / sigma, 2.0f32)) * scale;
+        *weight = new_weight;
+        sum_norm += new_weight;
     }
 
-    // Keep width and height the same for horizontal and
-    // vertical sampling.
-    // Note: tmp is not necessarily actually Rgba
-    let tmp: Rgba32FImage = vertical_sample(image, height, &mut method);
-    horizontal_sample(&tmp, width, &mut method)
+    if sum_norm != 0f32 {
+        let sum_scale = 1f32 / sum_norm;
+        for weight in kernel.iter_mut() {
+            *weight = weight.mul(sum_scale);
+        }
+    }
+
+    kernel
+}
+
+pub(crate) fn gaussian_blur_dyn_image(
+    image: &DynamicImage,
+    kernel_size: usize,
+    sigma: f32,
+) -> DynamicImage {
+    assert!(sigma >= 0., "Sigma cannot be < 0.");
+    fn sigma_size(kernel_size: f32) -> f32 {
+        let safe_kernel_size = if kernel_size <= 1. { 2. } else { kernel_size };
+        0.3 * ((safe_kernel_size - 1.) * 0.5 - 1.) + 0.8
+    }
+
+    fn c_kernel_size(sigma: f32) -> usize {
+        if sigma == 0.8 {
+            return 3;
+        }
+        let possible_size = (((((sigma - 0.8) / 0.3) + 1.) * 2.) + 1.).max(3.) as usize;
+        if possible_size % 2 == 0 {
+            return possible_size + 1;
+        }
+        possible_size
+    }
+
+    if kernel_size == 0 && sigma == 0.0 {
+        panic!("Either sigma or kernel size should be set");
+    }
+
+    if kernel_size != 0 {
+        assert_ne!(kernel_size % 2, 0, "Kernel size must be odd");
+    }
+
+    let min_sigma = if sigma == 0. {
+        sigma_size(kernel_size as f32)
+    } else {
+        sigma
+    };
+
+    let kernel_size = if kernel_size == 0 {
+        c_kernel_size(min_sigma)
+    } else {
+        kernel_size
+    };
+
+    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);
+
+    let filter_image_size = FilterImageSize {
+        width: image.width() as usize,
+        height: image.height() as usize,
+    };
+
+    match image {
+        DynamicImage::ImageLuma8(img) => {
+            let mut dest_image = vec![0u8; img.len()];
+            filter_1d_plane(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLuma8(
+                GrayImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageLumaA8(img) => {
+            let mut dest_image = vec![0u8; img.len()];
+            filter_1d_la(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLumaA8(
+                GrayAlphaImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgb8(img) => {
+            let mut dest_image = vec![0u8; img.len()];
+            filter_1d_rgb(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgb8(
+                RgbImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgba8(img) => {
+            let mut dest_image = vec![0u8; img.len()];
+            filter_1d_rgba(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgba8(
+                RgbaImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageLuma16(img) => {
+            let mut dest_image = vec![0u16; img.len()];
+            filter_1d_plane_u16(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLuma16(
+                Gray16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageLumaA16(img) => {
+            let mut dest_image = vec![0u16; img.len()];
+            filter_1d_la_u16(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLumaA16(
+                GrayAlpha16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgb16(img) => {
+            let mut dest_image = vec![0u16; img.len()];
+            filter_1d_rgb_u16(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgb16(
+                Rgb16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgba16(img) => {
+            let mut dest_image = vec![0u16; img.len()];
+            filter_1d_rgba_u16(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgba16(
+                Rgba16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgb32F(img) => {
+            let mut dest_image = vec![0f32; img.len()];
+            filter_1d_rgb_f32(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgb32F(
+                Rgb32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgba32F(img) => {
+            let mut dest_image = vec![0f32; img.len()];
+            filter_1d_rgba_f32(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageRgba32F(
+                Rgba32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+    }
+}
+
+fn gaussian_blur_indirect<I: GenericImageView>(
+    image: &I,
+    kernel_size: usize,
+    sigma: f32,
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+where
+    I::Pixel: 'static,
+{
+    match I::Pixel::CHANNEL_COUNT {
+        1 => gaussian_blur_indirect_impl::<I, 1>(image, kernel_size, sigma),
+        2 => gaussian_blur_indirect_impl::<I, 2>(image, kernel_size, sigma),
+        3 => gaussian_blur_indirect_impl::<I, 3>(image, kernel_size, sigma),
+        4 => gaussian_blur_indirect_impl::<I, 4>(image, kernel_size, sigma),
+        _ => unimplemented!(),
+    }
+}
+
+fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
+    image: &I,
+    kernel_size: usize,
+    sigma: f32,
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+where
+    I::Pixel: 'static,
+{
+    let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
+    for (pixel, dst) in image.pixels().zip(transient.chunks_exact_mut(CN)) {
+        let px = pixel.2.channels();
+        match CN {
+            1 => {
+                dst[0] = NumCast::from(px[0]).unwrap();
+            }
+            2 => {
+                dst[0] = NumCast::from(px[0]).unwrap();
+                dst[1] = NumCast::from(px[1]).unwrap();
+            }
+            3 => {
+                dst[0] = NumCast::from(px[0]).unwrap();
+                dst[1] = NumCast::from(px[1]).unwrap();
+                dst[2] = NumCast::from(px[2]).unwrap();
+            }
+            4 => {
+                dst[0] = NumCast::from(px[0]).unwrap();
+                dst[1] = NumCast::from(px[1]).unwrap();
+                dst[2] = NumCast::from(px[2]).unwrap();
+                dst[3] = NumCast::from(px[3]).unwrap();
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    let mut transient_dst = vec![0.; image.width() as usize * image.height() as usize * CN];
+
+    assert!(sigma >= 0., "Sigma cannot be < 0.");
+    fn sigma_size(kernel_size: f32) -> f32 {
+        let safe_kernel_size = if kernel_size <= 1. { 2. } else { kernel_size };
+        0.3 * ((safe_kernel_size - 1.) * 0.5 - 1.) + 0.8
+    }
+
+    fn c_kernel_size(sigma: f32) -> usize {
+        if sigma == 0.8 {
+            return 3;
+        }
+        let possible_size = (((((sigma - 0.8) / 0.3) + 1.) * 2.) + 1.).max(3.) as usize;
+        if possible_size % 2 == 0 {
+            return possible_size + 1;
+        }
+        possible_size
+    }
+
+    if kernel_size == 0 && sigma == 0.0 {
+        panic!("Either sigma or kernel size should be set");
+    }
+
+    if kernel_size != 0 {
+        assert_ne!(kernel_size % 2, 0, "Kernel size must be odd");
+    }
+
+    let min_sigma = if sigma == 0. {
+        sigma_size(kernel_size as f32)
+    } else {
+        sigma
+    };
+
+    let kernel_size = if kernel_size == 0 {
+        c_kernel_size(min_sigma)
+    } else {
+        kernel_size
+    };
+    let gaussian_kernel = get_gaussian_kernel_1d(kernel_size, min_sigma);
+
+    let filter_image_size = FilterImageSize {
+        width: image.width() as usize,
+        height: image.height() as usize,
+    };
+
+    match CN {
+        1 => {
+            filter_1d_plane_f32(
+                &transient,
+                &mut transient_dst,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+        }
+        2 => {
+            filter_1d_la_f32(
+                &transient,
+                &mut transient_dst,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+        }
+        3 => {
+            filter_1d_rgb_f32(
+                &transient,
+                &mut transient_dst,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+        }
+        4 => {
+            filter_1d_rgba_f32(
+                &transient,
+                &mut transient_dst,
+                filter_image_size,
+                &gaussian_kernel,
+                &gaussian_kernel,
+            )
+            .unwrap();
+        }
+        _ => unreachable!(),
+    }
+
+    let mut out = ImageBuffer::new(image.width(), image.height());
+    for (dst, src) in out.pixels_mut().zip(transient_dst.chunks_exact_mut(CN)) {
+        match CN {
+            1 => {
+                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
+                #[allow(deprecated)]
+                let t = Pixel::from_channels(v0, v0, v0, v0);
+                *dst = t;
+            }
+            2 => {
+                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
+                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
+                #[allow(deprecated)]
+                let t = Pixel::from_channels(v0, v1, v0, v0);
+                *dst = t;
+            }
+            3 => {
+                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
+                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
+                let v2 = NumCast::from(FloatNearest(src[2])).unwrap();
+                #[allow(deprecated)]
+                let t = Pixel::from_channels(v0, v1, v2, v0);
+                *dst = t;
+            }
+            4 => {
+                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
+                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
+                let v2 = NumCast::from(FloatNearest(src[2])).unwrap();
+                let v3 = NumCast::from(FloatNearest(src[3])).unwrap();
+                #[allow(deprecated)]
+                let t = Pixel::from_channels(v0, v1, v2, v3);
+                *dst = t;
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    out
 }
 
 /// Performs an unsharpen mask on the supplied image.
@@ -1051,7 +1438,7 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
-    let mut tmp = blur(image, sigma);
+    let mut tmp = blur(image, 0, sigma);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();

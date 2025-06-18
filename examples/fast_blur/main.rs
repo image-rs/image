@@ -7,7 +7,7 @@ fn main() {
     );
     let img = ImageReader::open(path).unwrap().decode().unwrap();
 
-    let img2 = img.blur(10.0);
+    let img2 = img.blur(0, 10.0);
 
     img2.save("examples/fast_blur/mandril_color_blurred.tif")
         .unwrap();

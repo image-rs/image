@@ -5,7 +5,7 @@ pub fn bench_fast_blur(c: &mut Criterion) {
     let src = ImageBuffer::from_pixel(1024, 768, Rgb([255u8, 0, 0]));
 
     c.bench_function("blur", |b| {
-        b.iter(|| blur(&src, 50.0));
+        b.iter(|| blur(&src, 0, 50.0));
     });
 }
 

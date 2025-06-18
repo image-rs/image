@@ -1,10 +1,10 @@
-use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
+use super::header::{Header, ImageType, ALPHA_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{
         ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
     },
-    image::{ImageDecoder, ImageFormat},
+    ImageDecoder, ImageFormat,
 };
 use byteorder_lite::ReadBytesExt;
 use std::io::{self, Read};
@@ -57,6 +57,38 @@ pub struct TgaDecoder<R> {
 
     header: Header,
     color_map: Option<ColorMap>,
+}
+
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
+enum TgaOrientation {
+    TopLeft,
+    TopRight,
+    BottomRight,
+    BottomLeft,
+}
+
+impl TgaOrientation {
+    fn from_image_desc_byte(value: u8) -> Self {
+        // Set bits 4 and 5 indicates direction, if bit 4 is set then pixel order right -> left,
+        // when bit 5 is set it indicates rows top -> bottom direction.
+        // Sources:
+        // https://en.wikipedia.org/wiki/Truevision_TGA ; Image specification (field 5)
+        if value & (1u8 << 4) == 0 {
+            // Left -> Right
+            if value & (1u8 << 5) == 0 {
+                TgaOrientation::BottomLeft
+            } else {
+                TgaOrientation::TopLeft
+            }
+        } else {
+            // Right -> Left
+            if value & (1u8 << 5) == 0 {
+                TgaOrientation::BottomRight
+            } else {
+                TgaOrientation::TopRight
+            }
+        }
+    }
 }
 
 impl<R: Read> TgaDecoder<R> {
@@ -294,45 +326,45 @@ impl<R: Read> TgaDecoder<R> {
         }
     }
 
-    /// Flip the image vertically depending on the screen origin bit
-    ///
-    /// The bit in position 5 of the image descriptor byte is the screen origin bit.
-    /// If it's 1, the origin is in the top left corner.
-    /// If it's 0, the origin is in the bottom left corner.
-    /// This function checks the bit, and if it's 0, flips the image vertically.
-    fn flip_vertically(&mut self, pixels: &mut [u8]) {
-        if self.is_flipped_vertically() {
-            if self.height == 0 {
-                return;
-            }
+    /// Change image orientation depending on the flags set
+    fn fixup_orientation(&mut self, pixels: &mut [u8]) {
+        let orientation = TgaOrientation::from_image_desc_byte(self.header.image_desc);
 
-            let num_bytes = pixels.len();
+        // Flip image if bottom->top direction
+        if (orientation == TgaOrientation::BottomLeft || orientation == TgaOrientation::BottomRight)
+            && self.height > 1
+        {
+            let row_stride = self.width * self.bytes_per_pixel;
 
-            let width_bytes = num_bytes / self.height;
+            let (left_part, right_part) = pixels.split_at_mut(self.height / 2 * row_stride);
 
-            // Flip the image vertically.
-            for vertical_index in 0..(self.height / 2) {
-                let vertical_target = (self.height - vertical_index) * width_bytes - width_bytes;
-
-                for horizontal_index in 0..width_bytes {
-                    let source = vertical_index * width_bytes + horizontal_index;
-                    let target = vertical_target + horizontal_index;
-
-                    pixels.swap(target, source);
+            for (src, dst) in left_part
+                .chunks_exact_mut(row_stride)
+                .zip(right_part.chunks_exact_mut(row_stride).rev())
+            {
+                for (src, dst) in src.iter_mut().zip(dst.iter_mut()) {
+                    std::mem::swap(src, dst);
                 }
             }
         }
-    }
 
-    /// Check whether the image is vertically flipped
-    ///
-    /// The bit in position 5 of the image descriptor byte is the screen origin bit.
-    /// If it's 1, the origin is in the top left corner.
-    /// If it's 0, the origin is in the bottom left corner.
-    /// This function checks the bit, and if it's 0, flips the image vertically.
-    fn is_flipped_vertically(&self) -> bool {
-        let screen_origin_bit = SCREEN_ORIGIN_BIT_MASK & self.header.image_desc != 0;
-        !screen_origin_bit
+        // Flop image if right->left direction
+        if (orientation == TgaOrientation::BottomRight || orientation == TgaOrientation::TopRight)
+            && self.width > 1
+        {
+            for row in pixels.chunks_exact_mut(self.width * self.bytes_per_pixel) {
+                let (left_part, right_part) =
+                    row.split_at_mut(self.width / 2 * self.bytes_per_pixel);
+                for (src, dst) in left_part
+                    .chunks_exact_mut(self.bytes_per_pixel)
+                    .zip(right_part.chunks_exact_mut(self.bytes_per_pixel).rev())
+                {
+                    for (src, dst) in src.iter_mut().zip(dst.iter_mut()) {
+                        std::mem::swap(dst, src);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -394,7 +426,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         self.reverse_encoding_in_output(buf);
 
-        self.flip_vertically(buf);
+        self.fixup_orientation(buf);
 
         Ok(())
     }

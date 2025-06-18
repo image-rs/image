@@ -1,19 +1,21 @@
 #![allow(clippy::too_many_arguments)]
+use std::borrow::Cow;
+use std::io::{self, Write};
 
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::image::{ImageEncoder, ImageFormat};
+use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use crate::{
+    ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder, ImageFormat, Luma, Pixel, Rgb,
+};
+
 use num_traits::ToPrimitive;
-use std::borrow::Cow;
-use std::io::{self, Write};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
-use crate::traits::PixelWithColorType;
 
 // Markers
 // Baseline DCT
@@ -907,7 +909,7 @@ mod tests {
     use test::Bencher;
 
     use crate::error::ParameterErrorKind::DimensionMismatch;
-    use crate::image::ImageDecoder;
+    use crate::ImageDecoder as _;
     use crate::{ExtendedColorType, ImageEncoder, ImageError};
 
     use super::super::JpegDecoder;

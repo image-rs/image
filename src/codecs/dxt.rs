@@ -11,7 +11,7 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::ImageDecoder;
+use crate::ImageDecoder;
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're

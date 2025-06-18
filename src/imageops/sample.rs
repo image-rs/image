@@ -7,18 +7,17 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use std::f32;
 use std::ops::Mul;
 
-use crate::buffer_::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
-use crate::image::{GenericImage, GenericImageView};
 use crate::imageops::filter_1d::{
     filter_1d_la, filter_1d_la_f32, filter_1d_la_u16, filter_1d_plane, filter_1d_plane_f32,
     filter_1d_plane_u16, filter_1d_rgb, filter_1d_rgb_f32, filter_1d_rgb_u16, filter_1d_rgba,
     filter_1d_rgba_f32, filter_1d_rgba_u16, FilterImageSize,
 };
+use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{
-    DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, Rgb32FImage, RgbImage, Rgba32FImage,
-    RgbaImage,
+    DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
 };
 
 /// Available Sampling Filters.

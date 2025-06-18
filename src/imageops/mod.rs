@@ -1,8 +1,8 @@
 //! Image Processing Functions
 use std::cmp;
 
-use crate::image::{GenericImage, GenericImageView, SubImage};
 use crate::traits::{Lerp, Pixel, Primitive};
+use crate::{GenericImage, GenericImageView, SubImage};
 
 pub use self::sample::FilterType;
 

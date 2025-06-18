@@ -111,7 +111,7 @@ fn bad_gif_oom() {
     //
     // So instead we look for a limits error (or an unsupported error, for the case that we're
     // running these tests without gif being actually supported)
-    let error = image::load_from_memory(&data).unwrap_err();
+    let error = image::load_from_memory(data).unwrap_err();
 
     assert!(
         matches!(error, image::ImageError::Limits(_))

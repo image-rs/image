@@ -52,9 +52,8 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::{GenericImage, GenericImageView, ImageBuffer};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -1576,8 +1575,8 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer_::GrayAlphaImage;
     use crate::color::{LumaA, Rgb};
+    use crate::images::buffer::GrayAlphaImage;
 
     #[test]
     fn aliasing_view() {

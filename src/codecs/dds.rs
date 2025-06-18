@@ -16,7 +16,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
+use crate::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

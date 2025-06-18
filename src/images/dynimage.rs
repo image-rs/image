@@ -6,23 +6,24 @@ use crate::codecs::gif;
 #[cfg(feature = "png")]
 use crate::codecs::png;
 
-use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
-};
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
+use crate::images::buffer::{
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
+};
+use crate::io::free_functions;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::image_reader::free_functions;
 use crate::imageops::gaussian_blur_dyn_image;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
-use crate::ImageReader;
-use crate::{image, Luma, LumaA};
-use crate::{imageops, ExtendedColorType};
-use crate::{Rgb32FImage, Rgba32FImage};
+use crate::{
+    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageReader, Luma, LumaA,
+};
 
 /// A Dynamic Image
 ///
@@ -1228,52 +1229,52 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
 
     let image = match color_type {
         color::ColorType::Rgb8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
     };
@@ -1335,8 +1336,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// TGA is not supported by this function.
 ///
 /// Try [`ImageReader`] for more advanced uses.
-pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    let format = free_functions::guess_format(buffer)?;
+pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
+    let format = free_functions::guess_format(buffer.as_ref())?;
     load_from_memory_with_format(buffer, format)
 }
 
@@ -1349,8 +1350,14 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::Cursor::new(buf);
+pub fn load_from_memory_with_format(
+    buf: impl AsRef<[u8]>,
+    format: ImageFormat,
+) -> ImageResult<DynamicImage> {
+    // Note: this function (and `load_from_memory`) are generic over `AsRef<[u8]>` so that we do not
+    // monomorphize copies of all our decoders unless some downsteam crate actually calls one of
+    // these functions. See https://github.com/image-rs/image/pull/2470.
+    let b = io::Cursor::new(buf.as_ref());
     free_functions::load(b, format)
 }
 
@@ -1367,7 +1374,7 @@ mod bench {
 
 #[cfg(test)]
 mod test {
-    use crate::{buffer_::Gray16Image, color::ColorType};
+    use crate::{color::ColorType, images::dynimage::Gray16Image};
 
     #[test]
     fn test_empty_file() {
@@ -1391,7 +1398,7 @@ mod test {
     }
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
-        use crate::image::{GenericImage, GenericImageView};
+        use crate::{GenericImage as _, GenericImageView as _};
         img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(

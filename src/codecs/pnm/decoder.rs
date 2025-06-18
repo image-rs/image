@@ -11,8 +11,7 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
-use crate::utils;
+use crate::{utils, ImageDecoder, ImageFormat};
 
 use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
 

@@ -276,6 +276,16 @@ impl ParameterError {
         }
     }
 
+    pub(crate) fn from_err(
+        description: &'static str,
+        err: impl Error + Send + Sync + 'static,
+    ) -> Self {
+        ParameterError {
+            kind: ParameterErrorKind::Generic(description.into()),
+            underlying: Some(err.into()),
+        }
+    }
+
     /// Returns the corresponding `ParameterErrorKind` of the error.
     #[must_use]
     pub fn kind(&self) -> ParameterErrorKind {

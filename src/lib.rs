@@ -155,6 +155,8 @@ pub use crate::images::buffer::{
     RgbaImage,
 };
 
+pub use crate::images::image::Image;
+
 pub use crate::flat::FlatSamples;
 
 // Traits

@@ -13,11 +13,17 @@ use crate::ExtendedColorType;
 pub trait EncodableLayout: seals::EncodableLayout {
     /// Get the bytes of this value.
     fn as_bytes(&self) -> &[u8];
+    /// Get the mutable bytes representing this value.
+    fn as_bytes_mut(&mut self) -> &mut [u8];
 }
 
 impl EncodableLayout for [u8] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
+    }
+
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
     }
 }
 
@@ -25,11 +31,19 @@ impl EncodableLayout for [u16] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
     }
+
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
+    }
 }
 
 impl EncodableLayout for [f32] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
+    }
+
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
     }
 }
 
@@ -169,6 +183,9 @@ impl Lerp for f32 {
 
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
+///
+/// These sealed trait implementations should be kept in sync with [`Image`][`crate::Image`] in
+/// order to ensure that all typed buffers can be converted.
 pub trait PixelWithColorType: Pixel + private::SealedPixelWithColorType {
     /// This pixel has the format of one of the predefined `ColorType`s,
     /// such as `Rgb8`, `La16` or `Rgba32F`.

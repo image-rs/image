@@ -18,7 +18,7 @@ use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
-    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
+    imageops, ExtendedColorType, GenericImage, GenericImageView, Image, ImageDecoder, ImageEncoder,
     ImageFormat, ImageReader, Luma, LumaA,
 };
 
@@ -313,6 +313,12 @@ impl DynamicImage {
         self.to()
     }
 
+    /// Copy this pixel data to a new image which can have metadata.
+    #[must_use]
+    pub fn to_image(&self) -> Image {
+        dynamic_map!(*self, ref buf, Image::from(buf))
+    }
+
     /// Consume the image and returns a RGB image.
     ///
     /// If the image was already the correct format, it is returned as is.
@@ -431,6 +437,12 @@ impl DynamicImage {
             DynamicImage::ImageLumaA16(x) => x,
             x => x.to_luma_alpha16(),
         }
+    }
+
+    /// Move this pixel data to a new image which can have metadata.
+    #[must_use]
+    pub fn into_image(self) -> Image {
+        dynamic_map!(self, buf, Image::from(buf))
     }
 
     /// Return a cut-out of this image delimited by the bounding rectangle.

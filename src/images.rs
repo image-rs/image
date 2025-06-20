@@ -3,6 +3,7 @@ pub(crate) mod buffer;
 #[cfg(feature = "rayon")]
 pub(crate) mod buffer_par;
 pub(crate) mod dynimage;
+pub(crate) mod image;
 pub(crate) mod generic_image;
 // Public as we re-export the whole module including its documentation.
 pub mod flat;

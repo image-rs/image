@@ -264,8 +264,10 @@ fn filter_symmetric_column<T, F, const N: usize>(
 
     let coeff = kernel[half_len];
 
+    let mut dst_rem = dst_row;
+
     if size_of::<T>() == 1 {
-        while cx + 32 < dst_stride {
+        for chunk in dst_rem.chunks_exact_mut(32) {
             let mut store0: [F; 16] = [F::default(); 16];
             let mut store1: [F; 16] = [F::default(); 16];
 
@@ -297,13 +299,13 @@ fn filter_symmetric_column<T, F, const N: usize>(
                 }
             }
 
-            let shaped_dst0 = &mut dst_row[cx..(cx + 16)];
+            let shaped_dst0 = &mut chunk[..16];
 
             for (src, dst) in store0.iter().zip(shaped_dst0.iter_mut()) {
                 *dst = src.to_();
             }
 
-            let shaped_dst1 = &mut dst_row[(cx + 16)..(cx + 32)];
+            let shaped_dst1 = &mut chunk[16..32];
 
             for (src, dst) in store1.iter().zip(shaped_dst1.iter_mut()) {
                 *dst = src.to_();
@@ -311,9 +313,11 @@ fn filter_symmetric_column<T, F, const N: usize>(
 
             cx += 32;
         }
+
+        dst_rem = dst_rem.chunks_exact_mut(32).into_remainder();
     }
 
-    while cx + 16 < dst_stride {
+    for chunk in dst_rem.chunks_exact_mut(16) {
         let mut store: [F; 16] = [F::default(); 16];
 
         let v_src = &arena_src[half_len][cx..(cx + 16)];
@@ -332,15 +336,16 @@ fn filter_symmetric_column<T, F, const N: usize>(
             }
         }
 
-        let shaped_dst = &mut dst_row[cx..(cx + 16)];
-        for (src, dst) in store.iter().zip(shaped_dst.iter_mut()) {
+        for (src, dst) in store.iter().zip(chunk.iter_mut()) {
             *dst = src.to_();
         }
 
         cx += 16;
     }
 
-    while cx + 4 < dst_stride {
+    dst_rem = dst_rem.chunks_exact_mut(16).into_remainder();
+
+    for chunk in dst_rem.chunks_exact_mut(4) {
         let v_src = &arena_src[half_len][cx..(cx + 4)];
 
         let mut k0 = v_src[0].as_().mul(coeff);
@@ -358,16 +363,16 @@ fn filter_symmetric_column<T, F, const N: usize>(
             k3 = mla(k3, fw[3].as_().add(bw[3].as_()), coeff);
         }
 
-        let shaped_dst = &mut dst_row[cx..(cx + 4)];
-        shaped_dst[0] = k0.to_();
-        shaped_dst[1] = k1.to_();
-        shaped_dst[2] = k2.to_();
-        shaped_dst[3] = k3.to_();
+        chunk[0] = k0.to_();
+        chunk[1] = k1.to_();
+        chunk[2] = k2.to_();
+        chunk[3] = k3.to_();
         cx += 4;
     }
 
-    #[allow(clippy::needless_range_loop)]
-    for x in cx..dst_stride {
+    dst_rem = dst_rem.chunks_exact_mut(4).into_remainder();
+
+    for (chunk, x) in dst_rem.iter_mut().zip(cx..dst_stride) {
         let v_src = &arena_src[half_len][x..(x + 1)];
 
         let mut k0 = v_src[0].as_().mul(coeff);
@@ -379,7 +384,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
             k0 = mla(k0, fw[0].as_().add(bw[0].as_()), coeff);
         }
 
-        dst_row[x] = k0.to_();
+        *chunk = k0.to_();
     }
 }
 

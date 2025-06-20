@@ -1052,6 +1052,12 @@ pub(crate) fn gaussian_blur_dyn_image(
     kernel_size: usize,
     sigma: f32,
 ) -> DynamicImage {
+    if sigma != 0. {
+        assert!(
+            sigma.is_normal(),
+            "Sigma cannot be NaN, Infinities, or subnormal"
+        );
+    }
     assert!(sigma >= 0., "Sigma cannot be < 0.");
     fn sigma_size(kernel_size: f32) -> f32 {
         let safe_kernel_size = if kernel_size <= 1. { 2. } else { kernel_size };
@@ -1248,6 +1254,12 @@ fn gaussian_blur_indirect<I: GenericImageView>(
 where
     I::Pixel: 'static,
 {
+    if sigma != 0. {
+        assert!(
+            sigma.is_normal(),
+            "Sigma cannot be NaN, Infinities, or subnormal"
+        );
+    }
     match I::Pixel::CHANNEL_COUNT {
         1 => gaussian_blur_indirect_impl::<I, 1>(image, kernel_size, sigma),
         2 => gaussian_blur_indirect_impl::<I, 2>(image, kernel_size, sigma),

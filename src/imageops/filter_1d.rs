@@ -215,9 +215,15 @@ const Q0_15: i32 = 15;
 
 impl ToStorage<u8> for u32 {
     #[inline(always)]
-    #[allow(clippy::manual_clamp)]
     fn to_(self) -> u8 {
         ((self + (1 << (Q0_15 - 1))) >> Q0_15).min(255) as u8
+    }
+}
+
+impl ToStorage<u16> for u32 {
+    #[inline(always)]
+    fn to_(self) -> u16 {
+        ((self + (1 << (Q0_15 - 1))) >> Q0_15).min(u16::MAX as u32) as u16
     }
 }
 
@@ -466,6 +472,13 @@ trait KernelTransformer<F, I> {
 }
 
 impl KernelTransformer<f32, u32> for u8 {
+    fn transform(input: f32) -> u32 {
+        const SCALE: f32 = (1 << Q0_15) as f32;
+        (input * SCALE).min(((1u32 << Q0_15) - 1) as f32).max(0.) as u32
+    }
+}
+
+impl KernelTransformer<f32, u32> for u16 {
     fn transform(input: f32) -> u32 {
         const SCALE: f32 = (1 << Q0_15) as f32;
         (input * SCALE).min(((1u32 << Q0_15) - 1) as f32).max(0.) as u32
@@ -965,7 +978,7 @@ pub(crate) fn filter_1d_rgb_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_2d_separable::<u16, f32, f32, 3>(
+    filter_2d_separable::<u16, f32, u32, 3>(
         image,
         destination,
         image_size,
@@ -981,7 +994,7 @@ pub(crate) fn filter_1d_rgba_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_2d_separable::<u16, f32, f32, 4>(
+    filter_2d_separable::<u16, f32, u32, 4>(
         image,
         destination,
         image_size,
@@ -997,7 +1010,7 @@ pub(crate) fn filter_1d_la_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_2d_separable::<u16, f32, f32, 2>(
+    filter_2d_separable::<u16, f32, u32, 2>(
         image,
         destination,
         image_size,
@@ -1013,7 +1026,7 @@ pub(crate) fn filter_1d_plane_u16(
     row_kernel: &[f32],
     column_kernel: &[f32],
 ) -> Result<(), ImageError> {
-    filter_2d_separable::<u16, f32, f32, 1>(
+    filter_2d_separable::<u16, f32, u32, 1>(
         image,
         destination,
         image_size,

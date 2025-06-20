@@ -1356,7 +1356,11 @@ pub fn write_buffer_with_format<W: Write + Seek>(
     format: ImageFormat,
 ) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color.into(), format)
+    free_functions::write_buffer_impl(
+        buffered_writer,
+        format,
+        &mut free_functions::NegotiateFixed(buf, width, height, color.into()),
+    )
 }
 
 /// Create a new image from a byte slice

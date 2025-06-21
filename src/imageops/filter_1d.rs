@@ -692,7 +692,7 @@ where
 /// * `row_kernel`: Row kernel, *size must be odd*!
 /// * `column_kernel`: Column kernel, *size must be odd*!
 ///
-/// If both kernels after kernel scan appears to the identity then just copy is performed.
+/// If both kernels after kernel scan appears to be an identity then just copy is performed.
 fn filter_2d_separable<T, F, I, const N: usize>(
     image: &[T],
     destination: &mut [T],

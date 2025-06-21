@@ -1073,16 +1073,40 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
 #[derive(Copy, Clone, PartialOrd, PartialEq)]
 pub struct GaussianBlurParameters {
     /// X-axis kernel, must be odd
-    x_axis_kernel_size: u32,
+    pub x_axis_kernel_size: u32,
     /// X-axis sigma, must > 0, not subnormal, and not NaN
-    x_axis_sigma: f32,
+    pub x_axis_sigma: f32,
     /// Y-axis kernel, must be odd
-    y_axis_kernel_size: u32,
+    pub y_axis_kernel_size: u32,
     /// Y-axis sigma, must > 0, not subnormal, and not NaN
-    y_axis_sigma: f32,
+    pub y_axis_sigma: f32,
 }
 
 impl GaussianBlurParameters {
+    /// Built-in smoothing kernel with size 3.
+    pub const SMOOTHING_3: GaussianBlurParameters = GaussianBlurParameters {
+        x_axis_kernel_size: 3,
+        x_axis_sigma: 0.8,
+        y_axis_kernel_size: 3,
+        y_axis_sigma: 0.8,
+    };
+
+    /// Built-in smoothing kernel with size 5.
+    pub const SMOOTHING_5: GaussianBlurParameters = GaussianBlurParameters {
+        x_axis_kernel_size: 5,
+        x_axis_sigma: 1.1,
+        y_axis_kernel_size: 5,
+        y_axis_sigma: 1.1,
+    };
+
+    /// Built-in smoothing kernel with size 7.
+    pub const SMOOTHING_7: GaussianBlurParameters = GaussianBlurParameters {
+        x_axis_kernel_size: 7,
+        x_axis_sigma: 1.4,
+        y_axis_kernel_size: 7,
+        y_axis_sigma: 1.4,
+    };
+
     /// Creates a new parameters set from radius only.
     pub fn new_from_radius(radius: f32) -> GaussianBlurParameters {
         // Previous implementation was allowing passing so we'll allow here also.

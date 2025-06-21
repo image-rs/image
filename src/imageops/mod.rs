@@ -36,6 +36,7 @@ mod sample;
 
 pub use fast_blur::fast_blur;
 pub(crate) use sample::gaussian_blur_dyn_image;
+pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
@@ -487,7 +488,7 @@ mod tests {
     /// Test blur doesn't panic when passed 0.0
     fn test_blur_zero() {
         let image = RgbaImage::new(50, 50);
-        let _ = blur(&image, 5, 0.0);
+        let _ = blur(&image, 0.);
     }
 
     #[test]
@@ -551,7 +552,9 @@ mod tests {
             "/tests/images/tiff/testsuite/rgb-3c-16b.tiff"
         );
         let image = crate::open(path).unwrap();
-        let image_blurred_gauss = image.blur(0, 50.0).to_rgb8();
+        let image_blurred_gauss = image
+            .blur_advanced(GaussianBlurParameters::new_from_sigma(50.0))
+            .to_rgb8();
         let image_blurred_gauss_samples = image_blurred_gauss.as_flat_samples();
         let image_blurred_gauss_bytes = image_blurred_gauss_samples.as_slice();
         let image_blurred_fast = image.fast_blur(50.0).to_rgb8();

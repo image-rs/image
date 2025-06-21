@@ -627,7 +627,7 @@ where
     }
 
     let mut start_ky = column_kernel_len / 2 + 1;
-
+    // This needs in case of anisotropy
     start_ky %= column_kernel_len;
 
     // image_size.height + half_kernel is here because as in description

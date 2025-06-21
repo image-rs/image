@@ -723,6 +723,19 @@ impl DynamicImage {
         dynamic_map!(*self, ref p, { p.height() })
     }
 
+    /// Whether the image contains an alpha channel
+    ///
+    /// This is a convenience wrapper around `self.color().has_alpha()`.
+    /// For inspecting other properties of the color type you should call
+    /// [DynamicImage::color] and use the methods on the returned [ColorType](color::ColorType).
+    ///
+    /// This only checks that the image's pixel type can express transparency,
+    /// not whether the image actually has any transparent areas.
+    #[must_use]
+    pub fn has_alpha(&self) -> bool {
+        self.color().has_alpha()
+    }
+
     /// Return a grayscale version of this image.
     /// Returns `Luma` images in most cases. However, for `f32` images,
     /// this will return a grayscale `Rgb/Rgba` image instead.

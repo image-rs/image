@@ -9,9 +9,7 @@ use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-#[allow(unused_imports)] // When no codec features are enabled
-use crate::ImageEncoder as _;
-use crate::{DynamicImage, ImageDecoder, ImageFormat};
+use crate::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Create a new image from a Reader.
 ///
@@ -54,88 +52,118 @@ pub fn save_buffer_with_format(
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-    write_buffer_impl(
-        buffered_file_write,
-        buf,
-        width,
-        height,
-        color.into(),
-        format,
-    )
+
+    let mut encode_with = NegotiateFixed(buf, width, height, color.into());
+    write_buffer_impl(buffered_file_write, format, &mut encode_with)
+}
+
+pub(crate) trait NegotiateEncoderFormat {
+    fn for_encoder(
+        &mut self,
+        encoder: &mut dyn ImageEncoder,
+    ) -> (&'_ [u8], u32, u32, ExtendedColorType);
+    fn without_negotiation(&mut self) -> (&'_ [u8], u32, u32, ExtendedColorType);
+}
+
+pub(crate) struct NegotiateFixed<'buf>(
+    pub(crate) &'buf [u8],
+    pub(crate) u32,
+    pub(crate) u32,
+    pub(crate) ExtendedColorType,
+);
+
+impl NegotiateEncoderFormat for NegotiateFixed<'_> {
+    fn for_encoder(&mut self, _: &mut dyn ImageEncoder) -> (&'_ [u8], u32, u32, ExtendedColorType) {
+        self.without_negotiation()
+    }
+
+    fn without_negotiation(&mut self) -> (&'_ [u8], u32, u32, ExtendedColorType) {
+        (self.0, self.1, self.2, self.3)
+    }
 }
 
 #[allow(unused_variables)]
 // Most variables when no features are supported
 pub(crate) fn write_buffer_impl<W: io::Write + Seek>(
     buffered_write: &mut W,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: ExtendedColorType,
     format: ImageFormat,
+    buffer_provider: &mut (dyn NegotiateEncoderFormat + '_),
 ) -> ImageResult<()> {
-    match format {
-        #[cfg(feature = "png")]
-        ImageFormat::Png => {
-            png::PngEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "jpeg")]
-        ImageFormat::Jpeg => {
-            jpeg::JpegEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "pnm")]
-        ImageFormat::Pnm => {
-            pnm::PnmEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "gif")]
-        ImageFormat::Gif => gif::GifEncoder::new(buffered_write).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        ImageFormat::Ico => {
-            ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "bmp")]
-        ImageFormat::Bmp => {
-            bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "ff")]
-        ImageFormat::Farbfeld => {
-            farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "tga")]
-        ImageFormat::Tga => {
-            tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "exr")]
-        ImageFormat::OpenExr => {
-            openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "tiff")]
-        ImageFormat::Tiff => {
-            tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "avif")]
-        ImageFormat::Avif => {
-            avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "qoi")]
-        ImageFormat::Qoi => {
-            qoi::QoiEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "webp")]
-        ImageFormat::WebP => {
-            webp::WebPEncoder::new_lossless(buffered_write).write_image(buf, width, height, color)
-        }
-        #[cfg(feature = "hdr")]
-        ImageFormat::Hdr => {
-            hdr::HdrEncoder::new(buffered_write).write_image(buf, width, height, color)
-        }
-        _ => Err(ImageError::Unsupported(
-            UnsupportedError::from_format_and_kind(
-                ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{format:?}"))),
-            ),
-        )),
+    trait WriteConsume: ImageEncoder {
+        fn write_image(
+            self: Box<Self>,
+            buf: &'_ [u8],
+            width: u32,
+            height: u32,
+            color: ExtendedColorType,
+        ) -> ImageResult<()>;
+
+        // In new enough rust versions this is builtin.
+        fn upcast(&mut self) -> &mut dyn ImageEncoder;
     }
+
+    impl<T: ImageEncoder> WriteConsume for T {
+        fn write_image(
+            self: Box<Self>,
+            buf: &'_ [u8],
+            width: u32,
+            height: u32,
+            color: ExtendedColorType,
+        ) -> ImageResult<()> {
+            (*self).write_image(buf, width, height, color)
+        }
+
+        fn upcast(&mut self) -> &mut dyn ImageEncoder {
+            self
+        }
+    }
+
+    let mut encoder: Box<dyn WriteConsume> = match format {
+        #[cfg(feature = "png")]
+        ImageFormat::Png => Box::new(png::PngEncoder::new(buffered_write)),
+        #[cfg(feature = "jpeg")]
+        ImageFormat::Jpeg => Box::new(jpeg::JpegEncoder::new(buffered_write)),
+        #[cfg(feature = "pnm")]
+        ImageFormat::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
+        #[cfg(feature = "gif")]
+        ImageFormat::Gif => {
+            let (buf, width, height, color) = buffer_provider.without_negotiation();
+            // FIXME: Not actually an ImageEncoder since it has frames, and an explicit end.
+            // However apparently we can use it as an ImageEncoder regardless. How to bridge?
+            return gif::GifEncoder::new(buffered_write).encode(buf, width, height, color);
+        }
+        #[cfg(feature = "ico")]
+        ImageFormat::Ico => Box::new(ico::IcoEncoder::new(buffered_write)),
+        #[cfg(feature = "bmp")]
+        ImageFormat::Bmp => Box::new(bmp::BmpEncoder::new(buffered_write)),
+        #[cfg(feature = "ff")]
+        ImageFormat::Farbfeld => Box::new(farbfeld::FarbfeldEncoder::new(buffered_write)),
+        #[cfg(feature = "tga")]
+        ImageFormat::Tga => Box::new(tga::TgaEncoder::new(buffered_write)),
+        #[cfg(feature = "exr")]
+        ImageFormat::OpenExr => Box::new(openexr::OpenExrEncoder::new(buffered_write)),
+        #[cfg(feature = "tiff")]
+        ImageFormat::Tiff => Box::new(tiff::TiffEncoder::new(buffered_write)),
+        #[cfg(feature = "avif")]
+        ImageFormat::Avif => Box::new(avif::AvifEncoder::new(buffered_write)),
+        #[cfg(feature = "qoi")]
+        ImageFormat::Qoi => Box::new(qoi::QoiEncoder::new(buffered_write)),
+        #[cfg(feature = "webp")]
+        ImageFormat::WebP => Box::new(webp::WebPEncoder::new_lossless(buffered_write)),
+        #[cfg(feature = "hdr")]
+        ImageFormat::Hdr => Box::new(hdr::HdrEncoder::new(buffered_write)),
+        _ => {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{format:?}"))),
+                ),
+            ));
+        }
+    };
+
+    let (buf, width, height, color) = buffer_provider.for_encoder(encoder.upcast());
+    WriteConsume::write_image(encoder, buf, width, height, color)
 }
 
 static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [

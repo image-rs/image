@@ -487,9 +487,9 @@ impl<W: Write> GifEncoder<W> {
     ) -> ImageResult<()> {
         let (width, height) = self.gif_dimensions(width, height)?;
         match color {
-            ExtendedColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
+            ExtendedColorType::Rgb8 => self.encode_gif(Frame::from_rgb_speed(width, height, data, self.speed)),
             ExtendedColorType::Rgba8 => {
-                self.encode_gif(Frame::from_rgba(width, height, &mut data.to_owned()))
+                self.encode_gif(Frame::from_rgba_speed(width, height, &mut data.to_owned(), self.speed))
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(

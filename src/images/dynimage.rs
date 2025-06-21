@@ -729,18 +729,7 @@ impl DynamicImage {
     /// not whether the image actually has any transparent areas.
     #[must_use]
     pub fn has_alpha(&self) -> bool {
-        match self {
-            DynamicImage::ImageLuma8(_) => false,
-            DynamicImage::ImageLumaA8(_) => true,
-            DynamicImage::ImageRgb8(_) => false,
-            DynamicImage::ImageRgba8(_) => true,
-            DynamicImage::ImageLuma16(_) => false,
-            DynamicImage::ImageLumaA16(_) => true,
-            DynamicImage::ImageRgb16(_) => false,
-            DynamicImage::ImageRgba16(_) => true,
-            DynamicImage::ImageRgb32F(_) => false,
-            DynamicImage::ImageRgba32F(_) => true,
-        }
+        self.color().has_alpha()
     }
 
     /// Return a grayscale version of this image.

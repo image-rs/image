@@ -847,7 +847,7 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `radius` - is blurring radius.
+    /// * `sigma` - gaussian bell flattening level.
     ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
@@ -856,8 +856,11 @@ impl DynamicImage {
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
     #[must_use]
-    pub fn blur(&self, radius: f32) -> DynamicImage {
-        gaussian_blur_dyn_image(self, GaussianBlurParameters::new_from_radius(radius))
+    pub fn blur(&self, sigma: f32) -> DynamicImage {
+        gaussian_blur_dyn_image(
+            self,
+            GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
+        )
     }
 
     /// Performs a Gaussian blur on this image.

@@ -1011,7 +1011,7 @@ where
 ///
 /// # Arguments
 ///
-///  - `radius` - is blurring radius.
+///  - `sigma` - gaussian bell flattening level.
 ///
 /// Use [`crate::imageops::fast_blur()`] for a faster but less
 /// accurate version.
@@ -1020,12 +1020,15 @@ where
 /// If it is not, color distortion may occur.
 pub fn blur<I: GenericImageView>(
     image: &I,
-    radius: f32,
+    sigma: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
-    gaussian_blur_indirect(image, GaussianBlurParameters::new_from_radius(radius))
+    gaussian_blur_indirect(
+        image,
+        GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
+    )
 }
 
 /// Performs a Gaussian blur on the supplied image.

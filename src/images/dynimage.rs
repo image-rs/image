@@ -725,6 +725,10 @@ impl DynamicImage {
 
     /// Whether the image contains an alpha channel
     ///
+    /// This is a convenience wrapper around `self.color().has_alpha()`.
+    /// For inspecting other properties of the color type you should call
+    /// [DynamicImage::color] and use the methods on the returned [ColorType](color::ColorType).
+    ///
     /// This only checks that the image's pixel type can express transparency,
     /// not whether the image actually has any transparent areas.
     #[must_use]

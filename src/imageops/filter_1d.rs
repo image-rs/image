@@ -843,7 +843,7 @@ where
     Ok(())
 }
 
-pub(crate) fn filter_1d_plane(
+pub(crate) fn filter_2d_sep_plane(
     image: &[u8],
     destination: &mut [u8],
     image_size: FilterImageSize,
@@ -859,7 +859,7 @@ pub(crate) fn filter_1d_plane(
     )
 }
 
-pub(crate) fn filter_1d_la(
+pub(crate) fn filter_2d_sep_la(
     image: &[u8],
     destination: &mut [u8],
     image_size: FilterImageSize,
@@ -875,7 +875,7 @@ pub(crate) fn filter_1d_la(
     )
 }
 
-pub(crate) fn filter_1d_rgb(
+pub(crate) fn filter_2d_sep_rgb(
     image: &[u8],
     destination: &mut [u8],
     image_size: FilterImageSize,
@@ -891,7 +891,7 @@ pub(crate) fn filter_1d_rgb(
     )
 }
 
-pub(crate) fn filter_1d_rgba(
+pub(crate) fn filter_2d_sep_rgba(
     image: &[u8],
     destination: &mut [u8],
     image_size: FilterImageSize,
@@ -907,7 +907,7 @@ pub(crate) fn filter_1d_rgba(
     )
 }
 
-pub(crate) fn filter_1d_la_f32(
+pub(crate) fn filter_2d_sep_la_f32(
     image: &[f32],
     destination: &mut [f32],
     image_size: FilterImageSize,
@@ -923,7 +923,7 @@ pub(crate) fn filter_1d_la_f32(
     )
 }
 
-pub(crate) fn filter_1d_plane_f32(
+pub(crate) fn filter_2d_sep_plane_f32(
     image: &[f32],
     destination: &mut [f32],
     image_size: FilterImageSize,
@@ -939,7 +939,7 @@ pub(crate) fn filter_1d_plane_f32(
     )
 }
 
-pub(crate) fn filter_1d_rgb_f32(
+pub(crate) fn filter_2d_sep_rgb_f32(
     image: &[f32],
     destination: &mut [f32],
     image_size: FilterImageSize,
@@ -955,7 +955,7 @@ pub(crate) fn filter_1d_rgb_f32(
     )
 }
 
-pub(crate) fn filter_1d_rgba_f32(
+pub(crate) fn filter_2d_sep_rgba_f32(
     image: &[f32],
     destination: &mut [f32],
     image_size: FilterImageSize,
@@ -971,7 +971,7 @@ pub(crate) fn filter_1d_rgba_f32(
     )
 }
 
-pub(crate) fn filter_1d_rgb_u16(
+pub(crate) fn filter_2d_sep_rgb_u16(
     image: &[u16],
     destination: &mut [u16],
     image_size: FilterImageSize,
@@ -987,7 +987,7 @@ pub(crate) fn filter_1d_rgb_u16(
     )
 }
 
-pub(crate) fn filter_1d_rgba_u16(
+pub(crate) fn filter_2d_sep_rgba_u16(
     image: &[u16],
     destination: &mut [u16],
     image_size: FilterImageSize,
@@ -1003,7 +1003,7 @@ pub(crate) fn filter_1d_rgba_u16(
     )
 }
 
-pub(crate) fn filter_1d_la_u16(
+pub(crate) fn filter_2d_sep_la_u16(
     image: &[u16],
     destination: &mut [u16],
     image_size: FilterImageSize,
@@ -1019,7 +1019,7 @@ pub(crate) fn filter_1d_la_u16(
     )
 }
 
-pub(crate) fn filter_1d_plane_u16(
+pub(crate) fn filter_2d_sep_plane_u16(
     image: &[u16],
     destination: &mut [u16],
     image_size: FilterImageSize,

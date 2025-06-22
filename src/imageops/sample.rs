@@ -8,9 +8,10 @@ use std::f32;
 use std::ops::Mul;
 
 use crate::imageops::filter_1d::{
-    filter_1d_la, filter_1d_la_f32, filter_1d_la_u16, filter_1d_plane, filter_1d_plane_f32,
-    filter_1d_plane_u16, filter_1d_rgb, filter_1d_rgb_f32, filter_1d_rgb_u16, filter_1d_rgba,
-    filter_1d_rgba_f32, filter_1d_rgba_u16, FilterImageSize,
+    filter_2d_sep_la, filter_2d_sep_la_f32, filter_2d_sep_la_u16, filter_2d_sep_plane,
+    filter_2d_sep_plane_f32, filter_2d_sep_plane_u16, filter_2d_sep_rgb, filter_2d_sep_rgb_f32,
+    filter_2d_sep_rgb_u16, filter_2d_sep_rgba, filter_2d_sep_rgba_f32, filter_2d_sep_rgba_u16,
+    FilterImageSize,
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
@@ -1076,13 +1077,13 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
 #[derive(Copy, Clone, PartialOrd, PartialEq)]
 pub struct GaussianBlurParameters {
     /// X-axis kernel, must be odd
-    pub x_axis_kernel_size: u32,
+    x_axis_kernel_size: u32,
     /// X-axis sigma, must > 0, not subnormal, and not NaN
-    pub x_axis_sigma: f32,
+    x_axis_sigma: f32,
     /// Y-axis kernel, must be odd
-    pub y_axis_kernel_size: u32,
+    y_axis_kernel_size: u32,
     /// Y-axis sigma, must > 0, not subnormal, and not NaN
-    pub y_axis_sigma: f32,
+    y_axis_sigma: f32,
 }
 
 impl GaussianBlurParameters {
@@ -1112,7 +1113,7 @@ impl GaussianBlurParameters {
 
     /// Creates a new parameters set from radius only.
     pub fn new_from_radius(radius: f32) -> GaussianBlurParameters {
-        // Previous implementation was allowing passing so we'll allow here also.
+        // Previous implementation was allowing passing 0 so we'll allow here also.
         assert!(radius >= 0.0);
         if radius != 0. {
             assert!(
@@ -1147,11 +1148,49 @@ impl GaussianBlurParameters {
         }
     }
 
+    /// Creates a new anisotropic parameter set from kernel sizes
+    ///
+    /// Kernel size will be rounded to nearest odd, and used with fraction
+    /// to compute accurate required sigma.
+    pub fn new_anisotropic_kernel_size(
+        x_axis_kernel_size: f32,
+        y_axis_kernel_size: f32,
+    ) -> GaussianBlurParameters {
+        assert!(
+            x_axis_kernel_size > 0.,
+            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        assert!(
+            y_axis_kernel_size.is_normal(),
+            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        assert!(
+            y_axis_kernel_size > 0.,
+            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        assert!(
+            y_axis_kernel_size.is_normal(),
+            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        let x_kernel_size = GaussianBlurParameters::round_to_nearest_odd(x_axis_kernel_size);
+        assert_ne!(x_kernel_size % 2, 0, "Kernel size must be odd");
+        let y_kernel_size = GaussianBlurParameters::round_to_nearest_odd(y_axis_kernel_size);
+        assert_ne!(y_kernel_size % 2, 0, "Kernel size must be odd");
+        let x_sigma = GaussianBlurParameters::sigma_size(x_axis_kernel_size);
+        let y_sigma = GaussianBlurParameters::sigma_size(y_axis_kernel_size);
+        GaussianBlurParameters {
+            x_axis_kernel_size: x_kernel_size,
+            x_axis_sigma: x_sigma,
+            y_axis_kernel_size: y_kernel_size,
+            y_axis_sigma: y_sigma,
+        }
+    }
+
     /// Creates a new parameters set from sigma only
     pub fn new_from_sigma(sigma: f32) -> GaussianBlurParameters {
         assert!(
             sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, or subnormal or zero"
+            "Sigma cannot be NaN, Infinities, subnormal or zero"
         );
         assert!(sigma > 0.0, "Sigma must be positive");
         let kernel_size = GaussianBlurParameters::kernel_size_from_sigma(sigma);
@@ -1195,29 +1234,12 @@ impl GaussianBlurParameters {
         }
         possible_size
     }
-
-    pub(crate) fn check_constraints(&self) {
-        assert!(
-            self.x_axis_sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, or subnormal or zero"
-        );
-        assert!(
-            self.y_axis_sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, or subnormal or zero"
-        );
-        assert!(self.x_axis_sigma > 0., "X axis sigma must be > 0");
-        assert!(self.y_axis_sigma > 0., "X axis sigma must be > 0");
-        assert_ne!(self.x_axis_kernel_size % 2, 0, "X axis kernel must be odd");
-        assert_ne!(self.y_axis_kernel_size % 2, 0, "Y axis kernel must be odd");
-    }
 }
 
 pub(crate) fn gaussian_blur_dyn_image(
     image: &DynamicImage,
     parameters: GaussianBlurParameters,
 ) -> DynamicImage {
-    parameters.check_constraints();
-
     let x_axis_kernel = get_gaussian_kernel_1d(
         parameters.x_axis_kernel_size as usize,
         parameters.x_axis_sigma,
@@ -1236,7 +1258,7 @@ pub(crate) fn gaussian_blur_dyn_image(
     match image {
         DynamicImage::ImageLuma8(img) => {
             let mut dest_image = vec![0u8; img.len()];
-            filter_1d_plane(
+            filter_2d_sep_plane(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1250,7 +1272,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageLumaA8(img) => {
             let mut dest_image = vec![0u8; img.len()];
-            filter_1d_la(
+            filter_2d_sep_la(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1264,7 +1286,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgb8(img) => {
             let mut dest_image = vec![0u8; img.len()];
-            filter_1d_rgb(
+            filter_2d_sep_rgb(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1278,7 +1300,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgba8(img) => {
             let mut dest_image = vec![0u8; img.len()];
-            filter_1d_rgba(
+            filter_2d_sep_rgba(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1292,7 +1314,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageLuma16(img) => {
             let mut dest_image = vec![0u16; img.len()];
-            filter_1d_plane_u16(
+            filter_2d_sep_plane_u16(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1306,7 +1328,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageLumaA16(img) => {
             let mut dest_image = vec![0u16; img.len()];
-            filter_1d_la_u16(
+            filter_2d_sep_la_u16(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1320,7 +1342,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgb16(img) => {
             let mut dest_image = vec![0u16; img.len()];
-            filter_1d_rgb_u16(
+            filter_2d_sep_rgb_u16(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1334,7 +1356,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgba16(img) => {
             let mut dest_image = vec![0u16; img.len()];
-            filter_1d_rgba_u16(
+            filter_2d_sep_rgba_u16(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1348,7 +1370,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgb32F(img) => {
             let mut dest_image = vec![0f32; img.len()];
-            filter_1d_rgb_f32(
+            filter_2d_sep_rgb_f32(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1362,7 +1384,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         }
         DynamicImage::ImageRgba32F(img) => {
             let mut dest_image = vec![0f32; img.len()];
-            filter_1d_rgba_f32(
+            filter_2d_sep_rgba_f32(
                 img.as_raw(),
                 &mut dest_image,
                 filter_image_size,
@@ -1400,7 +1422,6 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 where
     I::Pixel: 'static,
 {
-    parameters.check_constraints();
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
     for (pixel, dst) in image.pixels().zip(transient.chunks_exact_mut(CN)) {
         let px = pixel.2.channels();
@@ -1445,7 +1466,7 @@ where
 
     match CN {
         1 => {
-            filter_1d_plane_f32(
+            filter_2d_sep_plane_f32(
                 &transient,
                 &mut transient_dst,
                 filter_image_size,
@@ -1455,7 +1476,7 @@ where
             .unwrap();
         }
         2 => {
-            filter_1d_la_f32(
+            filter_2d_sep_la_f32(
                 &transient,
                 &mut transient_dst,
                 filter_image_size,
@@ -1465,7 +1486,7 @@ where
             .unwrap();
         }
         3 => {
-            filter_1d_rgb_f32(
+            filter_2d_sep_rgb_f32(
                 &transient,
                 &mut transient_dst,
                 filter_image_size,
@@ -1475,7 +1496,7 @@ where
             .unwrap();
         }
         4 => {
-            filter_1d_rgba_f32(
+            filter_2d_sep_rgba_f32(
                 &transient,
                 &mut transient_dst,
                 filter_image_size,

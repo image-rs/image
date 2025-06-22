@@ -3,13 +3,28 @@ name: Rust CI
 on:
   workflow_call:
     inputs:
+      # What MSRV to use for the tests.
       msrv:
         required: true
         type: string
+
+      # The list of feature combinations to test, as a JSON array.
       features:
         required: false
         type: string
         default: '["default"]'
+
+      # Whether to build cargo-fuzz targets.
+      cargo-fuzz:
+        required: false
+        type: boolean
+        default: false
+
+      # An optional extra feature to enable for benchmarks.
+      benchmark-feature:
+        required: false
+        type: string
+        default: ""
 
 jobs:
   test_features:
@@ -152,3 +167,27 @@ jobs:
         with:
           feature-group: default-features
           release-type: minor
+
+  build_benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: build
+      run: cargo build -v --benches --features="${{ inputs.benchmarks-feature }}"
+
+  build_fuzz_cargo-fuzz:
+    name: "Fuzz targets (cargo-fuzz)"
+    runs-on: ubuntu-latest
+    if: ${{ inputs.cargo-fuzz == 'true' }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: Install cargo-fuzz
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-fuzz
+    - name: check
+      run: cargo fuzz check
+      env:
+        CARGO_INCREMENTAL: 0

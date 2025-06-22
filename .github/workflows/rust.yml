@@ -14,6 +14,8 @@ jobs:
     with:
       msrv: '1.74.0'
       features: '["", "default", "rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]'
+      cargo-fuzz: true
+      benchmark-feature: 'benchmarks'
 
   test_avif_decoding:
     runs-on: ubuntu-latest
@@ -53,21 +55,6 @@ jobs:
       env:
         RUSTFLAGS: ""
 
-  build_fuzz_cargo-fuzz:
-    name: "Fuzz targets (cargo-fuzz)"
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: Install cargo-fuzz
-      uses: baptiste0928/cargo-install@v3
-      with:
-        crate: cargo-fuzz
-    - name: check
-      run: cargo fuzz check
-      env:
-        CARGO_INCREMENTAL: 0
-
   public_private_dependencies:
     runs-on: ubuntu-latest
     steps:
@@ -85,12 +72,3 @@ jobs:
         sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml
         # cargo +nightly check
         cargo check
-
-  build_benchmarks:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: build
-      run: cargo build -v --benches --features=benchmarks
-

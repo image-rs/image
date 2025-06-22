@@ -9,6 +9,7 @@ use crate::codecs::png;
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
+use crate::imageops::{gaussian_blur_dyn_image, GaussianBlurParameters};
 use crate::images::buffer::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
@@ -859,16 +860,34 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `sigma` - is a measure of how much to blur by.
+    /// * `sigma` - gaussian bell flattening level.
     ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
     ///
+    /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::blur(p, sigma))
+        gaussian_blur_dyn_image(
+            self,
+            GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
+        )
+    }
+
+    /// Performs a Gaussian blur on this image.
+    ///
+    /// # Arguments
+    ///
+    /// * `parameters` - see [GaussianBlurParameters] for more info
+    ///
+    /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
+    #[must_use]
+    pub fn blur_advanced(&self, parameters: GaussianBlurParameters) -> DynamicImage {
+        gaussian_blur_dyn_image(self, parameters)
     }
 
     /// Performs a fast blur on this image.

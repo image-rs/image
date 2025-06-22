@@ -161,7 +161,7 @@ jobs:
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
-    if: ${{ inputs.cargo-fuzz == 'true' }}
+    if: ${{ inputs.cargo-fuzz }}
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly

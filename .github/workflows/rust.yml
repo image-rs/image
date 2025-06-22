@@ -10,10 +10,10 @@ on:
 
 jobs:
   call_base_workflow:
-    uses: image-rs/image/.github/workflows/base.yml
+    uses: ./.github/workflows/base.yml
     with:
       msrv: '1.74.0'
-      features: '["", "default", "rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]'
+      features: '["default", "rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]'
 
   test_avif_decoding:
     runs-on: ubuntu-latest

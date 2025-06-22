@@ -41,7 +41,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["${{ inputs.msrv }}", nightly, beta]
+        rust:
+          - ${{ inputs.msrv }}
+          - nightly
+          - beta
     steps:
     - uses: actions/checkout@v4
 

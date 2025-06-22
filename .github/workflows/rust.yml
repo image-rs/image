@@ -46,7 +46,9 @@ jobs:
       if: ${{ matrix.rust == '1.74.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
       if: ${{ matrix.rust == '1.74.0' }}
-      run: CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo -Zdirect-minimal-versions generate-lockfile
+      run: |
+        cargo -Zminimal-versions generate-lockfile
+        cargo update num-bigint --precise 0.4.2
 
     - uses: dtolnay/rust-toolchain@v1
       with:

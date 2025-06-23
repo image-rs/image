@@ -204,12 +204,12 @@ fn transmute_chroma_plane16(
     let mut shape_chroma_plane = || {
         chroma_plane_stride = match pixel_layout {
             PixelLayout::I400 => unreachable!(),
-            PixelLayout::I420 | PixelLayout::I422 => (width + 1) / 2,
+            PixelLayout::I420 | PixelLayout::I422 => width.div_ceil(2),
             PixelLayout::I444 => width,
         };
         let u_plane_height = match pixel_layout {
             PixelLayout::I400 => unreachable!(),
-            PixelLayout::I420 => (height + 1) / 2,
+            PixelLayout::I420 => height.div_ceil(2),
             PixelLayout::I422 | PixelLayout::I444 => height,
         };
         bind_chroma = reshape_plane(plane_ref, stride, chroma_plane_stride, u_plane_height);

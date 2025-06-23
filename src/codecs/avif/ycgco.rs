@@ -112,7 +112,7 @@ fn process_halved_chroma_row_cgco<
     // preventing accidental use of invalid values from the trailing region.
 
     let y_plane = &image.y_plane[..image.width];
-    let chroma_size = (image.width + 1) / 2;
+    let chroma_size = image.width.div_ceil(2);
     let u_plane = &image.u_plane[..chroma_size];
     let v_plane = &image.v_plane[..chroma_size];
     let rgba = &mut rgba[..image.width * CHANNELS];

@@ -26,6 +26,7 @@ on:
         type: string
         default: ""
 
+      # List of dependencies to pin to specific versions when generating the Cargo.lock file for the MSRV.
       msrv-pinned-dependencies:
         required: false
         type: string

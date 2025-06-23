@@ -16,6 +16,7 @@ jobs:
       features: '["", "default", "rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]'
       cargo-fuzz: true
       benchmark-feature: 'benchmarks'
+      msrv-pinned-dependencies: '["num-bigint@0.4.2"]'
 
   test_avif_decoding:
     runs-on: ubuntu-latest

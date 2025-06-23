@@ -26,6 +26,11 @@ on:
         type: string
         default: ""
 
+      msrv-pinned-dependencies:
+        required: false
+        type: string
+        default: '[]'
+
 jobs:
   test_features:
     runs-on: ubuntu-latest
@@ -67,7 +72,13 @@ jobs:
       if: ${{ matrix.rust == inputs.msrv }}
     - name: Generate Cargo.lock with minimal-version dependencies
       if: ${{ matrix.rust == inputs.msrv }}
-      run: cargo -Zminimal-versions generate-lockfile
+      run: |
+        cargo -Zminimal-versions generate-lockfile
+        echo '${{ inputs.msrv-pinned-dependencies }}' | jq -r '.[]' | while IFS= read -r dep; do
+          package_name=$(echo "$dep" | cut -d'@' -f1)
+          version=$(echo "$dep" | cut -d'@' -f2)
+          cargo update --precise "$version" "$package_name"
+        done
 
     - uses: dtolnay/rust-toolchain@v1
       with:
@@ -91,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
+        arch: [powerpc64-unknown-linux-gnu, i686-unknown-linux-gnu]
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross

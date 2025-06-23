@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, main, next-version-0.25 ]
+    branches: [ main ]
   pull_request:
-    branches: [ master, main, next-version-0.25 ]
+    branches: [ main ]
   schedule:
     - cron: '5 16 * * 6'
 
@@ -38,15 +38,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.70.0", nightly, beta]
+        rust: ["1.74.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.70.0' }}
+      if: ${{ matrix.rust == '1.74.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.70.0' }}
-      run: cargo -Zminimal-versions generate-lockfile
+      if: ${{ matrix.rust == '1.74.0' }}
+      run: |
+        cargo -Zminimal-versions generate-lockfile
+        cargo update num-bigint --precise 0.4.2
 
     - uses: dtolnay/rust-toolchain@v1
       with:
@@ -58,7 +60,7 @@ jobs:
     - name: build
       run: cargo build -v
     - name: test
-      if: ${{ matrix.rust != '1.70.0' }}
+      if: ${{ matrix.rust != '1.74.0' }}
       run: cargo test -v && cargo doc -v
 
   test_other_archs:
@@ -70,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
+        arch: [powerpc64-unknown-linux-gnu, i686-unknown-linux-gnu]
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross

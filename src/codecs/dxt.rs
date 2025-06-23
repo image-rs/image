@@ -224,7 +224,7 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     } else {
         // linearly interpolate one other entry, keep the other at 0
         for i in 0..3 {
-            colors[2][i] = ((u16::from(colors[0][i]) + u16::from(colors[1][i]) + 1) / 2) as u8;
+            colors[2][i] = (u16::from(colors[0][i]) + u16::from(colors[1][i])).div_ceil(2) as u8;
         }
     }
 

@@ -335,7 +335,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 let data_end = u64::from(self.selected_entry.image_offset)
                     + u64::from(self.selected_entry.image_length);
 
-                let mask_row_bytes = ((width + 31) / 32) * 4;
+                let mask_row_bytes = width.div_ceil(32) * 4;
                 let mask_length = u64::from(mask_row_bytes) * u64::from(height);
 
                 // data_end should be image_end + the mask length (mask_row_bytes * height).

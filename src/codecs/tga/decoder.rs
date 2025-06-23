@@ -23,7 +23,7 @@ impl ColorMap {
         num_entries: u16,
         bits_per_entry: u8,
     ) -> ImageResult<ColorMap> {
-        let bytes_per_entry = (bits_per_entry as usize + 7) / 8;
+        let bytes_per_entry = (bits_per_entry as usize).div_ceil(8);
 
         let mut bytes = vec![0; bytes_per_entry * num_entries as usize];
         r.read_exact(&mut bytes)?;
@@ -118,7 +118,7 @@ impl<R: Read> TgaDecoder<R> {
         self.image_type = ImageType::new(self.header.image_type);
         self.width = self.header.image_width as usize;
         self.height = self.header.image_height as usize;
-        self.bytes_per_pixel = (self.header.pixel_depth as usize + 7) / 8;
+        self.bytes_per_pixel = (self.header.pixel_depth as usize).div_ceil(8);
         Ok(())
     }
 
@@ -233,7 +233,7 @@ impl<R: Read> TgaDecoder<R> {
             result
         }
 
-        let bytes_per_entry = (self.header.map_entry_size as usize + 7) / 8;
+        let bytes_per_entry = (self.header.map_entry_size as usize).div_ceil(8);
         let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
 
         if self.bytes_per_pixel == 0 {

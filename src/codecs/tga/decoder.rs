@@ -204,8 +204,9 @@ impl<R: Read> TgaDecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
+        let mut tmp = [0u8; 256];
         self.r
-            .read_exact(&mut vec![0; self.header.id_length as usize])?;
+            .read_exact(&mut tmp[0..self.header.id_length as usize])?;
         Ok(())
     }
 
@@ -268,7 +269,12 @@ impl<R: Read> TgaDecoder<R> {
             .try_reserve_exact(num_bytes)
             .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
-        let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
+        if self.bytes_per_pixel > 16 {
+            debug_assert!(false, "the size shoudl be valid");
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let mut repeat_buf = [0; 16];
+        let mut repeat_buf = &mut repeat_buf[..self.bytes_per_pixel];
 
         while pixel_data.len() < num_bytes {
             let run_packet = self.r.read_u8()?;
@@ -279,10 +285,7 @@ impl<R: Read> TgaDecoder<R> {
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                self.r
-                    .by_ref()
-                    .take(self.bytes_per_pixel as u64)
-                    .read_to_end(&mut repeat_buf)?;
+                self.r.read_exact(repeat_buf)?;
 
                 // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
                 let data = repeat_buf
@@ -290,7 +293,6 @@ impl<R: Read> TgaDecoder<R> {
                     .cycle()
                     .take(repeat_count * self.bytes_per_pixel);
                 pixel_data.extend(data);
-                repeat_buf.clear();
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;

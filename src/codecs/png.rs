@@ -645,7 +645,6 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
         use ExtendedColorType::*;
 
         let expected_buffer_len = color_type.buffer_size(width, height);
@@ -669,11 +668,15 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
-                let mut reordered = vec![0; buf.len()];
-                buf.chunks_exact(2)
-                    .zip(reordered.chunks_exact_mut(2))
-                    .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
-                self.encode_inner(&reordered, width, height, color_type)
+                let mut reordered = Vec::new();
+                let buf = if cfg!(target_endian = "little") {
+                    reordered.try_reserve_exact(buf.len())?;
+                    reordered.extend(buf.chunks_exact(2).flat_map(|le| [le[1], le[0]]));
+                    &reordered
+                } else {
+                    buf
+                };
+                self.encode_inner(buf, width, height, color_type)
             }
             _ => Err(ImageError::Encoding(EncodingError::new(
                 ImageFormat::Png.into(),

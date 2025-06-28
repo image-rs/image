@@ -95,7 +95,8 @@ impl<W: Write> TgaEncoder<W> {
 
         // Buffer to temporarily store pixels
         // so we can choose whether to use RLE or not when we need to
-        let mut buf = Vec::with_capacity(capacity_in_bytes);
+        let mut buf = Vec::new();
+        buf.try_reserve_exact(capacity_in_bytes)?;
 
         let mut counter = 0;
         let mut prev_pixel = None;

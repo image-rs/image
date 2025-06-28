@@ -13,14 +13,17 @@ pub(crate) struct AutoBreak<W: io::Write> {
 }
 
 impl<W: io::Write> AutoBreak<W> {
-    pub(crate) fn new(writer: W, line_capacity: usize) -> Self {
-        AutoBreak {
+    pub(crate) fn new(writer: W, line_capacity: usize) -> io::Result<Self> {
+        let mut line = Vec::new();
+        line.try_reserve_exact(line_capacity + 1)
+            .map_err(|_| io::ErrorKind::OutOfMemory)?;
+        Ok(AutoBreak {
             wrapped: writer,
             line_capacity,
-            line: Vec::with_capacity(line_capacity + 1),
+            line,
             has_newline: false,
             panicked: false,
-        }
+        })
     }
 
     fn flush_buf(&mut self) -> io::Result<()> {
@@ -98,7 +101,7 @@ mod tests {
         let mut output = Vec::new();
 
         {
-            let mut writer = AutoBreak::new(&mut output, 10);
+            let mut writer = AutoBreak::new(&mut output, 10).unwrap();
             writer.write_all(b"0123456789").unwrap();
             writer.write_all(b"0123456789").unwrap();
         }
@@ -111,7 +114,7 @@ mod tests {
         let mut output = Vec::new();
 
         {
-            let mut writer = AutoBreak::new(&mut output, 10);
+            let mut writer = AutoBreak::new(&mut output, 10).unwrap();
             writer.write_all(b"012").unwrap();
             writer.write_all(b"345").unwrap();
             writer.write_all(b"0123456789").unwrap();

@@ -580,7 +580,7 @@ impl SampleWriter<'_> {
         V: Iterator,
         V::Item: fmt::Display,
     {
-        let mut auto_break_writer = AutoBreak::new(self.0, 70);
+        let mut auto_break_writer = AutoBreak::new(self.0, 70)?;
         for value in samples {
             write!(auto_break_writer, "{value} ")?;
         }
@@ -596,7 +596,10 @@ impl SampleWriter<'_> {
         let line_width = (width - 1) / 8 + 1;
 
         // We'll be writing single bytes, so buffer
-        let mut line_buffer = Vec::with_capacity(line_width as usize);
+        let mut line_buffer = Vec::new();
+        line_buffer
+            .try_reserve_exact(line_width as usize)
+            .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
         for line in samples.chunks(width as usize) {
             for byte_bits in line.chunks(8) {

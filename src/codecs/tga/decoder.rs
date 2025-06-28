@@ -234,7 +234,10 @@ impl<R: Read> TgaDecoder<R> {
         }
 
         let bytes_per_entry = (self.header.map_entry_size as usize).div_ceil(8);
-        let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
+        let mut result = Vec::new();
+        result
+            .try_reserve_exact(self.width * self.height * bytes_per_entry)
+            .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
         if self.bytes_per_pixel == 0 {
             return Err(io::ErrorKind::Other.into());
@@ -259,7 +262,11 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
-        let mut pixel_data = Vec::with_capacity(num_bytes);
+        let mut pixel_data = Vec::new();
+        pixel_data
+            .try_reserve_exact(num_bytes)
+            .map_err(|_| io::ErrorKind::OutOfMemory)?;
+
         let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
 
         while pixel_data.len() < num_bytes {

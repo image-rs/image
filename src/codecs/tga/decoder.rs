@@ -1,4 +1,5 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
+use crate::io::ReadExt;
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{
@@ -18,15 +19,15 @@ struct ColorMap {
 
 impl ColorMap {
     pub(crate) fn from_reader(
-        r: &mut dyn Read,
+        mut r: &mut dyn Read,
         start_offset: u16,
         num_entries: u16,
         bits_per_entry: u8,
     ) -> ImageResult<ColorMap> {
         let bytes_per_entry = (bits_per_entry as usize).div_ceil(8);
 
-        let mut bytes = vec![0; bytes_per_entry * num_entries as usize];
-        r.read_exact(&mut bytes)?;
+        let mut bytes = Vec::new();
+        r.read_exact_vec(&mut bytes, bytes_per_entry * num_entries as usize)?;
 
         Ok(ColorMap {
             entry_size: bytes_per_entry,

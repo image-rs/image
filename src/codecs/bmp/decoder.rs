@@ -11,6 +11,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::free_functions::load_rect;
+use crate::io::ReadExt;
 use crate::{ImageDecoder, ImageDecoderRect, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -1170,8 +1171,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         length = length.div_ceil(2);
                                     }
                                     length += length & 1;
-                                    let mut buffer = vec![0; length];
-                                    self.reader.read_exact(&mut buffer)?;
+                                    let mut buffer = Vec::new();
+                                    self.reader.read_exact_vec(&mut buffer, length)?;
                                     RLEInsn::Absolute(op, buffer)
                                 }
                             }

@@ -243,18 +243,15 @@ impl<R: Read> TgaDecoder<R> {
             return Err(io::ErrorKind::Other.into());
         }
 
-        let color_map = self
-            .color_map
-            .as_ref()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
+        let color_map = self.color_map.as_ref().ok_or(io::ErrorKind::Other)?;
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
-            if let Some(color) = color_map.get(index) {
-                result.extend_from_slice(color);
-            } else {
-                return Err(io::ErrorKind::Other.into());
-            }
+            let color = color_map
+                .get(index)
+                .and_then(|slice| slice.get(..bytes_per_entry));
+            debug_assert!(color.is_some());
+            result.extend_from_slice(color.unwrap_or_default());
         }
 
         Ok(result)

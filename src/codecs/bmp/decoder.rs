@@ -1,3 +1,4 @@
+use crate::utils::vec_try_with_capacity;
 use std::cmp::{self, Ordering};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::iter::{repeat, Rev};
@@ -886,8 +887,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let max_length = MAX_PALETTE_SIZE * bytes_per_color;
 
         let length = palette_size * bytes_per_color;
-        let mut buf = Vec::new();
-        buf.try_reserve_exact(max_length)?;
+        let mut buf = vec_try_with_capacity(max_length)?;
 
         // Resize and read the palette entries to the buffer.
         // We limit the buffer to at most 256 colours to avoid any oom issues as

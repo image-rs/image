@@ -17,6 +17,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
     ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
@@ -668,9 +669,9 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
-                let mut reordered = Vec::new();
+                let mut reordered;
                 let buf = if cfg!(target_endian = "little") {
-                    reordered.try_reserve_exact(buf.len())?;
+                    reordered = vec_try_with_capacity(buf.len())?;
                     reordered.extend(buf.chunks_exact(2).flat_map(|le| [le[1], le[0]]));
                     &reordered
                 } else {

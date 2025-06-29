@@ -9,85 +9,14 @@ on:
     - cron: '5 16 * * 6'
 
 jobs:
-  test_features:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        features: ['', default, rayon, avif, bmp, dds, exr, ff, gif, hdr, ico, jpeg, png, pnm, qoi, tga, tiff, webp]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - name: Cache Cargo Dependencies
-      uses: Swatinem/rust-cache@v2
-      with:
-        cache-on-failure: true
-    - name: build
-      run: cargo build -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
-    - name: test
-      run: >
-        cargo test -v --no-default-features --features "$FEATURES" &&
-        cargo doc -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
-
-  test_toolchains:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: ["1.74.0", nightly, beta]
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.74.0' }}
-    - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.74.0' }}
-      run: |
-        cargo -Zminimal-versions generate-lockfile
-        cargo update num-bigint --precise 0.4.2
-
-    - uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-    - name: Cache Cargo Dependencies
-      uses: Swatinem/rust-cache@v2
-      with:
-        cache-on-failure: true
-    - name: build
-      run: cargo build -v
-    - name: test
-      if: ${{ matrix.rust != '1.74.0' }}
-      run: cargo test -v && cargo doc -v
-
-  test_other_archs:
-    # github actions does not support 32-bit or big endian systems directly, but
-    # it does support QEMU. so we install qemu, then build and run the tests in
-    # an emulated mips system. NOTE: you can also use this approach to test for
-    # big endian locally.
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [powerpc64-unknown-linux-gnu, i686-unknown-linux-gnu]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install or use cached cross-rs/cross
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cross
-      - name: Cache Cargo Dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          key: ${{ matrix.arch }}
-      - name: Start Docker (required for cross-rs)
-        run: sudo systemctl start docker
-      - name: Cross-Run Tests using QEMU
-        run: cross test --target ${{ matrix.arch }}
+  base:
+    uses: ./.github/workflows/base.yml
+    with:
+      msrv: '1.74.0'
+      features: '["", "default", "rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]'
+      cargo-fuzz: true
+      benchmark-feature: 'benchmarks'
+      msrv-pinned-dependencies: '["num-bigint@0.4.2"]'
 
   test_avif_decoding:
     runs-on: ubuntu-latest
@@ -98,19 +27,6 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif,avif-native"
-      env:
-        SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
-
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-    - name: install-dependencies
-      run: sudo apt update && sudo apt install ninja-build meson nasm
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: clippy
-    - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
@@ -140,21 +56,6 @@ jobs:
       env:
         RUSTFLAGS: ""
 
-  build_fuzz_cargo-fuzz:
-    name: "Fuzz targets (cargo-fuzz)"
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: Install cargo-fuzz
-      uses: baptiste0928/cargo-install@v3
-      with:
-        crate: cargo-fuzz
-    - name: check
-      run: cargo fuzz check
-      env:
-        CARGO_INCREMENTAL: 0
-
   public_private_dependencies:
     runs-on: ubuntu-latest
     steps:
@@ -172,40 +73,3 @@ jobs:
         sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml
         # cargo +nightly check
         cargo check
-
-  build_benchmarks:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: build
-      run: cargo build -v --benches --features=benchmarks
-
-  rustfmt:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt
-    - name: Run rustfmt check
-      run: cargo fmt -- --check
-
-  cargo-deny:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
-
-  cargo-semver-checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache Cargo Dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          feature-group: default-features
-          release-type: minor

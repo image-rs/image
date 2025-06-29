@@ -1,5 +1,25 @@
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::ExtendedColorType;
+use crate::{ColorType, ExtendedColorType};
+
+/// Nominally public but DO NOT expose this type.
+///
+/// To be somewhat sure here's a compile fail test:
+///
+/// ```compile_fail
+/// use image::MethodSealedToImage;
+/// ```
+///
+/// ```compile_fail
+/// use image::io::MethodSealedToImage;
+/// ```
+///
+/// The same implementation strategy for a partially public trait is used in the standard library,
+/// for the different effect of forbidding `Error::type_id` overrides thus making them reliable for
+/// their calls through the `dyn` version of the trait.
+///
+/// Read more: <https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/>
+#[derive(Clone, Copy)]
+pub struct MethodSealedToImage;
 
 /// The trait all encoders implement
 pub trait ImageEncoder {
@@ -38,5 +58,24 @@ pub trait ImageEncoder {
                 "ICC profiles are not supported for this format".into(),
             ),
         ))
+    }
+
+    /// Check if a color buffer should be converted to another color type before encoding. The
+    /// default implementation does not support the check, the encoder may return error results
+    /// when attempting to `write_image` with such an unsupported color.
+    ///
+    /// Note that this is method is sealed to the crate and effectively pub(crate) due to the
+    /// argument type not being nameable.
+    ///
+    /// We use this specifically for [`DynamicImage`](crate::DynamicImage) and
+    /// [`ImageBuffer`](crate::ImageBuffer), hence the argument type being a supported color
+    /// representation and not an [`ExtendedColorType`].
+    #[doc(hidden)]
+    fn dynimage_conversion_sequence(
+        &mut self,
+        _: MethodSealedToImage,
+        _: ColorType,
+    ) -> Option<ColorType> {
+        None
     }
 }

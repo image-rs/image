@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "std::vec::Vec::with_capacity", replacement = "crate::util::try_vec_with_capacity" },
+]

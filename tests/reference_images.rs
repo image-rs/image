@@ -337,6 +337,7 @@ fn check_hdr_references() {
         let c = r.read_u32::<LE>()? as usize;
         assert_eq!(c, 3);
         let cnt = w * h;
+        #[allow(clippy::disallowed_methods)]
         let mut ret = Vec::with_capacity(cnt);
         for _ in 0..cnt {
             ret.push(r.read_f32::<LE>()?);

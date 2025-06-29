@@ -51,6 +51,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
 
     let decoded_image = read_as_rgba_byte_image(Cursor::new(bytes))?;
 
+    #[allow(clippy::disallowed_methods)]
     let mut bytes = Vec::with_capacity(bytes.len() + 20);
     write_rgba_image(Cursor::new(&mut bytes), &decoded_image)?;
 

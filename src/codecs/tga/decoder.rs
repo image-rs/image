@@ -1,5 +1,6 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
 use crate::io::ReadExt;
+use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{
@@ -236,10 +237,7 @@ impl<R: Read> TgaDecoder<R> {
         }
 
         let bytes_per_entry = (self.header.map_entry_size as usize).div_ceil(8);
-        let mut result = Vec::new();
-        result
-            .try_reserve_exact(self.width * self.height * bytes_per_entry)
-            .map_err(|_| io::ErrorKind::OutOfMemory)?;
+        let mut result = vec_try_with_capacity(self.width * self.height * bytes_per_entry)?;
 
         if self.bytes_per_pixel == 0 {
             return Err(io::ErrorKind::Other.into());
@@ -264,17 +262,14 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
-        let mut pixel_data = Vec::new();
-        pixel_data
-            .try_reserve_exact(num_bytes)
-            .map_err(|_| io::ErrorKind::OutOfMemory)?;
+        let mut pixel_data = vec_try_with_capacity(num_bytes)?;
 
         if self.bytes_per_pixel > 16 {
             debug_assert!(false, "the size shoudl be valid");
             return Err(io::ErrorKind::InvalidInput.into());
         }
         let mut repeat_buf = [0; 16];
-        let mut repeat_buf = &mut repeat_buf[..self.bytes_per_pixel];
+        let repeat_buf = &mut repeat_buf[..self.bytes_per_pixel];
 
         while pixel_data.len() < num_bytes {
             let run_packet = self.r.read_u8()?;

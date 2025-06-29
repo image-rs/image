@@ -1,4 +1,5 @@
 //! Encoding of PNM Images
+use crate::utils::vec_try_with_capacity;
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -596,10 +597,7 @@ impl SampleWriter<'_> {
         let line_width = (width - 1) / 8 + 1;
 
         // We'll be writing single bytes, so buffer
-        let mut line_buffer = Vec::new();
-        line_buffer
-            .try_reserve_exact(line_width as usize)
-            .map_err(|_| io::ErrorKind::OutOfMemory)?;
+        let mut line_buffer = vec_try_with_capacity(line_width as usize)?;
 
         for line in samples.chunks(width as usize) {
             for byte_bits in line.chunks(8) {

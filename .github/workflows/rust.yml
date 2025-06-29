@@ -113,6 +113,7 @@ jobs:
     - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+        CLIPPY_CONF_DIR: ${{ github.workspace }} # clippy is not supposed to require this, but seems to (as of 1.89)
 
   build_fuzz_afl:
     name: "Fuzz targets (afl)"

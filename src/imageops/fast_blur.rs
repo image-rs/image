@@ -185,7 +185,7 @@ fn box_blur_vertical_pass_strategy<T: Pixel, P: Primitive>(
             src, src_stride, dst, dst_stride, width, height, radius,
         );
     } else {
-        unimplemented!("More that 4 channels is not yet implemented");
+        unimplemented!("More than 4 channels is not yet implemented");
     }
 }
 

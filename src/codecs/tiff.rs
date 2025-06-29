@@ -18,7 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::metadata::Orientation;
-use crate::{ImageDecoder, ImageEncoder, ImageFormat};
+use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -69,6 +69,7 @@ where
         }
 
         let color_type = match tiff_color_type {
+            tiff::ColorType::Gray(1) => ColorType::L8,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -100,6 +101,7 @@ where
         };
 
         let original_color_type = match tiff_color_type {
+            tiff::ColorType::Gray(1) => ExtendedColorType::L1,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
             _ => color_type.into(),
         };
@@ -278,6 +280,19 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
+                }
+            }
+            tiff::decoder::DecodingResult::U8(v)
+                if self.original_color_type == ExtendedColorType::L1 =>
+            {
+                let width = self.dimensions.0;
+                let row_bytes = width.div_ceil(8);
+
+                for (in_row, out_row) in v
+                    .chunks_exact(row_bytes as usize)
+                    .zip(buf.chunks_exact_mut(width as usize))
+                {
+                    out_row.copy_from_slice(&utils::expand_bits(1, width, in_row));
                 }
             }
             tiff::decoder::DecodingResult::U8(v) => {

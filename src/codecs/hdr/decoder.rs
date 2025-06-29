@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::utils::vec_try_with_capacity;
 use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -179,6 +180,7 @@ impl<R: Read> HdrDecoder<R> {
     ///   could consume file size worth of memory in the process.
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
+        let mut tmp = vec_try_with_capacity(16)?;
 
         {
             // scope to make borrowck happy
@@ -190,14 +192,14 @@ impl<R: Read> HdrDecoder<R> {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
                   // skip signature line ending
-                read_line_u8(r)?;
+                read_line_u8(r, &mut tmp)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
                 // Let them be parsed in non-strict mode
             }
             // read header data until empty line
             loop {
-                match read_line_u8(r)? {
+                match read_line_u8(r, &mut tmp)? {
                     None => {
                         // EOF before end of header
                         return Err(DecoderError::TruncatedHeader.into());
@@ -219,7 +221,7 @@ impl<R: Read> HdrDecoder<R> {
             } // loop
         } // scope to end borrow of reader
           // parse dimensions
-        let (width, height) = match read_line_u8(&mut reader)? {
+        let (width, height) = match read_line_u8(&mut reader, &mut tmp)? {
             None => {
                 // EOF instead of image dimensions
                 return Err(DecoderError::TruncatedDimensions.into());
@@ -683,16 +685,20 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
-    let mut ret = Vec::with_capacity(16);
+fn read_line_u8<'out, R: Read>(
+    r: &mut R,
+    ret: &'out mut Vec<u8>,
+) -> io::Result<Option<&'out mut [u8]>> {
+    ret.clear();
     loop {
         let mut byte = [0];
         if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
-            if ret.is_empty() && byte[0] != b'\n' {
-                return Ok(None);
+            return if ret.is_empty() && byte[0] != b'\n' {
+                Ok(None)
             } else {
-                return Ok(Some(ret));
-            }
+                let len = ret.len();
+                Ok(Some(&mut ret[..len]))
+            };
         }
         ret.push(byte[0]);
     }
@@ -730,15 +736,16 @@ mod tests {
 
     #[test]
     fn read_line_u8_test() {
-        let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
+        let mut tmp = Vec::new();
+        let buf: Vec<_> = (b"One\nTwo\nThree\nFour\n\n\n").into();
         let input = &mut Cursor::new(buf);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(read_line_u8(input).unwrap(), None);
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"One");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"Two");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"Three");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"Four");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap().unwrap(), b"");
+        assert_eq!(read_line_u8(input, &mut tmp).unwrap(), None);
     }
 
     #[test]

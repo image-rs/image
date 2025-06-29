@@ -1,3 +1,4 @@
+use crate::utils::vec_try_with_capacity;
 use std::cmp::{self, Ordering};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::iter::{repeat, Rev};
@@ -11,6 +12,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::free_functions::load_rect;
+use crate::io::ReadExt;
 use crate::{ImageDecoder, ImageDecoderRect, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -885,7 +887,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let max_length = MAX_PALETTE_SIZE * bytes_per_color;
 
         let length = palette_size * bytes_per_color;
-        let mut buf = Vec::with_capacity(max_length);
+        let mut buf = vec_try_with_capacity(max_length)?;
 
         // Resize and read the palette entries to the buffer.
         // We limit the buffer to at most 256 colours to avoid any oom issues as
@@ -1169,8 +1171,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         length = length.div_ceil(2);
                                     }
                                     length += length & 1;
-                                    let mut buffer = vec![0; length];
-                                    self.reader.read_exact(&mut buffer)?;
+                                    let mut buffer = Vec::new();
+                                    self.reader.read_exact_vec(&mut buffer, length)?;
                                     RLEInsn::Absolute(op, buffer)
                                 }
                             }

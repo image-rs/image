@@ -11,6 +11,7 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::io::ReadExt;
 use crate::ImageDecoder;
 
 /// What version of DXT compression are we using?
@@ -102,7 +103,7 @@ impl<R: Read> DxtDecoder<R> {
         self.variant.decoded_bytes_per_block() as u64 * u64::from(self.width_blocks)
     }
 
-    fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read_scanline(&mut self, buf: &mut [u8], tmp: &mut Vec<u8>) -> io::Result<usize> {
         assert_eq!(
             u64::try_from(buf.len()),
             Ok(
@@ -111,13 +112,14 @@ impl<R: Read> DxtDecoder<R> {
             )
         );
 
-        let mut src =
-            vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
-        self.inner.read_exact(&mut src)?;
+        let len = self.variant.encoded_bytes_per_block() * self.width_blocks as usize;
+        tmp.clear();
+        self.inner.read_exact_vec(tmp, len)?;
+
         match self.variant {
-            DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
-            DxtVariant::DXT3 => decode_dxt3_row(&src, buf),
-            DxtVariant::DXT5 => decode_dxt5_row(&src, buf),
+            DxtVariant::DXT1 => decode_dxt1_row(tmp, buf),
+            DxtVariant::DXT3 => decode_dxt3_row(tmp, buf),
+            DxtVariant::DXT5 => decode_dxt5_row(tmp, buf),
         }
         self.row += 1;
         Ok(buf.len())
@@ -138,9 +140,10 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
+        let mut tmp = Vec::new();
         #[allow(deprecated)]
         for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
-            self.read_scanline(chunk)?;
+            self.read_scanline(chunk, &mut tmp)?;
         }
         Ok(())
     }

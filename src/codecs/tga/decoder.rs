@@ -1,4 +1,6 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
+use crate::io::ReadExt;
+use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{
@@ -18,15 +20,15 @@ struct ColorMap {
 
 impl ColorMap {
     pub(crate) fn from_reader(
-        r: &mut dyn Read,
+        mut r: &mut dyn Read,
         start_offset: u16,
         num_entries: u16,
         bits_per_entry: u8,
     ) -> ImageResult<ColorMap> {
         let bytes_per_entry = (bits_per_entry as usize).div_ceil(8);
 
-        let mut bytes = vec![0; bytes_per_entry * num_entries as usize];
-        r.read_exact(&mut bytes)?;
+        let mut bytes = Vec::new();
+        r.read_exact_vec(&mut bytes, bytes_per_entry * num_entries as usize)?;
 
         Ok(ColorMap {
             entry_size: bytes_per_entry,
@@ -203,8 +205,9 @@ impl<R: Read> TgaDecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
+        let mut tmp = [0u8; 256];
         self.r
-            .read_exact(&mut vec![0; self.header.id_length as usize])?;
+            .read_exact(&mut tmp[0..self.header.id_length as usize])?;
         Ok(())
     }
 
@@ -234,24 +237,21 @@ impl<R: Read> TgaDecoder<R> {
         }
 
         let bytes_per_entry = (self.header.map_entry_size as usize).div_ceil(8);
-        let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
+        let mut result = vec_try_with_capacity(self.width * self.height * bytes_per_entry)?;
 
         if self.bytes_per_pixel == 0 {
             return Err(io::ErrorKind::Other.into());
         }
 
-        let color_map = self
-            .color_map
-            .as_ref()
-            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
+        let color_map = self.color_map.as_ref().ok_or(io::ErrorKind::Other)?;
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
-            if let Some(color) = color_map.get(index) {
-                result.extend_from_slice(color);
-            } else {
-                return Err(io::ErrorKind::Other.into());
-            }
+            let color = color_map
+                .get(index)
+                .and_then(|slice| slice.get(..bytes_per_entry));
+            debug_assert!(color.is_some());
+            result.extend_from_slice(color.unwrap_or_default());
         }
 
         Ok(result)
@@ -259,8 +259,14 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
-        let mut pixel_data = Vec::with_capacity(num_bytes);
-        let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
+        let mut pixel_data = vec_try_with_capacity(num_bytes)?;
+
+        if self.bytes_per_pixel > 16 {
+            debug_assert!(false, "the size shoudl be valid");
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let mut repeat_buf = [0; 16];
+        let repeat_buf = &mut repeat_buf[..self.bytes_per_pixel];
 
         while pixel_data.len() < num_bytes {
             let run_packet = self.r.read_u8()?;
@@ -271,10 +277,7 @@ impl<R: Read> TgaDecoder<R> {
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                self.r
-                    .by_ref()
-                    .take(self.bytes_per_pixel as u64)
-                    .read_to_end(&mut repeat_buf)?;
+                self.r.read_exact(repeat_buf)?;
 
                 // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
                 let data = repeat_buf
@@ -282,7 +285,6 @@ impl<R: Read> TgaDecoder<R> {
                     .cycle()
                     .take(repeat_count * self.bytes_per_pixel);
                 pixel_data.extend(data);
-                repeat_buf.clear();
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;

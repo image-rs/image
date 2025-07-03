@@ -454,7 +454,7 @@ fn box_blur_vertical_pass_impl<T: Primitive, const CN: usize>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{DynamicImage, GrayAlphaImage, GrayImage, RgbImage};
+    use crate::{DynamicImage, GrayAlphaImage, GrayImage, RgbImage, RgbaImage};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     struct Rng {
@@ -483,9 +483,7 @@ mod tests {
 
     #[test]
     fn test_box_blur() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let mut rng = Rng::new((now.as_millis() & 0xffff_ffff_ffff_ffff) as u64);
         for _ in 0..35 {
             let width = rng.next_u8();
@@ -530,7 +528,7 @@ mod tests {
                 3 => {
                     let vc = vec![px; width as usize * height as usize * 4];
                     let image = DynamicImage::from(
-                        GrayAlphaImage::from_vec(width as u32, height as u32, vc).unwrap(),
+                        RgbaImage::from_vec(width as u32, height as u32, vc).unwrap(),
                     );
                     let res = image.fast_blur(sigma);
                     for clr in res.as_bytes().iter() {

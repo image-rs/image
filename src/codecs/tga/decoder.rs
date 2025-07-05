@@ -1,4 +1,5 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
+use crate::error::DecodingError;
 use crate::io::ReadExt;
 use crate::utils::vec_try_with_capacity;
 use crate::{
@@ -19,24 +20,6 @@ struct ColorMap {
 }
 
 impl ColorMap {
-    pub(crate) fn from_reader(
-        mut r: &mut dyn Read,
-        start_offset: u16,
-        num_entries: u16,
-        bits_per_entry: u8,
-    ) -> ImageResult<ColorMap> {
-        let bytes_per_entry = (bits_per_entry as usize).div_ceil(8);
-
-        let mut bytes = Vec::new();
-        r.read_exact_vec(&mut bytes, bytes_per_entry * num_entries as usize)?;
-
-        Ok(ColorMap {
-            entry_size: bytes_per_entry,
-            start_offset: start_offset as usize,
-            bytes,
-        })
-    }
-
     /// Get one entry from the color map
     pub(crate) fn get(&self, index: usize) -> Option<&[u8]> {
         let entry = self.start_offset + self.entry_size * index;
@@ -51,7 +34,6 @@ pub struct TgaDecoder<R> {
     width: usize,
     height: usize,
     bytes_per_pixel: usize,
-    has_loaded_metadata: bool,
 
     image_type: ImageType,
     color_type: ColorType,
@@ -95,134 +77,110 @@ impl TgaOrientation {
 
 impl<R: Read> TgaDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
-    pub fn new(r: R) -> ImageResult<TgaDecoder<R>> {
-        let mut decoder = TgaDecoder {
-            r,
+    pub fn new(mut r: R) -> ImageResult<TgaDecoder<R>> {
+        // Read header
+        let header = Header::from_reader(&mut r)?;
+        let image_type = ImageType::new(header.image_type);
+        let width = header.image_width as usize;
+        let height = header.image_height as usize;
+        let bytes_per_pixel = (header.pixel_depth as usize).div_ceil(8);
+        let num_alpha_bits = header.image_desc & ALPHA_BIT_MASK;
 
-            width: 0,
-            height: 0,
-            bytes_per_pixel: 0,
-            has_loaded_metadata: false,
-
-            image_type: ImageType::Unknown,
-            color_type: ColorType::L8,
-            original_color_type: None,
-
-            header: Header::default(),
-            color_map: None,
-        };
-        decoder.read_metadata()?;
-        Ok(decoder)
-    }
-
-    fn read_header(&mut self) -> ImageResult<()> {
-        self.header = Header::from_reader(&mut self.r)?;
-        self.image_type = ImageType::new(self.header.image_type);
-        self.width = self.header.image_width as usize;
-        self.height = self.header.image_height as usize;
-        self.bytes_per_pixel = (self.header.pixel_depth as usize).div_ceil(8);
-        Ok(())
-    }
-
-    fn read_metadata(&mut self) -> ImageResult<()> {
-        if !self.has_loaded_metadata {
-            self.read_header()?;
-            self.read_image_id()?;
-            self.read_color_map()?;
-            self.read_color_information()?;
-            self.has_loaded_metadata = true;
-        }
-        Ok(())
-    }
-
-    /// Loads the color information for the decoder
-    ///
-    /// To keep things simple, we won't handle bit depths that aren't divisible
-    /// by 8 and are larger than 32.
-    fn read_color_information(&mut self) -> ImageResult<()> {
-        if self.header.pixel_depth % 8 != 0 || self.header.pixel_depth > 32 {
-            // Bit depth must be divisible by 8, and must be less than or equal
-            // to 32.
+        // Validate header
+        if ![8, 16, 24, 32].contains(&header.pixel_depth) || ![0, 8].contains(&num_alpha_bits) {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tga.into(),
-                    UnsupportedErrorKind::Color(ExtendedColorType::Unknown(
-                        self.header.pixel_depth,
-                    )),
+                    UnsupportedErrorKind::Color(ExtendedColorType::Unknown(header.pixel_depth)),
                 ),
             ));
         }
 
-        let num_alpha_bits = self.header.image_desc & ALPHA_BIT_MASK;
+        // TODO: validate the rest of the fields in the header.
 
-        let other_channel_bits = if self.header.map_type != 0 {
-            self.header.map_entry_size
-        } else {
-            if num_alpha_bits > self.header.pixel_depth {
+        // Read image ID (and ignore it)
+        let mut tmp = [0u8; 256];
+        r.read_exact(&mut tmp[0..header.id_length as usize])?;
+
+        // Read color map
+        let mut color_map = None;
+        if header.map_type == 1 {
+            if ![16, 24, 32].contains(&header.map_entry_size) {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(
-                            self.header.pixel_depth,
-                        )),
+                        UnsupportedErrorKind::GenericFeature(
+                            "Unsupported color map entry size".into(),
+                        ),
                     ),
                 ));
             }
 
-            self.header.pixel_depth - num_alpha_bits
-        };
-        let color = self.image_type.is_color();
+            let mut bytes = Vec::new();
+            let bytes_per_entry = (header.map_entry_size as usize).div_ceil(8);
+            r.read_exact_vec(&mut bytes, bytes_per_entry * header.map_length as usize)?;
 
-        match (num_alpha_bits, other_channel_bits, color) {
-            // really, the encoding is BGR and BGRA, this is fixed
-            // up with `TgaDecoder::reverse_encoding`.
-            (0, 32, true) => self.color_type = ColorType::Rgba8,
-            (8, 24, true) => self.color_type = ColorType::Rgba8,
-            (0, 24, true) => self.color_type = ColorType::Rgb8,
-            (8, 8, false) => self.color_type = ColorType::La8,
-            (0, 8, false) => self.color_type = ColorType::L8,
+            color_map = Some(ColorMap {
+                entry_size: bytes_per_entry,
+                start_offset: header.map_origin as usize,
+                bytes,
+            });
+        }
+
+        // Compute color information
+        let num_other_bits = if header.map_type != 0 {
+            header.map_entry_size
+        } else {
+            header
+                .pixel_depth
+                .checked_sub(num_alpha_bits)
+                .ok_or_else(|| {
+                    ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Tga.into(),
+                        "Inconsistent values for pixel depth and alpha bits",
+                    ))
+                })?
+        };
+
+        let color_type;
+        let mut original_color_type = None;
+        match (num_alpha_bits, num_other_bits, image_type.is_color()) {
+            // really, the encoding is BGR and BGRA, this is fixed up with
+            // `TgaDecoder::reverse_encoding`.
+            (0, 32, true) => color_type = ColorType::Rgba8,
+            (8, 24, true) => color_type = ColorType::Rgba8,
+            (0, 24, true) => color_type = ColorType::Rgb8,
+            (8, 8, false) => color_type = ColorType::La8,
+            (0, 8, false) => color_type = ColorType::L8,
             (8, 0, false) => {
                 // alpha-only image is treated as L8
-                self.color_type = ColorType::L8;
-                self.original_color_type = Some(ExtendedColorType::A8);
+                color_type = ColorType::L8;
+                original_color_type = Some(ExtendedColorType::A8);
             }
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(
-                            self.header.pixel_depth,
-                        )),
+                        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(header.pixel_depth)),
                     ),
                 ))
             }
         }
-        Ok(())
-    }
 
-    /// Read the image id field
-    ///
-    /// We're not interested in this field, so this function skips it if it
-    /// is present
-    fn read_image_id(&mut self) -> ImageResult<()> {
-        let mut tmp = [0u8; 256];
-        self.r
-            .read_exact(&mut tmp[0..self.header.id_length as usize])?;
-        Ok(())
-    }
+        Ok(TgaDecoder {
+            r,
 
-    fn read_color_map(&mut self) -> ImageResult<()> {
-        if self.header.map_type == 1 {
-            // FIXME: we could reverse the map entries, which avoids having to reverse all pixels
-            // in the final output individually.
-            self.color_map = Some(ColorMap::from_reader(
-                &mut self.r,
-                self.header.map_origin,
-                self.header.map_length,
-                self.header.map_entry_size,
-            )?);
-        }
-        Ok(())
+            width,
+            height,
+            bytes_per_pixel,
+
+            image_type,
+            color_type,
+            original_color_type,
+
+            header,
+            color_map,
+        })
     }
 
     /// Expands indices into its mapped color

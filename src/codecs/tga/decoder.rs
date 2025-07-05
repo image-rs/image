@@ -276,13 +276,6 @@ impl<R: Read> TgaDecoder<R> {
         Ok(pixel_data)
     }
 
-    /// Reads a run length encoded packet
-    fn read_all_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
-        let num_bytes = self.width * self.height * self.bytes_per_pixel;
-
-        Ok(self.read_encoded_data(num_bytes)?)
-    }
-
     /// Reverse from BGR encoding to RGB encoding
     ///
     /// TGA files are stored in the BGRA encoding. This function swaps
@@ -363,7 +356,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         let mut fallback_buf = vec![];
         // read the pixels from the data region
         let rawbuf = if self.image_type.is_encoded() {
-            let pixel_data = self.read_all_encoded_data()?;
+            let num_bytes = self.width * self.height * self.bytes_per_pixel;
+            let pixel_data = self.read_encoded_data(num_bytes)?;
+
             if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {
                 buf[..pixel_data.len()].copy_from_slice(&pixel_data);
                 &buf[..pixel_data.len()]

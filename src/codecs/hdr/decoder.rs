@@ -684,6 +684,8 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
 fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
+    // keeping repeated redundant allocations to avoid added complexity of having a `&mut tmp` argument
+    #[allow(clippy::disallowed_methods)]
     let mut ret = Vec::with_capacity(16);
     loop {
         let mut byte = [0];

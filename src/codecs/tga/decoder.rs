@@ -95,6 +95,19 @@ impl<R: Read> TgaDecoder<R> {
                 ),
             ));
         }
+        if image_type.is_color_mapped() {
+            if header.map_type != 1 {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Tga.into(),
+                    "Color map type must be 1 for color mapped images",
+                )));
+            } else if ![8, 16].contains(&header.pixel_depth) {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Tga.into(),
+                    "Color map must use 1 or 2 byte indexes",
+                )));
+            }
+        }
 
         // TODO: validate the rest of the fields in the header.
 

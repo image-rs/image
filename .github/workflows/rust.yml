@@ -38,14 +38,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.74.0", nightly, beta]
+        rust: ["1.78.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.74.0' }}
+      if: ${{ matrix.rust == '1.78.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.74.0' }}
+      if: ${{ matrix.rust == '1.78.0' }}
       run: |
         cargo -Zminimal-versions generate-lockfile
         cargo update num-bigint --precise 0.4.2
@@ -60,7 +60,7 @@ jobs:
     - name: build
       run: cargo build -v
     - name: test
-      if: ${{ matrix.rust != '1.74.0' }}
+      if: ${{ matrix.rust != '1.78.0' }}
       run: cargo test -v && cargo doc -v
 
   test_other_archs:
@@ -113,6 +113,7 @@ jobs:
     - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+        CLIPPY_CONF_DIR: ${{ github.workspace }} # clippy is not supposed to require this, but seems to (as of 1.89)
 
   build_fuzz_afl:
     name: "Fuzz targets (afl)"

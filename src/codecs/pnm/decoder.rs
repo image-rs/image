@@ -11,6 +11,7 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::ReadExt;
 use crate::{utils, ImageDecoder, ImageFormat};
 
 use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
@@ -629,15 +630,7 @@ impl<R: Read> PnmDecoder<R> {
                 let bytecount = S::bytelen(width, height, components)?;
 
                 let mut bytes = vec![];
-                self.reader
-                    .by_ref()
-                    // This conversion is potentially lossy but unlikely and in that case we error
-                    // later anyways.
-                    .take(bytecount as u64)
-                    .read_to_end(&mut bytes)?;
-                if bytes.len() != bytecount {
-                    return Err(DecoderError::InputTooShort.into());
-                }
+                self.reader.read_exact_vec(&mut bytes, bytecount)?;
 
                 let width: usize = width.try_into().map_err(|_| DecoderError::Overflow)?;
                 let components: usize =

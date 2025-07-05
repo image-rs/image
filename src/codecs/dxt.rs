@@ -11,6 +11,7 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::io::ReadExt;
 use crate::ImageDecoder;
 
 /// What version of DXT compression are we using?
@@ -111,9 +112,10 @@ impl<R: Read> DxtDecoder<R> {
             )
         );
 
-        let mut src =
-            vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
-        self.inner.read_exact(&mut src)?;
+        let len = self.variant.encoded_bytes_per_block() * self.width_blocks as usize;
+        let mut src = Vec::new();
+        self.inner.read_exact_vec(&mut src, len)?;
+
         match self.variant {
             DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
             DxtVariant::DXT3 => decode_dxt3_row(&src, buf),

@@ -1,8 +1,6 @@
 use super::header::Header;
-use crate::{
-    codecs::tga::header::ImageType, error::EncodingError, ExtendedColorType, ImageEncoder,
-    ImageError, ImageFormat, ImageResult,
-};
+use crate::{codecs::tga::header::ImageType, error::EncodingError, utils::vec_try_with_capacity};
+use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 use std::{error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -95,7 +93,7 @@ impl<W: Write> TgaEncoder<W> {
 
         // Buffer to temporarily store pixels
         // so we can choose whether to use RLE or not when we need to
-        let mut buf = Vec::with_capacity(capacity_in_bytes);
+        let mut buf = vec_try_with_capacity(capacity_in_bytes)?;
 
         let mut counter = 0;
         let mut prev_pixel = None;

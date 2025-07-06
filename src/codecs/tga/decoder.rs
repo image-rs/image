@@ -151,21 +151,22 @@ impl<R: Read> TgaDecoder<R> {
             });
         }
 
-        // Compute color information
-        let num_other_bits = if header.map_type == 1 {
+        // Compute output pixel depth
+        let total_pixel_bits = if header.map_type == 1 {
             header.map_entry_size
         } else {
-            header
-                .pixel_depth
-                .checked_sub(num_alpha_bits)
-                .ok_or_else(|| {
-                    ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Tga.into(),
-                        "Inconsistent values for pixel depth and alpha bits",
-                    ))
-                })?
+            header.pixel_depth
         };
+        let num_other_bits = total_pixel_bits
+            .checked_sub(num_alpha_bits)
+            .ok_or_else(|| {
+                ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Tga.into(),
+                    "More alpha bits than pixel bits",
+                ))
+            })?;
 
+        // Determine color type
         let color_type;
         let mut original_color_type = None;
         match (num_alpha_bits, num_other_bits, image_type.is_color()) {

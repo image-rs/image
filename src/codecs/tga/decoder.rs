@@ -378,6 +378,8 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             self.r.read_exact(&mut buf[..num_raw_bytes])?;
         };
 
+        self.fixup_orientation(buf);
+
         // Expand the indices using the color map if necessary
         if let Some(ref color_map) = self.color_map {
             // This allocation could be avoided by expanding each row (or block of pixels) as it is
@@ -390,8 +392,6 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         }
 
         self.reverse_encoding_in_output(buf);
-
-        self.fixup_orientation(buf);
 
         Ok(())
     }

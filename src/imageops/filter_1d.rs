@@ -43,11 +43,11 @@ fn mla<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>
     acc + a * b
 }
 
-trait SafeMul<S> {
+pub(crate) trait SafeMul<S> {
     fn safe_mul(&self, rhs: S) -> Result<S, ImageError>;
 }
 
-trait SafeAdd<S> {
+pub(crate) trait SafeAdd<S> {
     fn safe_add(&self, rhs: S) -> Result<S, ImageError>;
 }
 

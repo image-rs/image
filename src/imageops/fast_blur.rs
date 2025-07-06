@@ -314,7 +314,7 @@ fn box_blur_horizontal_pass_impl<T, const CN: usize>(
             }
         }
 
-        let max_x_before_clamping = (width as usize - 1).saturating_sub(half_kernel + 1);
+        let max_x_before_clamping = width_bound.saturating_sub(half_kernel + 1);
         let row_length = src.len();
 
         let mut last_processed_item = half_kernel;

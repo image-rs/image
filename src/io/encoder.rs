@@ -79,3 +79,17 @@ pub trait ImageEncoder {
         None
     }
 }
+
+/// Implement `dynimage_conversion_sequence` for the common case of supporting only 8-bit colors
+/// (with and without alpha).
+pub(crate) fn dynimage_conversion_8bit(color: ColorType) -> Option<ColorType> {
+    use ColorType::*;
+
+    match color {
+        Rgb8 | Rgba8 | L8 | La8 => None,
+        L16 => Some(L8),
+        La16 => Some(La8),
+        Rgb16 | Rgb32F => Some(Rgb8),
+        Rgba16 | Rgba32F => Some(Rgba8),
+    }
+}

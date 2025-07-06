@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
 };
-use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
+use crate::{ColorType, ExtendedColorType, ImageEncoder, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -281,6 +281,14 @@ impl<W: Write> ImageEncoder for BmpEncoder<'_, W> {
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
+    }
+
+    fn dynimage_conversion_sequence(
+        &mut self,
+        _: crate::io::encoder::MethodSealedToImage,
+        color: ColorType,
+    ) -> Option<ColorType> {
+        crate::io::encoder::dynimage_conversion_8bit(color)
     }
 }
 

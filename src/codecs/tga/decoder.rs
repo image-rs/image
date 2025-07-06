@@ -31,7 +31,10 @@ pub struct TgaDecoder<R> {
 
     width: usize,
     height: usize,
-    bytes_per_pixel: usize,
+
+    // The number of bytes in the raw input data for each pixel. If a color map is used, this is the
+    // number of bytes for each color map index.
+    raw_bytes_per_pixel: usize,
 
     image_type: ImageType,
     color_type: ColorType,
@@ -81,7 +84,7 @@ impl<R: Read> TgaDecoder<R> {
         let image_type = ImageType::new(header.image_type);
         let width = header.image_width as usize;
         let height = header.image_height as usize;
-        let bytes_per_pixel = (header.pixel_depth as usize).div_ceil(8);
+        let raw_bytes_per_pixel = (header.pixel_depth as usize).div_ceil(8);
         let num_alpha_bits = header.image_desc & ALPHA_BIT_MASK;
 
         // Validate header
@@ -197,7 +200,7 @@ impl<R: Read> TgaDecoder<R> {
 
             width,
             height,
-            bytes_per_pixel,
+            raw_bytes_per_pixel,
 
             image_type,
             color_type,
@@ -210,9 +213,9 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, buf: &mut [u8]) -> io::Result<()> {
-        assert!(self.bytes_per_pixel <= 4);
+        assert!(self.raw_bytes_per_pixel <= 4);
         let mut repeat_buf = [0; 4];
-        let repeat_buf = &mut repeat_buf[..self.bytes_per_pixel];
+        let repeat_buf = &mut repeat_buf[..self.raw_bytes_per_pixel];
 
         let mut index = 0;
         while index < buf.len() {
@@ -227,16 +230,16 @@ impl<R: Read> TgaDecoder<R> {
                 self.r.read_exact(repeat_buf)?;
 
                 for chunk in buf[index..]
-                    .chunks_exact_mut(self.bytes_per_pixel)
+                    .chunks_exact_mut(self.raw_bytes_per_pixel)
                     .take(repeat_count)
                 {
                     chunk.copy_from_slice(repeat_buf);
                 }
-                index += repeat_count * self.bytes_per_pixel;
+                index += repeat_count * self.raw_bytes_per_pixel;
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes =
-                    ((run_packet + 1) as usize * self.bytes_per_pixel).min(buf.len() - index);
+                    ((run_packet + 1) as usize * self.raw_bytes_per_pixel).min(buf.len() - index);
 
                 self.r.read_exact(&mut buf[index..][..num_raw_bytes])?;
                 index += num_raw_bytes;
@@ -253,7 +256,7 @@ impl<R: Read> TgaDecoder<R> {
         output: &mut [u8],
         color_map: &ColorMap,
     ) -> ImageResult<()> {
-        if self.bytes_per_pixel == 1 {
+        if self.raw_bytes_per_pixel == 1 {
             for (&index, chunk) in input
                 .iter()
                 .zip(output.chunks_exact_mut(color_map.entry_size))
@@ -267,7 +270,7 @@ impl<R: Read> TgaDecoder<R> {
                     )));
                 }
             }
-        } else if self.bytes_per_pixel == 2 {
+        } else if self.raw_bytes_per_pixel == 2 {
             for (index, chunk) in input
                 .chunks_exact(2)
                 .zip(output.chunks_exact_mut(color_map.entry_size))
@@ -313,7 +316,7 @@ impl<R: Read> TgaDecoder<R> {
         if (orientation == TgaOrientation::BottomLeft || orientation == TgaOrientation::BottomRight)
             && self.height > 1
         {
-            let row_stride = self.width * self.bytes_per_pixel;
+            let row_stride = self.width * self.raw_bytes_per_pixel;
 
             let (left_part, right_part) = pixels.split_at_mut(self.height / 2 * row_stride);
 
@@ -331,12 +334,12 @@ impl<R: Read> TgaDecoder<R> {
         if (orientation == TgaOrientation::BottomRight || orientation == TgaOrientation::TopRight)
             && self.width > 1
         {
-            for row in pixels.chunks_exact_mut(self.width * self.bytes_per_pixel) {
+            for row in pixels.chunks_exact_mut(self.width * self.raw_bytes_per_pixel) {
                 let (left_part, right_part) =
-                    row.split_at_mut(self.width / 2 * self.bytes_per_pixel);
+                    row.split_at_mut(self.width / 2 * self.raw_bytes_per_pixel);
                 for (src, dst) in left_part
-                    .chunks_exact_mut(self.bytes_per_pixel)
-                    .zip(right_part.chunks_exact_mut(self.bytes_per_pixel).rev())
+                    .chunks_exact_mut(self.raw_bytes_per_pixel)
+                    .zip(right_part.chunks_exact_mut(self.raw_bytes_per_pixel).rev())
                 {
                     for (src, dst) in src.iter_mut().zip(dst.iter_mut()) {
                         std::mem::swap(dst, src);
@@ -368,7 +371,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         //
         // We have already checked in `TgaDecoder::new` that the indices take less space than the
         // pixels they encode, so it is safe to read the raw data into `buf`.
-        let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
+        let num_raw_bytes = self.width * self.height * self.raw_bytes_per_pixel;
         if self.image_type.is_encoded() {
             self.read_encoded_data(&mut buf[..num_raw_bytes])?;
         } else {

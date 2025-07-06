@@ -20,6 +20,7 @@ struct ColorMap {
 impl ColorMap {
     /// Get one entry from the color map
     pub(crate) fn get(&self, index: usize) -> Option<&[u8]> {
+        // TODO: Should we actually be *subtracting* start_offset from the index here?
         let entry = self.start_offset + self.entry_size * index;
         self.bytes.get(entry..entry + self.entry_size)
     }

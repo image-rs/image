@@ -144,11 +144,15 @@ impl<R: Read> TgaDecoder<R> {
             let mut bytes = Vec::new();
             r.read_exact_vec(&mut bytes, entry_size * header.map_length as usize)?;
 
-            color_map = Some(ColorMap {
-                entry_size,
-                start_offset: header.map_origin as usize,
-                bytes,
-            });
+            // Color maps are technically allowed in non-color-mapped images, so check that we
+            // actually need the color map before storing it.
+            if image_type.is_color_mapped() {
+                color_map = Some(ColorMap {
+                    entry_size,
+                    start_offset: header.map_origin as usize,
+                    bytes,
+                });
+            }
         }
 
         // Compute output pixel depth

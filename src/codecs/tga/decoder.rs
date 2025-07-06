@@ -103,14 +103,10 @@ impl<R: Read> TgaDecoder<R> {
                     "Color map type must be 1 for color mapped images",
                 )));
             } else if ![8, 16].contains(&header.pixel_depth) {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "Color map must use 1 or 2 byte indexes".into(),
-                        ),
-                    ),
-                ));
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Tga.into(),
+                    "Color map must use 1 or 2 byte indexes",
+                )));
             } else if header.pixel_depth > header.map_entry_size {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

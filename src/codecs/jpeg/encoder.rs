@@ -9,7 +9,8 @@ use crate::error::{
 use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
 use crate::{
-    ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder, ImageFormat, Luma, Pixel, Rgb,
+    ColorType, ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder, ImageFormat, Luma,
+    Pixel, Rgb,
 };
 
 use num_traits::ToPrimitive;
@@ -713,6 +714,20 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         self.icc_profile = icc_profile;
         Ok(())
     }
+
+    fn dynimage_conversion_sequence(
+        &mut self,
+        _: crate::io::encoder::MethodSealedToImage,
+        color: ColorType,
+    ) -> Option<ColorType> {
+        use ColorType::*;
+
+        match color {
+            L8 | Rgb8 => None,
+            La8 | L16 | La16 => Some(L8),
+            Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(Rgb8),
+        }
+    }
 }
 
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
@@ -909,8 +924,8 @@ mod tests {
     use test::Bencher;
 
     use crate::error::ParameterErrorKind::DimensionMismatch;
-    use crate::ImageDecoder as _;
-    use crate::{ExtendedColorType, ImageEncoder, ImageError};
+    use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageError};
+    use crate::{ImageDecoder as _, ImageFormat};
 
     use super::super::JpegDecoder;
     use super::{
@@ -1125,6 +1140,30 @@ mod tests {
         expected.push(1);
         expected.extend_from_slice(&[0; 64]);
         assert_eq!(buf, expected);
+    }
+
+    #[test]
+    fn check_color_types() {
+        const ALL: &[ColorType] = &[
+            ColorType::L8,
+            ColorType::L16,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        for color in ALL {
+            let image = DynamicImage::new(1, 1, *color);
+
+            image
+                .write_to(&mut Cursor::new(vec![]), ImageFormat::Jpeg)
+                .expect("supported or converted");
+        }
     }
 
     #[cfg(feature = "benchmarks")]

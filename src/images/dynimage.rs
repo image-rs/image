@@ -1,11 +1,6 @@
 use std::io::{self, Seek, Write};
 use std::path::Path;
 
-#[cfg(feature = "gif")]
-use crate::codecs::gif;
-#[cfg(feature = "png")]
-use crate::codecs::png;
-
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
@@ -431,6 +426,22 @@ impl DynamicImage {
         match self {
             DynamicImage::ImageLumaA16(x) => x,
             x => x.to_luma_alpha16(),
+        }
+    }
+
+    /// Convert the image to a color chosen dynamically.
+    pub(crate) fn to_color(&self, color: color::ColorType) -> Self {
+        match color {
+            crate::ColorType::L8 => self.to_luma8().into(),
+            crate::ColorType::La8 => self.to_luma_alpha8().into(),
+            crate::ColorType::Rgb8 => self.to_rgb8().into(),
+            crate::ColorType::Rgba8 => self.to_rgba8().into(),
+            crate::ColorType::L16 => self.to_luma16().into(),
+            crate::ColorType::La16 => self.to_luma_alpha16().into(),
+            crate::ColorType::Rgb16 => self.to_rgb16().into(),
+            crate::ColorType::Rgba16 => self.to_rgba16().into(),
+            crate::ColorType::Rgb32F => self.to_rgb32f().into(),
+            crate::ColorType::Rgba32F => self.to_rgba32f().into(),
         }
     }
 
@@ -1060,30 +1071,14 @@ impl DynamicImage {
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
-        let bytes = self.inner_bytes();
-        let (width, height) = self.dimensions();
-        let color: ExtendedColorType = self.color().into();
-
-        // TODO do not repeat this match statement across the crate
-
-        #[allow(deprecated)]
-        match format {
-            #[cfg(feature = "png")]
-            ImageFormat::Png => {
-                let p = png::PngEncoder::new(w);
-                p.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "gif")]
-            ImageFormat::Gif => {
-                let mut g = gif::GifEncoder::new(w);
-                g.encode_frame(crate::animation::Frame::new(self.to_rgba8()))?;
-                Ok(())
-            }
-
-            format => write_buffer_with_format(w, bytes, width, height, color, format),
-        }
+        free_functions::write_buffer_impl(
+            w,
+            format,
+            &mut DynamicNegotiator {
+                original: self,
+                if_converted: None,
+            },
+        )
     }
 
     /// Encode this image with the provided encoder.
@@ -1356,7 +1351,44 @@ pub fn write_buffer_with_format<W: Write + Seek>(
     format: ImageFormat,
 ) -> ImageResult<()> {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color.into(), format)
+    free_functions::write_buffer_impl(
+        buffered_writer,
+        format,
+        &mut free_functions::NegotiateFixed(buf, width, height, color.into()),
+    )
+}
+
+struct DynamicNegotiator<'lt> {
+    original: &'lt DynamicImage,
+    if_converted: Option<DynamicImage>,
+}
+
+impl free_functions::NegotiateEncoderFormat for DynamicNegotiator<'_> {
+    fn for_encoder(
+        &mut self,
+        encoder: &mut dyn ImageEncoder,
+    ) -> (&[u8], u32, u32, ExtendedColorType) {
+        let token = crate::io::encoder::MethodSealedToImage;
+        let image = if let Some(other) =
+            encoder.dynimage_conversion_sequence(token, self.original.color())
+        {
+            self.if_converted.insert(self.original.to_color(other))
+        } else {
+            self.original
+        };
+
+        let bytes = image.inner_bytes();
+        let (width, height) = image.dimensions();
+        let color: ExtendedColorType = image.color().into();
+        (bytes, width, height, color)
+    }
+
+    fn without_negotiation(&mut self) -> (&[u8], u32, u32, ExtendedColorType) {
+        let bytes = self.original.inner_bytes();
+        let (width, height) = self.original.dimensions();
+        let color: ExtendedColorType = self.original.color().into();
+        (bytes, width, height, color)
+    }
 }
 
 /// Create a new image from a byte slice

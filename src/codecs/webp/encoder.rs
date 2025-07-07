@@ -3,7 +3,7 @@
 use std::io::Write;
 
 use crate::error::{EncodingError, UnsupportedError, UnsupportedErrorKind};
-use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
+use crate::{ColorType, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
 ///
@@ -96,6 +96,14 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
         self.inner.set_icc_profile(icc_profile);
         Ok(())
+    }
+
+    fn dynimage_conversion_sequence(
+        &mut self,
+        _: crate::io::encoder::MethodSealedToImage,
+        color: ColorType,
+    ) -> Option<ColorType> {
+        crate::io::encoder::dynimage_conversion_8bit(color)
     }
 }
 

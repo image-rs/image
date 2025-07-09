@@ -41,7 +41,10 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::traits::Pixel;
-use crate::{AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageFormat, Limits};
+use crate::{
+    AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
+    Limits,
+};
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
@@ -613,6 +616,17 @@ impl<W: Write> GifEncoder<W> {
         gif_encoder
             .write_frame(&frame)
             .map_err(ImageError::from_encoding)
+    }
+}
+impl<W: Write> ImageEncoder for GifEncoder<W> {
+    fn write_image(
+        mut self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }
 

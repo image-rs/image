@@ -1,15 +1,16 @@
 use std::fs::File;
-use std::io::{self, BufRead, BufWriter, Seek, Write as _};
+use std::io::{self, BufRead, BufWriter, Seek, Write};
 use std::path::Path;
 use std::{iter, mem::size_of};
 
+use crate::io::encoder::ImageEncoderBoxed;
 use crate::{codecs::*, ExtendedColorType, ImageReader};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::{DynamicImage, ImageDecoder, ImageFormat};
 
 /// Create a new image from a Reader.
 ///
@@ -52,73 +53,15 @@ pub fn save_buffer_with_format(
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-
-    let mut encode_with = NegotiateFixed(buf, width, height, color.into());
-    write_buffer_impl(buffered_file_write, format, &mut encode_with)
+    let encoder = encoder_for_format(format, buffered_file_write)?;
+    encoder.write_image(buf, width, height, color.into())
 }
 
-pub(crate) trait NegotiateEncoderFormat {
-    fn for_encoder(
-        &mut self,
-        encoder: &mut dyn ImageEncoder,
-    ) -> (&'_ [u8], u32, u32, ExtendedColorType);
-    fn without_negotiation(&mut self) -> (&'_ [u8], u32, u32, ExtendedColorType);
-}
-
-pub(crate) struct NegotiateFixed<'buf>(
-    pub(crate) &'buf [u8],
-    pub(crate) u32,
-    pub(crate) u32,
-    pub(crate) ExtendedColorType,
-);
-
-impl NegotiateEncoderFormat for NegotiateFixed<'_> {
-    fn for_encoder(&mut self, _: &mut dyn ImageEncoder) -> (&'_ [u8], u32, u32, ExtendedColorType) {
-        self.without_negotiation()
-    }
-
-    fn without_negotiation(&mut self) -> (&'_ [u8], u32, u32, ExtendedColorType) {
-        (self.0, self.1, self.2, self.3)
-    }
-}
-
-#[allow(unused_variables)]
-// Most variables when no features are supported
-pub(crate) fn write_buffer_impl<W: io::Write + Seek>(
-    buffered_write: &mut W,
+pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
     format: ImageFormat,
-    buffer_provider: &mut (dyn NegotiateEncoderFormat + '_),
-) -> ImageResult<()> {
-    trait WriteConsume: ImageEncoder {
-        fn write_image(
-            self: Box<Self>,
-            buf: &'_ [u8],
-            width: u32,
-            height: u32,
-            color: ExtendedColorType,
-        ) -> ImageResult<()>;
-
-        // In new enough rust versions this is builtin.
-        fn upcast(&mut self) -> &mut dyn ImageEncoder;
-    }
-
-    impl<T: ImageEncoder> WriteConsume for T {
-        fn write_image(
-            self: Box<Self>,
-            buf: &'_ [u8],
-            width: u32,
-            height: u32,
-            color: ExtendedColorType,
-        ) -> ImageResult<()> {
-            (*self).write_image(buf, width, height, color)
-        }
-
-        fn upcast(&mut self) -> &mut dyn ImageEncoder {
-            self
-        }
-    }
-
-    let mut encoder: Box<dyn WriteConsume> = match format {
+    buffered_write: &'a mut W,
+) -> ImageResult<Box<dyn ImageEncoderBoxed + 'a>> {
+    Ok(match format {
         #[cfg(feature = "png")]
         ImageFormat::Png => Box::new(png::PngEncoder::new(buffered_write)),
         #[cfg(feature = "jpeg")]
@@ -126,12 +69,7 @@ pub(crate) fn write_buffer_impl<W: io::Write + Seek>(
         #[cfg(feature = "pnm")]
         ImageFormat::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
         #[cfg(feature = "gif")]
-        ImageFormat::Gif => {
-            let (buf, width, height, color) = buffer_provider.without_negotiation();
-            // FIXME: Not actually an ImageEncoder since it has frames, and an explicit end.
-            // However apparently we can use it as an ImageEncoder regardless. How to bridge?
-            return gif::GifEncoder::new(buffered_write).encode(buf, width, height, color);
-        }
+        ImageFormat::Gif => Box::new(gif::GifEncoder::new(buffered_write)),
         #[cfg(feature = "ico")]
         ImageFormat::Ico => Box::new(ico::IcoEncoder::new(buffered_write)),
         #[cfg(feature = "bmp")]
@@ -160,10 +98,7 @@ pub(crate) fn write_buffer_impl<W: io::Write + Seek>(
                 ),
             ));
         }
-    };
-
-    let (buf, width, height, color) = buffer_provider.for_encoder(encoder.upcast());
-    WriteConsume::write_image(encoder, buf, width, height, color)
+    })
 }
 
 static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [

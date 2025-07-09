@@ -9,8 +9,8 @@ use crate::error::{
 use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
 use crate::{
-    ColorType, ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder, ImageFormat, Luma,
-    Pixel, Rgb,
+    ColorType, DynamicImage, ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder,
+    ImageFormat, Luma, Pixel, Rgb,
 };
 
 use num_traits::ToPrimitive;
@@ -715,17 +715,16 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         Ok(())
     }
 
-    fn dynimage_conversion_sequence(
-        &mut self,
+    fn make_compatible_img(
+        &self,
         _: crate::io::encoder::MethodSealedToImage,
-        color: ColorType,
-    ) -> Option<ColorType> {
+        img: &DynamicImage,
+    ) -> Option<DynamicImage> {
         use ColorType::*;
-
-        match color {
+        match img.color() {
             L8 | Rgb8 => None,
-            La8 | L16 | La16 => Some(L8),
-            Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(Rgb8),
+            La8 | L16 | La16 => Some(img.to_luma8().into()),
+            Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(img.to_rgb8().into()),
         }
     }
 }

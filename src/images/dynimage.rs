@@ -1,4 +1,5 @@
-use std::io::{self, Seek, Write};
+use std::fs::File;
+use std::io::{self, BufWriter, Seek, Write};
 use std::path::Path;
 
 use crate::color::{self, FromColor, IntoColor};
@@ -9,7 +10,8 @@ use crate::images::buffer::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
 };
-use crate::io::free_functions;
+use crate::io::encoder::ImageEncoderBoxed;
+use crate::io::free_functions::{self, encoder_for_format};
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
@@ -429,22 +431,6 @@ impl DynamicImage {
         }
     }
 
-    /// Convert the image to a color chosen dynamically.
-    pub(crate) fn to_color(&self, color: color::ColorType) -> Self {
-        match color {
-            crate::ColorType::L8 => self.to_luma8().into(),
-            crate::ColorType::La8 => self.to_luma_alpha8().into(),
-            crate::ColorType::Rgb8 => self.to_rgb8().into(),
-            crate::ColorType::Rgba8 => self.to_rgba8().into(),
-            crate::ColorType::L16 => self.to_luma16().into(),
-            crate::ColorType::La16 => self.to_luma_alpha16().into(),
-            crate::ColorType::Rgb16 => self.to_rgb16().into(),
-            crate::ColorType::Rgba16 => self.to_rgba16().into(),
-            crate::ColorType::Rgb32F => self.to_rgb32f().into(),
-            crate::ColorType::Rgba32F => self.to_rgba32f().into(),
-        }
-    }
-
     /// Return a cut-out of this image delimited by the bounding rectangle.
     ///
     /// Note: this method does *not* modify the object,
@@ -672,16 +658,6 @@ impl DynamicImage {
             *self,
             ref image_buffer,
             bytemuck::cast_slice(image_buffer.as_raw().as_ref())
-        )
-    }
-
-    // TODO: choose a name under which to expose?
-    fn inner_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(
-            *self,
-            ref image_buffer,
-            bytemuck::cast_slice(image_buffer.inner_pixels())
         )
     }
 
@@ -1066,46 +1042,76 @@ impl DynamicImage {
         }
     }
 
-    /// Encode this image and write it to ```w```.
-    ///
-    /// Assumes the writer is buffered. In most cases,
-    /// you should wrap your writer in a `BufWriter` for best performance.
-    pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
-        free_functions::write_buffer_impl(
-            w,
-            format,
-            &mut DynamicNegotiator {
-                original: self,
-                if_converted: None,
-            },
+    fn write_with_encoder_impl<'a>(
+        &self,
+        encoder: Box<dyn ImageEncoderBoxed + 'a>,
+    ) -> ImageResult<()> {
+        let converted = encoder.make_compatible_img(crate::io::encoder::MethodSealedToImage, self);
+        let img = converted.as_ref().unwrap_or(self);
+
+        encoder.write_image(
+            img.as_bytes(),
+            img.width(),
+            img.height(),
+            img.color().into(),
         )
     }
 
-    /// Encode this image with the provided encoder.
-    pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
-        dynamic_map!(self, ref p, p.write_with_encoder(encoder))
+    /// Encode this image and write it to `w`.
+    ///
+    /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
+    /// for best performance.
+    ///
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
+    pub fn write_to<W: Write + Seek>(&self, mut w: W, format: ImageFormat) -> ImageResult<()> {
+        let encoder = encoder_for_format(format, &mut w)?;
+        self.write_with_encoder_impl(encoder)
     }
 
-    /// Saves the buffer to a file at the path specified.
+    /// Encode this image with the provided encoder.
     ///
-    /// The image format is derived from the file extension.
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
+    pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
+        self.write_with_encoder_impl(Box::new(encoder))
+    }
+
+    /// Saves the buffer to a file with the format derived from the file extension.
+    ///
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, ref p, p.save(path))
+        let format = ImageFormat::from_path(path.as_ref())?;
+        self.save_with_format(path, format)
     }
 
-    /// Saves the buffer to a file at the specified path in
-    /// the specified format.
+    /// Saves the buffer to a file with the specified format.
     ///
-    /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
-    /// supported types.
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, ref p, p.save_with_format(path, format))
+        let file = &mut BufWriter::new(File::create(path)?);
+        let encoder = encoder_for_format(format, file)?;
+        self.write_with_encoder_impl(encoder)
     }
 }
 
@@ -1350,45 +1356,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
     color: impl Into<ExtendedColorType>,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(
-        buffered_writer,
-        format,
-        &mut free_functions::NegotiateFixed(buf, width, height, color.into()),
-    )
-}
-
-struct DynamicNegotiator<'lt> {
-    original: &'lt DynamicImage,
-    if_converted: Option<DynamicImage>,
-}
-
-impl free_functions::NegotiateEncoderFormat for DynamicNegotiator<'_> {
-    fn for_encoder(
-        &mut self,
-        encoder: &mut dyn ImageEncoder,
-    ) -> (&[u8], u32, u32, ExtendedColorType) {
-        let token = crate::io::encoder::MethodSealedToImage;
-        let image = if let Some(other) =
-            encoder.dynimage_conversion_sequence(token, self.original.color())
-        {
-            self.if_converted.insert(self.original.to_color(other))
-        } else {
-            self.original
-        };
-
-        let bytes = image.inner_bytes();
-        let (width, height) = image.dimensions();
-        let color: ExtendedColorType = image.color().into();
-        (bytes, width, height, color)
-    }
-
-    fn without_negotiation(&mut self) -> (&[u8], u32, u32, ExtendedColorType) {
-        let bytes = self.original.inner_bytes();
-        let (width, height) = self.original.dimensions();
-        let color: ExtendedColorType = self.original.color().into();
-        (bytes, width, height, color)
-    }
+    let encoder = encoder_for_format(format, buffered_writer)?;
+    encoder.write_image(buf, width, height, color.into())
 }
 
 /// Create a new image from a byte slice

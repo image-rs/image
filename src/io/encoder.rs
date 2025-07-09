@@ -1,5 +1,5 @@
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, ExtendedColorType};
+use crate::{ColorType, DynamicImage, ExtendedColorType};
 
 /// Nominally public but DO NOT expose this type.
 ///
@@ -60,36 +60,53 @@ pub trait ImageEncoder {
         ))
     }
 
-    /// Check if a color buffer should be converted to another color type before encoding. The
-    /// default implementation does not support the check, the encoder may return error results
-    /// when attempting to `write_image` with such an unsupported color.
+    /// Convert the image to a compatible format for the encoder. This is used by the encoding
+    /// methods on `DynamicImage`.
     ///
     /// Note that this is method is sealed to the crate and effectively pub(crate) due to the
     /// argument type not being nameable.
-    ///
-    /// We use this specifically for [`DynamicImage`](crate::DynamicImage) and
-    /// [`ImageBuffer`](crate::ImageBuffer), hence the argument type being a supported color
-    /// representation and not an [`ExtendedColorType`].
     #[doc(hidden)]
-    fn dynimage_conversion_sequence(
-        &mut self,
+    fn make_compatible_img(
+        &self,
         _: MethodSealedToImage,
-        _: ColorType,
-    ) -> Option<ColorType> {
+        _input: &DynamicImage,
+    ) -> Option<DynamicImage> {
         None
+    }
+}
+
+pub(crate) trait ImageEncoderBoxed: ImageEncoder {
+    fn write_image(
+        self: Box<Self>,
+        buf: &'_ [u8],
+        width: u32,
+        height: u32,
+        color: ExtendedColorType,
+    ) -> ImageResult<()>;
+}
+impl<T: ImageEncoder> ImageEncoderBoxed for T {
+    fn write_image(
+        self: Box<Self>,
+        buf: &'_ [u8],
+        width: u32,
+        height: u32,
+        color: ExtendedColorType,
+    ) -> ImageResult<()> {
+        (*self).write_image(buf, width, height, color)
     }
 }
 
 /// Implement `dynimage_conversion_sequence` for the common case of supporting only 8-bit colors
 /// (with and without alpha).
-pub(crate) fn dynimage_conversion_8bit(color: ColorType) -> Option<ColorType> {
+#[allow(unused)]
+pub(crate) fn dynimage_conversion_8bit(img: &DynamicImage) -> Option<DynamicImage> {
     use ColorType::*;
 
-    match color {
+    match img.color() {
         Rgb8 | Rgba8 | L8 | La8 => None,
-        L16 => Some(L8),
-        La16 => Some(La8),
-        Rgb16 | Rgb32F => Some(Rgb8),
-        Rgba16 | Rgba32F => Some(Rgba8),
+        L16 => Some(img.to_luma8().into()),
+        La16 => Some(img.to_luma_alpha8().into()),
+        Rgb16 | Rgb32F => Some(img.to_rgb8().into()),
+        Rgba16 | Rgba32F => Some(img.to_rgba8().into()),
     }
 }

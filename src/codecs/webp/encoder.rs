@@ -3,7 +3,7 @@
 use std::io::Write;
 
 use crate::error::{EncodingError, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
+use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
 ///
@@ -98,12 +98,12 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
         Ok(())
     }
 
-    fn dynimage_conversion_sequence(
-        &mut self,
+    fn make_compatible_img(
+        &self,
         _: crate::io::encoder::MethodSealedToImage,
-        color: ColorType,
-    ) -> Option<ColorType> {
-        crate::io::encoder::dynimage_conversion_8bit(color)
+        img: &DynamicImage,
+    ) -> Option<DynamicImage> {
+        crate::io::encoder::dynimage_conversion_8bit(img)
     }
 }
 

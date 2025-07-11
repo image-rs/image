@@ -69,7 +69,7 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
         #[cfg(feature = "pnm")]
         ImageFormat::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
         #[cfg(feature = "gif")]
-        ImageFormat::Gif => Box::new(gif::GifEncoder::new(buffered_write)),
+        ImageFormat::Gif => panic!("hi"),
         #[cfg(feature = "ico")]
         ImageFormat::Ico => Box::new(ico::IcoEncoder::new(buffered_write)),
         #[cfg(feature = "bmp")]

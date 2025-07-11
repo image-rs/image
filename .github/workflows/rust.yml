@@ -49,7 +49,7 @@ jobs:
           if [ -n "$FAILED_FEATURES" ]; then
             echo "::error::cargo $COMMAND failed for features $FAILED_FEATURES"
             echo '# `cargo '$COMMAND'` failures' >> "$GITHUB_STEP_SUMMARY"
-            for feature in $FAILED_FEATURES; do
+            for FEATURE in $FAILED_FEATURES; do
               echo " - ❌ $FEATURE" >> "$GITHUB_STEP_SUMMARY"
             done
             exit 1

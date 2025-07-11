@@ -1777,7 +1777,7 @@ mod benchmarks {
             assert!(a.data[0] != b.data[0]);
             test::black_box(b);
         });
-        b.bytes = 1000 * 1000 * 3
+        b.bytes = 1000 * 1000 * 3;
     }
 
     #[bench]

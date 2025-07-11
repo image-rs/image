@@ -291,7 +291,9 @@ where
             ws.push(w);
             sum += w;
         }
-        ws.iter_mut().for_each(|w| *w /= sum);
+        for w in ws.iter_mut() {
+            *w /= sum;
+        }
 
         for y in 0..height {
             let mut t = (0.0, 0.0, 0.0, 0.0);
@@ -531,7 +533,9 @@ where
             ws.push(w);
             sum += w;
         }
-        ws.iter_mut().for_each(|w| *w /= sum);
+        for w in ws.iter_mut() {
+            *w /= sum;
+        }
 
         for x in 0..width {
             let mut t = (0.0, 0.0, 0.0, 0.0);
@@ -1065,7 +1069,7 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
 
     if sum_norm != 0f32 {
         let sum_scale = 1f32 / sum_norm;
-        for weight in kernel.iter_mut() {
+        for weight in &mut kernel {
             *weight = weight.mul(sum_scale);
         }
     }
@@ -1745,7 +1749,7 @@ mod tests {
         b.iter(|| {
             test::black_box(image.resize(image.width(), image.height(), FilterType::CatmullRom));
         });
-        b.bytes = (image.width() * image.height() * 3) as u64;
+        b.bytes = u64::from(image.width() * image.height() * 3);
     }
 
     #[test]

@@ -51,7 +51,7 @@ where
             }
             Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
-        };
+        }
 
         let planar_config = inner
             .find_tag(tiff::tags::Tag::PlanarConfiguration)

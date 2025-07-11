@@ -819,19 +819,19 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 | BMPHeaderType::V5 => {
                     self.read_bitmap_info_header()?;
                 }
-            };
+            }
 
             match self.image_type {
                 ImageType::Bitfields16 | ImageType::Bitfields32 => self.read_bitmasks()?,
                 _ => {}
-            };
+            }
 
             self.reader.seek(SeekFrom::Start(bmp_header_end))?;
 
             match self.image_type {
                 ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
                 _ => {}
-            };
+            }
 
             if self.no_file_header {
                 // Use the offset of the end of metadata instead of reading a BMP file header.
@@ -990,7 +990,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
                         }
                         _ => panic!(),
-                    };
+                    }
                 }
                 Ok(())
             },

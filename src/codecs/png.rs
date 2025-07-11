@@ -385,7 +385,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 blend = fc.blend_op;
                 self.dispose = fc.dispose_op;
             }
-        };
+        }
 
         self.dispose_region = Some((px, py, width, height));
 

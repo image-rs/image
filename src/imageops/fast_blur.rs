@@ -110,7 +110,7 @@ fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {
     let mut w_l = w_ideal.floor();
     if w_l % 2.0 == 0.0 {
         w_l -= 1.0;
-    };
+    }
     let w_u = w_l + 2.0;
 
     let m_ideal = 0.25 * (n as f32) * (w_l + 3.0) - 3.0 * sigma.powi(2) * (w_l + 1.0).recip();
@@ -389,7 +389,7 @@ fn box_blur_horizontal_pass_impl<T, const CN: usize>(
 
             weight0 += next_chunk[0].to_f32().unwrap();
             if CN > 1 {
-                weight1 += next_chunk[1].to_f32().unwrap()
+                weight1 += next_chunk[1].to_f32().unwrap();
             }
             if CN > 2 {
                 weight2 += next_chunk[2].to_f32().unwrap();
@@ -526,40 +526,40 @@ mod tests {
                 0 => {
                     let vc = vec![px; width as usize * height as usize];
                     let image = DynamicImage::from(
-                        GrayImage::from_vec(width as u32, height as u32, vc).unwrap(),
+                        GrayImage::from_vec(u32::from(width), u32::from(height), vc).unwrap(),
                     );
                     let res = image.fast_blur(sigma);
-                    for clr in res.as_bytes().iter() {
+                    for clr in res.as_bytes() {
                         assert_eq!(*clr, px);
                     }
                 }
                 1 => {
                     let vc = vec![px; width as usize * height as usize * 2];
                     let image = DynamicImage::from(
-                        GrayAlphaImage::from_vec(width as u32, height as u32, vc).unwrap(),
+                        GrayAlphaImage::from_vec(u32::from(width), u32::from(height), vc).unwrap(),
                     );
                     let res = image.fast_blur(sigma);
-                    for clr in res.as_bytes().iter() {
+                    for clr in res.as_bytes() {
                         assert_eq!(*clr, px);
                     }
                 }
                 2 => {
                     let vc = vec![px; width as usize * height as usize * 3];
                     let image = DynamicImage::from(
-                        RgbImage::from_vec(width as u32, height as u32, vc).unwrap(),
+                        RgbImage::from_vec(u32::from(width), u32::from(height), vc).unwrap(),
                     );
                     let res = image.fast_blur(sigma);
-                    for clr in res.as_bytes().iter() {
+                    for clr in res.as_bytes() {
                         assert_eq!(*clr, px);
                     }
                 }
                 3 => {
                     let vc = vec![px; width as usize * height as usize * 4];
                     let image = DynamicImage::from(
-                        RgbaImage::from_vec(width as u32, height as u32, vc).unwrap(),
+                        RgbaImage::from_vec(u32::from(width), u32::from(height), vc).unwrap(),
                     );
                     let res = image.fast_blur(sigma);
-                    for clr in res.as_bytes().iter() {
+                    for clr in res.as_bytes() {
                         assert_eq!(*clr, px);
                     }
                 }

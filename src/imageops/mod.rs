@@ -564,7 +564,7 @@ mod tests {
         let error = image_blurred_gauss_bytes
             .iter()
             .zip(image_blurred_fast_bytes.iter())
-            .map(|(a, b)| ((f32::from(*a) - f32::from(*b)) / f32::from(*a)))
+            .map(|(a, b)| (f32::from(*a) - f32::from(*b)) / f32::from(*a))
             .sum::<f32>()
             / (image_blurred_gauss_bytes.len() as f32);
         assert!(error < 0.05);

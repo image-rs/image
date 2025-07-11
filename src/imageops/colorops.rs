@@ -455,7 +455,7 @@ impl ColorMap for color_quant::NeuQuant {
 
     #[inline(always)]
     fn map_color(&self, color: &mut Self::Color) {
-        self.map_pixel(color.channels_mut())
+        self.map_pixel(color.channels_mut());
     }
 }
 

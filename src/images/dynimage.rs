@@ -221,6 +221,7 @@ impl DynamicImage {
 
     /// Encodes a dynamic image into a buffer.
     #[inline]
+    #[must_use]
     pub fn to<
         T: Pixel
             + FromColor<color::Rgb<u8>>
@@ -1398,7 +1399,7 @@ mod bench {
     fn bench_conversion(b: &mut test::Bencher) {
         let a = super::DynamicImage::ImageRgb8(crate::ImageBuffer::new(1000, 1000));
         b.iter(|| a.to_luma8());
-        b.bytes = 1000 * 1000 * 3
+        b.bytes = 1000 * 1000 * 3;
     }
 }
 

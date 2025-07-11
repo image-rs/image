@@ -194,9 +194,9 @@ impl<W: Write> PnmEncoder<W> {
     }
 
     /// Encode an image whose samples are already interpreted correctly.
-    fn encode_impl<'s>(
+    fn encode_impl(
         &mut self,
-        samples: FlatSamples<'s>,
+        samples: FlatSamples<'_>,
         width: u32,
         height: u32,
         color: ExtendedColorType,

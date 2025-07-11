@@ -644,7 +644,7 @@ impl<R: Read> PnmDecoder<R> {
             SampleEncoding::Ascii => {
                 self.read_ascii::<S>(buf)?;
             }
-        };
+        }
 
         // Scale samples if 8bit or 16bit is not saturated
         let current_sample_max = self.header.maximal_sample();
@@ -691,7 +691,7 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
     {
         let c = rc?;
         let digit = match c {
-            b'0'..=b'9' => (c - b'0') as u16,
+            b'0'..=b'9' => u16::from(c - b'0'),
             _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Sample).into()),
         };
         v = v.checked_mul(10).ok_or(DecoderError::Overflow)?;

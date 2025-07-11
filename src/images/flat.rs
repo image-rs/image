@@ -323,7 +323,7 @@ impl SampleLayout {
 
         if max_dim.checked_len().is_none() {
             return true;
-        };
+        }
 
         // Each higher dimension must walk over all of one lower dimension.
         min_size > mid_dim.stride() || mid_size > max_dim.stride()

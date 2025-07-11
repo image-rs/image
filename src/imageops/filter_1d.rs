@@ -550,7 +550,7 @@ const RING_QUEUE_CIRCULAR_CUTOFF: usize = 55;
 /// and several times faster in multithreaded environments
 /// despite the presence of overlapping regions.
 ///
-/// The algorithm consists of 3 stages that should be different for multithreaded and single-threaded  
+/// The algorithm consists of 3 stages that should be different for multithreaded and single-threaded
 /// modes:
 ///
 /// Single threaded:

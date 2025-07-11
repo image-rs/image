@@ -49,12 +49,15 @@ impl ImageType {
 
     /// Does the image use a color map.
     pub(crate) fn is_color_mapped(&self) -> bool {
-        matches! { *self, ImageType::RawColorMap | ImageType::RunColorMap }
+        matches!(*self, Self::RawColorMap | Self::RunColorMap)
     }
 
     /// Is the image run length encoded.
     pub(crate) fn is_encoded(&self) -> bool {
-        matches! {*self, ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale }
+        matches!(
+            *self,
+            Self::RunColorMap | Self::RunTrueColor | Self::RunGrayScale
+        )
     }
 }
 

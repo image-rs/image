@@ -377,7 +377,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             self.read_encoded_data(&mut buf[..num_raw_bytes])?;
         } else {
             self.r.read_exact(&mut buf[..num_raw_bytes])?;
-        };
+        }
 
         self.fixup_orientation(buf);
 

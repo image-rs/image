@@ -663,7 +663,7 @@ fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture>
     loop {
         match decoder.get_picture() {
             Err(dav1d::Error::Again) => match decoder.send_pending_data() {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(dav1d::Error::Again) => {}
                 Err(e) => return Err(error_map(e)),
             },

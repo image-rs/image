@@ -546,7 +546,7 @@ impl HdrMetadata {
                             .into());
                         } // no else, skip this line in non-strict mode
                     }
-                };
+                }
             }
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
@@ -563,7 +563,7 @@ impl HdrMetadata {
                             .into());
                         } // no else, skip this line in non-strict mode
                     }
-                };
+                }
             }
             Some(("COLORCORR", val)) => {
                 let mut rgbcorr = [1.0, 1.0, 1.0];
@@ -692,9 +692,8 @@ fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
         if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
             if ret.is_empty() && byte[0] != b'\n' {
                 return Ok(None);
-            } else {
-                return Ok(Some(ret));
             }
+            return Ok(Some(ret));
         }
         ret.push(byte[0]);
     }
@@ -708,7 +707,7 @@ mod tests {
 
     #[test]
     fn split_at_first_test() {
-        assert_eq!(split_at_first(&Cow::Owned("".into()), "="), None);
+        assert_eq!(split_at_first(&Cow::Owned(String::new()), "="), None);
         assert_eq!(split_at_first(&Cow::Owned("=".into()), "="), None);
         assert_eq!(split_at_first(&Cow::Owned("= ".into()), "="), None);
         assert_eq!(

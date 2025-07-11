@@ -403,11 +403,11 @@ impl<W: Write> JpegEncoder<W> {
         };
 
         let mut tables = vec![STD_LUMA_QTABLE, STD_CHROMA_QTABLE];
-        tables.iter_mut().for_each(|t| {
+        for t in tables.iter_mut() {
             for v in t.iter_mut() {
                 *v = clamp((u32::from(*v) * scale + 50) / 100, 1, u32::from(u8::MAX)) as u8;
             }
-        });
+        }
 
         JpegEncoder {
             writer: BitWriter::new(w),
@@ -1171,6 +1171,6 @@ mod tests {
         b.iter(|| {
             let mut y = vec![];
             let _x = JpegEncoder::new(&mut y);
-        })
+        });
     }
 }

@@ -11,6 +11,7 @@ on:
 jobs:
   test_features:
     runs-on: ubuntu-latest
+    needs: ["rustfmt"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +70,7 @@ jobs:
     # an emulated mips system. NOTE: you can also use this approach to test for
     # big endian locally.
     runs-on: ubuntu-latest
+    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
@@ -91,6 +93,7 @@ jobs:
 
   test_avif_decoding:
     runs-on: ubuntu-latest
+    needs: ["rustfmt"] # only to avoid running on broken builds
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -123,6 +126,7 @@ jobs:
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -149,6 +153,7 @@ jobs:
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -163,6 +168,7 @@ jobs:
 
   public_private_dependencies:
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -181,6 +187,7 @@ jobs:
 
   build_benchmarks:
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly

@@ -11,11 +11,10 @@ on:
 jobs:
   test_features:
     runs-on: ubuntu-latest
-    needs: ["rustfmt"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
-        features: ['', default, rayon, avif, bmp, dds, exr, ff, gif, hdr, ico, jpeg, png, pnm, qoi, tga, tiff, webp]
+        features: ["no-default-features rayon default bmp", "avif dds exr ff gif hdr ico", "jpeg png pnm qoi tga tiff webp"]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -23,18 +22,46 @@ jobs:
       uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
-    - name: build
-      run: cargo build -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
     - name: test
-      run: >
-        cargo test -v --no-default-features --features "$FEATURES" &&
-        cargo doc -v --no-default-features --features "$FEATURES"
       env:
         FEATURES: ${{ matrix.features }}
+      run: |
+        for_all_features() {
+          local COMMAND="$1"
+          local FAILED_FEATURES=''
+
+          for FEATURE in $FEATURES; do
+            echo "::group::Feature $FEATURE ($COMMAND)"
+            FEATURE_FLAG="$FEATURE"
+            if [ "$FEATURE" = no-default-features ]; then
+              FEATURE_FLAG=''
+            fi
+
+            if cargo "$COMMAND" -v --no-default-features --features "$FEATURE_FLAG"; then
+              echo "::notice title=$FEATURE $COMMAND passed::ok"
+            else
+              echo "::error title=$FEATURE $COMMAND failed::See log for details"
+              FAILED_FEATURES="$FAILED_FEATURES $FEATURE"
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ -n "$FAILED_FEATURES" ]; then
+            echo "::error::cargo $COMMAND failed for features $FAILED_FEATURES"
+            echo '# `cargo '$COMMAND'` failures' >> "$GITHUB_STEP_SUMMARY"
+            for feature in $FAILED_FEATURES; do
+              echo " - ❌ $FEATURE" >> "$GITHUB_STEP_SUMMARY"
+            done
+            exit 1
+          fi
+        }
+
+        for_all_features "build"
+        for_all_features "test"
+        for_all_features "doc"
 
   test_toolchains:
+    needs: ["test_features"]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -70,7 +97,7 @@ jobs:
     # an emulated mips system. NOTE: you can also use this approach to test for
     # big endian locally.
     runs-on: ubuntu-latest
-    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["test_features"]
     strategy:
       fail-fast: false
       matrix:
@@ -93,7 +120,7 @@ jobs:
 
   test_avif_decoding:
     runs-on: ubuntu-latest
-    needs: ["rustfmt"] # only to avoid running on broken builds
+    needs: ["test_features"]
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -126,7 +153,7 @@ jobs:
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["test_features"]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -153,7 +180,7 @@ jobs:
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["test_features"]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -168,7 +195,7 @@ jobs:
 
   public_private_dependencies:
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["test_features"]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -187,7 +214,7 @@ jobs:
 
   build_benchmarks:
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["test_features"]
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -212,7 +239,7 @@ jobs:
 
   cargo-semver-checks:
     runs-on: ubuntu-latest
-    needs: ["clippy"]
+    needs: ["test_features"]
     steps:
       - uses: actions/checkout@v4
       - name: Cache Cargo Dependencies

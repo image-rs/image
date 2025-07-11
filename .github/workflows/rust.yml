@@ -11,7 +11,7 @@ on:
 jobs:
   test_features:
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["rustfmt"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
@@ -93,7 +93,7 @@ jobs:
 
   test_avif_decoding:
     runs-on: ubuntu-latest
-    needs: ["clippy"] # only to avoid running on broken builds
+    needs: ["rustfmt"] # only to avoid running on broken builds
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -113,6 +113,11 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: clippy
+    - name: Cache Clippy
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        shared-key: cargo-check
     - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
@@ -121,7 +126,7 @@ jobs:
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
-    needs: ["clippy", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -148,7 +153,7 @@ jobs:
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
-    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -163,7 +168,7 @@ jobs:
 
   public_private_dependencies:
     runs-on: ubuntu-latest
-    needs: ["clippy", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -182,7 +187,7 @@ jobs:
 
   build_benchmarks:
     runs-on: ubuntu-latest
-    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -207,13 +212,14 @@ jobs:
 
   cargo-semver-checks:
     runs-on: ubuntu-latest
-    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
+    needs: ["clippy"]
     steps:
       - uses: actions/checkout@v4
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          shared-key: cargo-check
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           feature-group: default-features

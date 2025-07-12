@@ -1,8 +1,8 @@
 //! Image Processing Functions
 use std::cmp;
 
-use crate::image::{GenericImage, GenericImageView, SubImage};
 use crate::traits::{Lerp, Pixel, Primitive};
+use crate::{GenericImage, GenericImageView, SubImage};
 
 pub use self::sample::FilterType;
 
@@ -31,9 +31,12 @@ mod affine;
 // https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
 mod fast_blur;
+mod filter_1d;
 mod sample;
 
 pub use fast_blur::fast_blur;
+pub(crate) use sample::gaussian_blur_dyn_image;
+pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
@@ -485,7 +488,7 @@ mod tests {
     /// Test blur doesn't panic when passed 0.0
     fn test_blur_zero() {
         let image = RgbaImage::new(50, 50);
-        let _ = blur(&image, 0.0);
+        let _ = blur(&image, 0.);
     }
 
     #[test]
@@ -549,7 +552,9 @@ mod tests {
             "/tests/images/tiff/testsuite/rgb-3c-16b.tiff"
         );
         let image = crate::open(path).unwrap();
-        let image_blurred_gauss = image.blur(50.0).to_rgb8();
+        let image_blurred_gauss = image
+            .blur_advanced(GaussianBlurParameters::new_from_sigma(50.0))
+            .to_rgb8();
         let image_blurred_gauss_samples = image_blurred_gauss.as_flat_samples();
         let image_blurred_gauss_bytes = image_blurred_gauss_samples.as_slice();
         let image_blurred_fast = image.fast_blur(50.0).to_rgb8();
@@ -559,7 +564,7 @@ mod tests {
         let error = image_blurred_gauss_bytes
             .iter()
             .zip(image_blurred_fast_bytes.iter())
-            .map(|(a, b)| ((f32::from(*a) - f32::from(*b)) / f32::from(*a)))
+            .map(|(a, b)| (f32::from(*a) - f32::from(*b)) / f32::from(*a))
             .sum::<f32>()
             / (image_blurred_gauss_bytes.len() as f32);
         assert!(error < 0.05);

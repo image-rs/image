@@ -15,7 +15,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
+use crate::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 
 /// DDS decoder
 pub struct DdsDecoder<R: Read> {

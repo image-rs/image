@@ -22,9 +22,18 @@ allow = [
     "Unicode-3.0",
 ]
 
+[[licenses.exceptions]]
+# Not copyleft so only applies with feature dependencies
+allow = ["MPL-2.0"]
+name = "mp4parse"
+
 [advisories]
 yanked = "deny"
-ignore = []
+ignore = [
+    # `paste` (through rav1e) is unmaintained, migration <https://github.com/xiph/rav1e/issues/3418>
+    # However the crate still works with forseeable problems only in future editions.
+    "RUSTSEC-2024-0436",
+]
 
 
 [bans]

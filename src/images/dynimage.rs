@@ -1,27 +1,24 @@
-use std::io::{self, Seek, Write};
+use std::fs::File;
+use std::io::{self, BufWriter, Seek, Write};
 use std::path::Path;
 
-#[cfg(feature = "gif")]
-use crate::codecs::gif;
-#[cfg(feature = "png")]
-use crate::codecs::png;
-
-use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
-};
 use crate::color::{self, FromColor, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::image_reader::free_functions;
+use crate::imageops::{gaussian_blur_dyn_image, GaussianBlurParameters};
+use crate::images::buffer::{
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
+};
+use crate::io::encoder::ImageEncoderBoxed;
+use crate::io::free_functions::{self, encoder_for_format};
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
-use crate::ImageReader;
-use crate::{image, Luma, LumaA};
-use crate::{imageops, ExtendedColorType};
-use crate::{Rgb32FImage, Rgba32FImage};
+use crate::{
+    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageReader, Luma, LumaA,
+};
 
 /// A Dynamic Image
 ///
@@ -224,6 +221,7 @@ impl DynamicImage {
 
     /// Encodes a dynamic image into a buffer.
     #[inline]
+    #[must_use]
     pub fn to<
         T: Pixel
             + FromColor<color::Rgb<u8>>
@@ -664,16 +662,6 @@ impl DynamicImage {
         )
     }
 
-    // TODO: choose a name under which to expose?
-    fn inner_bytes(&self) -> &[u8] {
-        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(
-            *self,
-            ref image_buffer,
-            bytemuck::cast_slice(image_buffer.inner_pixels())
-        )
-    }
-
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`
     /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
     /// is returned.
@@ -722,6 +710,19 @@ impl DynamicImage {
     #[must_use]
     pub fn height(&self) -> u32 {
         dynamic_map!(*self, ref p, { p.height() })
+    }
+
+    /// Whether the image contains an alpha channel
+    ///
+    /// This is a convenience wrapper around `self.color().has_alpha()`.
+    /// For inspecting other properties of the color type you should call
+    /// [DynamicImage::color] and use the methods on the returned [ColorType](color::ColorType).
+    ///
+    /// This only checks that the image's pixel type can express transparency,
+    /// not whether the image actually has any transparent areas.
+    #[must_use]
+    pub fn has_alpha(&self) -> bool {
+        self.color().has_alpha()
     }
 
     /// Return a grayscale version of this image.
@@ -847,16 +848,34 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `sigma` - is a measure of how much to blur by.
+    /// * `sigma` - gaussian bell flattening level.
     ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
     ///
+    /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::blur(p, sigma))
+        gaussian_blur_dyn_image(
+            self,
+            GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
+        )
+    }
+
+    /// Performs a Gaussian blur on this image.
+    ///
+    /// # Arguments
+    ///
+    /// * `parameters` - see [GaussianBlurParameters] for more info
+    ///
+    /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+    /// This method typically assumes that the input is scene-linear light.
+    /// If it is not, color distortion may occur.
+    #[must_use]
+    pub fn blur_advanced(&self, parameters: GaussianBlurParameters) -> DynamicImage {
+        gaussian_blur_dyn_image(self, parameters)
     }
 
     /// Performs a fast blur on this image.
@@ -1024,62 +1043,76 @@ impl DynamicImage {
         }
     }
 
-    /// Encode this image and write it to ```w```.
+    fn write_with_encoder_impl<'a>(
+        &self,
+        encoder: Box<dyn ImageEncoderBoxed + 'a>,
+    ) -> ImageResult<()> {
+        let converted = encoder.make_compatible_img(crate::io::encoder::MethodSealedToImage, self);
+        let img = converted.as_ref().unwrap_or(self);
+
+        encoder.write_image(
+            img.as_bytes(),
+            img.width(),
+            img.height(),
+            img.color().into(),
+        )
+    }
+
+    /// Encode this image and write it to `w`.
     ///
-    /// Assumes the writer is buffered. In most cases,
-    /// you should wrap your writer in a `BufWriter` for best performance.
-    pub fn write_to<W: Write + Seek>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
-        let bytes = self.inner_bytes();
-        let (width, height) = self.dimensions();
-        let color: ExtendedColorType = self.color().into();
-
-        // TODO do not repeat this match statement across the crate
-
-        #[allow(deprecated)]
-        match format {
-            #[cfg(feature = "png")]
-            ImageFormat::Png => {
-                let p = png::PngEncoder::new(w);
-                p.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "gif")]
-            ImageFormat::Gif => {
-                let mut g = gif::GifEncoder::new(w);
-                g.encode_frame(crate::animation::Frame::new(self.to_rgba8()))?;
-                Ok(())
-            }
-
-            format => write_buffer_with_format(w, bytes, width, height, color, format),
-        }
+    /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
+    /// for best performance.
+    ///
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
+    pub fn write_to<W: Write + Seek>(&self, mut w: W, format: ImageFormat) -> ImageResult<()> {
+        let encoder = encoder_for_format(format, &mut w)?;
+        self.write_with_encoder_impl(encoder)
     }
 
     /// Encode this image with the provided encoder.
+    ///
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
     pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
-        dynamic_map!(self, ref p, p.write_with_encoder(encoder))
+        self.write_with_encoder_impl(Box::new(encoder))
     }
 
-    /// Saves the buffer to a file at the path specified.
+    /// Saves the buffer to a file with the format derived from the file extension.
     ///
-    /// The image format is derived from the file extension.
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, ref p, p.save(path))
+        let format = ImageFormat::from_path(path.as_ref())?;
+        self.save_with_format(path, format)
     }
 
-    /// Saves the buffer to a file at the specified path in
-    /// the specified format.
+    /// Saves the buffer to a file with the specified format.
     ///
-    /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
-    /// supported types.
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
-        dynamic_map!(*self, ref p, p.save_with_format(path, format))
+        let file = &mut BufWriter::new(File::create(path)?);
+        let encoder = encoder_for_format(format, file)?;
+        self.write_with_encoder_impl(encoder)
     }
 }
 
@@ -1227,52 +1260,52 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
 
     let image = match color_type {
         color::ColorType::Rgb8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
     };
@@ -1309,51 +1342,6 @@ where
     ImageReader::open(path)?.into_dimensions()
 }
 
-/// Saves the supplied buffer to a file at the path specified.
-///
-/// The image format is derived from the file extension. The buffer is assumed to have
-/// the correct format according to the specified color type.
-///
-/// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
-pub fn save_buffer(
-    path: impl AsRef<Path>,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: impl Into<ExtendedColorType>,
-) -> ImageResult<()> {
-    // thin wrapper function to strip generics before calling save_buffer_impl
-    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color.into())
-}
-
-/// Saves the supplied buffer to a file at the path specified
-/// in the specified format.
-///
-/// The buffer is assumed to have the correct format according
-/// to the specified color type.
-/// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp, exr and
-/// tiff files are supported.
-pub fn save_buffer_with_format(
-    path: impl AsRef<Path>,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: impl Into<ExtendedColorType>,
-    format: ImageFormat,
-) -> ImageResult<()> {
-    // thin wrapper function to strip generics
-    free_functions::save_buffer_with_format_impl(
-        path.as_ref(),
-        buf,
-        width,
-        height,
-        color.into(),
-        format,
-    )
-}
-
 /// Writes the supplied buffer to a writer in the specified format.
 ///
 /// The buffer is assumed to have the correct format according to the specified color type. This
@@ -1369,8 +1357,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
     color: impl Into<ExtendedColorType>,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color.into(), format)
+    let encoder = encoder_for_format(format, buffered_writer)?;
+    encoder.write_image(buf, width, height, color.into())
 }
 
 /// Create a new image from a byte slice
@@ -1379,8 +1367,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// TGA is not supported by this function.
 ///
 /// Try [`ImageReader`] for more advanced uses.
-pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    let format = free_functions::guess_format(buffer)?;
+pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
+    let format = free_functions::guess_format(buffer.as_ref())?;
     load_from_memory_with_format(buffer, format)
 }
 
@@ -1393,8 +1381,14 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::Cursor::new(buf);
+pub fn load_from_memory_with_format(
+    buf: impl AsRef<[u8]>,
+    format: ImageFormat,
+) -> ImageResult<DynamicImage> {
+    // Note: this function (and `load_from_memory`) are generic over `AsRef<[u8]>` so that we do not
+    // monomorphize copies of all our decoders unless some downsteam crate actually calls one of
+    // these functions. See https://github.com/image-rs/image/pull/2470.
+    let b = io::Cursor::new(buf.as_ref());
     free_functions::load(b, format)
 }
 
@@ -1405,13 +1399,13 @@ mod bench {
     fn bench_conversion(b: &mut test::Bencher) {
         let a = super::DynamicImage::ImageRgb8(crate::ImageBuffer::new(1000, 1000));
         b.iter(|| a.to_luma8());
-        b.bytes = 1000 * 1000 * 3
+        b.bytes = 1000 * 1000 * 3;
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{buffer_::Gray16Image, color::ColorType};
+    use crate::{color::ColorType, images::dynimage::Gray16Image};
 
     #[test]
     fn test_empty_file() {
@@ -1435,7 +1429,7 @@ mod test {
     }
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
-        use crate::image::{GenericImage, GenericImageView};
+        use crate::{GenericImage as _, GenericImageView as _};
         img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(

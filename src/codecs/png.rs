@@ -17,9 +17,11 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
-use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
-use crate::{GenericImageView, Limits};
+use crate::utils::vec_try_with_capacity;
+use crate::{
+    AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
+    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+};
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
@@ -383,7 +385,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 blend = fc.blend_op;
                 self.dispose = fc.dispose_op;
             }
-        };
+        }
 
         self.dispose_region = Some((px, py, width, height));
 
@@ -644,7 +646,6 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
         use ExtendedColorType::*;
 
         let expected_buffer_len = color_type.buffer_size(width, height);
@@ -668,11 +669,15 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
-                let mut reordered = vec![0; buf.len()];
-                buf.chunks_exact(2)
-                    .zip(reordered.chunks_exact_mut(2))
-                    .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
-                self.encode_inner(&reordered, width, height, color_type)
+                let mut reordered;
+                let buf = if cfg!(target_endian = "little") {
+                    reordered = vec_try_with_capacity(buf.len())?;
+                    reordered.extend(buf.chunks_exact(2).flat_map(|le| [le[1], le[0]]));
+                    &reordered
+                } else {
+                    buf
+                };
+                self.encode_inner(buf, width, height, color_type)
             }
             _ => Err(ImageError::Encoding(EncodingError::new(
                 ImageFormat::Png.into(),
@@ -725,6 +730,7 @@ impl std::error::Error for BadPngRepresentation {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::free_functions::decoder_to_vec;
     use std::io::{BufReader, Cursor, Read};
 
     #[test]
@@ -743,7 +749,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
-        let correct_bytes = crate::image::decoder_to_vec(dec)
+        let correct_bytes = decoder_to_vec(dec)
             .expect("Unable to read file")
             .bytes()
             .map(|x| x.expect("Unable to read byte"))

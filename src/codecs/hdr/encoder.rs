@@ -1,9 +1,10 @@
+use std::cmp::Ordering;
+use std::io::{Result, Write};
+
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
-use std::cmp::Ordering;
-use std::io::{Result, Write};
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W: Write> {
@@ -467,7 +468,7 @@ fn noruncombine_test() {
     assert_eq!(rsi.next(), None);
 
     let v: Vec<_> = std::iter::repeat(())
-        .flat_map(|_| (0..2))
+        .flat_map(|()| 0..2)
         .take(257)
         .collect();
     let mut rsi = NorunCombineIterator::new(&v[..]);

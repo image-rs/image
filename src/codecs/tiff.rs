@@ -17,8 +17,8 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 use crate::metadata::Orientation;
+use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -51,9 +51,25 @@ where
             }
             Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
-        };
+        }
+
+        let planar_config = inner
+            .find_tag(tiff::tags::Tag::PlanarConfiguration)
+            .map(|res| res.and_then(|r| r.into_u16().ok()).unwrap_or_default())
+            .unwrap_or_default();
+
+        // Decode not supported for non Chunky Planar Configuration
+        if planar_config > 1 {
+            Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(String::from("PlanarConfiguration = 2")),
+                ),
+            ))?;
+        }
 
         let color_type = match tiff_color_type {
+            tiff::ColorType::Gray(1) => ColorType::L8,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -73,9 +89,19 @@ where
             tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
                 return Err(err_unknown_color_type(n.saturating_mul(4)))
             }
+            tiff::ColorType::Multiband {
+                bit_depth,
+                num_samples,
+            } => {
+                return Err(err_unknown_color_type(
+                    bit_depth.saturating_mul(num_samples.min(255) as u8),
+                ))
+            }
+            _ => return Err(err_unknown_color_type(0)),
         };
 
         let original_color_type = match tiff_color_type {
+            tiff::ColorType::Gray(1) => ExtendedColorType::L1,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
             _ => color_type.into(),
         };
@@ -256,6 +282,19 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
                 }
             }
+            tiff::decoder::DecodingResult::U8(v)
+                if self.original_color_type == ExtendedColorType::L1 =>
+            {
+                let width = self.dimensions.0;
+                let row_bytes = width.div_ceil(8);
+
+                for (in_row, out_row) in v
+                    .chunks_exact(row_bytes as usize)
+                    .zip(buf.chunks_exact_mut(width as usize))
+                {
+                    out_row.copy_from_slice(&utils::expand_bits(1, width, in_row));
+                }
+            }
             tiff::decoder::DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
             }
@@ -286,6 +325,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             tiff::decoder::DecodingResult::F64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
+            tiff::decoder::DecodingResult::F16(_) => unreachable!(),
         }
         Ok(())
     }

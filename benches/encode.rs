@@ -52,7 +52,7 @@ type BenchGroup<'a> = criterion::BenchmarkGroup<'a, criterion::measurement::Wall
 /// For compressed formats this is surely not representative of encoding a normal image but it's a
 /// start for benchmarking.
 fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: ExtendedColorType) {
-    let im = vec![0; (color.bits_per_pixel() as usize * size as usize + 7) / 8 * size as usize];
+    let im = vec![0; (color.bits_per_pixel() as usize * size as usize).div_ceil(8) * size as usize];
 
     group.bench_with_input(
         BenchmarkId::new(format!("zero-{color:?}-rawvec"), size),

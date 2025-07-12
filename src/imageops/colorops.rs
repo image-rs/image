@@ -3,10 +3,9 @@
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
-use crate::ImageBuffer;
+use crate::{GenericImage, GenericImageView, ImageBuffer};
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
@@ -456,7 +455,7 @@ impl ColorMap for color_quant::NeuQuant {
 
     #[inline(always)]
     fn map_color(&self, color: &mut Self::Color) {
-        self.map_pixel(color.channels_mut())
+        self.map_pixel(color.channels_mut());
     }
 }
 

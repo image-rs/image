@@ -13,11 +13,12 @@
 //!
 //! [`ImageError`]: enum.ImageError.html
 
+use std::collections::TryReserveError;
 use std::error::Error;
 use std::{fmt, io};
 
 use crate::color::ExtendedColorType;
-use crate::image::ImageFormat;
+use crate::ImageFormat;
 
 /// The generic error type for image operations.
 ///
@@ -297,9 +298,21 @@ impl LimitError {
     }
 }
 
+impl From<LimitErrorKind> for LimitError {
+    fn from(kind: LimitErrorKind) -> Self {
+        Self { kind }
+    }
+}
+
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
         ImageError::IoError(err)
+    }
+}
+
+impl From<TryReserveError> for ImageError {
+    fn from(_: TryReserveError) -> ImageError {
+        ImageError::Limits(LimitErrorKind::InsufficientMemory.into())
     }
 }
 

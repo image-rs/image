@@ -11,8 +11,8 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
-use crate::utils;
+use crate::io::ReadExt;
+use crate::{utils, ImageDecoder, ImageFormat};
 
 use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
 
@@ -630,15 +630,7 @@ impl<R: Read> PnmDecoder<R> {
                 let bytecount = S::bytelen(width, height, components)?;
 
                 let mut bytes = vec![];
-                self.reader
-                    .by_ref()
-                    // This conversion is potentially lossy but unlikely and in that case we error
-                    // later anyways.
-                    .take(bytecount as u64)
-                    .read_to_end(&mut bytes)?;
-                if bytes.len() != bytecount {
-                    return Err(DecoderError::InputTooShort.into());
-                }
+                self.reader.read_exact_vec(&mut bytes, bytecount)?;
 
                 let width: usize = width.try_into().map_err(|_| DecoderError::Overflow)?;
                 let components: usize =
@@ -652,7 +644,7 @@ impl<R: Read> PnmDecoder<R> {
             SampleEncoding::Ascii => {
                 self.read_ascii::<S>(buf)?;
             }
-        };
+        }
 
         // Scale samples if 8bit or 16bit is not saturated
         let current_sample_max = self.header.maximal_sample();
@@ -699,7 +691,7 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
     {
         let c = rc?;
         let digit = match c {
-            b'0'..=b'9' => (c - b'0') as u16,
+            b'0'..=b'9' => u16::from(c - b'0'),
             _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Sample).into()),
         };
         v = v.checked_mul(10).ok_or(DecoderError::Overflow)?;

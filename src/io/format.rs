@@ -448,7 +448,7 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.reading_enabled()
         );
-        assert!(!ImageFormat::Dds.reading_enabled());
+        assert_eq!(cfg!(feature = "dds"), ImageFormat::Dds.reading_enabled());
     }
 
     #[test]
@@ -458,6 +458,6 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.writing_enabled()
         );
-        assert!(!ImageFormat::Dds.writing_enabled());
+        assert_eq!(cfg!(feature = "dds"), ImageFormat::Dds.writing_enabled());
     }
 }

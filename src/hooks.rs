@@ -16,8 +16,8 @@ impl<T: Read + Seek> ReadSeek for T {}
 pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> =
     RwLock::new(None);
 
-pub(crate) static GUESS_FORMAT_HOOKS: RwLock<Vec<(&[u8], &[u8], OsString)>> =
-    RwLock::new(Vec::new());
+pub(crate) type DetectionHook = (&'static [u8], &'static [u8], OsString);
+pub(crate) static GUESS_FORMAT_HOOKS: RwLock<Vec<DetectionHook>> = RwLock::new(Vec::new());
 
 /// A wrapper around a type-erased trait object that implements `Read` and `Seek`.
 pub struct GenericReader<'a>(pub(crate) BufReader<Box<dyn ReadSeek + 'a>>);

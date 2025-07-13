@@ -3,16 +3,17 @@
 
 use std::{
     collections::HashMap,
+    ffi::{OsStr, OsString},
     io::{BufRead, BufReader, Read, Seek},
     sync::RwLock,
 };
 
-use crate::{ImageDecoder, ImageFormat, ImageResult};
+use crate::{ImageDecoder, ImageResult};
 
 pub(crate) trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
-pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<ImageFormat, DecodingHook>>> =
+pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> =
     RwLock::new(None);
 
 /// A wrapper around a type-erased trait object that implements `Read` and `Seek`.
@@ -67,11 +68,7 @@ pub type DecodingHook =
     Box<dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync>;
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
-pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
-    if format.reading_enabled() {
-        return false;
-    }
-
+pub fn register_decoding_hook(format: OsString, hook: DecodingHook) -> bool {
     let mut hooks = DECODING_HOOKS.write().unwrap();
     if hooks.is_none() {
         *hooks = Some(HashMap::new());
@@ -86,11 +83,11 @@ pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
 }
 
 /// Returns whether a decoding hook has been registered for the given format.
-pub fn decoding_hook_registered(format: ImageFormat) -> bool {
+pub fn decoding_hook_registered(format: &OsStr) -> bool {
     DECODING_HOOKS
         .read()
         .unwrap()
         .as_ref()
-        .map(|hooks| hooks.contains_key(&format))
+        .map(|hooks| hooks.contains_key(format))
         .unwrap_or(false)
 }

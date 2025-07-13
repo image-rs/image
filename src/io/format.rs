@@ -55,7 +55,7 @@ pub enum ImageFormat {
     Qoi,
 
     /// An Image in PCX Format
-    #[deprecated]
+    #[cfg_attr(not(feature = "serde"), deprecated)]
     #[doc(hidden)]
     Pcx,
 }

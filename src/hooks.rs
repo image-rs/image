@@ -16,6 +16,9 @@ impl<T: Read + Seek> ReadSeek for T {}
 pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> =
     RwLock::new(None);
 
+pub(crate) static GUESS_FORMAT_HOOKS: RwLock<Vec<(&[u8], &[u8], OsString)>> =
+    RwLock::new(Vec::new());
+
 /// A wrapper around a type-erased trait object that implements `Read` and `Seek`.
 pub struct GenericReader<'a>(pub(crate) BufReader<Box<dyn ReadSeek + 'a>>);
 impl Read for GenericReader<'_> {
@@ -68,12 +71,12 @@ pub type DecodingHook =
     Box<dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync>;
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
-pub fn register_decoding_hook(format: OsString, hook: DecodingHook) -> bool {
+pub fn register_decoding_hook(extension: OsString, hook: DecodingHook) -> bool {
     let mut hooks = DECODING_HOOKS.write().unwrap();
     if hooks.is_none() {
         *hooks = Some(HashMap::new());
     }
-    match hooks.as_mut().unwrap().entry(format) {
+    match hooks.as_mut().unwrap().entry(extension) {
         std::collections::hash_map::Entry::Vacant(entry) => {
             entry.insert(hook);
             true
@@ -83,11 +86,27 @@ pub fn register_decoding_hook(format: OsString, hook: DecodingHook) -> bool {
 }
 
 /// Returns whether a decoding hook has been registered for the given format.
-pub fn decoding_hook_registered(format: &OsStr) -> bool {
+pub fn decoding_hook_registered(extension: &OsStr) -> bool {
     DECODING_HOOKS
         .read()
         .unwrap()
         .as_ref()
-        .map(|hooks| hooks.contains_key(format))
+        .map(|hooks| hooks.contains_key(extension))
         .unwrap_or(false)
+}
+
+/// Registers a format detection hook.
+///
+/// The signature field holds the magic bytes from the start of the file that must be matched to
+/// detect the format. The mask field is optional and can be used to specify which bytes in the
+/// signature should be ignored during the detection.
+pub fn register_format_detection_hook(
+    extension: OsString,
+    signature: &'static [u8],
+    mask: Option<&'static [u8]>,
+) {
+    GUESS_FORMAT_HOOKS
+        .write()
+        .unwrap()
+        .push((signature, mask.unwrap_or(&[]), extension));
 }

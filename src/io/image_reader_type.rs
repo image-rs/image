@@ -1,10 +1,11 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::iter;
 use std::path::Path;
 
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::hooks::{GenericReader, DECODING_HOOKS};
+use crate::hooks::{GenericReader, DECODING_HOOKS, GUESS_FORMAT_HOOKS};
 use crate::io::limits::Limits;
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
@@ -252,11 +253,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     pub fn with_guessed_format(mut self) -> io::Result<Self> {
         let format = self.guess_format()?;
         // Replace format if found, keep current state if not.
-        self.format = format.map(Format::BuiltIn).or(self.format);
+        self.format = format.or(self.format);
         Ok(self)
     }
 
-    fn guess_format(&mut self) -> io::Result<Option<ImageFormat>> {
+    fn guess_format(&mut self) -> io::Result<Option<Format>> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
@@ -268,7 +269,28 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         )?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
-        Ok(free_functions::guess_format_impl(&start[..len as usize]))
+        if let Some(format) = free_functions::guess_format_impl(&start[..len as usize]) {
+            return Ok(Some(Format::BuiltIn(format)));
+        }
+
+        let hooks = GUESS_FORMAT_HOOKS.read().unwrap();
+        for &(signature, mask, ref extension) in &*hooks {
+            if mask.is_empty() {
+                if start.starts_with(signature) {
+                    return Ok(Some(Format::Extension(extension.clone())));
+                }
+            } else if start.len() >= signature.len()
+                && start
+                    .iter()
+                    .zip(signature.iter())
+                    .zip(mask.iter().chain(iter::repeat(&0xFF)))
+                    .all(|((&byte, &sig), &mask)| byte & mask == sig)
+            {
+                return Ok(Some(Format::Extension(extension.clone())));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Read the image dimensions.

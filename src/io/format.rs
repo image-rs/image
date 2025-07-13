@@ -55,6 +55,8 @@ pub enum ImageFormat {
     Qoi,
 
     /// An Image in PCX Format
+    #[deprecated]
+    #[doc(hidden)]
     Pcx,
 }
 
@@ -94,7 +96,6 @@ impl ImageFormat {
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
-                "pcx" => ImageFormat::Pcx,
                 _ => return None,
             })
         }
@@ -170,7 +171,6 @@ impl ImageFormat {
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             "image/x-qoi" => Some(ImageFormat::Qoi),
-            "image/vnd.zbrush.pcx" | "image/x-pcx" => Some(ImageFormat::Pcx),
             _ => None,
         }
     }
@@ -218,6 +218,7 @@ impl ImageFormat {
             ImageFormat::Qoi => "image/x-qoi",
             // farbfeld's MIME type taken from https://www.wikidata.org/wiki/Q28206109
             ImageFormat::Farbfeld => "application/octet-stream",
+            #[allow(deprecated)]
             ImageFormat::Pcx => "image/vnd.zbrush.pcx",
         }
     }
@@ -243,7 +244,8 @@ impl ImageFormat {
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::Qoi => true,
-            ImageFormat::Pcx => true,
+            #[allow(deprecated)]
+            ImageFormat::Pcx => false,
         }
     }
 
@@ -268,6 +270,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::Qoi => true,
+            #[allow(deprecated)]
             ImageFormat::Pcx => false,
         }
     }
@@ -300,6 +303,7 @@ impl ImageFormat {
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::Qoi => &["qoi"],
+            #[allow(deprecated)]
             ImageFormat::Pcx => &["pcx"],
         }
     }
@@ -323,7 +327,8 @@ impl ImageFormat {
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
-            ImageFormat::Pcx => cfg!(feature = "pcx"),
+            #[allow(deprecated)]
+            ImageFormat::Pcx => false,
             ImageFormat::Dds => false,
         }
     }
@@ -347,6 +352,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
+            #[allow(deprecated)]
             ImageFormat::Pcx => false,
             ImageFormat::Dds => false,
         }
@@ -370,6 +376,7 @@ impl ImageFormat {
             ImageFormat::Qoi,
             ImageFormat::Dds,
             ImageFormat::Hdr,
+            #[allow(deprecated)]
             ImageFormat::Pcx,
         ]
         .iter()
@@ -408,7 +415,6 @@ mod tests {
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
-        assert_eq!(from_path("./a.PCX").unwrap(), ImageFormat::Pcx);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
     }
@@ -417,7 +423,7 @@ mod tests {
     fn image_formats_are_recognized() {
         use ImageFormat::*;
         const ALL_FORMATS: &[ImageFormat] = &[
-            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr, Pcx,
+            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
         ];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();

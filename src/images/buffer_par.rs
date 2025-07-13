@@ -321,7 +321,7 @@ where
     /// See [`pixels`] for more information.
     ///
     /// [`pixels`]: #method.pixels
-    pub fn par_pixels(&self) -> PixelsPar<P> {
+    pub fn par_pixels(&self) -> PixelsPar<'_, P> {
         PixelsPar {
             chunks: self
                 .inner_pixels()
@@ -333,7 +333,7 @@ where
     /// See [`enumerate_pixels`] for more information.
     ///
     /// [`enumerate_pixels`]: #method.enumerate_pixels
-    pub fn par_enumerate_pixels(&self) -> EnumeratePixelsPar<P> {
+    pub fn par_enumerate_pixels(&self) -> EnumeratePixelsPar<'_, P> {
         EnumeratePixelsPar {
             pixels: self.par_pixels(),
             width: self.width(),
@@ -351,7 +351,7 @@ where
     /// See [`pixels_mut`] for more information.
     ///
     /// [`pixels_mut`]: #method.pixels_mut
-    pub fn par_pixels_mut(&mut self) -> PixelsMutPar<P> {
+    pub fn par_pixels_mut(&mut self) -> PixelsMutPar<'_, P> {
         PixelsMutPar {
             chunks: self
                 .inner_pixels_mut()
@@ -363,7 +363,7 @@ where
     /// See [`enumerate_pixels_mut`] for more information.
     ///
     /// [`enumerate_pixels_mut`]: #method.enumerate_pixels_mut
-    pub fn par_enumerate_pixels_mut(&mut self) -> EnumeratePixelsMutPar<P> {
+    pub fn par_enumerate_pixels_mut(&mut self) -> EnumeratePixelsMutPar<'_, P> {
         let width = self.width();
         EnumeratePixelsMutPar {
             pixels: self.par_pixels_mut(),
@@ -384,7 +384,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics when the resulting image is larger the the maximum size of a vector.
+    /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_par_fn<F>(width: u32, height: u32, f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: Fn(u32, u32) -> P + Send + Sync,

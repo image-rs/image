@@ -2,11 +2,10 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use crate::dynimage::DynamicImage;
-use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::hooks::{GenericReader, DECODING_HOOKS};
-use crate::image::ImageFormat;
-use crate::{ImageDecoder, ImageError, ImageResult};
+use crate::io::limits::Limits;
+use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
 use super::free_functions;
 
@@ -65,7 +64,7 @@ pub struct ImageReader<R: Read + Seek> {
     /// The format, if one has been set or deduced.
     format: Option<ImageFormat>,
     /// Decoding limits
-    limits: super::Limits,
+    limits: Limits,
 }
 
 impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
@@ -83,7 +82,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         ImageReader {
             inner: buffered_reader,
             format: None,
-            limits: super::Limits::default(),
+            limits: Limits::default(),
         }
     }
 
@@ -95,7 +94,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         ImageReader {
             inner: buffered_reader,
             format: Some(format),
-            limits: super::Limits::default(),
+            limits: Limits::default(),
         }
     }
 
@@ -119,11 +118,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
     /// Disable all decoding limits.
     pub fn no_limits(&mut self) {
-        self.limits = super::Limits::no_limits();
+        self.limits = Limits::no_limits();
     }
 
     /// Set a custom set of decoding limits.
-    pub fn limits(&mut self, limits: super::Limits) {
+    pub fn limits(&mut self, limits: Limits) {
         self.limits = limits;
     }
 
@@ -140,7 +139,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     fn make_decoder(
         format: ImageFormat,
         reader: R,
-        limits_for_png: super::Limits,
+        limits_for_png: Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         #[allow(unused)]
         use crate::codecs::*;
@@ -311,7 +310,7 @@ impl ImageReader<BufReader<File>> {
         Ok(ImageReader {
             inner: BufReader::new(File::open(path)?),
             format: ImageFormat::from_path(path).ok(),
-            limits: super::Limits::default(),
+            limits: Limits::default(),
         })
     }
 }

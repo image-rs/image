@@ -13,6 +13,11 @@ use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::marker::PhantomData;
 
+use crate::codecs::avif::ycgco::{
+    ycgco420_to_rgba10, ycgco420_to_rgba12, ycgco420_to_rgba8, ycgco422_to_rgba10,
+    ycgco422_to_rgba12, ycgco422_to_rgba8, ycgco444_to_rgba10, ycgco444_to_rgba12,
+    ycgco444_to_rgba8,
+};
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
 use mp4parse::{read_avif, ParseStrictness};
@@ -35,6 +40,7 @@ pub struct AvifDecoder<R> {
 enum AvifDecoderError {
     AlphaPlaneFormat(PixelLayout),
     YuvLayoutOnIdentityMatrix(PixelLayout),
+    UnsupportedLayoutAndMatrix(PixelLayout, YuvMatrixStrategy),
 }
 
 impl Display for AvifDecoderError {
@@ -42,22 +48,25 @@ impl Display for AvifDecoderError {
         match self {
             AvifDecoderError::AlphaPlaneFormat(pixel_layout) => match pixel_layout {
                 PixelLayout::I400 => unreachable!("This option must be handled correctly"),
-                PixelLayout::I420 => f.write_str("Alpha layout must be 4:0:0 but it was 4:2:0"),
-                PixelLayout::I422 => f.write_str("Alpha layout must be 4:0:0 but it was 4:2:2"),
-                PixelLayout::I444 => f.write_str("Alpha layout must be 4:0:0 but it was 4:4:4"),
+                PixelLayout::I420 => f.write_str("Alpha layout must be 4:0:0, but it was 4:2:0"),
+                PixelLayout::I422 => f.write_str("Alpha layout must be 4:0:0, but it was 4:2:2"),
+                PixelLayout::I444 => f.write_str("Alpha layout must be 4:0:0, but it was 4:4:4"),
             },
             AvifDecoderError::YuvLayoutOnIdentityMatrix(pixel_layout) => match pixel_layout {
                 PixelLayout::I400 => {
-                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4 but it was 4:0:0")
+                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4, but it was 4:0:0")
                 }
                 PixelLayout::I420 => {
-                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4 but it was 4:2:0")
+                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4, but it was 4:2:0")
                 }
                 PixelLayout::I422 => {
-                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4 but it was 4:2:2")
+                    f.write_str("YUV layout on 'Identity' matrix must be 4:4:4, but it was 4:2:2")
                 }
                 PixelLayout::I444 => unreachable!("This option must be handled correctly"),
             },
+            AvifDecoderError::UnsupportedLayoutAndMatrix(layout, matrix) => f.write_fmt(
+                format_args!("YUV layout {layout:?} on matrix {matrix:?} is not supported",),
+            ),
         }
     }
 }
@@ -146,7 +155,7 @@ fn transmute_y_plane16(
     stride: usize,
     width: usize,
     height: usize,
-) -> Plane16View {
+) -> Plane16View<'_> {
     let mut y_plane_stride = stride >> 1;
 
     let mut bind_y = vec![];
@@ -187,7 +196,7 @@ fn transmute_chroma_plane16(
     stride: usize,
     width: usize,
     height: usize,
-) -> Plane16View {
+) -> Plane16View<'_> {
     let plane_ref = plane.as_ref();
     let mut chroma_plane_stride = stride >> 1;
     let mut bind_chroma = vec![];
@@ -195,12 +204,12 @@ fn transmute_chroma_plane16(
     let mut shape_chroma_plane = || {
         chroma_plane_stride = match pixel_layout {
             PixelLayout::I400 => unreachable!(),
-            PixelLayout::I420 | PixelLayout::I422 => (width + 1) / 2,
+            PixelLayout::I420 | PixelLayout::I422 => width.div_ceil(2),
             PixelLayout::I444 => width,
         };
         let u_plane_height = match pixel_layout {
             PixelLayout::I400 => unreachable!(),
-            PixelLayout::I420 => (height + 1) / 2,
+            PixelLayout::I420 => height.div_ceil(2),
             PixelLayout::I422 | PixelLayout::I444 => height,
         };
         bind_chroma = reshape_plane(plane_ref, stride, chroma_plane_stride, u_plane_height);
@@ -229,18 +238,29 @@ fn transmute_chroma_plane16(
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialOrd, Eq, PartialEq)]
+enum YuvMatrixStrategy {
+    KrKb(YuvStandardMatrix),
+    CgCo,
+    Identity,
+}
+
 /// Getting one of prebuilt matrix of fails
 fn get_matrix(
     david_matrix: dav1d::pixel::MatrixCoefficients,
-) -> Result<YuvStandardMatrix, ImageError> {
+) -> Result<YuvMatrixStrategy, ImageError> {
     match david_matrix {
-        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvStandardMatrix::Identity),
-        dav1d::pixel::MatrixCoefficients::BT709 => Ok(YuvStandardMatrix::Bt709),
+        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvMatrixStrategy::Identity),
+        dav1d::pixel::MatrixCoefficients::BT709 => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709))
+        }
         // This is arguable, some applications prefer to go with Bt.709 as default,
         // and some applications prefer Bt.601 as default.
         // For ex. `Chrome` always prefer Bt.709 even for SD content
         // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
-        dav1d::pixel::MatrixCoefficients::Unspecified => Ok(YuvStandardMatrix::Bt709),
+        dav1d::pixel::MatrixCoefficients::Unspecified => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709))
+        }
         dav1d::pixel::MatrixCoefficients::Reserved => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),
@@ -249,19 +269,21 @@ fn get_matrix(
                 ),
             ),
         )),
-        dav1d::pixel::MatrixCoefficients::BT470M => Ok(YuvStandardMatrix::Bt470_6),
-        dav1d::pixel::MatrixCoefficients::BT470BG => Ok(YuvStandardMatrix::Bt601),
-        dav1d::pixel::MatrixCoefficients::ST170M => Ok(YuvStandardMatrix::Smpte240),
-        dav1d::pixel::MatrixCoefficients::ST240M => Ok(YuvStandardMatrix::Smpte240),
-        // This is an experimental matrix in libavif yet.
-        dav1d::pixel::MatrixCoefficients::YCgCo => Err(ImageError::Unsupported(
-            UnsupportedError::from_format_and_kind(
-                ImageFormat::Avif.into(),
-                UnsupportedErrorKind::GenericFeature("YCgCo matrix is not supported".to_string()),
-            ),
-        )),
+        dav1d::pixel::MatrixCoefficients::BT470M => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt470_6))
+        }
+        dav1d::pixel::MatrixCoefficients::BT470BG => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt601))
+        }
+        dav1d::pixel::MatrixCoefficients::ST170M => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240))
+        }
+        dav1d::pixel::MatrixCoefficients::ST240M => {
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240))
+        }
+        dav1d::pixel::MatrixCoefficients::YCgCo => Ok(YuvMatrixStrategy::CgCo),
         dav1d::pixel::MatrixCoefficients::BT2020NonConstantLuminance => {
-            Ok(YuvStandardMatrix::Bt2020)
+            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt2020))
         }
         dav1d::pixel::MatrixCoefficients::BT2020ConstantLuminance => {
             // This matrix significantly differs from others because linearize values is required
@@ -343,15 +365,27 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,
         };
 
-        let color_matrix = get_matrix(self.picture.matrix_coefficients())?;
+        let matrix_strategy = get_matrix(self.picture.matrix_coefficients())?;
 
         // Identity matrix should be possible only on 4:4:4
-        if color_matrix == YuvStandardMatrix::Identity
+        if matrix_strategy == YuvMatrixStrategy::Identity
             && self.picture.pixel_layout() != PixelLayout::I444
         {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Avif.into(),
                 AvifDecoderError::YuvLayoutOnIdentityMatrix(self.picture.pixel_layout()),
+            )));
+        }
+
+        if matrix_strategy == YuvMatrixStrategy::CgCo
+            && self.picture.pixel_layout() == PixelLayout::I400
+        {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Avif.into(),
+                AvifDecoderError::UnsupportedLayoutAndMatrix(
+                    self.picture.pixel_layout(),
+                    matrix_strategy,
+                ),
             )));
         }
 
@@ -371,14 +405,38 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 height: height as usize,
             };
 
-            let worker = match self.picture.pixel_layout() {
-                PixelLayout::I400 => yuv400_to_rgba8,
-                PixelLayout::I420 => yuv420_to_rgba8,
-                PixelLayout::I422 => yuv422_to_rgba8,
-                PixelLayout::I444 => yuv444_to_rgba8,
-            };
+            match matrix_strategy {
+                YuvMatrixStrategy::KrKb(standard) => {
+                    let worker = match self.picture.pixel_layout() {
+                        PixelLayout::I400 => yuv400_to_rgba8,
+                        PixelLayout::I420 => yuv420_to_rgba8,
+                        PixelLayout::I422 => yuv422_to_rgba8,
+                        PixelLayout::I444 => yuv444_to_rgba8,
+                    };
 
-            worker(image, buf, yuv_range, color_matrix)?;
+                    worker(image, buf, yuv_range, standard)?;
+                }
+                YuvMatrixStrategy::CgCo => {
+                    let worker = match self.picture.pixel_layout() {
+                        PixelLayout::I400 => unreachable!(),
+                        PixelLayout::I420 => ycgco420_to_rgba8,
+                        PixelLayout::I422 => ycgco422_to_rgba8,
+                        PixelLayout::I444 => ycgco444_to_rgba8,
+                    };
+
+                    worker(image, buf, yuv_range)?;
+                }
+                YuvMatrixStrategy::Identity => {
+                    let worker = match self.picture.pixel_layout() {
+                        PixelLayout::I400 => unreachable!(),
+                        PixelLayout::I420 => unreachable!(),
+                        PixelLayout::I422 => unreachable!(),
+                        PixelLayout::I444 => gbr_to_rgba8,
+                    };
+
+                    worker(image, buf, yuv_range)?;
+                }
+            }
 
             // Squashing alpha plane into a picture
             if let Some(picture) = self.alpha_picture {
@@ -405,11 +463,11 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             // // 8+ bit-depth case
             if let Ok(buf) = bytemuck::try_cast_slice_mut(buf) {
                 let target_slice: &mut [u16] = buf;
-                self.process_16bit_picture(target_slice, yuv_range, color_matrix)?;
+                self.process_16bit_picture(target_slice, yuv_range, matrix_strategy)?;
             } else {
                 // If buffer from Decoder is unaligned
                 let mut aligned_store = vec![0u16; buf.len() / 2];
-                self.process_16bit_picture(&mut aligned_store, yuv_range, color_matrix)?;
+                self.process_16bit_picture(&mut aligned_store, yuv_range, matrix_strategy)?;
                 for (dst, src) in buf.chunks_exact_mut(2).zip(aligned_store.iter()) {
                     let bytes = src.to_ne_bytes();
                     dst[0] = bytes[0];
@@ -431,7 +489,7 @@ impl<R: Read> AvifDecoder<R> {
         &self,
         target: &mut [u16],
         yuv_range: YuvIntensityRange,
-        color_matrix: YuvStandardMatrix,
+        matrix_strategy: YuvMatrixStrategy,
     ) -> ImageResult<()> {
         let y_dav1d_plane = self.picture.plane(PlanarImageComponent::Y);
 
@@ -483,37 +541,83 @@ impl<R: Read> AvifDecoder<R> {
             height: height as usize,
         };
 
-        let worker = match self.picture.pixel_layout() {
-            PixelLayout::I400 => {
-                if bit_depth == 10 {
-                    yuv400_to_rgba10
-                } else {
-                    yuv400_to_rgba12
-                }
+        match matrix_strategy {
+            YuvMatrixStrategy::KrKb(standard) => {
+                let worker = match self.picture.pixel_layout() {
+                    PixelLayout::I400 => {
+                        if bit_depth == 10 {
+                            yuv400_to_rgba10
+                        } else {
+                            yuv400_to_rgba12
+                        }
+                    }
+                    PixelLayout::I420 => {
+                        if bit_depth == 10 {
+                            yuv420_to_rgba10
+                        } else {
+                            yuv420_to_rgba12
+                        }
+                    }
+                    PixelLayout::I422 => {
+                        if bit_depth == 10 {
+                            yuv422_to_rgba10
+                        } else {
+                            yuv422_to_rgba12
+                        }
+                    }
+                    PixelLayout::I444 => {
+                        if bit_depth == 10 {
+                            yuv444_to_rgba10
+                        } else {
+                            yuv444_to_rgba12
+                        }
+                    }
+                };
+                worker(image, target, yuv_range, standard)?;
             }
-            PixelLayout::I420 => {
-                if bit_depth == 10 {
-                    yuv420_to_rgba10
-                } else {
-                    yuv420_to_rgba12
-                }
+            YuvMatrixStrategy::CgCo => {
+                let worker = match self.picture.pixel_layout() {
+                    PixelLayout::I400 => unreachable!(),
+                    PixelLayout::I420 => {
+                        if bit_depth == 10 {
+                            ycgco420_to_rgba10
+                        } else {
+                            ycgco420_to_rgba12
+                        }
+                    }
+                    PixelLayout::I422 => {
+                        if bit_depth == 10 {
+                            ycgco422_to_rgba10
+                        } else {
+                            ycgco422_to_rgba12
+                        }
+                    }
+                    PixelLayout::I444 => {
+                        if bit_depth == 10 {
+                            ycgco444_to_rgba10
+                        } else {
+                            ycgco444_to_rgba12
+                        }
+                    }
+                };
+                worker(image, target, yuv_range)?;
             }
-            PixelLayout::I422 => {
-                if bit_depth == 10 {
-                    yuv422_to_rgba10
-                } else {
-                    yuv422_to_rgba12
-                }
+            YuvMatrixStrategy::Identity => {
+                let worker = match self.picture.pixel_layout() {
+                    PixelLayout::I400 => unreachable!(),
+                    PixelLayout::I420 => unreachable!(),
+                    PixelLayout::I422 => unreachable!(),
+                    PixelLayout::I444 => {
+                        if bit_depth == 10 {
+                            gbr_to_rgba10
+                        } else {
+                            gbr_to_rgba12
+                        }
+                    }
+                };
+                worker(image, target, yuv_range)?;
             }
-            PixelLayout::I444 => {
-                if bit_depth == 10 {
-                    yuv444_to_rgba10
-                } else {
-                    yuv444_to_rgba12
-                }
-            }
-        };
-        worker(image, target, yuv_range, color_matrix)?;
+        }
 
         // Squashing alpha plane into a picture
         if let Some(picture) = &self.alpha_picture {
@@ -559,7 +663,7 @@ fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture>
     loop {
         match decoder.get_picture() {
             Err(dav1d::Error::Again) => match decoder.send_pending_data() {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(dav1d::Error::Again) => {}
                 Err(e) => return Err(error_map(e)),
             },

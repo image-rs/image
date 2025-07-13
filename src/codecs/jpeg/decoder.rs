@@ -5,9 +5,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
 use crate::metadata::Orientation;
-use crate::Limits;
+use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
@@ -67,13 +66,21 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
+        let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(&self.input, options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         Ok(decoder.icc_profile())
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
+        let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(&self.input, options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         let exif = decoder.exif().cloned();
 
@@ -102,8 +109,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Jpeg.into(),
                 format!(
-                    "Length of the decoded data {actual_len}\
-                    doesn't match the advertised dimensions of the image\
+                    "Length of the decoded data {actual_len} \
+                    doesn't match the advertised dimensions of the image \
                     that imply length {advertised_len}"
                 ),
             )));

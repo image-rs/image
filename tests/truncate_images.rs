@@ -42,6 +42,7 @@ fn truncate_images(decoder: &str) {
         println!("{path:?}");
         let fin = fs::File::open(&path).unwrap();
         let max_length = 1000;
+        #[allow(clippy::disallowed_methods)]
         let mut buf = Vec::with_capacity(max_length);
         fin.take(max_length as u64).read_to_end(&mut buf).unwrap();
         for i in (0..buf.len()).step_by(37) {

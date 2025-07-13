@@ -3,11 +3,10 @@ use std::io::{self, Read};
 use std::num::{ParseFloatError, ParseIntError};
 use std::{error, fmt};
 
-use crate::color::{ColorType, Rgb};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{ImageDecoder, ImageFormat};
+use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -547,7 +546,7 @@ impl HdrMetadata {
                             .into());
                         } // no else, skip this line in non-strict mode
                     }
-                };
+                }
             }
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
@@ -564,7 +563,7 @@ impl HdrMetadata {
                             .into());
                         } // no else, skip this line in non-strict mode
                     }
-                };
+                }
             }
             Some(("COLORCORR", val)) => {
                 let mut rgbcorr = [1.0, 1.0, 1.0];
@@ -685,15 +684,16 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
 fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
+    // keeping repeated redundant allocations to avoid added complexity of having a `&mut tmp` argument
+    #[allow(clippy::disallowed_methods)]
     let mut ret = Vec::with_capacity(16);
     loop {
         let mut byte = [0];
         if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
             if ret.is_empty() && byte[0] != b'\n' {
                 return Ok(None);
-            } else {
-                return Ok(Some(ret));
             }
+            return Ok(Some(ret));
         }
         ret.push(byte[0]);
     }
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn split_at_first_test() {
-        assert_eq!(split_at_first(&Cow::Owned("".into()), "="), None);
+        assert_eq!(split_at_first(&Cow::Owned(String::new()), "="), None);
         assert_eq!(split_at_first(&Cow::Owned("=".into()), "="), None);
         assert_eq!(split_at_first(&Cow::Owned("= ".into()), "="), None);
         assert_eq!(

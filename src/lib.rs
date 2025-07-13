@@ -13,7 +13,7 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`](crate::image_reader::ImageReader):
+//! Load images using [`ImageReader`](crate::ImageReader):
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
@@ -140,20 +140,11 @@ pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
-pub use crate::image::{
-    AnimationDecoder,
-    GenericImage,
-    GenericImageView,
-    ImageDecoder,
-    ImageDecoderRect,
-    ImageEncoder,
-    ImageFormat,
-    // Iterators
-    Pixels,
-    SubImage,
-};
+pub use crate::images::generic_image::{GenericImage, GenericImageView, Pixels};
 
-pub use crate::buffer_::{
+pub use crate::images::sub_image::SubImage;
+
+pub use crate::images::buffer::{
     GrayAlphaImage,
     GrayImage,
     // Image types
@@ -170,14 +161,21 @@ pub use crate::flat::FlatSamples;
 pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
-pub use crate::dynimage::{
-    image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
-    save_buffer_with_format, write_buffer_with_format,
+pub use crate::images::dynimage::{
+    image_dimensions, load_from_memory, load_from_memory_with_format, open,
+    write_buffer_with_format,
 };
-pub use crate::image_reader::free_functions::{guess_format, load};
-pub use crate::image_reader::{ImageReader, LimitSupport, Limits};
+pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
-pub use crate::dynimage::DynamicImage;
+pub use crate::io::{
+    decoder::{AnimationDecoder, ImageDecoder, ImageDecoderRect},
+    encoder::ImageEncoder,
+    format::ImageFormat,
+    image_reader_type::ImageReader,
+    limits::{LimitSupport, Limits},
+};
+
+pub use crate::images::dynimage::DynamicImage;
 
 pub use crate::animation::{Delay, Frame, Frames};
 
@@ -187,13 +185,13 @@ pub mod error;
 /// Iterators and other auxiliary structure for the `ImageBuffer` type.
 pub mod buffer {
     // Only those not exported at the top-level
-    pub use crate::buffer_::{
+    pub use crate::images::buffer::{
         ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
         Pixels, PixelsMut, Rows, RowsMut,
     };
 
     #[cfg(feature = "rayon")]
-    pub use crate::buffer_par::*;
+    pub use crate::images::buffer_par::*;
 }
 
 // Math utils
@@ -203,7 +201,7 @@ pub mod math;
 pub mod imageops;
 
 // Buffer representations for ffi.
-pub mod flat;
+pub use crate::images::flat;
 
 /// Encoding and decoding for various image file formats.
 ///
@@ -291,29 +289,14 @@ pub mod codecs {
 }
 
 mod animation;
-#[path = "buffer.rs"]
-mod buffer_;
-#[cfg(feature = "rayon")]
-mod buffer_par;
 mod color;
-mod dynimage;
 pub mod hooks;
-mod image;
-mod image_reader;
+mod images;
+/// Deprecated io module the original io module has been renamed to `image_reader`.
+/// This is going to be internal.
+pub mod io;
 pub mod metadata;
 //TODO delete this module after a few releases
-/// deprecated io module the original io module has been renamed to `image_reader`
-pub mod io {
-    #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
-    /// Deprecated re-export of `ImageReader` as `Reader`
-    pub type Reader<R> = super::ImageReader<R>;
-    #[deprecated(note = "this type has been moved to image::Limits")]
-    /// Deprecated re-export of `Limits`
-    pub type Limits = super::Limits;
-    #[deprecated(note = "this type has been moved to image::LimitSupport")]
-    /// Deprecated re-export of `LimitSupport`
-    pub type LimitSupport = super::LimitSupport;
-}
 mod traits;
 mod utils;
 

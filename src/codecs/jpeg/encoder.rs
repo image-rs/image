@@ -1,19 +1,22 @@
 #![allow(clippy::too_many_arguments)]
+use std::borrow::Cow;
+use std::io::{self, Write};
 
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::image::{ImageEncoder, ImageFormat};
+use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
-use crate::{ExtendedColorType, GenericImageView, ImageBuffer, Luma, Pixel, Rgb};
+use crate::{
+    ColorType, DynamicImage, ExtendedColorType, GenericImageView, ImageBuffer, ImageEncoder,
+    ImageFormat, Luma, Pixel, Rgb,
+};
+
 use num_traits::ToPrimitive;
-use std::borrow::Cow;
-use std::io::{self, Write};
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
-use crate::traits::PixelWithColorType;
 
 // Markers
 // Baseline DCT
@@ -400,11 +403,11 @@ impl<W: Write> JpegEncoder<W> {
         };
 
         let mut tables = vec![STD_LUMA_QTABLE, STD_CHROMA_QTABLE];
-        tables.iter_mut().for_each(|t| {
+        for t in tables.iter_mut() {
             for v in t.iter_mut() {
                 *v = clamp((u32::from(*v) * scale + 50) / 100, 1, u32::from(u8::MAX)) as u8;
             }
-        });
+        }
 
         JpegEncoder {
             writer: BitWriter::new(w),
@@ -711,6 +714,19 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         self.icc_profile = icc_profile;
         Ok(())
     }
+
+    fn make_compatible_img(
+        &self,
+        _: crate::io::encoder::MethodSealedToImage,
+        img: &DynamicImage,
+    ) -> Option<DynamicImage> {
+        use ColorType::*;
+        match img.color() {
+            L8 | Rgb8 => None,
+            La8 | L16 | La16 => Some(img.to_luma8().into()),
+            Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(img.to_rgb8().into()),
+        }
+    }
 }
 
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
@@ -907,8 +923,8 @@ mod tests {
     use test::Bencher;
 
     use crate::error::ParameterErrorKind::DimensionMismatch;
-    use crate::image::ImageDecoder;
-    use crate::{ExtendedColorType, ImageEncoder, ImageError};
+    use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageError};
+    use crate::{ImageDecoder as _, ImageFormat};
 
     use super::super::JpegDecoder;
     use super::{
@@ -1021,8 +1037,7 @@ mod tests {
             other => {
                 panic!(
                     "Encoding an image that is too large should return a DimensionError \
-                                it returned {:?} instead",
-                    other
+                                it returned {other:?} instead"
                 )
             }
         }
@@ -1126,12 +1141,36 @@ mod tests {
         assert_eq!(buf, expected);
     }
 
+    #[test]
+    fn check_color_types() {
+        const ALL: &[ColorType] = &[
+            ColorType::L8,
+            ColorType::L16,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        for color in ALL {
+            let image = DynamicImage::new(1, 1, *color);
+
+            image
+                .write_to(&mut Cursor::new(vec![]), ImageFormat::Jpeg)
+                .expect("supported or converted");
+        }
+    }
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_jpeg_encoder_new(b: &mut Bencher) {
         b.iter(|| {
             let mut y = vec![];
             let _x = JpegEncoder::new(&mut y);
-        })
+        });
     }
 }

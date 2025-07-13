@@ -52,9 +52,8 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
-use crate::ImageBuffer;
+use crate::{GenericImage, GenericImageView, ImageBuffer};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -140,7 +139,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `height` direction would be larger than `usize::MAX`. On other platforms
-    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    /// where it can surely accommodate `u8::MAX * u32::MAX`, this can never happen.
     #[must_use]
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let height_stride = (channels as usize).checked_mul(width as usize).expect(
@@ -171,7 +170,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `width` direction would be larger than `usize::MAX`. On other platforms
-    /// where it can surely accommodate `u8::MAX * u32::MAX, this can never happen.
+    /// where it can surely accommodate `u8::MAX * u32::MAX`, this can never happen.
     #[must_use]
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let width_stride = (channels as usize).checked_mul(height as usize).expect(
@@ -228,7 +227,7 @@ impl SampleLayout {
     /// # Explanation
     ///
     /// Note that there is a difference between `min_length` and the index of the sample
-    /// 'one-past-the-end`. This is due to strides that may be larger than the dimension below.
+    /// 'one-past-the-end'. This is due to strides that may be larger than the dimension below.
     ///
     /// ## Example with holes
     ///
@@ -324,7 +323,7 @@ impl SampleLayout {
 
         if max_dim.checked_len().is_none() {
             return true;
-        };
+        }
 
         // Each higher dimension must walk over all of one lower dimension.
         min_size > mid_dim.stride() || mid_size > max_dim.stride()
@@ -816,7 +815,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// # Explanation
     ///
     /// Note that there is a difference between `min_length` and the index of the sample
-    /// 'one-past-the-end`. This is due to strides that may be larger than the dimension below.
+    /// 'one-past-the-end'. This is due to strides that may be larger than the dimension below.
     ///
     /// ## Example with holes
     ///
@@ -1021,7 +1020,7 @@ where
 ///
 /// The biggest use case being `ImageBuffer` which expects closely packed
 /// samples in a row major matrix representation. But this error type may be
-/// resused for other import functions. A more versatile user may also try to
+/// reused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Error {
@@ -1576,8 +1575,8 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer_::GrayAlphaImage;
     use crate::color::{LumaA, Rgb};
+    use crate::images::buffer::GrayAlphaImage;
 
     #[test]
     fn aliasing_view() {
@@ -1710,8 +1709,8 @@ mod tests {
 
         assert_eq!(buffer.layout, expected_layout);
 
-        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)| {
-            panic!("Expected buffer to be convertible but {:?}", error)
-        });
+        let _: GrayAlphaImage = buffer
+            .try_into_buffer()
+            .unwrap_or_else(|(error, _)| panic!("Expected buffer to be convertible but {error:?}"));
     }
 }

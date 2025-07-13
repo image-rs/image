@@ -11,7 +11,8 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::ImageDecoder;
+use crate::io::ReadExt;
+use crate::ImageDecoder;
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -111,9 +112,10 @@ impl<R: Read> DxtDecoder<R> {
             )
         );
 
-        let mut src =
-            vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
-        self.inner.read_exact(&mut src)?;
+        let len = self.variant.encoded_bytes_per_block() * self.width_blocks as usize;
+        let mut src = Vec::new();
+        self.inner.read_exact_vec(&mut src, len)?;
+
         match self.variant {
             DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
             DxtVariant::DXT3 => decode_dxt3_row(&src, buf),
@@ -224,7 +226,7 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     } else {
         // linearly interpolate one other entry, keep the other at 0
         for i in 0..3 {
-            colors[2][i] = ((u16::from(colors[0][i]) + u16::from(colors[1][i]) + 1) / 2) as u8;
+            colors[2][i] = (u16::from(colors[0][i]) + u16::from(colors[1][i])).div_ceil(2) as u8;
         }
     }
 
@@ -246,7 +248,7 @@ fn decode_dxt5_block(source: &[u8], dest: &mut [u8]) {
         .rev()
         .fold(0, |t, &b| (t << 8) | u64::from(b));
 
-    // alhpa level decode
+    // alpha level decode
     let alphas = alpha_table_dxt5(source[0], source[1]);
 
     // serialize alpha

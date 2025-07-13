@@ -7,14 +7,13 @@ use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
-use crate::DynamicImage;
+use crate::{save_buffer, save_buffer_with_format, write_buffer_with_format};
+use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -717,7 +716,7 @@ where
 
     /// Returns an iterator over the pixels of this image.
     /// The iteration order is x = 0 to width then y = 0 to height
-    pub fn pixels(&self) -> Pixels<P> {
+    pub fn pixels(&self) -> Pixels<'_, P> {
         Pixels {
             chunks: self
                 .inner_pixels()
@@ -730,7 +729,7 @@ where
     /// Only non-empty rows can be iterated in this manner. In particular the iterator will not
     /// yield any item when the width of the image is `0` or a pixel type without any channels is
     /// used. This ensures that its length can always be represented by `usize`.
-    pub fn rows(&self) -> Rows<P> {
+    pub fn rows(&self) -> Rows<'_, P> {
         Rows::with_image(&self.data, self.width, self.height)
     }
 
@@ -739,7 +738,7 @@ where
     /// along with a reference to them.
     /// The iteration order is x = 0 to width then y = 0 to height
     /// Starting from the top left.
-    pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
+    pub fn enumerate_pixels(&self) -> EnumeratePixels<'_, P> {
         EnumeratePixels {
             pixels: self.pixels(),
             x: 0,
@@ -751,7 +750,7 @@ where
     /// Enumerates over the rows of the image.
     /// The iterator yields the y-coordinate of each row
     /// along with a reference to them.
-    pub fn enumerate_rows(&self) -> EnumerateRows<P> {
+    pub fn enumerate_rows(&self) -> EnumerateRows<'_, P> {
         EnumerateRows {
             rows: self.rows(),
             y: 0,
@@ -895,7 +894,7 @@ where
     }
 
     /// Returns an iterator over the mutable pixels of this image.
-    pub fn pixels_mut(&mut self) -> PixelsMut<P> {
+    pub fn pixels_mut(&mut self) -> PixelsMut<'_, P> {
         PixelsMut {
             chunks: self
                 .inner_pixels_mut()
@@ -908,14 +907,14 @@ where
     /// Only non-empty rows can be iterated in this manner. In particular the iterator will not
     /// yield any item when the width of the image is `0` or a pixel type without any channels is
     /// used. This ensures that its length can always be represented by `usize`.
-    pub fn rows_mut(&mut self) -> RowsMut<P> {
+    pub fn rows_mut(&mut self) -> RowsMut<'_, P> {
         RowsMut::with_image(&mut self.data, self.width, self.height)
     }
 
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<P> {
+    pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<'_, P> {
         let width = self.width;
         EnumeratePixelsMut {
             pixels: self.pixels_mut(),
@@ -928,7 +927,7 @@ where
     /// Enumerates over the rows of the image.
     /// The iterator yields the y-coordinate of each row
     /// along with a mutable reference to them.
-    pub fn enumerate_rows_mut(&mut self) -> EnumerateRowsMut<P> {
+    pub fn enumerate_rows_mut(&mut self) -> EnumerateRowsMut<'_, P> {
         let width = self.width;
         EnumerateRowsMut {
             rows: self.rows_mut(),
@@ -1284,7 +1283,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     ///
     /// # Panics
     ///
-    /// Panics when the resulting image is larger the the maximum size of a vector.
+    /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
@@ -1299,7 +1298,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     ///
     /// # Panics
     ///
-    /// Panics when the resulting image is larger the the maximum size of a vector.
+    /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: FnMut(u32, u32) -> P,
@@ -1778,7 +1777,7 @@ mod benchmarks {
             assert!(a.data[0] != b.data[0]);
             test::black_box(b);
         });
-        b.bytes = 1000 * 1000 * 3
+        b.bytes = 1000 * 1000 * 3;
     }
 
     #[bench]

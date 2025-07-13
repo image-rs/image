@@ -1,11 +1,4 @@
-//! Input and output of images.
-
 use crate::{error, ColorType, ImageError, ImageResult};
-
-pub(crate) mod free_functions;
-mod image_reader_type;
-
-pub use self::image_reader_type::ImageReader;
 
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]

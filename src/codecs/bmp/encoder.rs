@@ -4,8 +4,7 @@ use std::io::{self, Write};
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
 };
-use crate::image::ImageEncoder;
-use crate::{ExtendedColorType, ImageFormat};
+use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -283,6 +282,14 @@ impl<W: Write> ImageEncoder for BmpEncoder<'_, W> {
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
+
+    fn make_compatible_img(
+        &self,
+        _: crate::io::encoder::MethodSealedToImage,
+        img: &DynamicImage,
+    ) -> Option<DynamicImage> {
+        crate::io::encoder::dynimage_conversion_8bit(img)
+    }
 }
 
 fn get_unsupported_error_message(c: ExtendedColorType) -> String {
@@ -323,8 +330,8 @@ mod tests {
     use super::super::BmpDecoder;
     use super::BmpEncoder;
 
-    use crate::image::ImageDecoder;
     use crate::ExtendedColorType;
+    use crate::ImageDecoder as _;
     use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ExtendedColorType) -> Vec<u8> {

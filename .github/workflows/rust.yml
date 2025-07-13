@@ -2,15 +2,16 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, main, next-version-0.25 ]
+    branches: [ main ]
   pull_request:
-    branches: [ master, main, next-version-0.25 ]
+    branches: [ main ]
   schedule:
     - cron: '5 16 * * 6'
 
 jobs:
   test_features:
     runs-on: ubuntu-latest
+    needs: ["rustfmt"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
@@ -38,15 +39,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.70.0", nightly, beta]
+        rust: ["1.78.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.70.0' }}
+      if: ${{ matrix.rust == '1.78.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.70.0' }}
-      run: cargo -Zminimal-versions generate-lockfile
+      if: ${{ matrix.rust == '1.78.0' }}
+      run: |
+        cargo -Zminimal-versions generate-lockfile
+        cargo update num-bigint --precise 0.4.2
 
     - uses: dtolnay/rust-toolchain@v1
       with:
@@ -58,7 +61,7 @@ jobs:
     - name: build
       run: cargo build -v
     - name: test
-      if: ${{ matrix.rust != '1.70.0' }}
+      if: ${{ matrix.rust != '1.78.0' }}
       run: cargo test -v && cargo doc -v
 
   test_other_archs:
@@ -67,10 +70,11 @@ jobs:
     # an emulated mips system. NOTE: you can also use this approach to test for
     # big endian locally.
     runs-on: ubuntu-latest
+    needs: ["rustfmt", "cargo-deny"] # only to avoid running on broken builds
     strategy:
       fail-fast: false
       matrix:
-        arch: [powerpc-unknown-linux-gnu, i686-unknown-linux-gnu]
+        arch: [powerpc64-unknown-linux-gnu, i686-unknown-linux-gnu]
     steps:
       - uses: actions/checkout@v4
       - name: Install or use cached cross-rs/cross
@@ -89,6 +93,7 @@ jobs:
 
   test_avif_decoding:
     runs-on: ubuntu-latest
+    needs: ["rustfmt"] # only to avoid running on broken builds
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -108,13 +113,20 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: clippy
+    - name: Cache Clippy
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        shared-key: cargo-check
     - run: cargo clippy --all-features --all-targets -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+        CLIPPY_CONF_DIR: ${{ github.workspace }} # clippy is not supposed to require this, but seems to (as of 1.89)
 
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -141,6 +153,7 @@ jobs:
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -155,19 +168,26 @@ jobs:
 
   public_private_dependencies:
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
-        echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
+        echo '#![deny(exported_private_dependencies)]' | cat - src/lib.rs > src/lib.rs.0
         mv src/lib.rs.0 src/lib.rs
-        echo 'cargo-features = ["public-dependency"]' | cat - Cargo.toml | sed 's/rayon = { ver/rayon = { public = true, ver/' > Cargo.toml.0
+        echo 'cargo-features = ["public-dependency"]' | cat - Cargo.toml > Cargo.toml.0
         mv Cargo.toml.0 Cargo.toml
+        # mark rayon crate as public
+        sed -i 's/rayon = { ver/rayon = { public = true, ver/' Cargo.toml
+        # mark num-traits crate as public
+        sed -i 's/num-traits = { ver/num-traits = { public = true, ver/' Cargo.toml
+        # cargo +nightly check
         cargo check
 
   build_benchmarks:
     runs-on: ubuntu-latest
+    needs: ["clippy"] # only to avoid running on broken builds
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -188,16 +208,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v1
+      - uses: EmbarkStudios/cargo-deny-action@v2
 
   cargo-semver-checks:
     runs-on: ubuntu-latest
+    needs: ["clippy"]
     steps:
       - uses: actions/checkout@v4
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          shared-key: cargo-check
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           feature-group: default-features

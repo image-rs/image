@@ -6,6 +6,7 @@ use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ColorType {
     /// Pixel is 8-bit luminance
@@ -92,6 +93,7 @@ impl ColorType {
 /// Another purpose is to advise users of a rough estimate of the accuracy and effort of the
 /// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ExtendedColorType {
     /// Pixel is 8-bit alpha
@@ -231,7 +233,7 @@ impl ExtendedColorType {
     /// Returns the number of bytes required to hold a width x height image of this color type.
     pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
-        let row_pitch = (width as u64 * bpp + 7) / 8;
+        let row_pitch = (width as u64 * bpp).div_ceil(8);
         row_pitch.saturating_mul(height as u64)
     }
 }

@@ -1,9 +1,10 @@
+use std::cmp::Ordering;
+use std::io::{Result, Write};
+
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
 use crate::error::{EncodingError, ImageFormatHint, ImageResult};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
-use std::cmp::Ordering;
-use std::io::{Result, Write};
 
 /// Radiance HDR encoder
 pub struct HdrEncoder<W: Write> {
@@ -351,10 +352,7 @@ fn to_rgbe8_test() {
                 // Maximal value is normalized to the range 128..256, thus we have 1/128 precision
                 assert!(
                     rel_dist <= 1.0 / 128.0,
-                    "Relative distance ({}) exceeds 1/128 for {:?} and {:?}",
-                    rel_dist,
-                    c1,
-                    c2
+                    "Relative distance ({rel_dist}) exceeds 1/128 for {c1:?} and {c2:?}"
                 );
             }
         }
@@ -470,7 +468,7 @@ fn noruncombine_test() {
     assert_eq!(rsi.next(), None);
 
     let v: Vec<_> = std::iter::repeat(())
-        .flat_map(|_| (0..2))
+        .flat_map(|()| 0..2)
         .take(257)
         .collect();
     let mut rsi = NorunCombineIterator::new(&v[..]);

@@ -473,7 +473,7 @@ enum Mipmaps {
 /// ## Usage
 ///
 /// ```no_run
-/// use image::dds::{DdsEncoder, DdsFormat, HeaderFormat, CompressionQuality};
+/// use image::codecs::dds::*;
 ///
 /// let mut buffer = Vec::new();
 /// let encoder = DdsEncoder::new(&mut buffer)

@@ -42,6 +42,7 @@ num-traits = { version = "0.2.0" }
 # Optional dependencies
 color_quant = { version = "1.1", optional = true }
 dav1d = { version = "0.10.3", optional = true }
+dds = { version = "0.1", optional = true }
 exr = { version = "1.5.0", optional = true }
 gif = { version = "0.13.1", optional = true }
 image-webp = { version = "0.2.0", optional = true }
@@ -70,7 +71,7 @@ default = ["rayon", "default-formats"]
 default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
 avif = ["dep:ravif", "dep:rgb"]
 bmp = []
-dds = []
+dds = ["dep:dds"]
 exr = ["dep:exr"]
 ff = [] # Farbfeld image format
 gif = ["dep:gif", "dep:color_quant"]
@@ -85,7 +86,7 @@ tiff = ["dep:tiff"]
 webp = ["dep:image-webp"]
 
 # Other features
-rayon = ["dep:rayon", "ravif?/threading"] # Enables multi-threading
+rayon = ["dep:rayon", "ravif?/threading", "dds?/rayon"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d

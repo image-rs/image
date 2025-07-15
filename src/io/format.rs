@@ -234,7 +234,7 @@ impl ImageFormat {
             ImageFormat::WebP => true,
             ImageFormat::Tiff => true,
             ImageFormat::Tga => true,
-            ImageFormat::Dds => false,
+            ImageFormat::Dds => true,
             ImageFormat::Bmp => true,
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
@@ -266,7 +266,7 @@ impl ImageFormat {
             ImageFormat::WebP => true,
             ImageFormat::Hdr => true,
             ImageFormat::OpenExr => true,
-            ImageFormat::Dds => false,
+            ImageFormat::Dds => true,
             ImageFormat::Qoi => true,
             ImageFormat::Pcx => false,
         }
@@ -324,7 +324,7 @@ impl ImageFormat {
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Pcx => cfg!(feature = "pcx"),
-            ImageFormat::Dds => false,
+            ImageFormat::Dds => cfg!(feature = "dds"),
         }
     }
 
@@ -348,7 +348,7 @@ impl ImageFormat {
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
             ImageFormat::Pcx => false,
-            ImageFormat::Dds => false,
+            ImageFormat::Dds => cfg!(feature = "dds"),
         }
     }
 
@@ -448,7 +448,7 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.reading_enabled()
         );
-        assert!(!ImageFormat::Dds.reading_enabled());
+        assert_eq!(cfg!(feature = "dds"), ImageFormat::Dds.reading_enabled());
     }
 
     #[test]
@@ -458,6 +458,6 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.writing_enabled()
         );
-        assert!(!ImageFormat::Dds.writing_enabled());
+        assert_eq!(cfg!(feature = "dds"), ImageFormat::Dds.writing_enabled());
     }
 }

@@ -17,7 +17,13 @@ use crate::error::{
 };
 use crate::{ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat};
 
-/// DDS decoder
+/// DDS decoder.
+///
+/// This decoder supports decoding DDS files with a single texture, including
+/// cube maps. Texture arrays and volumes are not supported.
+///
+/// It's possible to set the color type the image is decoded as using
+/// [`DdsDecoder::set_color_type`].
 pub struct DdsDecoder<R: Read> {
     inner: dds::Decoder<R>,
     is_cubemap: bool,
@@ -211,7 +217,7 @@ impl<R: Read + Seek> ImageDecoderRect for DdsDecoder<R> {
     }
 }
 
-/// The preferred header format for DDS files.
+/// The format of a DDS header.
 ///
 /// DDS supports 2 header formats:
 ///
@@ -231,8 +237,10 @@ impl<R: Read + Seek> ImageDecoderRect for DdsDecoder<R> {
 /// 3. It is better-specified in general, meaning that the problem of two DDS
 ///    decoders interpreting the same file differently is virtually non-existent.
 ///
-/// However, if compatibility with older software is a concern, DX9 may be
-/// the only choice.
+/// However, if compatibility with older software and hardware is a concern, DX9
+/// may be the only choice.
+///
+/// Note that modern software and hardware will generally support both formats.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum HeaderFormat {
     /// The legacy header format used in DirectX 9 and earlier.
@@ -240,6 +248,14 @@ pub enum HeaderFormat {
     /// The modern header format used in DirectX 10 and later.
     #[default]
     Dx10,
+}
+impl HeaderFormat {
+    fn from_header(header: &dds::header::Header) -> Self {
+        match header {
+            dds::header::Header::Dx9(_) => HeaderFormat::Dx9,
+            dds::header::Header::Dx10(_) => HeaderFormat::Dx10,
+        }
+    }
 }
 
 /// The speed-quality tradeoff for compression.
@@ -273,7 +289,7 @@ pub enum DdsFormat {
     R8G8B8A8Unorm,
     /// 8-bit uncompressed RGBA.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     R8G8B8A8UnormSrgb,
 
     /// 16-bit uncompressed Grayscale.
@@ -296,14 +312,14 @@ pub enum DdsFormat {
     R32G32Float,
     /// 32-bit floating-point uncompressed RGB.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     R32G32B32Float,
     /// 32-bit floating-point uncompressed RGBA.
     R32G32B32A32Float,
 
     /// 8-bit uncompressed BGR.
     ///
-    /// This format requires DX9.
+    /// This format requires a DX9 header.
     B8G8R8Unorm,
     /// 4-bit uncompressed BGRA.
     B4G4R4A4Unorm,
@@ -316,11 +332,11 @@ pub enum DdsFormat {
 
     /// An HDR format that can store floating-point numbers between 0.0 and 65408.0.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     R9G9B9E5Float,
     /// An HDR format that stores components as unsigned 11/10-bit floating-point numbers.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     R11G11B10Float,
 
     /// 8-bit YUV, 4:2:2 sub-sampled.
@@ -330,19 +346,19 @@ pub enum DdsFormat {
     BC1Unorm,
     /// sRGB BC1.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     BC1UnormSrgb,
     /// Linear BC2. This is also called `DXT3` in DX9.
     BC2Unorm,
     /// sRGB BC2.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     BC2UnormSrgb,
     /// Linear BC3. This is also called `DXT5` in DX9.
     BC3Unorm,
     /// sRGB BC3.
     ///
-    /// This format requires DX10.
+    /// This format requires a DX10 header.
     BC3UnormSrgb,
     /// Unsigned BC4. This is also called `ATI1` or `BC4U` in DX9.
     BC4Unorm,
@@ -354,12 +370,27 @@ pub enum DdsFormat {
     BC5Snorm,
 }
 impl DdsFormat {
-    fn to_format(self, color: ExtendedColorType) -> (dds::Format, bool) {
+    /// Returns whether the format is an sRGB format.
+    ///
+    /// Note that sRGB formats are only supported by DX10 headers.
+    pub fn is_srgb(self) -> bool {
+        matches!(
+            self,
+            DdsFormat::R8G8B8A8UnormSrgb
+                | DdsFormat::BC1UnormSrgb
+                | DdsFormat::BC2UnormSrgb
+                | DdsFormat::BC3UnormSrgb
+        )
+    }
+
+    /// Returns the corresponding DDS format. Note that the format will
+    /// ALWAYS be linear, even for sRGB formats.
+    fn to_format(self, color: ExtendedColorType) -> dds::Format {
         use dds::Format;
 
         match self {
             DdsFormat::AutoUncompressed => {
-                let format = match color {
+                match color {
                     // formats that can be represented exactly
                     ExtendedColorType::A8 => Format::A8_UNORM,
                     ExtendedColorType::L1 => Format::R1_UNORM,
@@ -386,68 +417,120 @@ impl DdsFormat {
                     | ExtendedColorType::Rgb4
                     | ExtendedColorType::Rgba4 => Format::B4G4R4A4_UNORM,
 
-                    ExtendedColorType::Cmyk8 | ExtendedColorType::Unknown(_) => unreachable!(),
-                };
-
-                (format, false)
+                    _ => unreachable!(),
+                }
             }
 
-            DdsFormat::A8Unorm => (Format::A8_UNORM, false),
-            DdsFormat::R8Unorm => (Format::R8_UNORM, false),
-            DdsFormat::R8G8Unorm => (Format::R8G8_UNORM, false),
-            DdsFormat::R8G8B8A8Unorm => (Format::R8G8B8A8_UNORM, false),
-            DdsFormat::R8G8B8A8UnormSrgb => (Format::R8G8B8A8_UNORM, true),
-            DdsFormat::R16Unorm => (Format::R16_UNORM, false),
-            DdsFormat::R16G16Unorm => (Format::R16G16_UNORM, false),
-            DdsFormat::R16G16B16A16Unorm => (Format::R16G16B16A16_UNORM, false),
-            DdsFormat::R16Float => (Format::R16_FLOAT, false),
-            DdsFormat::R16G16Float => (Format::R16G16_FLOAT, false),
-            DdsFormat::R16G16B16A16Float => (Format::R16G16B16A16_FLOAT, false),
-            DdsFormat::R32Float => (Format::R32_FLOAT, false),
-            DdsFormat::R32G32Float => (Format::R32G32_FLOAT, false),
-            DdsFormat::R32G32B32Float => (Format::R32G32B32_FLOAT, false),
-            DdsFormat::R32G32B32A32Float => (Format::R32G32B32A32_FLOAT, false),
-            DdsFormat::B8G8R8Unorm => (Format::B8G8R8_UNORM, false),
-            DdsFormat::B4G4R4A4Unorm => (Format::B4G4R4A4_UNORM, false),
-            DdsFormat::B5G5R5A1Unorm => (Format::B5G5R5A1_UNORM, false),
-            DdsFormat::B5G6R5Unorm => (Format::B5G6R5_UNORM, false),
-            DdsFormat::R10G10B10A2Unorm => (Format::R10G10B10A2_UNORM, false),
-            DdsFormat::R9G9B9E5Float => (Format::R9G9B9E5_SHAREDEXP, false),
-            DdsFormat::R11G11B10Float => (Format::R11G11B10_FLOAT, false),
-            DdsFormat::YUY2 => (Format::YUY2, false),
+            DdsFormat::A8Unorm => Format::A8_UNORM,
+            DdsFormat::R8Unorm => Format::R8_UNORM,
+            DdsFormat::R8G8Unorm => Format::R8G8_UNORM,
+            DdsFormat::R8G8B8A8Unorm => Format::R8G8B8A8_UNORM,
+            DdsFormat::R8G8B8A8UnormSrgb => Format::R8G8B8A8_UNORM,
+            DdsFormat::R16Unorm => Format::R16_UNORM,
+            DdsFormat::R16G16Unorm => Format::R16G16_UNORM,
+            DdsFormat::R16G16B16A16Unorm => Format::R16G16B16A16_UNORM,
+            DdsFormat::R16Float => Format::R16_FLOAT,
+            DdsFormat::R16G16Float => Format::R16G16_FLOAT,
+            DdsFormat::R16G16B16A16Float => Format::R16G16B16A16_FLOAT,
+            DdsFormat::R32Float => Format::R32_FLOAT,
+            DdsFormat::R32G32Float => Format::R32G32_FLOAT,
+            DdsFormat::R32G32B32Float => Format::R32G32B32_FLOAT,
+            DdsFormat::R32G32B32A32Float => Format::R32G32B32A32_FLOAT,
+            DdsFormat::B8G8R8Unorm => Format::B8G8R8_UNORM,
+            DdsFormat::B4G4R4A4Unorm => Format::B4G4R4A4_UNORM,
+            DdsFormat::B5G5R5A1Unorm => Format::B5G5R5A1_UNORM,
+            DdsFormat::B5G6R5Unorm => Format::B5G6R5_UNORM,
+            DdsFormat::R10G10B10A2Unorm => Format::R10G10B10A2_UNORM,
+            DdsFormat::R9G9B9E5Float => Format::R9G9B9E5_SHAREDEXP,
+            DdsFormat::R11G11B10Float => Format::R11G11B10_FLOAT,
+            DdsFormat::YUY2 => Format::YUY2,
 
-            DdsFormat::BC1Unorm => (Format::BC1_UNORM, false),
-            DdsFormat::BC1UnormSrgb => (Format::BC1_UNORM, true),
-            DdsFormat::BC2Unorm => (Format::BC2_UNORM, false),
-            DdsFormat::BC2UnormSrgb => (Format::BC2_UNORM, true),
-            DdsFormat::BC3Unorm => (Format::BC3_UNORM, false),
-            DdsFormat::BC3UnormSrgb => (Format::BC3_UNORM, true),
-            DdsFormat::BC4Unorm => (Format::BC4_UNORM, false),
-            DdsFormat::BC4Snorm => (Format::BC4_SNORM, false),
-            DdsFormat::BC5Unorm => (Format::BC5_UNORM, false),
-            DdsFormat::BC5Snorm => (Format::BC5_SNORM, false),
+            DdsFormat::BC1Unorm => Format::BC1_UNORM,
+            DdsFormat::BC1UnormSrgb => Format::BC1_UNORM,
+            DdsFormat::BC2Unorm => Format::BC2_UNORM,
+            DdsFormat::BC2UnormSrgb => Format::BC2_UNORM,
+            DdsFormat::BC3Unorm => Format::BC3_UNORM,
+            DdsFormat::BC3UnormSrgb => Format::BC3_UNORM,
+            DdsFormat::BC4Unorm => Format::BC4_UNORM,
+            DdsFormat::BC4Snorm => Format::BC4_SNORM,
+            DdsFormat::BC5Unorm => Format::BC5_UNORM,
+            DdsFormat::BC5Snorm => Format::BC5_SNORM,
         }
     }
 }
 
 /// Whether and how many mipmaps to generate.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum Mipmaps {
-    /// No mipmaps will be generated. Only the main surface will be stored in the file.
-    #[default]
+enum Mipmaps {
     None,
-    /// The full mipmap chain will be generated.
     Full,
-    /// The first `n` mipmaps of the mipmap chain will be generated.
-    ///
-    /// If the number is 0 or 1, this is equivalent to [`None`].
-    ///
-    /// If the number is greater than the number of mipmaps in the full mipmap
-    /// chain, the chain will include have a tail of multiple 1x1 mipmaps.
     Fixed(u8),
 }
 
-/// DDS encoder
+/// DDS encoder.
+///
+/// Creates DDS files containing a single texture with optional mipmaps.
+///
+/// ## Usage
+///
+/// ```no_run
+/// use image::dds::{DdsEncoder, DdsFormat, HeaderFormat, CompressionQuality};
+///
+/// let mut buffer = Vec::new();
+/// let encoder = DdsEncoder::new(&mut buffer)
+///     .with_format(DdsFormat::BC1Unorm)
+///     .with_preferred_header(HeaderFormat::Dx9)
+///     .with_compression_quality(CompressionQuality::High)
+///     .with_mipmaps();
+/// ```
+///
+/// An encoder is created from a writer and configured using the builder
+/// methods. To encode an image, use the [`ImageEncoder::write_image`] method.
+///
+/// ## Options
+///
+/// ### Format
+///
+/// The DDS format to encode the image with can be set using the
+/// [`DdsEncoder::with_format`] method. See [`DdsFormat`] for the list of all
+/// supported formats. By default, [`DdsFormat::AutoUncompressed`] is used,
+/// which will automatically pick an uncompressed format based on the color type
+/// of the image.
+///
+/// The header format of the DDS file can be set using the
+/// [`DdsEncoder::with_preferred_header`] method. See [`HeaderFormat`] for more
+/// information about DDS headers. The default header format is DX10.
+///
+/// Note that the specified DDS format takes precedence over the preferred
+/// header format. If a DDS format does not support the preferred header format,
+/// the encoder will use the header format required by the DDS format. Use
+/// [`DdsEncoder::header_format`] to get the actual header format that will be used
+/// for encoding.
+///
+/// ### Mipmaps
+///
+/// The generate mipmaps, you [`DdsEncoder::with_mipmaps`] to generate a full
+/// mipmap chain, or [`DdsEncoder::with_mipmap_count`] to generate a specific
+/// number of mipmaps. By default, no mipmaps are generated.
+///
+/// If mipmaps are generated and the image contains an alpha channel, the alpha
+/// channel will be treated as straight alpha/transparency by default.
+/// If the alpha channel is something else (e.g. premultiplied alpha or a
+/// different channel packed into alpha), use [`DdsEncoder::with_separate_alpha`]
+/// to specify that the alpha channel should be treated as a separate channel
+/// when resizing the image to generate mipmaps.
+///
+/// ### Quality
+///
+/// [`DdsEncoder::with_compression_quality`] can be used to set the compression
+/// quality for BCn formats. This option trades off compression speed and
+/// quality.
+///
+/// [`DdsEncoder::with_perceptual_error_metric`] can further improve quality for
+/// albedo, diffuse, and photographic textures by using a perceptual error
+/// metric when compressing BCn formats.
+///
+/// [`DdsEncoder::with_dithering`] enables dithering to reduce quantization and
+/// banding artifacts when encoding images with a higher bit depth.
 pub struct DdsEncoder<W: Write> {
     writer: W,
     format: DdsFormat,
@@ -496,6 +579,8 @@ impl<W: Write> DdsEncoder<W> {
     /// Set the compression quality for the encoder.
     ///
     /// By default, the compression quality is set to [`CompressionQuality::Default`].
+    ///
+    /// Currently, this option only affects BC1-BC5 formats.
     pub fn with_compression_quality(mut self, quality: CompressionQuality) -> Self {
         self.quality = match quality {
             CompressionQuality::Fastest => dds::CompressionQuality::Fast,
@@ -523,6 +608,8 @@ impl<W: Write> DdsEncoder<W> {
     /// irrespective of whether the DDS format is linear or sRGB. Do not use the
     /// perceptual error metric if the image data is in linear RGB or any other
     /// color space.
+    ///
+    /// Currently, this option only affects BC1-BC3 formats.
     pub fn with_perceptual_error_metric(mut self) -> Self {
         self.error_metric = dds::ErrorMetric::Perceptual;
         self
@@ -538,17 +625,29 @@ impl<W: Write> DdsEncoder<W> {
         self
     }
 
-    /// Create a DDS file with the given number of mipmaps.
+    /// Create a DDS file with a full mip chain.
     ///
     /// Mipmaps will be automatically generated from the main image.
     ///
-    /// By default, no mipmaps are generated.
+    /// To set a specific number of mipmaps, use [`DdsEncoder::with_mipmap_count`].
     ///
     /// Note: If the image contains an alpha channel that is **not** straight
     /// alpha, you should use also use [`DdsEncoder::with_separate_alpha`] to
     /// ensure that the other channels are not affected by the alpha channel.
-    pub fn with_mipmaps(mut self, mipmaps: Mipmaps) -> Self {
-        self.mipmaps = mipmaps;
+    pub fn with_mipmaps(mut self) -> Self {
+        self.mipmaps = Mipmaps::Full;
+        self
+    }
+
+    /// Create a DDS file with the given number of mipmaps.
+    ///
+    /// Unless necessary, it is recommended to use [`DdsEncoder::with_mipmaps`]
+    /// instead, to automatically generate the full mipmap chain.
+    ///
+    /// Note: Setting 0 or 1 mipmaps is equivalent to not generating any mipmaps
+    /// at all.
+    pub fn with_mipmap_count(mut self, mipmap_count: u8) -> Self {
+        self.mipmaps = Mipmaps::Fixed(mipmap_count);
         self
     }
 
@@ -566,29 +665,27 @@ impl<W: Write> DdsEncoder<W> {
         self.straight_alpha = false;
         self
     }
-}
 
-impl<W: Write> ImageEncoder for DdsEncoder<W> {
-    fn write_image(
-        self,
-        buf: &[u8],
+    /// Returns the header format that will be used for encoding.
+    ///
+    /// This is useful, because the preferred header format may not be possible
+    /// for the given DDS format.
+    pub fn header_format(&self, color_type: ExtendedColorType) -> HeaderFormat {
+        let (header, _) = self.get_dds_header_and_format(16, 16, color_type);
+        HeaderFormat::from_header(&header)
+    }
+
+    fn get_dds_header_and_format(
+        &self,
         width: u32,
         height: u32,
         color_type: ExtendedColorType,
-    ) -> ImageResult<()> {
-        let color = to_dds_color(color_type).ok_or_else(|| {
-            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormat::Dds.into(),
-                UnsupportedErrorKind::Color(color_type),
-            ))
-        })?;
-        let image = dds::ImageView::new(buf, dds::Size::new(width, height), color)
-            .expect("Invalid buffer length");
-
-        let (format, is_srgb) = self.format.to_format(color_type);
-
-        // create the header
+    ) -> (dds::header::Header, dds::Format) {
         use dds::header::Header;
+
+        let is_srgb = self.format.is_srgb();
+        let format = self.format.to_format(color_type);
+
         let mut header: Header = if is_srgb {
             // force DX10 header
             let dxgi = dds::header::DxgiFormat::try_from(format).unwrap();
@@ -610,6 +707,30 @@ impl<W: Write> ImageEncoder for DdsEncoder<W> {
                 }
             }
         }
+
+        (header, format)
+    }
+}
+
+impl<W: Write> ImageEncoder for DdsEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        let color = to_dds_color(color_type).ok_or_else(|| {
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Dds.into(),
+                UnsupportedErrorKind::Color(color_type),
+            ))
+        })?;
+        let image = dds::ImageView::new(buf, dds::Size::new(width, height), color)
+            .expect("Invalid buffer length");
+
+        // create the header
+        let (header, format) = self.get_dds_header_and_format(width, height, color_type);
 
         // encode the image
         let mut encoder =

@@ -1,10 +1,13 @@
+pub(crate) mod cicp;
+
 use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::{
+    color::cicp::CicpTransform,
     error::TryFromExtendedColorError,
-    traits::{Enlargeable, Pixel, Primitive},
+    traits::{Enlargeable, Pixel, PixelWithColorType, Primitive},
 };
 
 /// An enumeration over supported color types and bit depths
@@ -426,6 +429,54 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         for (a, &b) in self.0.iter_mut().zip(other.0.iter()) {
             *a = f(*a, b)
         }
+    }
+
+    fn to_rgb_with(&self, tr: &CicpTransform) -> Rgb<Self::Subpixel>
+    where
+        Self: PixelWithColorType,
+    {
+        use crate::traits::private::{dispatch_transform_from_sealed, LayoutWithColor};
+        let fn_ = dispatch_transform_from_sealed::<Self>(tr, LayoutWithColor::Rgb);
+
+        let mut into: Rgb<Self::Subpixel> = Rgb([Self::Subpixel::zero(); 3]);
+        fn_(self.channels(), &mut into.0);
+        into
+    }
+
+    fn to_rgba_with(&self, tr: &CicpTransform) -> Rgba<Self::Subpixel>
+    where
+        Self: PixelWithColorType,
+    {
+        use crate::traits::private::{dispatch_transform_from_sealed, LayoutWithColor};
+        let fn_ = dispatch_transform_from_sealed::<Self>(tr, LayoutWithColor::Rgba);
+
+        let mut into: Rgba<Self::Subpixel> = Rgba([Self::Subpixel::zero(); 4]);
+        fn_(self.channels(), &mut into.0);
+        into
+    }
+
+    fn to_luma_with(&self, tr: &CicpTransform) -> Luma<Self::Subpixel>
+    where
+        Self: PixelWithColorType,
+    {
+        use crate::traits::private::{dispatch_transform_from_sealed, LayoutWithColor};
+        let fn_ = dispatch_transform_from_sealed::<Self>(tr, LayoutWithColor::Gray);
+
+        let mut into: Luma<Self::Subpixel> = Luma([Self::Subpixel::zero(); 1]);
+        fn_(self.channels(), &mut into.0);
+        into
+    }
+
+    fn to_luma_alpha_with(&self, tr: &CicpTransform) -> LumaA<Self::Subpixel>
+    where
+        Self: PixelWithColorType,
+    {
+        use crate::traits::private::{dispatch_transform_from_sealed, LayoutWithColor};
+        let fn_ = dispatch_transform_from_sealed::<Self>(tr, LayoutWithColor::GrayAlpha);
+
+        let mut into: LumaA<Self::Subpixel> = LumaA([Self::Subpixel::zero(); 2]);
+        fn_(self.channels(), &mut into.0);
+        into
     }
 
     fn invert(&mut self) {

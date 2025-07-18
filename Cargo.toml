@@ -37,6 +37,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder-lite = "0.1.0"
+moxcms = { version = "0.7" }
 num-traits = { version = "0.2.0" }
 
 # Optional dependencies

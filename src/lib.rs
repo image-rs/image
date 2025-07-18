@@ -138,6 +138,15 @@ pub use crate::color::{ColorType, ExtendedColorType};
 
 pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
+pub use crate::color::cicp::{
+    Cicp,
+    CicpColorPrimaries,
+    CicpMatrixCoefficients,
+    CicpTransform,
+    CicpTransferFunction,
+    CicpVideoFullRangeFlag,
+};
+
 pub use crate::error::{ImageError, ImageResult};
 
 pub use crate::images::generic_image::{GenericImage, GenericImageView, Pixels};

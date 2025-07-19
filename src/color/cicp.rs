@@ -8,16 +8,22 @@ use crate::{
 };
 
 /// Reference: <https://www.itu.int/rec/T-REC-H.273-202407-I/en> (V4)
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Cicp {
-    primaries: CicpColorPrimaries,
-    transfer: CicpTransferFunction,
-    matrix: CicpMatrixCoefficients,
-    full_range: CicpVideoFullRangeFlag,
+    pub primaries: CicpColorPrimaries,
+    pub transfer: CicpTransferFunction,
+    pub matrix: CicpMatrixCoefficients,
+    pub full_range: CicpVideoFullRangeFlag,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) struct CicpRgb {
+    pub(crate) primaries: CicpColorPrimaries,
+    pub(crate) transfer: CicpTransferFunction,
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpColorPrimaries {
     /// ITU-R BT.709-6
     SRgb = 1,
@@ -77,7 +83,7 @@ impl CicpColorPrimaries {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpTransferFunction {
     Bt709 = 1,
     Bt470M = 4,
@@ -123,7 +129,7 @@ impl CicpTransferFunction {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpMatrixCoefficients {
     Identity = 0,
     Bt709 = 1,
@@ -173,7 +179,7 @@ impl CicpMatrixCoefficients {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpVideoFullRangeFlag {
     NarrowRange = 0,
     FullRange = 1,
@@ -185,6 +191,8 @@ pub enum CicpVideoFullRangeFlag {
 /// `Pixel` types can be converted with their respective components. This value is used to signify
 /// that some particular combination is supported.
 pub struct CicpTransform {
+    from: Cicp,
+    into: Cicp,
     u8: RgbTransforms<u8>,
     u16: RgbTransforms<u16>,
     f32: RgbTransforms<f32>,
@@ -222,16 +230,18 @@ impl CicpTransform {
             return None;
         }
 
-        let from = from.to_moxcms_profile()?;
-        let into = into.to_moxcms_profile()?;
+        let mox_from = from.to_moxcms_profile()?;
+        let mox_into = into.to_moxcms_profile()?;
 
         let opt = moxcms::TransformOptions::default();
 
         // TODO: really these should be lazy, eh?
         Some(CicpTransform {
+            from,
+            into,
             u8: Self::build_transforms(Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                let (from, from_layout) = from.mox_profile(from_layout);
-                let (into, into_layout) = into.mox_profile(into_layout);
+                let (from, from_layout) = mox_from.mox_profile(from_layout);
+                let (into, into_layout) = mox_into.mox_profile(into_layout);
 
                 from.create_transform_8bit(from_layout, &into, into_layout, opt)
                     .map_err(|e| {
@@ -240,20 +250,25 @@ impl CicpTransform {
                     .ok()
             }))?,
             u16: Self::build_transforms(Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                let (from, from_layout) = from.mox_profile(from_layout);
-                let (into, into_layout) = into.mox_profile(into_layout);
+                let (from, from_layout) = mox_from.mox_profile(from_layout);
+                let (into, into_layout) = mox_into.mox_profile(into_layout);
 
                 from.create_transform_16bit(from_layout, &into, into_layout, opt)
                     .ok()
             }))?,
             f32: Self::build_transforms(Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                let (from, from_layout) = from.mox_profile(from_layout);
-                let (into, into_layout) = into.mox_profile(into_layout);
+                let (from, from_layout) = mox_from.mox_profile(from_layout);
+                let (into, into_layout) = mox_into.mox_profile(into_layout);
 
                 from.create_transform_f32(from_layout, &into, into_layout, opt)
                     .ok()
             }))?,
         })
+    }
+
+    /// Does this transform realize the conversion `from` to `into`.
+    pub(crate) fn is_applicable(&self, from: Cicp, into: Cicp) -> bool {
+        self.from == from && self.into == into
     }
 
     fn build_transforms<P: Copy + Default + Primitive + 'static>(
@@ -380,7 +395,7 @@ impl Cicp {
         Some(RgbGrayProfile { rgb, gray })
     }
 
-    const fn qualify_stability(&self) -> bool {
+    pub(crate) const fn qualify_stability(&self) -> bool {
         const _: () = {
             // Out public constants _should_ be stable.
             assert!(Cicp::SRGB.qualify_stability());
@@ -403,6 +418,25 @@ impl Cicp {
                     | CicpTransferFunction::Bt601
                     | CicpTransferFunction::Linear
             )
+    }
+
+    /// Discard matrix and range information.
+    pub(crate) const fn into_rgb(self) -> CicpRgb {
+        CicpRgb {
+            primaries: self.primaries,
+            transfer: self.transfer,
+        }
+    }
+}
+
+impl From<CicpRgb> for Cicp {
+    fn from(cicp: CicpRgb) -> Self {
+        Cicp {
+            primaries: cicp.primaries,
+            transfer: cicp.transfer,
+            matrix: CicpMatrixCoefficients::Identity,
+            full_range: CicpVideoFullRangeFlag::FullRange,
+        }
     }
 }
 

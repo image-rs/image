@@ -6,13 +6,19 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
+use crate::color::cicp::CicpRgb;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::error::ImageResult;
+use crate::error::{
+    ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
-use crate::{save_buffer, save_buffer_with_format, write_buffer_with_format};
+use crate::{
+    save_buffer, save_buffer_with_format, write_buffer_with_format, Cicp, CicpColorPrimaries,
+    CicpTransferFunction, CicpTransform, ImageError,
+};
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
 /// Iterate over pixel refs.
@@ -656,6 +662,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     _phantom: PhantomData<P>,
+    color: CicpRgb,
     data: Container,
 }
 
@@ -676,6 +683,7 @@ where
                 data: buf,
                 width,
                 height,
+                color: Cicp::SRGB.into_rgb(),
                 _phantom: PhantomData,
             })
         } else {
@@ -983,6 +991,32 @@ where
     }
 }
 
+impl<P: Pixel, Container> ImageBuffer<P, Container> {
+    /// Define the color space for the image.
+    ///
+    /// Reinterprets the existing red, blue, green channels as points in the new set of primary
+    /// colors, potentially changing the apparent shade of pixels.
+    ///
+    /// When this buffer contains Luma data the call has no effect.
+    pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
+        self.color.primaries = color;
+    }
+
+    /// Define the transfer function for the image.
+    ///
+    /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
+    /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
+    /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
+    pub fn set_transfer_function(&mut self, tf: CicpTransferFunction) {
+        self.color.transfer = tf;
+    }
+
+    /// Get the Cicp encoding of this buffer's color data.
+    pub fn color_space(&self) -> Cicp {
+        self.color.into()
+    }
+}
+
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1094,6 +1128,7 @@ where
             width: 0,
             height: 0,
             _phantom: PhantomData,
+            color: Cicp::SRGB.into_rgb(),
             data: Default::default(),
         }
     }
@@ -1153,6 +1188,7 @@ where
             data: self.data.clone(),
             width: self.width,
             height: self.height,
+            color: self.color,
             _phantom: PhantomData,
         }
     }
@@ -1275,6 +1311,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
             data: vec![Zero::zero(); size],
             width,
             height,
+            color: Cicp::SRGB.into_rgb(),
             _phantom: PhantomData,
         }
     }

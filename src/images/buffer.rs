@@ -1443,6 +1443,81 @@ where
     }
 }
 
+#[non_exhaustive]
+#[derive(Default)]
+pub struct ConvertColorOptions {
+    /// A pre-calculated transform. This is only used when the actual colors of the input and
+    /// output image match the color spaces with which the was constructed.
+    pub transform: Option<CicpTransform>,
+}
+
+impl<C, FromType: Pixel> ImageBuffer<FromType, C>
+where
+    FromType: PixelWithColorType,
+    C: Deref<Target = [FromType::Subpixel]>,
+{
+    /// Copy pixel data from one buffer to another, calculating equivalent color representations
+    /// for the target's color space.
+    ///
+    /// This requires both images to have the same dimensions, otherwise returns a
+    /// [`ImageError::Parameter`]. Additionally, the primaries and transfer functions of both
+    /// image's color spaces must be supported, otherwise returns a [`ImageError::Unsupported`].
+    pub fn copy_color<IntoType: Pixel<Subpixel = FromType::Subpixel>, D>(
+        &self,
+        target: &mut ImageBuffer<IntoType, D>,
+        options: ConvertColorOptions,
+    ) -> ImageResult<()>
+    where
+        IntoType: PixelWithColorType,
+        D: Deref<Target = [FromType::Subpixel]> + DerefMut,
+    {
+        use crate::traits::private::double_dispatch_transform_from_sealed;
+
+        if self.dimensions() != target.dimensions() {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let from = self.color_space();
+        let into = target.color_space();
+
+        let transform = options
+            .transform
+            .filter(|tr| tr.is_applicable(from, into))
+            .or_else(|| CicpTransform::new(from, into));
+
+        let Some(transform) = transform else {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    // One of them is responsible.
+                    UnsupportedErrorKind::ColorspaceCicp(if from.qualify_stability() {
+                        into
+                    } else {
+                        from
+                    }),
+                ),
+            ));
+        };
+
+        let transform = double_dispatch_transform_from_sealed::<FromType, IntoType>(&transform);
+
+        let from = self.inner_pixels();
+        let into = target.inner_pixels_mut();
+
+        debug_assert_eq!(
+            from.len() / usize::from(FromType::CHANNEL_COUNT),
+            into.len() / usize::from(IntoType::CHANNEL_COUNT),
+            "Diverging pixel count despite same size",
+        );
+
+        transform(from, into);
+
+        Ok(())
+    }
+}
+
 /// Sendable Rgb image buffer
 pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer

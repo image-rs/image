@@ -332,6 +332,16 @@ pub(crate) mod private {
         <P::TransformableSubpixel as HelpDispatchTransform>::transform_on::<P>(transform, into)
     }
 
+    pub(crate) fn double_dispatch_transform_from_sealed<
+        P: SealedPixelWithColorType,
+        Into: SealedPixelWithColorType,
+    >(
+        transform: &cicp::CicpTransform,
+    ) -> &'_ (dyn Fn(&[P::TransformableSubpixel], &mut [P::TransformableSubpixel]) + Send + Sync)
+    {
+        dispatch_transform_from_sealed::<P>(transform, Into::layout(PrivateToken))
+    }
+
     pub(crate) trait HelpDispatchTransform: Sized + 'static {
         fn transform_on<O: SealedPixelWithColorType<TransformableSubpixel = Self>>(
             transform: &cicp::CicpTransform,

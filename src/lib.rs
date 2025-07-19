@@ -150,6 +150,7 @@ pub use crate::images::generic_image::{GenericImage, GenericImageView, Pixels};
 pub use crate::images::sub_image::SubImage;
 
 pub use crate::images::buffer::{
+    ConvertColorOptions,
     GrayAlphaImage,
     GrayImage,
     // Image types

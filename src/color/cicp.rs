@@ -474,6 +474,39 @@ mod tests {
     fn transform_rgb() {
         let tr = CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).unwrap();
         let p3 = Rgba::<u8>([255, 0, 0, 255]).to_rgba_with(&tr);
+        // Validated by python colour-science:
+        // colour.RGB_to_RGB(
+        //   [1.0, 0.0, 0.0],
+        //   colour.RGB_COLOURSPACES['sRGB'],
+        //   colour.RGB_COLOURSPACES['Display P3'],
+        //   apply_cctf_encoding=True,
+        //   apply_cctf_decoding=True) * 255
         assert_eq!(p3.0, [234, 51, 35, 255]);
+    }
+
+    #[test]
+    fn transform_luma() {
+        let tr = CicpTransform::new(Cicp::SRGB, Cicp::SRGB).unwrap();
+        // _, Y, _ = colour.RGB_to_XYZ(
+        //   [1.0, 0.0, 0.0],
+        //   colour.RGB_COLOURSPACES['sRGB'],
+        //   apply_cctf_decoding=True)
+        // colour.RGB_COLOURSPACES['sRGB']._cctf_encoding(Y)*255
+        let luma = Rgba::<u8>([255, 0, 0, 255]).to_luma_with(&tr);
+        assert_eq!(luma.0, [130u8]); // reference: 127.1021805160301
+
+        let luma = Rgba::<u8>([0, 255, 0, 255]).to_luma_with(&tr);
+        assert_eq!(luma.0, [220u8]); // reference: 219.93274897493274
+
+        let luma = Rgba::<u8>([0, 0, 255, 255]).to_luma_with(&tr);
+        assert_eq!(luma.0, [70u8]); // reference: 75.962697358369013
+    }
+
+    #[test]
+    fn transform_luma_to_rgba() {
+        let tr = CicpTransform::new(Cicp::DISPLAY_P3, Cicp::SRGB).unwrap();
+        let srgb = Luma::<u8>([128]).to_rgb_with(&tr);
+        // All of them using the same transfer function so this is unsurprising
+        assert_eq!(srgb.0, [128, 128, 128]);
     }
 }

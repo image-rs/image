@@ -1601,6 +1601,7 @@ impl From<DynamicImage> for Rgba32FImage {
 mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
+    use crate::Cicp;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
@@ -1865,6 +1866,20 @@ mod test {
         let iter = image.enumerate_rows_mut();
         let exact_len = ExactSizeIterator::len(&iter);
         assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+    }
+
+    #[test]
+    fn color_conversion() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgb([255, 0, 0]));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| LumaA(Default::default()));
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+
+        let result = source.copy_color(&mut target, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(target[(0, 0)], LumaA([130u8, 255]));
     }
 }
 

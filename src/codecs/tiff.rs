@@ -377,72 +377,32 @@ fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
     ]
 }
 
-enum DtypeContainer<'a, T> {
-    Slice(&'a [T]),
-    Vec(Vec<T>),
-}
-
-impl<T> DtypeContainer<'_, T> {
-    fn as_slice(&self) -> &[T] {
-        match self {
-            DtypeContainer::Slice(slice) => slice,
-            DtypeContainer::Vec(vec) => vec,
-        }
-    }
-}
-
-fn u8_slice_as_f32(buf: &[u8]) -> ImageResult<DtypeContainer<f32>> {
-    match bytemuck::try_cast_slice(buf) {
-        Ok(slice) => Ok(DtypeContainer::<f32>::Slice(slice)),
-        Err(err) => {
+/// Convert a slice of sample bytes to its semantic type, being a `Pod`.
+fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow<'_, [P]>> {
+    bytemuck::try_cast_slice(buf)
+        .map(std::borrow::Cow::Borrowed)
+        .or_else(|err| {
             match err {
                 bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned => {
-                    // If the buffer is not aligned for a f32 slice, copy the buffer into a new Vec<f32>
-                    let mut vec = vec![0.0; buf.len() / 4];
-                    for (i, chunk) in buf.chunks_exact(4).enumerate() {
-                        let f32_val = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                        vec[i] = f32_val;
-                    }
-                    Ok(DtypeContainer::Vec(vec))
+                    // If the buffer is not aligned for a native slice, copy the buffer into a Vec,
+                    // aligning it in the process. This is only done if the element count can be
+                    // represented exactly.
+                    let vec = bytemuck::allocation::pod_collect_to_vec(buf);
+                    Ok(std::borrow::Cow::Owned(vec))
                 }
+                /* only expecting: bytemuck::PodCastError::OutputSliceWouldHaveSlop */
                 _ => {
-                    // If the buffer is not the correct length for a f32 slice, err.
-                    Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(format!("{:?}", err)),
-                    )))
-                }
-            }
-        }
-    }
-}
-
-fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<DtypeContainer<u16>> {
-    match bytemuck::try_cast_slice(buf) {
-        Ok(slice) => Ok(DtypeContainer::<u16>::Slice(slice)),
-        Err(err) => {
-            match err {
-                bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned => {
-                    // If the buffer is not aligned for a f32 slice, copy the buffer into a new Vec<f32>
-                    let mut vec = vec![0; buf.len() / 2];
-                    for (i, chunk) in buf.chunks_exact(2).enumerate() {
-                        let u16_val = u16::from_ne_bytes([chunk[0], chunk[1]]);
-                        vec[i] = u16_val;
-                    }
-                    Ok(DtypeContainer::Vec(vec))
-                }
-                _ => {
-                    // If the buffer is not aligned or the correct length for a u16 slice, err.
-                    //
-                    // `bytemuck::PodCastError` of bytemuck-1.2.0 does not implement
-                    // `Error` and `Display` trait.
+                    // `bytemuck::PodCastError` of bytemuck-1.2.0 does not implement `Error` and
+                    // `Display` trait.
                     // See <https://github.com/Lokathor/bytemuck/issues/22>.
                     Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(format!("{err:?}")),
+                        ParameterErrorKind::Generic(format!(
+                            "Casting samples to their representation failed: {err:?}",
+                        )),
                     )))
                 }
             }
-        }
-    }
+        })
 }
 
 impl<W: Write + Seek> TiffEncoder<W> {
@@ -483,20 +443,24 @@ impl<W: Write + Seek> TiffEncoder<W> {
             ExtendedColorType::Rgb8 => encoder.write_image::<RGB8>(width, height, buf),
             ExtendedColorType::Rgba8 => encoder.write_image::<RGBA8>(width, height, buf),
             ExtendedColorType::L16 => {
-                encoder.write_image::<Gray16>(width, height, u8_slice_as_u16(buf)?.as_slice())
+                encoder.write_image::<Gray16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
             }
             ExtendedColorType::Rgb16 => {
-                encoder.write_image::<RGB16>(width, height, u8_slice_as_u16(buf)?.as_slice())
+                encoder.write_image::<RGB16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
             }
             ExtendedColorType::Rgba16 => {
-                encoder.write_image::<RGBA16>(width, height, u8_slice_as_u16(buf)?.as_slice())
+                encoder.write_image::<RGBA16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
             }
-            ExtendedColorType::Rgb32F => {
-                encoder.write_image::<RGB32Float>(width, height, u8_slice_as_f32(buf)?.as_slice())
-            }
-            ExtendedColorType::Rgba32F => {
-                encoder.write_image::<RGBA32Float>(width, height, u8_slice_as_f32(buf)?.as_slice())
-            }
+            ExtendedColorType::Rgb32F => encoder.write_image::<RGB32Float>(
+                width,
+                height,
+                u8_slice_as_pod::<f32>(buf)?.as_ref(),
+            ),
+            ExtendedColorType::Rgba32F => encoder.write_image::<RGBA32Float>(
+                width,
+                height,
+                u8_slice_as_pod::<f32>(buf)?.as_ref(),
+            ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

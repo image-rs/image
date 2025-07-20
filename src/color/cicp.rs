@@ -371,30 +371,37 @@ impl Cicp {
 
         let gray = {
             // I'd use record update syntax but there's a private field.
-            let mut p = moxcms::ColorProfile::new_gray_with_gamma(1.0);
-            p.profile_class = moxcms::ProfileClass::DisplayDevice;
-            p.rendering_intent = moxcms::RenderingIntent::Perceptual;
-            p.pcs = moxcms::DataColorSpace::Xyz;
-            // Using red; but assuming all channels have the same TRC.
-            p.gray_trc = rgb.red_trc.clone();
-            // I think this is a bug? The build_gamma_table uses (moxcms =0.7.1)
+            let mut p = rgb.clone();
+            p.color_space = moxcms::DataColorSpace::YCbr;
+            // Our luma models a Y component of a YCbCr color space. It turns out that ICC V4 does
+            // not support pure Luma in any other whitepoint apart from D50 (the native profile
+            // connection space). The use of a grayTRC does *not* take the chromatic adaptation
+            // matrix into account. Of course we can encode the adaptation into the TRC as a
+            // coefficient, the Y component of the product of the whitepoint adaptation matrix
+            // inverse and the pcs's whitepoint XYZ, but that is only correct for gray -> gray
+            // conversion (and that coefficient should generally be `1`).
             //
-            // let gray_gamma = dst_pr.build_gamma_table =:<T; 65536, GAMMA_CAP, BIT_DEPTH>(
-            //     &dst_pr.red_trc;
-            //     options.allow_use_cicp_transfer;
-            // )?;
-            //
-            // This does not make much sense.
-            p.red_trc = rgb.red_trc.clone();
-            p.media_white_point = rgb.media_white_point;
-            p.white_point = rgb.white_point;
-            p.chromatic_adaptation = rgb.chromatic_adaptation;
+            // Hence we use a YCbCr. The data->pcs path could be modelled by ("M" curves, matrix,
+            // "B" curves) where B curves are all the identity, which is a subset of the
+            // capabilities that a lutAToBType allows. Unfortunately, this is not implemented in
+            // moxcms yet and for efficiency we would like to have a masked `create_transform_*` in
+            // which the CbCr channels are discarded / assumed 0 instead of them being in memory.
             p
         };
 
         Some(RgbGrayProfile { rgb, gray })
     }
 
+    /// Whether we have invested enough testing to ensure that color values can be assumed to be
+    /// stable and correspond to an intended effect, in particular if there even is a well-defined
+    /// meaning to these color spaces.
+    ///
+    /// For instance, our current code for the 'luma' equivalent space assumes that the color space
+    /// has a shared transfer function for all its color components. Also the judgment should not
+    /// depend on whether we can represent the profile in `moxcms` but rather if we understand the
+    /// profile well enough so that conversion implemented through another library can be derived.
+    /// (Consider the case of a builtin transform-while-encoding that may be more performant for a
+    /// format that does not support CICP or ICC profiles.)
     pub(crate) const fn qualify_stability(&self) -> bool {
         const _: () = {
             // Out public constants _should_ be stable.

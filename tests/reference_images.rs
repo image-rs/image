@@ -267,7 +267,7 @@ fn check_references() {
             }
         }
 
-        let Some(test_img) = test_img.as_ref() else {
+        let Some(test_img) = test_img.as_mut() else {
             return;
         };
 
@@ -296,6 +296,17 @@ fn check_references() {
             hasher.finalize()
         };
 
+        // Convert to a PNG compatible format
+        match test_img {
+            DynamicImage::ImageRgb32F(_) => {
+                *test_img = test_img.to_rgb16().into();
+            }
+            DynamicImage::ImageRgba32F(_) => {
+                *test_img = test_img.to_rgba16().into();
+            }
+            _ => {}
+        }
+
         assert!(
             test_crc_actual == case.crc,
             "{}: The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).{}",
@@ -316,7 +327,17 @@ fn check_references() {
 
         assert!(
             ref_img.as_bytes() == test_img.as_bytes(),
-            "Reference rendering does not match."
+            "Reference rendering does not match.{}",
+            if let Some(tmpdir) = std::env::var_os("TMPDIR") {
+                let filename = format!("{}.{:08x}.{}", case.orig_filename, test_crc_actual, "png");
+                let filename = PathBuf::from(tmpdir).join(filename);
+                match test_img.save(&filename) {
+                    Ok(()) => format!("\nNew reference saved to: {}", filename.display()),
+                    Err(e) => format!("\nFailed to save new reference: {e}"),
+                }
+            } else {
+                String::new()
+            }
         );
     });
 }

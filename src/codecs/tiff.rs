@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
+use tiff::encoder::Compression;
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -363,6 +364,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
+    comp: Compression,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
@@ -408,7 +410,16 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w }
+        TiffEncoder {
+            w,
+            comp: Compression::default(),
+        }
+    }
+
+    /// Set the image compression setting
+    pub fn with_compression(mut self, comp: Compression) -> Self {
+        self.comp = comp;
+        self
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
@@ -438,6 +449,14 @@ impl<W: Write + Seek> TiffEncoder<W> {
         );
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
+
+        match self.comp {
+            Compression::Uncompressed => {}
+            Compression::Lzw | Compression::Deflate(_) | Compression::Packbits => {
+                encoder = encoder.with_compression(self.comp);
+            }
+        }
+
         match color_type {
             ExtendedColorType::L8 => encoder.write_image::<Gray8>(width, height, buf),
             ExtendedColorType::Rgb8 => encoder.write_image::<RGB8>(width, height, buf),

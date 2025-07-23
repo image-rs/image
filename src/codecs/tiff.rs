@@ -363,18 +363,24 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
-    w: W,
-    comp: Compression,
+    writer: W,
+    compression: Compression,
 }
 
 /// Compression types supported by the TIFF format
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CompressionType {
     /// No compression
     Uncompressed,
     /// LZW compression
     Lzw,
     /// Deflate compression
+    ///
+    /// It is best to view the level options as a _hint_ to the implementation on the smallest or
+    /// fastest option for encoding a particular image. These have no direct mapping to any
+    /// particular attribute and may be interpreted differently in minor versions. The exact output
+    /// is expressly __not__ part of the SemVer stability guarantee.
     Deflate(TiffDeflateLevel),
     /// Bit packing compression
     Packbits,
@@ -382,7 +388,7 @@ pub enum CompressionType {
 
 impl Default for CompressionType {
     fn default() -> Self {
-        CompressionType::Deflate(Default::default())
+        CompressionType::Lzw
     }
 }
 
@@ -463,22 +469,18 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
-    pub fn new(w: W) -> TiffEncoder<W> {
-        let comp = CompressionType::default().into_tiff();
-        TiffEncoder { w, comp }
+    pub fn new(writer: W) -> TiffEncoder<W> {
+        TiffEncoder {
+            writer,
+            compression: CompressionType::default().into_tiff(),
+        }
     }
 
-    /// Create a new encoder that writes its output to `w` with `CompressionType` `compression`.
-    ///
-    /// It is best to view the options as a _hint_ to the implementation on the smallest or fastest
-    /// option for encoding a particular image. That is, using options that map directly to a TIFF
-    /// image parameter will use this parameter where possible. But variants that have no direct
-    /// mapping may be interpreted differently in minor versions. The exact output is expressly
-    /// __not__ part of the SemVer stability guarantee.
-    pub fn new_with_compression(w: W, comp: CompressionType) -> Self {
+    /// Create a new encoder that writes its output with [`CompressionType`] `compression`.
+    pub fn new_with_compression(writer: W, comp: CompressionType) -> Self {
         TiffEncoder {
-            w,
-            comp: comp.into_tiff(),
+            writer,
+            compression: comp.into_tiff(),
         }
     }
 
@@ -508,13 +510,10 @@ impl<W: Write + Seek> TiffEncoder<W> {
             buf.len(),
         );
         let mut encoder =
-            tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
+            tiff::encoder::TiffEncoder::new(self.writer).map_err(ImageError::from_tiff_encode)?;
 
-        match self.comp {
-            Compression::Uncompressed => {}
-            Compression::Lzw | Compression::Deflate(_) | Compression::Packbits => {
-                encoder = encoder.with_compression(self.comp);
-            }
+        if !matches!(self.compression, Compression::Uncompressed) {
+            encoder = encoder.with_compression(self.compression);
         }
 
         match color_type {

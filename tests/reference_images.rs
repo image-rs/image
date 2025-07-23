@@ -41,10 +41,10 @@ where
 
 #[cfg(feature = "tiff")]
 #[test]
-fn compress_deflate() {
+fn tiff_compress_deflate() {
     use image::codecs::tiff::{CompressionType, TiffDeflateLevel, TiffEncoder};
 
-    process_images(IMAGE_DIR, Some("tiff"), |base, path, _| {
+    process_images(IMAGE_DIR, Some("tiff"), |_base, path, _| {
         println!("compress_images {}", path.display());
         let img = match image::open(&path) {
             Ok(img) => img,
@@ -58,26 +58,21 @@ fn compress_deflate() {
             Err(err) => panic!("decoding of {path:?} failed with: {err}"),
         };
 
-        let mut out_path = base.clone();
-        out_path.push(OUTPUT_DIR);
-        out_path.push("compressed_tiff");
-        out_path.push("deflate");
-        std::fs::create_dir_all(&out_path).unwrap();
-        out_path.push(path.file_name().unwrap());
         let encoder = TiffEncoder::new_with_compression(
-            fs::File::create(&out_path).unwrap(),
+            std::io::Cursor::new(vec![]),
             CompressionType::Deflate(TiffDeflateLevel::Balanced),
         );
+
         img.write_with_encoder(encoder).unwrap();
     })
 }
 
 #[cfg(feature = "tiff")]
 #[test]
-fn compress_lzw() {
+fn tiff_compress_lzw() {
     use image::codecs::tiff::{CompressionType, TiffEncoder};
 
-    process_images(IMAGE_DIR, Some("tiff"), |base, path, _| {
+    process_images(IMAGE_DIR, Some("tiff"), |_base, path, _| {
         println!("compress_images {}", path.display());
         let img = match image::open(&path) {
             Ok(img) => img,
@@ -91,16 +86,8 @@ fn compress_lzw() {
             Err(err) => panic!("decoding of {path:?} failed with: {err}"),
         };
 
-        let mut out_path = base.clone();
-        out_path.push(OUTPUT_DIR);
-        out_path.push("compressed_tiff");
-        out_path.push("lzw");
-        std::fs::create_dir_all(&out_path).unwrap();
-        out_path.push(path.file_name().unwrap());
-        let encoder = TiffEncoder::new_with_compression(
-            fs::File::create(&out_path).unwrap(),
-            CompressionType::Lzw,
-        );
+        let encoder =
+            TiffEncoder::new_with_compression(std::io::Cursor::new(vec![]), CompressionType::Lzw);
         img.write_with_encoder(encoder).unwrap();
     })
 }

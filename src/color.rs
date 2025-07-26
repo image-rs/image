@@ -286,6 +286,8 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
 
     const COLOR_MODEL: &'static str = $interpretation;
 
+    const HAS_ALPHA: bool = $alphas > 0;
+
     fn channels4(&self) -> (T, T, T, T) {
         const CHANNELS: usize = $channels;
         let mut channels = [T::DEFAULT_MAX_VALUE; 4];

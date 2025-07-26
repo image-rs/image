@@ -250,6 +250,9 @@ pub trait Pixel: Copy + Clone {
     /// See [gimp babl](http://gegl.org/babl/).
     const COLOR_MODEL: &'static str;
 
+    /// Returns true if the alpha channel is contained.
+    const HAS_ALPHA: bool = false;
+
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
     #[deprecated(since = "0.24.0", note = "Use `channels()` or `channels_mut()`")]

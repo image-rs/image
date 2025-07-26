@@ -251,7 +251,7 @@ pub trait Pixel: Copy + Clone {
     const COLOR_MODEL: &'static str;
 
     /// Returns true if the alpha channel is contained.
-    const HAS_ALPHA: bool;
+    const HAS_ALPHA: bool = false;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value

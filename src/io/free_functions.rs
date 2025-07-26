@@ -101,7 +101,7 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
     })
 }
 
-static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [
+static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 22] = [
     (b"\x89PNG\r\n\x1a\n", b"", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], b"", ImageFormat::Jpeg),
     (b"GIF89a", b"", ImageFormat::Gif),
@@ -128,7 +128,6 @@ static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [
     (b"P6", b"", ImageFormat::Pnm),
     (b"P7", b"", ImageFormat::Pnm),
     (b"farbfeld", b"", ImageFormat::Farbfeld),
-    (&[0x0a, 0x0], b"\xFF\xF8", ImageFormat::Pcx),
 ];
 
 /// Guess image format from memory block

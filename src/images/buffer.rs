@@ -1420,6 +1420,8 @@ pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
 pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+/// Sendable 32-bit grayscale float image buffer
+pub(crate) type Gray32FImage = ImageBuffer<Luma<f32>, Vec<f32>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
 pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 

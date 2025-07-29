@@ -20,6 +20,8 @@ use crate::{
     ImageFormat, ImageReader, Luma, LumaA,
 };
 
+use super::buffer::Gray32FImage;
+
 /// A Dynamic Image
 ///
 /// This represents a _matrix_ of _pixels_ which are _convertible_ from and to an _RGBA_
@@ -48,6 +50,9 @@ use crate::{
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
     ImageLuma8(GrayImage),
+
+    /// Each pixel in this image is 32-bit float Luma
+    ImageLuma32F(Gray32FImage),
 
     /// Each pixel in this image is 8-bit Luma with alpha
     ImageLumaA8(GrayAlphaImage),
@@ -86,6 +91,7 @@ macro_rules! dynamic_map(
                 ImageRgb8($image) => ImageRgb8($action),
                 ImageRgba8($image) => ImageRgba8($action),
                 ImageLuma16($image) => ImageLuma16($action),
+                ImageLuma32F($image) => ImageLuma32F($action),
                 ImageLumaA16($image) => ImageLumaA16($action),
                 ImageRgb16($image) => ImageRgb16($action),
                 ImageRgba16($image) => ImageRgba16($action),
@@ -106,6 +112,7 @@ macro_rules! dynamic_map(
                 DynamicImage::ImageRgba16($image) => $action,
                 DynamicImage::ImageRgb32F($image) => $action,
                 DynamicImage::ImageRgba32F($image) => $action,
+                DynamicImage::ImageLuma32F($image) => $action,
             }
         );
 );
@@ -144,6 +151,7 @@ impl DynamicImage {
             Rgb8 => Self::new_rgb8(w, h),
             Rgba8 => Self::new_rgba8(w, h),
             L16 => Self::new_luma16(w, h),
+            L32F => Self::new_luma32f(w, h),
             La16 => Self::new_luma_a16(w, h),
             Rgb16 => Self::new_rgb16(w, h),
             Rgba16 => Self::new_rgba16(w, h),
@@ -214,6 +222,12 @@ impl DynamicImage {
         DynamicImage::ImageRgba32F(ImageBuffer::new(w, h))
     }
 
+    /// Creates a dynamic image backed by a buffer of 32bit float pixels.
+    #[must_use]
+    pub fn new_luma32f(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageLuma32F(ImageBuffer::new(w, h))
+    }
+
     /// Decodes an encoded image into a dynamic image.
     pub fn from_decoder(decoder: impl ImageDecoder) -> ImageResult<Self> {
         decoder_to_image(decoder)
@@ -232,6 +246,7 @@ impl DynamicImage {
             + FromColor<color::Rgb<u16>>
             + FromColor<Luma<u8>>
             + FromColor<Luma<u16>>
+            + FromColor<Luma<f32>>
             + FromColor<LumaA<u16>>
             + FromColor<LumaA<u8>>,
     >(
@@ -692,6 +707,7 @@ impl DynamicImage {
             DynamicImage::ImageRgb8(_) => color::ColorType::Rgb8,
             DynamicImage::ImageRgba8(_) => color::ColorType::Rgba8,
             DynamicImage::ImageLuma16(_) => color::ColorType::L16,
+            DynamicImage::ImageLuma32F(_) => color::ColorType::L32F,
             DynamicImage::ImageLumaA16(_) => color::ColorType::La16,
             DynamicImage::ImageRgb16(_) => color::ColorType::Rgb16,
             DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
@@ -731,6 +747,7 @@ impl DynamicImage {
     #[must_use]
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
+            DynamicImage::ImageLuma32F(ref p) => DynamicImage::ImageLuma32F(p.clone()),
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
             DynamicImage::ImageLumaA8(ref p) => {
                 DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
@@ -1205,6 +1222,9 @@ impl GenericImageView for DynamicImage {
 impl GenericImage for DynamicImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
+            DynamicImage::ImageLuma32F(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_luma().into_color())
+            }
             DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
             DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
@@ -1222,6 +1242,9 @@ impl GenericImage for DynamicImage {
 
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
+            DynamicImage::ImageLuma32F(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_luma().into_color())
+            }
             DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
             DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
@@ -1262,6 +1285,11 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
         color::ColorType::Rgb8 => {
             let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
+        }
+
+        color::ColorType::L32F => {
+            let buf = free_functions::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma32F)
         }
 
         color::ColorType::Rgba8 => {

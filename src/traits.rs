@@ -203,6 +203,9 @@ impl PixelWithColorType for Luma<u8> {
 impl PixelWithColorType for Luma<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
 }
+impl PixelWithColorType for Luma<f32> {
+    const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L32F;
+}
 impl PixelWithColorType for LumaA<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
 }
@@ -227,6 +230,7 @@ mod private {
     impl SealedPixelWithColorType for LumaA<u8> {}
 
     impl SealedPixelWithColorType for Luma<u16> {}
+    impl SealedPixelWithColorType for Luma<f32> {}
     impl SealedPixelWithColorType for LumaA<u16> {}
 }
 

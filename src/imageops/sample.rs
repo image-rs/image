@@ -13,7 +13,7 @@ use crate::imageops::filter_1d::{
     filter_2d_sep_rgb_u16, filter_2d_sep_rgba, filter_2d_sep_rgba_f32, filter_2d_sep_rgba_u16,
     FilterImageSize,
 };
-use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
+use crate::images::buffer::{Gray16Image, Gray32FImage, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{
@@ -1260,6 +1260,20 @@ pub(crate) fn gaussian_blur_dyn_image(
     };
 
     match image {
+        DynamicImage::ImageLuma32F(img) => {
+            let mut dest_image = vec![0f32; img.len()];
+            filter_2d_sep_plane_f32(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &x_axis_kernel,
+                &y_axis_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLuma32F(
+                Gray32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
         DynamicImage::ImageLuma8(img) => {
             let mut dest_image = vec![0u8; img.len()];
             filter_2d_sep_plane(

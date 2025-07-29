@@ -73,6 +73,7 @@ where
             tiff::ColorType::Gray(1) => ColorType::L8,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::Gray(32) => ColorType::L32F,
             tiff::ColorType::GrayA(8) => ColorType::La8,
             tiff::ColorType::GrayA(16) => ColorType::La16,
             tiff::ColorType::RGB(8) => ColorType::Rgb8,
@@ -500,7 +501,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         use tiff::encoder::colortype::{
-            Gray16, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
+            Gray16, Gray32Float, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
         };
         let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
@@ -535,6 +536,11 @@ impl<W: Write + Seek> TiffEncoder<W> {
                 u8_slice_as_pod::<f32>(buf)?.as_ref(),
             ),
             ExtendedColorType::Rgba32F => encoder.write_image::<RGBA32Float>(
+                width,
+                height,
+                u8_slice_as_pod::<f32>(buf)?.as_ref(),
+            ),
+            ExtendedColorType::L32F => encoder.write_image::<Gray32Float>(
                 width,
                 height,
                 u8_slice_as_pod::<f32>(buf)?.as_ref(),

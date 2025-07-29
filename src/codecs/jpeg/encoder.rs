@@ -723,7 +723,7 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         use ColorType::*;
         match img.color() {
             L8 | Rgb8 => None,
-            La8 | L16 | La16 => Some(img.to_luma8().into()),
+            La8 | L16 | La16 | L32F => Some(img.to_luma8().into()),
             Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(img.to_rgb8().into()),
         }
     }

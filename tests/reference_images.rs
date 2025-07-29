@@ -102,6 +102,10 @@ fn render_images() {
                 println!("Skipping {} - HDR codec is not enabled", path.display());
                 return;
             }
+            Ok(DynamicImage::ImageLuma32F(_)) => {
+                println!("Skipping {} - HDR codec is not enabled", path.display());
+                return;
+            }
             Ok(img) => img,
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
@@ -355,6 +359,9 @@ fn check_references() {
                 *test_img = test_img.to_rgb16().into();
             }
             DynamicImage::ImageRgba32F(_) => {
+                *test_img = test_img.to_rgba16().into();
+            }
+            DynamicImage::ImageLuma32F(_) => {
                 *test_img = test_img.to_rgba16().into();
             }
             _ => {}

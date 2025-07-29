@@ -31,6 +31,9 @@ pub enum ColorType {
     Rgb32F,
     /// Pixel is 32-bit float RGBA
     Rgba32F,
+
+    /// Pixel is 32-bit float luminance
+    L32F,
 }
 
 impl ColorType {
@@ -46,6 +49,7 @@ impl ColorType {
             ColorType::Rgba16 => 8,
             ColorType::Rgb32F => 3 * 4,
             ColorType::Rgba32F => 4 * 4,
+            ColorType::L32F => 4,
         }
     }
 
@@ -54,7 +58,7 @@ impl ColorType {
     pub fn has_alpha(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | Rgb8 | Rgb16 | Rgb32F => false,
+            L8 | L16 | L32F | Rgb8 | Rgb16 | Rgb32F => false,
             La8 | Rgba8 | La16 | Rgba16 | Rgba32F => true,
         }
     }
@@ -64,7 +68,7 @@ impl ColorType {
     pub fn has_color(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | La8 | La16 => false,
+            L8 | L16 | La8 | L32F | La16 => false,
             Rgb8 | Rgb16 | Rgba8 | Rgba16 | Rgb32F | Rgba32F => true,
         }
     }
@@ -156,6 +160,9 @@ pub enum ExtendedColorType {
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
     Unknown(u8),
+
+    /// Pixel is 32-bit float luminance
+    L32F,
 }
 
 impl ExtendedColorType {
@@ -172,6 +179,7 @@ impl ExtendedColorType {
             | ExtendedColorType::L4
             | ExtendedColorType::L8
             | ExtendedColorType::L16
+            | ExtendedColorType::L32F
             | ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1
             | ExtendedColorType::La2
@@ -218,6 +226,7 @@ impl ExtendedColorType {
             ExtendedColorType::Rgb8 => 24,
             ExtendedColorType::Rgba8 => 32,
             ExtendedColorType::L16 => 16,
+            ExtendedColorType::L32F => 32,
             ExtendedColorType::La16 => 32,
             ExtendedColorType::Rgb16 => 48,
             ExtendedColorType::Rgba16 => 64,
@@ -250,6 +259,7 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
+            ColorType::L32F => ExtendedColorType::L32F,
         }
     }
 }

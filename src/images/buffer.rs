@@ -1882,7 +1882,7 @@ mod test {
     #[test]
     fn color_conversion() {
         let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgb([255, 0, 0]));
-        let mut target = ImageBuffer::from_fn(128, 128, |_, _| LumaA(Default::default()));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()));
 
         source.set_rgb_primaries(Cicp::SRGB.primaries);
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
@@ -1890,7 +1890,7 @@ mod test {
         let result = source.copy_color(&mut target, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
-        assert_eq!(target[(0, 0)], LumaA([130u8, 255]));
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
     }
 }
 
@@ -1908,6 +1908,7 @@ mod benchmarks {
             rgb[1] = 23;
             rgb[2] = 42;
         }
+
         assert!(a.data[0] != 0);
         b.iter(|| {
             let b: GrayImage = a.convert();

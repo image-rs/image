@@ -200,29 +200,10 @@ pub struct CicpTransform {
 }
 
 struct RgbTransforms<C> {
-    slices: [Arc<dyn Fn(&[C], &mut [C]) + Send + Sync>; 4 * 4],
+    slices: [Arc<dyn Fn(&[C], &mut [C]) + Send + Sync>; 4],
 }
 
 impl CicpTransform {
-    const LAYOUTS: [(LayoutWithColor, LayoutWithColor); 16] = [
-        (LayoutWithColor::Rgb, LayoutWithColor::Rgb),
-        (LayoutWithColor::Rgb, LayoutWithColor::Rgba),
-        (LayoutWithColor::Rgb, LayoutWithColor::Gray),
-        (LayoutWithColor::Rgb, LayoutWithColor::GrayAlpha),
-        (LayoutWithColor::Rgba, LayoutWithColor::Rgb),
-        (LayoutWithColor::Rgba, LayoutWithColor::Rgba),
-        (LayoutWithColor::Rgba, LayoutWithColor::Gray),
-        (LayoutWithColor::Rgba, LayoutWithColor::GrayAlpha),
-        (LayoutWithColor::Gray, LayoutWithColor::Rgb),
-        (LayoutWithColor::Gray, LayoutWithColor::Rgba),
-        (LayoutWithColor::Gray, LayoutWithColor::Gray),
-        (LayoutWithColor::Gray, LayoutWithColor::GrayAlpha),
-        (LayoutWithColor::GrayAlpha, LayoutWithColor::Rgb),
-        (LayoutWithColor::GrayAlpha, LayoutWithColor::Rgba),
-        (LayoutWithColor::GrayAlpha, LayoutWithColor::Gray),
-        (LayoutWithColor::GrayAlpha, LayoutWithColor::GrayAlpha),
-    ];
-
     pub fn new(from: Cicp, into: Cicp) -> Option<Self> {
         if !from.qualify_stability() || !into.qualify_stability() {
             // To avoid regressions, we do not support all kinds of transforms from the start.
@@ -303,7 +284,7 @@ impl CicpTransform {
     }
 
     fn build_transforms<P: Copy + Default + Primitive + 'static>(
-        trs: [Option<Box<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 16],
+        trs: [Option<Box<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 4],
     ) -> Option<RgbTransforms<P>> {
         // We would use `[array]::try_map` here, but it is not stable yet.
         if trs.iter().any(Option::is_none) {
@@ -348,26 +329,23 @@ impl CicpTransform {
         &self.f32.slices[Self::select_transform_index::<O>(into)]
     }
 
+    const LAYOUTS: [(LayoutWithColor, LayoutWithColor); 4] = [
+        (LayoutWithColor::Rgb, LayoutWithColor::Rgb),
+        (LayoutWithColor::Rgb, LayoutWithColor::Rgba),
+        (LayoutWithColor::Rgba, LayoutWithColor::Rgb),
+        (LayoutWithColor::Rgba, LayoutWithColor::Rgba),
+    ];
+
     fn select_transform_index<O: SealedPixelWithColorType>(into: LayoutWithColor) -> usize {
         use crate::traits::private::{LayoutWithColor as Layout, PrivateToken};
+        let from = O::layout(PrivateToken);
 
-        match (O::layout(PrivateToken), into) {
+        match (from, into) {
             (Layout::Rgb, Layout::Rgb) => 0,
             (Layout::Rgb, Layout::Rgba) => 1,
-            (Layout::Rgb, Layout::Gray) => 2,
-            (Layout::Rgb, Layout::GrayAlpha) => 3,
-            (Layout::Rgba, Layout::Rgb) => 4,
-            (Layout::Rgba, Layout::Rgba) => 5,
-            (Layout::Rgba, Layout::Gray) => 6,
-            (Layout::Rgba, Layout::GrayAlpha) => 7,
-            (Layout::Gray, Layout::Rgb) => 8,
-            (Layout::Gray, Layout::Rgba) => 9,
-            (Layout::Gray, Layout::Gray) => 10,
-            (Layout::Gray, Layout::GrayAlpha) => 11,
-            (Layout::GrayAlpha, Layout::Rgb) => 12,
-            (Layout::GrayAlpha, Layout::Rgba) => 13,
-            (Layout::GrayAlpha, Layout::Gray) => 14,
-            (Layout::GrayAlpha, Layout::GrayAlpha) => 15,
+            (Layout::Rgba, Layout::Rgb) => 2,
+            (Layout::Rgba, Layout::Rgba) => 3,
+            _ => unreachable!("Unsupported CicpTransform layout {from:?} to {into:?}"),
         }
     }
 }
@@ -489,8 +467,8 @@ impl RgbGrayProfile {
         match layout {
             LayoutWithColor::Rgb => (&self.rgb, moxcms::Layout::Rgb),
             LayoutWithColor::Rgba => (&self.rgb, moxcms::Layout::Rgba),
-            LayoutWithColor::Gray => (&self.gray, moxcms::Layout::Gray),
-            LayoutWithColor::GrayAlpha => (&self.gray, moxcms::Layout::GrayAlpha),
+            LayoutWithColor::Luma => (&self.gray, moxcms::Layout::Gray),
+            LayoutWithColor::LumaAlpha => (&self.gray, moxcms::Layout::GrayAlpha),
         }
     }
 }

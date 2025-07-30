@@ -216,12 +216,12 @@ impl PixelWithColorType for LumaA<u16> {
 pub(crate) mod private {
     use crate::color::*;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub enum LayoutWithColor {
         Rgb,
         Rgba,
-        Gray,
-        GrayAlpha,
+        Luma,
+        LumaAlpha,
     }
 
     #[derive(Clone, Copy)]
@@ -278,28 +278,28 @@ pub(crate) mod private {
     impl SealedPixelWithColorType for Luma<u8> {
         type TransformableSubpixel = u8;
         fn layout(_: PrivateToken) -> LayoutWithColor {
-            LayoutWithColor::Gray
+            LayoutWithColor::Luma
         }
     }
 
     impl SealedPixelWithColorType for LumaA<u8> {
         type TransformableSubpixel = u8;
         fn layout(_: PrivateToken) -> LayoutWithColor {
-            LayoutWithColor::GrayAlpha
+            LayoutWithColor::LumaAlpha
         }
     }
 
     impl SealedPixelWithColorType for Luma<u16> {
         type TransformableSubpixel = u16;
         fn layout(_: PrivateToken) -> LayoutWithColor {
-            LayoutWithColor::Gray
+            LayoutWithColor::Luma
         }
     }
 
     impl SealedPixelWithColorType for LumaA<u16> {
         type TransformableSubpixel = u16;
         fn layout(_: PrivateToken) -> LayoutWithColor {
-            LayoutWithColor::Gray
+            LayoutWithColor::Luma
         }
     }
 

@@ -16,8 +16,9 @@ use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
-    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
-    ImageFormat, ImageReader, Luma, LumaA,
+    imageops, Cicp, CicpColorPrimaries, CicpTransferFunction, ConvertColorOptions,
+    ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
+    ImageReader, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -712,6 +713,30 @@ impl DynamicImage {
         dynamic_map!(*self, ref p, { p.height() })
     }
 
+    /// Define the color space for the image.
+    ///
+    /// Reinterprets the existing red, blue, green channels as points in the new set of primary
+    /// colors, potentially changing the apparent shade of pixels.
+    ///
+    /// When this buffer contains Luma data the call has no effect.
+    pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
+        dynamic_map!(self, ref mut p, p.set_rgb_primaries(color));
+    }
+
+    /// Define the transfer function for the image.
+    ///
+    /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
+    /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
+    /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
+    pub fn set_transfer_function(&mut self, tf: CicpTransferFunction) {
+        dynamic_map!(self, ref mut p, p.set_transfer_function(tf));
+    }
+
+    /// Get the Cicp encoding of this buffer's color data.
+    pub fn color_space(&self) -> Cicp {
+        dynamic_map!(self, ref p, p.color_space())
+    }
+
     /// Whether the image contains an alpha channel
     ///
     /// This is a convenience wrapper around `self.color().has_alpha()`.
@@ -1041,6 +1066,109 @@ impl DynamicImage {
                 *image = new_image;
             }
         }
+    }
+
+    /// Copy pixel data from one buffer to another.
+    ///
+    /// On success, this dynamic image contains color data equivalent to the sources color data.
+    /// Neither the color space nor the sample type of `self` is changed, the data representation
+    /// is transformed and copied into the current buffer.
+    ///
+    /// Returns `Ok` if:
+    /// - Both images to have the same dimensions, otherwise returns a [`ImageError::Parameter`].
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    pub fn copy_from_color(
+        &mut self,
+        other: &DynamicImage,
+        options: ConvertColorOptions,
+    ) -> ImageResult<()> {
+        // Try to no-op this transformation, we may be lucky..
+        if self.color_space() == other.color_space() {
+            // Nothing to transform, just rescale samples and type cast.
+            dynamic_map!(self, ref mut p, *p = other.to());
+            return Ok(());
+        }
+
+        // Do a transformation from existing buffer to existing buffer, only for color types that
+        // are currently supported. Other color types must use the fallback below. If we expand the
+        // range of supported color types we must consider how to write this more neatly.
+        match (&mut *self, other) {
+            // u8 sample types
+            (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgb8(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgba8(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgb8(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgba8(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            // u16 sample types
+            (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgb16(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgba16(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgb16(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgba16(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            // 32F sample types.
+            (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgb32F(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgba32F(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgb32F(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgba32F(other)) => {
+                return img.copy_from_color(other, options);
+            }
+            _ => {}
+        };
+
+        // We did not find a match pair to copy data directly. So we do it with intermediate steps
+        // in RGBA f32 space which is sure to work. Our transform implementation works on matching
+        // sample types so first transform the original image.
+        let source_fb;
+        let source = if let DynamicImage::ImageRgba32F(img) = other {
+            img
+        } else {
+            // This would always clone the buffer, but it's not clear if self or the other is in
+            // the wrong sample format.
+            source_fb = other.to_rgba32f();
+            &source_fb
+        };
+
+        let mut target_fb = None;
+        let target = if let DynamicImage::ImageRgba32F(img) = self {
+            img
+        } else {
+            let target = target_fb.insert(source.clone());
+            target.set_rgb_primaries(self.color_space().primaries);
+            target.set_transfer_function(self.color_space().transfer);
+            target
+        };
+
+        target.copy_from_color(&source, options)?;
+
+        // If we used an intermediate buffer in the target color space, then now convert from that
+        // buffer into our own sample layout.
+        if let Some(intermediate) = target_fb {
+            let intermediate = DynamicImage::ImageRgba32F(intermediate);
+            dynamic_map!(self, ref mut p, *p = intermediate.to());
+        }
+
+        Ok(())
     }
 
     fn write_with_encoder_impl<'a>(
@@ -1406,6 +1534,7 @@ mod bench {
 #[cfg(test)]
 mod test {
     use crate::{color::ColorType, images::dynimage::Gray16Image};
+    use crate::{Cicp, ImageBuffer, Rgb, Rgba};
 
     #[test]
     fn test_empty_file() {
@@ -1430,11 +1559,11 @@ mod test {
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
         use crate::{GenericImage as _, GenericImageView as _};
-        img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
+        img.put_pixel(0, 0, Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(
             img.grayscale().get_pixel(0, 0),
-            crate::color::Rgba([54, 54, 54, expected_alpha])
+            Rgba([54, 54, 54, expected_alpha])
         );
     }
 
@@ -1526,7 +1655,7 @@ mod test {
     #[test]
     fn issue_1705_can_turn_16bit_image_into_bytes() {
         let pixels = vec![65535u16; 64 * 64];
-        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+        let img = ImageBuffer::from_vec(64, 64, pixels).unwrap();
 
         let img = super::DynamicImage::ImageLuma16(img);
         assert!(img.as_luma16().is_some());
@@ -1549,5 +1678,63 @@ mod test {
         // test conversion using turbofish syntax
         let converted = image_luma8.to::<Luma<u16>>();
         assert_eq!(image_luma8.to_luma16(), converted);
+    }
+
+    #[test]
+    fn color_conversion_srgb_p3() {
+        let mut source = super::DynamicImage::ImageRgb8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([255, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+
+        let result = target.copy_from_color(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn color_conversion_preserves_sample() {
+        let mut source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+
+        let result = target.copy_from_color(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn color_conversion_preserves_sample_in_fastpath() {
+        let source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        // No color space change takes place, but still sample should be converted.
+        let result = target.copy_from_color(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([255u8, 0, 0, 255]));
     }
 }

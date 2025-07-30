@@ -1443,6 +1443,7 @@ where
     }
 }
 
+/// Inputs to [`ImageBuffer::copy_color`].
 #[non_exhaustive]
 #[derive(Default)]
 pub struct ConvertColorOptions {
@@ -1471,8 +1472,6 @@ where
         IntoType: PixelWithColorType,
         D: Deref<Target = [FromType::Subpixel]> + DerefMut,
     {
-        use crate::traits::private::double_dispatch_transform_from_sealed;
-
         if self.dimensions() != target.dimensions() {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
@@ -1501,7 +1500,19 @@ where
             ));
         };
 
-        let transform = double_dispatch_transform_from_sealed::<FromType, IntoType>(&transform);
+        let Some(transform) = transform.supported_transform_fn::<FromType, IntoType>() else {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    // One of them is responsible.
+                    UnsupportedErrorKind::ColorspaceCicp(if from.qualify_stability() {
+                        into
+                    } else {
+                        from
+                    }),
+                ),
+            ));
+        };
 
         let from = self.inner_pixels();
         let into = target.inner_pixels_mut();

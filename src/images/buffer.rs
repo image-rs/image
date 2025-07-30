@@ -1494,10 +1494,10 @@ impl ConvertColorOptions {
     }
 }
 
-impl<C, IntoType: Pixel> ImageBuffer<IntoType, C>
+impl<C, SelfPixel: Pixel> ImageBuffer<SelfPixel, C>
 where
-    IntoType: PixelWithColorType,
-    C: Deref<Target = [IntoType::Subpixel]> + DerefMut,
+    SelfPixel: PixelWithColorType,
+    C: Deref<Target = [SelfPixel::Subpixel]> + DerefMut,
 {
     /// Copy pixel data from one buffer to another, calculating equivalent color representations
     /// for the target's color space.
@@ -1505,14 +1505,14 @@ where
     /// This requires both images to have the same dimensions, otherwise returns a
     /// [`ImageError::Parameter`]. Additionally, the primaries and transfer functions of both
     /// image's color spaces must be supported, otherwise returns a [`ImageError::Unsupported`].
-    pub fn copy_from_color<FromType: Pixel<Subpixel = IntoType::Subpixel>, D>(
+    pub fn copy_from_color<FromType: Pixel<Subpixel = SelfPixel::Subpixel>, D>(
         &mut self,
         from: &ImageBuffer<FromType, D>,
         mut options: ConvertColorOptions,
     ) -> ImageResult<()>
     where
         FromType: PixelWithColorType,
-        D: Deref<Target = [IntoType::Subpixel]>,
+        D: Deref<Target = [SelfPixel::Subpixel]>,
     {
         if self.dimensions() != from.dimensions() {
             return Err(ImageError::Parameter(ParameterError::from_kind(
@@ -1521,20 +1521,48 @@ where
         }
 
         let transform =
-            options.as_transform::<FromType, IntoType>(from.color_space(), self.color_space())?;
+            options.as_transform::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
 
         let from = from.inner_pixels();
         let into = self.inner_pixels_mut();
 
         debug_assert_eq!(
             from.len() / usize::from(FromType::CHANNEL_COUNT),
-            into.len() / usize::from(IntoType::CHANNEL_COUNT),
+            into.len() / usize::from(SelfPixel::CHANNEL_COUNT),
             "Diverging pixel count despite same size",
         );
 
         transform(from, into);
 
         Ok(())
+    }
+
+    /// Convert this buffer into a newly allocated buffer, changing the color representation.
+    ///
+    /// This will avoid an allocation if the target layout or the color conversion is not supported
+    /// (yet).
+    ///
+    /// See [`ImageBuffer::copy_from_color`] if you intend to assign to an existing buffer,
+    /// swapping the argument with `self`.
+    pub fn to_color<IntoType>(
+        &self,
+        color: Cicp,
+        mut options: ConvertColorOptions,
+    ) -> Result<ImageBuffer<IntoType, Vec<SelfPixel::Subpixel>>, ImageError>
+    where
+        IntoType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
+    {
+        let transform = options.as_transform::<SelfPixel, IntoType>(self.color_space(), color)?;
+
+        let (width, height) = self.dimensions();
+        let mut target = ImageBuffer::new(width, height);
+
+        let from = self.inner_pixels();
+        let into = target.inner_pixels_mut();
+
+        transform(from, into);
+
+        Ok(target)
     }
 }
 
@@ -1900,6 +1928,18 @@ mod test {
 
         assert!(result.is_ok(), "{result:?}");
         assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn to_color() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgba([255u8, 0, 0, 255]));
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+
+        let target = source
+            .to_color::<Rgb<u8>>(Cicp::DISPLAY_P3, Default::default())
+            .expect("supported transform");
+
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
     }
 }
 

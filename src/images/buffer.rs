@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::cicp::CicpRgb;
+use crate::color::cicp::{CicpApplicable, CicpRgb};
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
@@ -1452,10 +1452,52 @@ pub struct ConvertColorOptions {
     pub transform: Option<CicpTransform>,
 }
 
-impl<C, FromType: Pixel> ImageBuffer<FromType, C>
+impl ConvertColorOptions {
+    pub(crate) fn as_transform<FromType, IntoType>(
+        &mut self,
+        from_color: Cicp,
+        into_color: Cicp,
+    ) -> Result<&'_ CicpApplicable<'_, FromType::Subpixel>, ImageError>
+    where
+        FromType: PixelWithColorType,
+        IntoType: PixelWithColorType,
+    {
+        if let Some(tr) = &self.transform {
+            if !tr.is_applicable(from_color, into_color) {
+                self.transform = None;
+            }
+        }
+
+        if self.transform.is_none() {
+            self.transform = CicpTransform::new(from_color, into_color);
+        }
+
+        let Some(transform) = &self.transform else {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    // One of them is responsible.
+                    UnsupportedErrorKind::ColorspaceCicp(if from_color.qualify_stability() {
+                        into_color
+                    } else {
+                        from_color
+                    }),
+                ),
+            ));
+        };
+
+        let transform = transform
+            .supported_transform_fn::<FromType, IntoType>()
+            .map_err(ImageError::Unsupported)?;
+
+        Ok(transform)
+    }
+}
+
+impl<C, IntoType: Pixel> ImageBuffer<IntoType, C>
 where
-    FromType: PixelWithColorType,
-    C: Deref<Target = [FromType::Subpixel]>,
+    IntoType: PixelWithColorType,
+    C: Deref<Target = [IntoType::Subpixel]> + DerefMut,
 {
     /// Copy pixel data from one buffer to another, calculating equivalent color representations
     /// for the target's color space.
@@ -1463,59 +1505,26 @@ where
     /// This requires both images to have the same dimensions, otherwise returns a
     /// [`ImageError::Parameter`]. Additionally, the primaries and transfer functions of both
     /// image's color spaces must be supported, otherwise returns a [`ImageError::Unsupported`].
-    pub fn copy_color<IntoType: Pixel<Subpixel = FromType::Subpixel>, D>(
-        &self,
-        target: &mut ImageBuffer<IntoType, D>,
-        options: ConvertColorOptions,
+    pub fn copy_from_color<FromType: Pixel<Subpixel = IntoType::Subpixel>, D>(
+        &mut self,
+        from: &ImageBuffer<FromType, D>,
+        mut options: ConvertColorOptions,
     ) -> ImageResult<()>
     where
-        IntoType: PixelWithColorType,
-        D: Deref<Target = [FromType::Subpixel]> + DerefMut,
+        FromType: PixelWithColorType,
+        D: Deref<Target = [IntoType::Subpixel]>,
     {
-        if self.dimensions() != target.dimensions() {
+        if self.dimensions() != from.dimensions() {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )));
         }
 
-        let from = self.color_space();
-        let into = target.color_space();
+        let transform =
+            options.as_transform::<FromType, IntoType>(from.color_space(), self.color_space())?;
 
-        let transform = options
-            .transform
-            .filter(|tr| tr.is_applicable(from, into))
-            .or_else(|| CicpTransform::new(from, into));
-
-        let Some(transform) = transform else {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    crate::error::ImageFormatHint::Unknown,
-                    // One of them is responsible.
-                    UnsupportedErrorKind::ColorspaceCicp(if from.qualify_stability() {
-                        into
-                    } else {
-                        from
-                    }),
-                ),
-            ));
-        };
-
-        let Some(transform) = transform.supported_transform_fn::<FromType, IntoType>() else {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    crate::error::ImageFormatHint::Unknown,
-                    // One of them is responsible.
-                    UnsupportedErrorKind::ColorspaceCicp(if from.qualify_stability() {
-                        into
-                    } else {
-                        from
-                    }),
-                ),
-            ));
-        };
-
-        let from = self.inner_pixels();
-        let into = target.inner_pixels_mut();
+        let from = from.inner_pixels();
+        let into = self.inner_pixels_mut();
 
         debug_assert_eq!(
             from.len() / usize::from(FromType::CHANNEL_COUNT),
@@ -1887,7 +1896,7 @@ mod test {
         source.set_rgb_primaries(Cicp::SRGB.primaries);
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
 
-        let result = source.copy_color(&mut target, Default::default());
+        let result = target.copy_from_color(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));

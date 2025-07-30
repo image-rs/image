@@ -33,6 +33,7 @@ static SOS: u8 = 0xDA;
 static DQT: u8 = 0xDB;
 // Application segments start and end
 static APP0: u8 = 0xE0;
+static APP1: u8 = 0xE1;
 static APP2: u8 = 0xE2;
 
 // section K.1
@@ -152,6 +153,10 @@ static UNZIGZAG: [u8; 64] = [
     58, 59, 52, 45, 38, 31, 39, 46,
     53, 60, 61, 54, 47, 55, 62, 63,
 ];
+
+// E x i f \0 \0
+/// The header for an EXIF APP1 segment
+static EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
 
 /// A representation of a JPEG component
 #[derive(Copy, Clone)]
@@ -352,12 +357,21 @@ pub struct JpegEncoder<W> {
     pixel_density: PixelDensity,
 
     icc_profile: Vec<u8>,
+    exif: Vec<u8>,
 }
 
 impl<W: Write> JpegEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> JpegEncoder<W> {
         JpegEncoder::new_with_quality(w, 75)
+    }
+
+    /// Add an EXIF segment to the JPEG file
+    ///
+    /// Expects a valid TIFF-formatted EXIF block as a byte vector.
+    pub fn with_exif_metadata(mut self, exif: Vec<u8>) -> JpegEncoder<W> {
+        self.exif = exif;
+        self
     }
 
     /// Create a new encoder that writes its output to ```w```, and has
@@ -423,6 +437,7 @@ impl<W: Write> JpegEncoder<W> {
             pixel_density: PixelDensity::default(),
 
             icc_profile: Vec::new(),
+            exif: Vec::new(),
         }
     }
 
@@ -478,6 +493,16 @@ impl<W: Write> JpegEncoder<W> {
         }
     }
 
+    fn write_exif(&mut self) -> ImageResult<()> {
+        if !self.exif.is_empty() {
+            let mut formatted = EXIF_HEADER.to_vec();
+            formatted.extend_from_slice(&self.exif);
+            self.writer.write_segment(APP1, &formatted)?;
+        }
+
+        Ok(())
+    }
+
     /// Encodes the given image.
     ///
     /// As a special feature this does not require the whole image to be present in memory at the
@@ -501,6 +526,7 @@ impl<W: Write> JpegEncoder<W> {
 
         build_jfif_header(&mut buf, self.pixel_density);
         self.writer.write_segment(APP0, &buf)?;
+        self.write_exif()?;
 
         // Write ICC profile chunks if present
         self.write_icc_profile_chunks()?;

@@ -82,6 +82,8 @@ pub struct UnsupportedError {
 pub enum UnsupportedErrorKind {
     /// The required color type can not be handled.
     Color(ExtendedColorType),
+    /// Dealing with an intricate layout is not implemented for an algorithm.
+    ColorLayout(ExtendedColorType),
     /// The colors or transfer function of the CICP are not supported.
     ColorspaceCicp(Cicp),
     /// An image format is not supported.
@@ -388,6 +390,10 @@ impl fmt::Display for UnsupportedError {
                 fmt,
                 "The encoder or decoder for {} does not support the color type `{:?}`",
                 self.format, color,
+            ),
+            UnsupportedErrorKind::ColorLayout(layout) => write!(
+                fmt,
+                "Converting with the texel memory layout {layout:?} is not supported",
             ),
             UnsupportedErrorKind::ColorspaceCicp(color) => write!(
                 fmt,

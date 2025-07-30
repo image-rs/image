@@ -3,8 +3,11 @@ use std::sync::Arc;
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
 use crate::{
-    traits::private::{LayoutWithColor, SealedPixelWithColorType},
-    traits::PixelWithColorType,
+    error::{UnsupportedError, UnsupportedErrorKind},
+    traits::{
+        private::{LayoutWithColor, SealedPixelWithColorType},
+        PixelWithColorType,
+    },
     Primitive,
 };
 
@@ -191,6 +194,7 @@ pub enum CicpVideoFullRangeFlag {
 /// We do not support all possible Cicp color spaces, but when we support one then all builtin
 /// `Pixel` types can be converted with their respective components. This value is used to signify
 /// that some particular combination is supported.
+#[derive(Clone)]
 pub struct CicpTransform {
     from: Cicp,
     into: Cicp,
@@ -199,8 +203,11 @@ pub struct CicpTransform {
     f32: RgbTransforms<f32>,
 }
 
+pub(crate) type CicpApplicable<'lt, C> = dyn Fn(&[C], &mut [C]) + Send + Sync + 'lt;
+
+#[derive(Clone)]
 struct RgbTransforms<C> {
-    slices: [Arc<dyn Fn(&[C], &mut [C]) + Send + Sync>; 4],
+    slices: [Arc<CicpApplicable<'static, C>>; 4],
 }
 
 impl CicpTransform {
@@ -258,24 +265,30 @@ impl CicpTransform {
     /// Maybe provide publicly?
     pub(crate) fn supported_transform_fn<From: PixelWithColorType, Into: PixelWithColorType>(
         &self,
-    ) -> Option<&'_ (dyn Fn(&[From::Subpixel], &mut [From::Subpixel]) + Send + Sync + '_)> {
+    ) -> Result<&'_ CicpApplicable<'_, From::Subpixel>, UnsupportedError> {
         use crate::traits::private::{double_dispatch_transform_from_sealed, PrivateToken};
 
         if !matches!(
             From::layout(PrivateToken),
             LayoutWithColor::Rgb | LayoutWithColor::Rgba
         ) {
-            return None;
+            return Err(UnsupportedError::from_format_and_kind(
+                crate::error::ImageFormatHint::Unknown,
+                UnsupportedErrorKind::ColorLayout(From::COLOR_TYPE.into()),
+            ));
         }
 
         if !matches!(
             Into::layout(PrivateToken),
             LayoutWithColor::Rgb | LayoutWithColor::Rgba
         ) {
-            return None;
+            return Err(UnsupportedError::from_format_and_kind(
+                crate::error::ImageFormatHint::Unknown,
+                UnsupportedErrorKind::ColorLayout(Into::COLOR_TYPE.into()),
+            ));
         }
 
-        Some(double_dispatch_transform_from_sealed::<From, Into>(self))
+        Ok(double_dispatch_transform_from_sealed::<From, Into>(self))
     }
 
     /// Does this transform realize the conversion `from` to `into`.
@@ -311,21 +324,21 @@ impl CicpTransform {
     pub(crate) fn select_transform_u8<P: SealedPixelWithColorType<TransformableSubpixel = u8>>(
         &self,
         into: LayoutWithColor,
-    ) -> &Arc<dyn Fn(&[u8], &mut [u8]) + Send + Sync> {
+    ) -> &Arc<CicpApplicable<'static, u8>> {
         &self.u8.slices[Self::select_transform_index::<P>(into)]
     }
 
     pub(crate) fn select_transform_u16<O: SealedPixelWithColorType<TransformableSubpixel = u16>>(
         &self,
         into: LayoutWithColor,
-    ) -> &Arc<dyn Fn(&[u16], &mut [u16]) + Send + Sync> {
+    ) -> &Arc<CicpApplicable<'static, u16>> {
         &self.u16.slices[Self::select_transform_index::<O>(into)]
     }
 
     pub(crate) fn select_transform_f32<O: SealedPixelWithColorType<TransformableSubpixel = f32>>(
         &self,
         into: LayoutWithColor,
-    ) -> &Arc<dyn Fn(&[f32], &mut [f32]) + Send + Sync> {
+    ) -> &Arc<CicpApplicable<'static, f32>> {
         &self.f32.slices[Self::select_transform_index::<O>(into)]
     }
 

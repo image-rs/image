@@ -492,48 +492,6 @@ pub trait Pixel: Copy + Clone {
         self.apply_with_alpha(f, |x| x);
     }
 
-    /// Convert this pixel to RGB, using input and output color space information.
-    ///
-    /// Note this can only be called on sealed, internal, pixel types.
-    fn to_rgb_with(&self, _: &CicpTransform) -> Rgb<Self::Subpixel>
-    where
-        Self: PixelWithColorType,
-    {
-        self.to_rgb()
-    }
-
-    /// Convert this pixel to RGB with an alpha channel, using input and output color space
-    /// information
-    ///
-    /// Note this can only be called on sealed, internal, pixel types.
-    fn to_rgba_with(&self, _: &CicpTransform) -> Rgba<Self::Subpixel>
-    where
-        Self: PixelWithColorType,
-    {
-        self.to_rgba()
-    }
-
-    /// Convert this pixel to luma, using input and output color space information
-    ///
-    /// Note this can only be called on sealed, internal, pixel types.
-    fn to_luma_with(&self, _: &CicpTransform) -> Luma<Self::Subpixel>
-    where
-        Self: PixelWithColorType,
-    {
-        self.to_luma()
-    }
-
-    /// Convert this pixel to luma with an alpha channel, using input and output color space
-    /// information
-    ///
-    /// Note this can only be called on sealed, internal, pixel types.
-    fn to_luma_alpha_with(&self, _: &CicpTransform) -> LumaA<Self::Subpixel>
-    where
-        Self: PixelWithColorType,
-    {
-        self.to_luma_alpha()
-    }
-
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise.
     fn map2<F>(&self, other: &Self, f: F) -> Self

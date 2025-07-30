@@ -76,6 +76,10 @@ pub trait GenericImageView {
     /// Returns a subimage that is an immutable view into this image.
     /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     /// The coordinates set the position of the top left corner of the view.
+    ///
+    ///  # Panics
+    ///
+    /// Panics if the dimensions provided fall out of bounds.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
     where
         Self: Sized,
@@ -83,6 +87,29 @@ pub trait GenericImageView {
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
+    }
+
+    /// Returns a subimage that is an immutable view into this image so long as
+    /// the provided coordinates and dimensions are within the bounds of this Image.
+    fn try_view(
+        &self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<SubImage<&Self>, ImageError>
+    where
+        Self: Sized,
+    {
+        if u64::from(x) + u64::from(width) > u64::from(self.width())
+            || u64::from(y) + u64::from(height) > u64::from(self.height())
+        {
+            Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )))
+        } else {
+            Ok(SubImage::new(self, x, y, width, height))
+        }
     }
 }
 

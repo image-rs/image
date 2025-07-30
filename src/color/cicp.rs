@@ -4,6 +4,7 @@ use std::sync::Arc;
 /// components.
 use crate::{
     traits::private::{LayoutWithColor, SealedPixelWithColorType},
+    traits::PixelWithColorType,
     Primitive,
 };
 
@@ -264,6 +265,36 @@ impl CicpTransform {
                     .ok()
             }))?,
         })
+    }
+
+    /// For a Pixel with known color layout (`ColorType`) get a transform that is accurate.
+    ///
+    /// This returns `None` if we do not support the transform. At writing that is true for
+    /// instance for transforms involved 'Luma` pixels which are interpreted as the `Y` in a
+    /// `YCbCr` color based off the actual whitepoint, with coefficients according to each
+    /// primary's luminance. Only Rgb transforms are supported via `moxcms`.
+    ///
+    /// Maybe provide publicly?
+    pub(crate) fn supported_transform_fn<From: PixelWithColorType, Into: PixelWithColorType>(
+        &self,
+    ) -> Option<&'_ (dyn Fn(&[From::Subpixel], &mut [From::Subpixel]) + Send + Sync + '_)> {
+        use crate::traits::private::{double_dispatch_transform_from_sealed, PrivateToken};
+
+        if !matches!(
+            From::layout(PrivateToken),
+            LayoutWithColor::Rgb | LayoutWithColor::Rgba
+        ) {
+            return None;
+        }
+
+        if !matches!(
+            Into::layout(PrivateToken),
+            LayoutWithColor::Rgb | LayoutWithColor::Rgba
+        ) {
+            return None;
+        }
+
+        Some(double_dispatch_transform_from_sealed::<From, Into>(self))
     }
 
     /// Does this transform realize the conversion `from` to `into`.

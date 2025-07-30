@@ -465,7 +465,12 @@ impl RgbGrayProfile {
 }
 
 #[cfg(test)]
-mod tests {
+// Disabled tests for now, but keeping the reference values. Since pixel conversion is typed based
+// we _should_ support all our primary `ColorType` options before offering this, currently Luma is
+// difficult. Otherwise we could also refine `PixelWithColorType` but it is already sealed and
+// internal and will, probably, quickly become highly confusing.
+#[cfg(any())]
+mod test_pixels {
     use super::{Cicp, CicpTransform};
     use crate::{Luma, Pixel, Rgba};
 

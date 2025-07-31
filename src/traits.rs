@@ -6,7 +6,7 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
 use crate::color::{Luma, LumaA, Rgb, Rgba};
-use crate::{CicpTransform, ExtendedColorType};
+use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.

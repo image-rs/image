@@ -3,7 +3,10 @@ use std::io::{self, BufWriter, Seek, Write};
 use std::path::Path;
 
 use crate::color::{self, FromColor, IntoColor};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
+};
 use crate::flat::FlatSamples;
 use crate::imageops::{gaussian_blur_dyn_image, GaussianBlurParameters};
 use crate::images::buffer::{
@@ -1078,11 +1081,46 @@ impl DynamicImage {
     /// - Both images to have the same dimensions, otherwise returns a [`ImageError::Parameter`].
     /// - The primaries and transfer functions of both image's color spaces must be supported,
     ///   otherwise returns a [`ImageError::Unsupported`].
+    ///
+    /// ## Accuracy
+    ///
+    /// All color values are subject to change to their _intended_ values. Please do not rely on
+    /// them further than your own colorimetric understanding shows them correct. For instance,
+    /// conversion of RGB to their corresponding Luma values needs to be modified in future
+    /// versions of this library. Expect colors to be too bright or too dark until further notice.
     pub fn copy_from_color(
         &mut self,
         other: &DynamicImage,
         options: ConvertColorOptions,
     ) -> ImageResult<()> {
+        // If any of these images are luma we are only correct when they are in Linear sRGB. Half
+        // of that is the color convert trait which can't pass information and thus only uses
+        // coefficients which are for the D65 whitepoint in sRGB primaries. The other half is that
+        // moxcms support for expressing an YCbCr space with transfer is not there yet.
+        //
+        // Implementation ideas: Maybe we'll get that by buffering into a full YCbCr image
+        // (misusing RgbaImage as a buffer for it probably) as soon as moxcms has the full aToB
+        // support that allows us to do M -> curve -> B conversion. More advance would entail
+        // dropping two of the output channels (CbCr) only for writing so we can allocate the right
+        // image right away but it's been deemed too complex to implement right away.
+        if self.color().channel_count() < 3 && self.color_space() != Cicp::SRGB_LINEAR {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::ColorLayout(self.color().into()),
+                ),
+            ));
+        }
+
+        if other.color().channel_count() < 3 && other.color_space() != Cicp::SRGB_LINEAR {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::ColorLayout(self.color().into()),
+                ),
+            ));
+        }
+
         // Try to no-op this transformation, we may be lucky..
         if self.color_space() == other.color_space() {
             // Nothing to transform, just rescale samples and type cast.
@@ -1534,7 +1572,7 @@ mod bench {
 #[cfg(test)]
 mod test {
     use crate::{color::ColorType, images::dynimage::Gray16Image};
-    use crate::{Cicp, ImageBuffer, Rgb, Rgba};
+    use crate::{Cicp, ImageBuffer, Luma, Rgb, Rgba};
 
     #[test]
     fn test_empty_file() {
@@ -1691,7 +1729,9 @@ mod test {
         });
 
         source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
         let result = target.copy_from_color(&source, Default::default());
 
@@ -1711,7 +1751,9 @@ mod test {
         });
 
         source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
         let result = target.copy_from_color(&source, Default::default());
 
@@ -1736,5 +1778,23 @@ mod test {
         assert!(result.is_ok(), "{result:?}");
         let target = target.as_rgba8().expect("Sample type unchanged");
         assert_eq!(target[(0, 0)], Rgba([255u8, 0, 0, 255]));
+    }
+
+    #[test]
+    fn color_conversion_rgb_to_luma() {
+        let source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([0, u16::MAX, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageLuma8({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma(Default::default()))
+        });
+
+        // No color space change takes place, but still sample should be converted.
+        let result = target.copy_from_color(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        // FIXME: but the result value is .. not ideal.
+        target.as_luma8().expect("Sample type unchanged");
     }
 }

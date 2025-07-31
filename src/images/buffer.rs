@@ -683,7 +683,7 @@ where
                 data: buf,
                 width,
                 height,
-                color: Cicp::SRGB.into_rgb(),
+                color: Cicp::SRGB_LINEAR.into_rgb(),
                 _phantom: PhantomData,
             })
         } else {
@@ -1128,7 +1128,7 @@ where
             width: 0,
             height: 0,
             _phantom: PhantomData,
-            color: Cicp::SRGB.into_rgb(),
+            color: Cicp::SRGB_LINEAR.into_rgb(),
             data: Default::default(),
         }
     }
@@ -1311,7 +1311,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
             data: vec![Zero::zero(); size],
             width,
             height,
-            color: Cicp::SRGB.into_rgb(),
+            color: Cicp::SRGB_LINEAR.into_rgb(),
             _phantom: PhantomData,
         }
     }
@@ -1929,7 +1929,10 @@ mod test {
         let mut target = ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()));
 
         source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
         let result = target.copy_from_color(&source, Default::default());
 
@@ -1941,6 +1944,7 @@ mod test {
     fn to_color() {
         let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgba([255u8, 0, 0, 255]));
         source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
 
         let target = source
             .to_color::<Rgb<u8>>(Cicp::DISPLAY_P3, Default::default())

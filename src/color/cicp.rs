@@ -364,6 +364,7 @@ impl CicpTransform {
 }
 
 impl Cicp {
+    /// The sRGB color space, BT.709 transfer function and D65 whitepoint.
     pub const SRGB: Self = Cicp {
         primaries: CicpColorPrimaries::SRgb,
         transfer: CicpTransferFunction::SRgb,
@@ -371,6 +372,15 @@ impl Cicp {
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
 
+    /// SRGB primaries and whitepoint with linear samples.
+    pub const SRGB_LINEAR: Self = Cicp {
+        primaries: CicpColorPrimaries::SRgb,
+        transfer: CicpTransferFunction::Linear,
+        matrix: CicpMatrixCoefficients::Identity,
+        full_range: CicpVideoFullRangeFlag::FullRange,
+    };
+
+    /// The  Display-P3 color space, a wide-gamut choice with SMPTE RP 432-2 primaries.
     pub const DISPLAY_P3: Self = Cicp {
         primaries: CicpColorPrimaries::SmpteRp432,
         transfer: CicpTransferFunction::SRgb,
@@ -428,6 +438,7 @@ impl Cicp {
         const _: () = {
             // Out public constants _should_ be stable.
             assert!(Cicp::SRGB.qualify_stability());
+            assert!(Cicp::SRGB_LINEAR.qualify_stability());
             assert!(Cicp::DISPLAY_P3.qualify_stability());
         };
 
@@ -484,6 +495,16 @@ impl RgbGrayProfile {
             LayoutWithColor::LumaAlpha => (&self.gray, moxcms::Layout::GrayAlpha),
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn moxcms() {
+    let l = moxcms::TransferCharacteristics::Linear;
+    assert_eq!(l.linearize(1.0), 1.0);
+    assert_eq!(l.gamma(1.0), 1.0);
+
+    assert_eq!(l.gamma(0.5), 0.5);
 }
 
 #[cfg(test)]

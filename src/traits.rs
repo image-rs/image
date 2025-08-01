@@ -214,6 +214,7 @@ impl PixelWithColorType for LumaA<u16> {
 
 /// Prevents down-stream users from implementing the `Primitive` trait
 pub(crate) mod private {
+    use crate::color::cicp::CicpApplicable;
     use crate::color::*;
 
     #[derive(Clone, Copy, Debug)]
@@ -327,8 +328,7 @@ pub(crate) mod private {
     pub(crate) fn dispatch_transform_from_sealed<P: SealedPixelWithColorType>(
         transform: &cicp::CicpTransform,
         into: LayoutWithColor,
-    ) -> &'_ (dyn Fn(&[P::TransformableSubpixel], &mut [P::TransformableSubpixel]) + Send + Sync)
-    {
+    ) -> &'_ CicpApplicable<'_, P::TransformableSubpixel> {
         <P::TransformableSubpixel as HelpDispatchTransform>::transform_on::<P>(transform, into)
     }
 
@@ -337,8 +337,7 @@ pub(crate) mod private {
         Into: SealedPixelWithColorType,
     >(
         transform: &cicp::CicpTransform,
-    ) -> &'_ (dyn Fn(&[P::TransformableSubpixel], &mut [P::TransformableSubpixel]) + Send + Sync)
-    {
+    ) -> &'_ CicpApplicable<'_, P::TransformableSubpixel> {
         dispatch_transform_from_sealed::<P>(transform, Into::layout(PrivateToken))
     }
 

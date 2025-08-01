@@ -1197,7 +1197,7 @@ impl DynamicImage {
             target
         };
 
-        target.copy_from_color(&source, options)?;
+        target.copy_from_color(source, options)?;
 
         // If we used an intermediate buffer in the target color space, then now convert from that
         // buffer into our own sample layout.

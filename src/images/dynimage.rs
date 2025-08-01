@@ -1424,7 +1424,7 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
-    let image = match color_type {
+    let mut image = match color_type {
         color::ColorType::Rgb8 => {
             let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
@@ -1474,14 +1474,20 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
             let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
-    };
-
-    match image {
-        Some(image) => Ok(image),
-        None => Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        ))),
     }
+    .ok_or_else(|| {
+        ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        ))
+    })?;
+
+    // Presume SRGB for now. This is the one we convert into in some decoders and the one that is
+    // most widely used in the wild. FIXME: add an API to decoder to indicate the color space as a
+    // CICP directly or through interpreting the ICC information.
+    image.set_rgb_primaries(Cicp::SRGB.primaries);
+    image.set_transfer_function(Cicp::SRGB.transfer);
+
+    Ok(image)
 }
 
 /// Open the image located at the path specified.

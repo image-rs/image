@@ -265,7 +265,8 @@ impl CicpMatrixCoefficients {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpVideoFullRangeFlag {
     /// The color components are encoded in a limited range, e.g., 16-235 for 8-bit. This was used
-    /// for some in-band auxiliary data in the past, but is generally not used anymore.
+    /// for some in-band auxiliary data in the past (overswing of noisy filters to be clipped by
+    /// the analog decoder), but is generally not used anymore.
     NarrowRange = 0,
     /// The color components are encoded in the full range, e.g., 0-255 for 8-bit.
     FullRange = 1,

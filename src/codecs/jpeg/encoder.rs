@@ -366,14 +366,6 @@ impl<W: Write> JpegEncoder<W> {
         JpegEncoder::new_with_quality(w, 75)
     }
 
-    /// Add an EXIF segment to the JPEG file
-    ///
-    /// Expects a valid TIFF-formatted EXIF block as a byte vector.
-    pub fn with_exif_metadata(mut self, exif: Vec<u8>) -> JpegEncoder<W> {
-        self.exif = exif;
-        self
-    }
-
     /// Create a new encoder that writes its output to ```w```, and has
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
@@ -738,6 +730,11 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
         self.icc_profile = icc_profile;
+        Ok(())
+    }
+
+    fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.exif = exif;
         Ok(())
     }
 

@@ -485,6 +485,7 @@ pub struct PngEncoder<W: Write> {
     compression: CompressionType,
     filter: FilterType,
     icc_profile: Vec<u8>,
+    exif_metadata: Vec<u8>,
 }
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
@@ -539,6 +540,7 @@ impl<W: Write> PngEncoder<W> {
             compression: CompressionType::default(),
             filter: FilterType::default(),
             icc_profile: Vec::new(),
+            exif_metadata: Vec::new(),
         }
     }
 
@@ -564,6 +566,7 @@ impl<W: Write> PngEncoder<W> {
             compression,
             filter,
             icc_profile: Vec::new(),
+            exif_metadata: Vec::new(),
         }
     }
 
@@ -613,6 +616,9 @@ impl<W: Write> PngEncoder<W> {
 
         if !self.icc_profile.is_empty() {
             info.icc_profile = Some(Cow::Borrowed(&self.icc_profile));
+        }
+        if !self.exif_metadata.is_empty() {
+            info.exif_metadata = Some(Cow::Borrowed(&self.exif_metadata));
         }
 
         let mut encoder =
@@ -688,6 +694,11 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
         self.icc_profile = icc_profile;
+        Ok(())
+    }
+
+    fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.exif_metadata = exif;
         Ok(())
     }
 }

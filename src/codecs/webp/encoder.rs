@@ -98,6 +98,11 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
         Ok(())
     }
 
+    fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.inner.set_exif_metadata(exif);
+        Ok(())
+    }
+
     fn make_compatible_img(
         &self,
         _: crate::io::encoder::MethodSealedToImage,

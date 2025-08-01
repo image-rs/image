@@ -14,9 +14,19 @@ use crate::{
 /// Reference: <https://www.itu.int/rec/T-REC-H.273-202407-I/en> (V4)
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Cicp {
+    /// Defines the exact color of red, green, blue primary colors.
     pub primaries: CicpColorPrimaries,
+    /// The electro-optical transfer function (EOTF) that maps color components to linear values.
     pub transfer: CicpTransferFunction,
+    /// A matrix between linear values and primary color representation.
+    ///
+    /// For an RGB space this is the identity matrix.
     pub matrix: CicpMatrixCoefficients,
+    /// Whether the color components use all bits of the encoded values, or have headroom.
+    ///
+    /// You'll want to use [`CicpVideoFullRangeFlag::FullRange`] for most cases except if you need
+    /// to emulate quite old TV settings. Some systems ignore this setting. `image` errors when
+    /// trying to create a non-full-range transform.
     pub full_range: CicpVideoFullRangeFlag,
 }
 
@@ -26,6 +36,12 @@ pub(crate) struct CicpRgb {
     pub(crate) transfer: CicpTransferFunction,
 }
 
+/// Defines the exact color of red, green, blue primary colors.
+///
+/// Each set defines the CIE 1931 XYZ (2°) color space coordinates of the primary colors and an
+/// illuminant/whitepoint under which those colors are viewed.
+///
+/// Refer to Rec H.273 Table 2.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpColorPrimaries {
@@ -86,24 +102,59 @@ impl CicpColorPrimaries {
     }
 }
 
+/// The transfer characteristics, expressing relation between encoded values and linear color
+/// values.
+///
+/// Refer to Rec H.273 Table 3.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpTransferFunction {
+    /// Rec. ITU-R BT.709-6
+    /// Rec. ITU-R BT.1361-0 conventional
+    /// (functionally the same as the values 6, 14 and 15)
     Bt709 = 1,
+    /// Rec. ITU-R BT.470-6 System M (historical)
+    /// United States National Television System Committee 1953 Recommendation for transmission standards for color television
+    /// United States Federal Communications Commission (2003) Title 47 Code of Federal Regulations 73.682 (a) (20)
+    /// Rec. ITU-R BT.1700-0 625 PAL and 625 SECAM
+    ///
+    /// Assumed gamma of 2.2
     Bt470M = 4,
+    /// Rec. ITU-R BT.470-6 System B, G (historical)
     Bt470BG = 5,
+    /// Rec. ITU-R BT.601-7 525 or 625
+    /// Rec. ITU-R BT.1358-1 525 or 625 (historical)
+    /// Rec. ITU-R BT.1700-0 NTSC
+    /// SMPTE ST 170 (functionally the same as the values 1, 14 and 15)
     Bt601 = 6,
+    /// SMPTE ST 240
     Smpte240m = 7,
+    /// Linear transfer characteristics
     Linear = 8,
+    /// Logarithmic transfer characteristic (100:1 range)
     Log100 = 9,
+    /// Logarithmic transfer characteristic (100 * Sqrt( 10 ) : 1 range)
     LogSqrt = 10,
+    /// IEC 61966-2-4
     Iec61966_2_4 = 11,
+    /// Rec. ITU-R BT.1361-0 extended colour gamut system (historical)
     Bt1361 = 12,
+    /// IEC 61966-2-1 sRGB (with MatrixCoefficients equal to 0)
+    /// IEC 61966-2-1 sYCC (with MatrixCoefficients equal to 5)
     SRgb = 13,
+    /// Rec. ITU-R BT.2020-2 (10-bit system)
+    /// (functionally the same as the values 1, 6 and 15)
     Bt2020_10bit = 14,
+    /// Rec. ITU-R BT.2020-2 (12-bit system)
+    /// (functionally the same as the values 1, 6 and 14)
     Bt2020_12bit = 15,
+    /// SMPTE ST 2084 for 10-, 12-, 14- and 16-bit systems
+    /// Rec. ITU-R BT.2100-2 perceptual quantization (PQ) system
     Smpte2084 = 16,
+    /// SMPTE ST 428-1
     Smpte428 = 17,
+    /// ARIB STD-B67
+    /// Rec. ITU-R BT.2100-2 hybrid log- gamma (HLG) system
     Bt2100Hlg = 18,
 }
 
@@ -132,23 +183,51 @@ impl CicpTransferFunction {
     }
 }
 
+///
+/// Refer to Rec H.273 Table 4.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpMatrixCoefficients {
+    /// The identity matrix.
+    /// Typically used for GBR (often referred to as RGB); however, may also be used for YZX (often referred to as XYZ);
+    /// IEC 61966-2-1 sRGB
+    /// SMPTE ST 428-1
     Identity = 0,
+    /// Rec. ITU-R BT.709-6
+    /// Rec. ITU-R BT.1361-0 conventional colour gamut system and extended colour gamut system (historical)
+    /// IEC 61966-2-4 xvYCC709
+    /// SMPTE RP 177 Annex B
     Bt709 = 1,
-    Unspecified = 2,
+    /// United States Federal Communications Commission (2003) Title 47 Code of Federal Regulations 73.682 (a) (20)
     UsFCC = 4,
+    ///  Rec. ITU-R BT.470-6 System B, G (historical)
+    /// Rec. ITU-R BT.601-7 625
+    /// Rec. ITU-R BT.1358-0 625 (historical)
+    /// Rec. ITU-R BT.1700-0 625 PAL and 625 SECAM
+    /// IEC 61966-2-1 sYCC
+    /// IEC 61966-2-4 xvYCC601
+    /// (functionally the same as the value 6)
     Bt470BG = 5,
+    /// (functionally the same as the value 5)
     Smpte170m = 6,
+    /// SMPTE ST 240
     Smpte240m = 7,
+    /// YCgCo
     YCgCo = 8,
+    /// Rec. ITU-R BT.2020-2 (non-constant luminance)
+    /// Rec. ITU-R BT.2100-2 Y′CbCr
     Bt2020NonConstant = 9,
+    /// Rec. ITU-R BT.2020-2 (constant luminance)
     Bt2020Constant = 10,
+    /// SMPTE ST 2085
     Smpte2085 = 11,
+    /// Chromaticity-derived non-constant luminance system
     ChromaticityDerivedNonConstant = 12,
+    /// Chromaticity-derived constant luminance system
     ChromaticityDerivedConstant = 13,
+    /// Rec. ITU-R BT.2100-2 ICTCp
     Bt2100 = 14,
+    /// Colour representation developed in SMPTE as IPT-PQ-C2.
     IptPqC2 = 15,
     /// YCgCo with added bit-depth (2-bit).
     YCgCoRe = 16,
@@ -163,7 +242,6 @@ impl CicpMatrixCoefficients {
         Some(match self {
             CicpMatrixCoefficients::Identity => M::Identity,
             CicpMatrixCoefficients::Bt709 => M::Bt709,
-            CicpMatrixCoefficients::Unspecified => M::Unspecified,
             CicpMatrixCoefficients::UsFCC => M::Fcc,
             CicpMatrixCoefficients::Bt470BG => M::Bt470Bg,
             CicpMatrixCoefficients::Smpte170m => M::Smpte170m,
@@ -182,10 +260,14 @@ impl CicpMatrixCoefficients {
     }
 }
 
+/// The used encoded value range.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CicpVideoFullRangeFlag {
+    /// The color components are encoded in a limited range, e.g., 16-235 for 8-bit. This was used
+    /// for some in-band auxiliary data in the past, but is generally not used anymore.
     NarrowRange = 0,
+    /// The color components are encoded in the full range, e.g., 0-255 for 8-bit.
     FullRange = 1,
 }
 
@@ -211,6 +293,17 @@ struct RgbTransforms<C> {
 }
 
 impl CicpTransform {
+    /// Construct a transform between two color spaces.
+    ///
+    /// Returns `Some` if the transform is guaranteed to be supported by `image`. Both color spaces
+    /// are well understood and can be expected to be supported in future versions. However, we do
+    /// not make guarantees about adjusting the rounding modes, accuracy, and exact numeric values
+    /// used in the transform. Also, out-of-gamut colors may be handled differently per API.
+    ///
+    /// Returns `None` if the transformation is not (yet) supported.
+    ///
+    /// This is used with [`ConvertColorOptions`][`crate::ConvertColorOptions`],
+    /// [`ImageBuffer::copy_from_color`][`crate::ImageBuffer::copy_from_color`].
     pub fn new(from: Cicp, into: Cicp) -> Option<Self> {
         if !from.qualify_stability() || !into.qualify_stability() {
             // To avoid regressions, we do not support all kinds of transforms from the start.

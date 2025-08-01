@@ -83,7 +83,7 @@ pub enum CicpColorPrimaries {
 }
 
 impl CicpColorPrimaries {
-    fn to_moxcms(&self) -> moxcms::CicpColorPrimaries {
+    fn to_moxcms(self) -> moxcms::CicpColorPrimaries {
         use moxcms::CicpColorPrimaries as M;
 
         match self {
@@ -159,7 +159,7 @@ pub enum CicpTransferFunction {
 }
 
 impl CicpTransferFunction {
-    fn to_moxcms(&self) -> moxcms::TransferCharacteristics {
+    fn to_moxcms(self) -> moxcms::TransferCharacteristics {
         use moxcms::TransferCharacteristics as T;
 
         match self {
@@ -236,7 +236,7 @@ pub enum CicpMatrixCoefficients {
 }
 
 impl CicpMatrixCoefficients {
-    fn to_moxcms(&self) -> Option<moxcms::MatrixCoefficients> {
+    fn to_moxcms(self) -> Option<moxcms::MatrixCoefficients> {
         use moxcms::MatrixCoefficients as M;
 
         Some(match self {
@@ -326,7 +326,7 @@ impl CicpTransform {
                 let (from, from_layout) = mox_from.mox_profile(from_layout);
                 let (into, into_layout) = mox_into.mox_profile(into_layout);
 
-                from.create_transform_8bit(from_layout, &into, into_layout, opt)
+                from.create_transform_8bit(from_layout, into, into_layout, opt)
                     .map_err(|e| {
                         eprintln!("Error creating transform {from_layout:?}->{into_layout:?}: {e}")
                     })
@@ -336,14 +336,14 @@ impl CicpTransform {
                 let (from, from_layout) = mox_from.mox_profile(from_layout);
                 let (into, into_layout) = mox_into.mox_profile(into_layout);
 
-                from.create_transform_16bit(from_layout, &into, into_layout, opt)
+                from.create_transform_16bit(from_layout, into, into_layout, opt)
                     .ok()
             }))?,
             f32: Self::build_transforms(Self::LAYOUTS.map(|(from_layout, into_layout)| {
                 let (from, from_layout) = mox_from.mox_profile(from_layout);
                 let (into, into_layout) = mox_into.mox_profile(into_layout);
 
-                from.create_transform_f32(from_layout, &into, into_layout, opt)
+                from.create_transform_f32(from_layout, into, into_layout, opt)
                     .ok()
             }))?,
         })
@@ -368,7 +368,7 @@ impl CicpTransform {
         ) {
             return Err(UnsupportedError::from_format_and_kind(
                 crate::error::ImageFormatHint::Unknown,
-                UnsupportedErrorKind::ColorLayout(From::COLOR_TYPE.into()),
+                UnsupportedErrorKind::ColorLayout(From::COLOR_TYPE),
             ));
         }
 
@@ -378,7 +378,7 @@ impl CicpTransform {
         ) {
             return Err(UnsupportedError::from_format_and_kind(
                 crate::error::ImageFormatHint::Unknown,
-                UnsupportedErrorKind::ColorLayout(Into::COLOR_TYPE.into()),
+                UnsupportedErrorKind::ColorLayout(Into::COLOR_TYPE),
             ));
         }
 

@@ -397,8 +397,7 @@ impl fmt::Display for UnsupportedError {
             ),
             UnsupportedErrorKind::ColorspaceCicp(color) => write!(
                 fmt,
-                "The colorimetric interpretation of a CICP color space is not supported for `{:?}`",
-                color,
+                "The colorimetric interpretation of a CICP color space is not supported for `{color:?}`",
             ),
             UnsupportedErrorKind::GenericFeature(message) => match &self.format {
                 ImageFormatHint::Unknown => write!(

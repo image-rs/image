@@ -1512,13 +1512,13 @@ where
     ///
     /// To copy color data of arbitrary channel layouts use `DynamicImage` with the overhead of
     /// having data converted into and from RGB representation.
-    pub fn copy_from_color<FromType: Pixel<Subpixel = SelfPixel::Subpixel>, D>(
+    pub fn copy_from_color<FromType, D>(
         &mut self,
         from: &ImageBuffer<FromType, D>,
         mut options: ConvertColorOptions,
     ) -> ImageResult<()>
     where
-        FromType: PixelWithColorType,
+        FromType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
         D: Deref<Target = [SelfPixel::Subpixel]>,
     {
         if self.dimensions() != from.dimensions() {

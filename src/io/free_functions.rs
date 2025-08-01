@@ -78,6 +78,8 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
         ImageFormat::Farbfeld => Box::new(farbfeld::FarbfeldEncoder::new(buffered_write)),
         #[cfg(feature = "tga")]
         ImageFormat::Tga => Box::new(tga::TgaEncoder::new(buffered_write)),
+        #[cfg(feature = "dds")]
+        ImageFormat::Dds => Box::new(dds::DdsEncoder::new(buffered_write)),
         #[cfg(feature = "exr")]
         ImageFormat::OpenExr => Box::new(openexr::OpenExrEncoder::new(buffered_write)),
         #[cfg(feature = "tiff")]

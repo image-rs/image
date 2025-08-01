@@ -1,3 +1,5 @@
+pub(crate) mod cicp;
+
 use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};

@@ -18,7 +18,7 @@ use std::error::Error;
 use std::{fmt, io};
 
 use crate::color::ExtendedColorType;
-use crate::ImageFormat;
+use crate::{Cicp, ImageFormat};
 
 /// The generic error type for image operations.
 ///
@@ -82,6 +82,10 @@ pub struct UnsupportedError {
 pub enum UnsupportedErrorKind {
     /// The required color type can not be handled.
     Color(ExtendedColorType),
+    /// Dealing with an intricate layout is not implemented for an algorithm.
+    ColorLayout(ExtendedColorType),
+    /// The colors or transfer function of the CICP are not supported.
+    ColorspaceCicp(Cicp),
     /// An image format is not supported.
     Format(ImageFormatHint),
     /// Some feature specified by string.
@@ -386,6 +390,14 @@ impl fmt::Display for UnsupportedError {
                 fmt,
                 "The encoder or decoder for {} does not support the color type `{:?}`",
                 self.format, color,
+            ),
+            UnsupportedErrorKind::ColorLayout(layout) => write!(
+                fmt,
+                "Converting with the texel memory layout {layout:?} is not supported",
+            ),
+            UnsupportedErrorKind::ColorspaceCicp(color) => write!(
+                fmt,
+                "The colorimetric interpretation of a CICP color space is not supported for `{color:?}`",
             ),
             UnsupportedErrorKind::GenericFeature(message) => match &self.format {
                 ImageFormatHint::Unknown => write!(

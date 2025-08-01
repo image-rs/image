@@ -6,13 +6,19 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
+use crate::color::cicp::{CicpApplicable, CicpRgb};
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::error::ImageResult;
+use crate::error::{
+    ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
-use crate::{save_buffer, save_buffer_with_format, write_buffer_with_format};
+use crate::{
+    save_buffer, save_buffer_with_format, write_buffer_with_format, Cicp, CicpColorPrimaries,
+    CicpTransferFunction, CicpTransform, ImageError,
+};
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
 /// Iterate over pixel refs.
@@ -656,6 +662,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     _phantom: PhantomData<P>,
+    color: CicpRgb,
     data: Container,
 }
 
@@ -676,6 +683,7 @@ where
                 data: buf,
                 width,
                 height,
+                color: Cicp::SRGB_LINEAR.into_rgb(),
                 _phantom: PhantomData,
             })
         } else {
@@ -983,6 +991,32 @@ where
     }
 }
 
+impl<P: Pixel, Container> ImageBuffer<P, Container> {
+    /// Define the color space for the image.
+    ///
+    /// Reinterprets the existing red, blue, green channels as points in the new set of primary
+    /// colors, potentially changing the apparent shade of pixels.
+    ///
+    /// When this buffer contains Luma data the call has no effect.
+    pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
+        self.color.primaries = color;
+    }
+
+    /// Define the transfer function for the image.
+    ///
+    /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
+    /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
+    /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
+    pub fn set_transfer_function(&mut self, tf: CicpTransferFunction) {
+        self.color.transfer = tf;
+    }
+
+    /// Get the Cicp encoding of this buffer's color data.
+    pub fn color_space(&self) -> Cicp {
+        self.color.into()
+    }
+}
+
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1094,6 +1128,7 @@ where
             width: 0,
             height: 0,
             _phantom: PhantomData,
+            color: Cicp::SRGB_LINEAR.into_rgb(),
             data: Default::default(),
         }
     }
@@ -1153,6 +1188,7 @@ where
             data: self.data.clone(),
             width: self.width,
             height: self.height,
+            color: self.color,
             _phantom: PhantomData,
         }
     }
@@ -1275,6 +1311,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
             data: vec![Zero::zero(); size],
             width,
             height,
+            color: Cicp::SRGB_LINEAR.into_rgb(),
             _phantom: PhantomData,
         }
     }
@@ -1406,6 +1443,136 @@ where
     }
 }
 
+/// Inputs to [`ImageBuffer::copy_color`].
+#[non_exhaustive]
+#[derive(Default)]
+pub struct ConvertColorOptions {
+    /// A pre-calculated transform. This is only used when the actual colors of the input and
+    /// output image match the color spaces with which the was constructed.
+    pub transform: Option<CicpTransform>,
+}
+
+impl ConvertColorOptions {
+    pub(crate) fn as_transform<FromType, IntoType>(
+        &mut self,
+        from_color: Cicp,
+        into_color: Cicp,
+    ) -> Result<&'_ CicpApplicable<'_, FromType::Subpixel>, ImageError>
+    where
+        FromType: PixelWithColorType,
+        IntoType: PixelWithColorType,
+    {
+        if let Some(tr) = &self.transform {
+            if !tr.is_applicable(from_color, into_color) {
+                self.transform = None;
+            }
+        }
+
+        if self.transform.is_none() {
+            self.transform = CicpTransform::new(from_color, into_color);
+        }
+
+        let Some(transform) = &self.transform else {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    crate::error::ImageFormatHint::Unknown,
+                    // One of them is responsible.
+                    UnsupportedErrorKind::ColorspaceCicp(if from_color.qualify_stability() {
+                        into_color
+                    } else {
+                        from_color
+                    }),
+                ),
+            ));
+        };
+
+        let transform = transform
+            .supported_transform_fn::<FromType, IntoType>()
+            .map_err(ImageError::Unsupported)?;
+
+        Ok(transform)
+    }
+}
+
+impl<C, SelfPixel: Pixel> ImageBuffer<SelfPixel, C>
+where
+    SelfPixel: PixelWithColorType,
+    C: Deref<Target = [SelfPixel::Subpixel]> + DerefMut,
+{
+    /// Copy pixel data from one buffer to another, calculating equivalent color representations
+    /// for the target's color space.
+    ///
+    /// Returns `Ok` if:
+    /// - Both images to have the same dimensions, otherwise returns a [`ImageError::Parameter`].
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    /// - The pixel's channel layout must be supported for conversion, otherwise returns a
+    ///   [`ImageError::Unsupported`]. You can rely on RGB and RGBA always being supported. If a
+    ///   layout is supported for one color space it is supported for all of them.
+    ///
+    /// To copy color data of arbitrary channel layouts use `DynamicImage` with the overhead of
+    /// having data converted into and from RGB representation.
+    pub fn copy_from_color<FromType, D>(
+        &mut self,
+        from: &ImageBuffer<FromType, D>,
+        mut options: ConvertColorOptions,
+    ) -> ImageResult<()>
+    where
+        FromType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
+        D: Deref<Target = [SelfPixel::Subpixel]>,
+    {
+        if self.dimensions() != from.dimensions() {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let transform =
+            options.as_transform::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
+
+        let from = from.inner_pixels();
+        let into = self.inner_pixels_mut();
+
+        debug_assert_eq!(
+            from.len() / usize::from(FromType::CHANNEL_COUNT),
+            into.len() / usize::from(SelfPixel::CHANNEL_COUNT),
+            "Diverging pixel count despite same size",
+        );
+
+        transform(from, into);
+
+        Ok(())
+    }
+
+    /// Convert this buffer into a newly allocated buffer, changing the color representation.
+    ///
+    /// This will avoid an allocation if the target layout or the color conversion is not supported
+    /// (yet).
+    ///
+    /// See [`ImageBuffer::copy_from_color`] if you intend to assign to an existing buffer,
+    /// swapping the argument with `self`.
+    pub fn to_color<IntoType>(
+        &self,
+        color: Cicp,
+        mut options: ConvertColorOptions,
+    ) -> Result<ImageBuffer<IntoType, Vec<SelfPixel::Subpixel>>, ImageError>
+    where
+        IntoType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
+    {
+        let transform = options.as_transform::<SelfPixel, IntoType>(self.color_space(), color)?;
+
+        let (width, height) = self.dimensions();
+        let mut target = ImageBuffer::new(width, height);
+
+        let from = self.inner_pixels();
+        let into = target.inner_pixels_mut();
+
+        transform(from, into);
+
+        Ok(target)
+    }
+}
+
 /// Sendable Rgb image buffer
 pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer
@@ -1489,6 +1656,7 @@ impl From<DynamicImage> for Rgba32FImage {
 mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
+    use crate::Cicp;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
@@ -1754,6 +1922,36 @@ mod test {
         let exact_len = ExactSizeIterator::len(&iter);
         assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
     }
+
+    #[test]
+    fn color_conversion() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgb([255, 0, 0]));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()));
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let result = target.copy_from_color(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn to_color() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgba([255u8, 0, 0, 255]));
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+
+        let target = source
+            .to_color::<Rgb<u8>>(Cicp::DISPLAY_P3, Default::default())
+            .expect("supported transform");
+
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
 }
 
 #[cfg(test)]
@@ -1770,6 +1968,7 @@ mod benchmarks {
             rgb[1] = 23;
             rgb[2] = 42;
         }
+
         assert!(a.data[0] != 0);
         b.iter(|| {
             let b: GrayImage = a.convert();

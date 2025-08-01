@@ -2,10 +2,10 @@
 name = "image"
 version = "0.25.6"
 edition = "2021"
-resolver = "2"
+resolver = "3"
 
 # note: when changed, also update test runner in `.github/workflows/rust.yml`
-rust-version = "1.78.0"
+rust-version = "1.85.0"
 
 license = "MIT OR Apache-2.0"
 description = "Imaging library. Provides basic image processing and encoders/decoders for common image formats."

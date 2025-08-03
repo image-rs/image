@@ -214,8 +214,8 @@ impl PixelWithColorType for LumaA<u16> {
 
 /// Prevents down-stream users from implementing the `Primitive` trait
 pub(crate) mod private {
-    use crate::color::cicp::CicpApplicable;
     use crate::color::*;
+    use crate::metadata::cicp::{self, CicpApplicable};
 
     #[derive(Clone, Copy, Debug)]
     pub enum LayoutWithColor {

@@ -6,18 +6,18 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::cicp::{CicpApplicable, CicpRgb};
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::math::Rect;
+use crate::metadata::cicp::{CicpApplicable, CicpRgb};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::{
-    save_buffer, save_buffer_with_format, write_buffer_with_format, Cicp, CicpColorPrimaries,
-    CicpTransferFunction, CicpTransform, ImageError,
+    metadata::{Cicp, CicpColorPrimaries, CicpTransferFunction, CicpTransform},
+    save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
 };
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
@@ -1656,7 +1656,7 @@ impl From<DynamicImage> for Rgba32FImage {
 mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
-    use crate::Cicp;
+    use crate::metadata::Cicp;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};

@@ -1,8 +1,14 @@
 //! Types describing image metadata
+pub(crate) mod cicp;
 
 use std::io::{Cursor, Read};
 
 use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+
+pub use self::cicp::{
+    Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferFunction, CicpTransform,
+    CicpVideoFullRangeFlag,
+};
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).

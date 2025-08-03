@@ -19,9 +19,10 @@ use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
-    imageops, Cicp, CicpColorPrimaries, CicpTransferFunction, ConvertColorOptions,
-    ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
-    ImageReader, Luma, LumaA,
+    imageops,
+    metadata::{Cicp, CicpColorPrimaries, CicpTransferFunction},
+    ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
+    ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -1578,7 +1579,7 @@ mod bench {
 #[cfg(test)]
 mod test {
     use crate::{color::ColorType, images::dynimage::Gray16Image};
-    use crate::{Cicp, ImageBuffer, Luma, Rgb, Rgba};
+    use crate::{metadata::Cicp, ImageBuffer, Luma, Rgb, Rgba};
 
     #[test]
     fn test_empty_file() {

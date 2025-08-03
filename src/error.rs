@@ -18,7 +18,7 @@ use std::error::Error;
 use std::{fmt, io};
 
 use crate::color::ExtendedColorType;
-use crate::{Cicp, ImageFormat};
+use crate::{metadata::Cicp, ImageFormat};
 
 /// The generic error type for image operations.
 ///

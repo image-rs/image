@@ -44,6 +44,7 @@ pub(crate) struct CicpRgb {
 /// Refer to Rec H.273 Table 2.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum CicpColorPrimaries {
     /// ITU-R BT.709-6
     SRgb = 1,
@@ -108,6 +109,7 @@ impl CicpColorPrimaries {
 /// Refer to Rec H.273 Table 3.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum CicpTransferFunction {
     /// Rec. ITU-R BT.709-6
     /// Rec. ITU-R BT.1361-0 conventional
@@ -187,6 +189,7 @@ impl CicpTransferFunction {
 /// Refer to Rec H.273 Table 4.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum CicpMatrixCoefficients {
     /// The identity matrix.
     /// Typically used for GBR (often referred to as RGB); however, may also be used for YZX (often referred to as XYZ);
@@ -263,6 +266,7 @@ impl CicpMatrixCoefficients {
 /// The used encoded value range.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum CicpVideoFullRangeFlag {
     /// The color components are encoded in a limited range, e.g., 16-235 for 8-bit. This was used
     /// for some in-band auxiliary data in the past (overswing of noisy filters to be clipped by

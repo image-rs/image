@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
-use crate::traits::{
-    private::{LayoutWithColor, SealedPixelWithColorType},
-    PixelWithColorType,
+use crate::{
+    traits::{
+        private::{LayoutWithColor, SealedPixelWithColorType},
+        PixelWithColorType,
+    },
+    ColorType, DynamicImage,
 };
 
 /// Reference: <https://www.itu.int/rec/T-REC-H.273-202407-I/en> (V4)
@@ -299,6 +302,8 @@ pub struct CicpTransform {
     u8: RgbTransforms<u8>,
     u16: RgbTransforms<u16>,
     f32: RgbTransforms<f32>,
+    input_coefs: [f32; 3],
+    output_coefs: [f32; 3],
 }
 
 pub(crate) type CicpApplicable<'lt, C> = dyn Fn(&[C], &mut [C]) + Send + Sync + 'lt;
@@ -334,8 +339,6 @@ impl CicpTransform {
         let input_coefs = from.into_rgb().derived_luminance()?;
         let output_coefs = into.into_rgb().derived_luminance()?;
 
-        eprintln!("{input_coefs:? } -> {output_coefs:?}");
-
         let mox_from = from.to_moxcms_profile()?;
         let mox_into = into.to_moxcms_profile()?;
 
@@ -369,11 +372,6 @@ impl CicpTransform {
                     let (into, into_layout) = mox_into.mox_profile(into_layout);
 
                     from.create_transform_8bit(from_layout, into, into_layout, opt)
-                        .map_err(|e| {
-                            eprintln!(
-                                "Error creating transform {from_layout:?}->{into_layout:?}: {e}"
-                            )
-                        })
                         .ok()
                 }),
                 f32_fallback.clone(),
@@ -404,6 +402,8 @@ impl CicpTransform {
                 input_coefs,
                 output_coefs,
             )?,
+            input_coefs,
+            output_coefs,
         })
     }
 
@@ -438,73 +438,6 @@ impl CicpTransform {
             return None;
         }
 
-        fn expand_luma_rgb<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32], coef: [f32; 3]) {
-            for (&pix, rgb) in luma.iter().zip(rgb.chunks_exact_mut(3)) {
-                let luma = pix.expand_to_f32();
-                rgb[0] = luma * coef[0];
-                rgb[1] = luma * coef[1];
-                rgb[2] = luma * coef[2];
-            }
-        }
-
-        fn expand_luma_rgba<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32], coef: [f32; 3]) {
-            for (pix, rgb) in luma.chunks_exact(2).zip(rgb.chunks_exact_mut(4)) {
-                let luma = pix[0].expand_to_f32();
-                rgb[0] = luma * coef[0];
-                rgb[1] = luma * coef[1];
-                rgb[2] = luma * coef[2];
-                rgb[3] = pix[1].expand_to_f32();
-            }
-        }
-
-        fn expand_rgb<P: ColorComponentForCicp>(input: &[P], output: &mut [f32]) {
-            for (&component, val) in input.iter().zip(output) {
-                *val = component.expand_to_f32();
-            }
-        }
-
-        fn expand_rgba<P: ColorComponentForCicp>(input: &[P], output: &mut [f32]) {
-            for (&component, val) in input.iter().zip(output) {
-                *val = component.expand_to_f32();
-            }
-        }
-
-        fn clamp_rgb<P: ColorComponentForCicp>(input: &[f32], output: &mut [P]) {
-            // Everything is mapped..
-            for (&component, val) in input.iter().zip(output) {
-                *val = P::clamp_from_f32(component);
-            }
-        }
-
-        fn clamp_rgba<P: ColorComponentForCicp>(input: &[f32], output: &mut [P]) {
-            for (&component, val) in input.iter().zip(output) {
-                *val = P::clamp_from_f32(component);
-            }
-        }
-
-        fn clamp_rgb_luma<P: ColorComponentForCicp>(
-            input: &[f32],
-            output: &mut [P],
-            coef: [f32; 3],
-        ) {
-            for (rgb, pix) in input.chunks_exact(3).zip(output) {
-                let luma = rgb[0] * coef[0] + rgb[1] * coef[1] + rgb[2] * coef[2];
-                *pix = P::clamp_from_f32(luma);
-            }
-        }
-
-        fn clamp_rgba_luma<P: ColorComponentForCicp>(
-            input: &[f32],
-            output: &mut [P],
-            coef: [f32; 3],
-        ) {
-            for (rgba, pix) in input.chunks_exact(4).zip(output.chunks_exact_mut(2)) {
-                let luma = rgba[0] * coef[0] + rgba[1] * coef[1] + rgba[2] * coef[2];
-                pix[0] = P::clamp_from_f32(luma);
-                pix[1] = P::clamp_from_f32(rgba[3]);
-            }
-        }
-
         let trs = trs
             .map(Option::unwrap)
             .map(Arc::<dyn moxcms::TransformExecutor<P> + Send + Sync>::from);
@@ -531,9 +464,9 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_luma_rgb(luma, ibuffer, input_coef);
-                        tr33.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb(&obuffer, output);
+                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        tr33.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb(obuffer, output);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -544,9 +477,9 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_luma_rgb(luma, ibuffer, input_coef);
-                        tr34.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba(&obuffer, output);
+                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        tr34.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba(obuffer, output);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -557,9 +490,9 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_luma_rgba(luma, ibuffer, input_coef);
-                        tr43.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb(&obuffer, output);
+                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        tr43.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb(obuffer, output);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -570,9 +503,9 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_luma_rgba(luma, ibuffer, input_coef);
-                        tr44.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba(&obuffer, output);
+                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        tr44.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba(obuffer, output);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
             ]
@@ -593,9 +526,9 @@ impl CicpTransform {
                         let n = output.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_rgb(rgb, ibuffer);
-                        tr33.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb_luma(&obuffer, output, output_coef);
+                        Self::expand_rgb(rgb, ibuffer);
+                        tr33.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -608,9 +541,9 @@ impl CicpTransform {
                         let n = output.len() / 2;
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_rgb(rgb, ibuffer);
-                        tr34.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba_luma(&obuffer, output, output_coef);
+                        Self::expand_rgb(rgb, ibuffer);
+                        tr34.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -623,9 +556,9 @@ impl CicpTransform {
                         let n = output.len();
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_rgba(rgba, ibuffer);
-                        tr43.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb_luma(&obuffer, output, output_coef);
+                        Self::expand_rgba(rgba, ibuffer);
+                        tr43.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -638,9 +571,9 @@ impl CicpTransform {
                         let n = output.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_rgba(rgba, ibuffer);
-                        tr44.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba_luma(&obuffer, output, output_coef);
+                        Self::expand_rgba(rgba, ibuffer);
+                        tr44.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
             ]
@@ -660,9 +593,9 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_luma_rgb(luma, ibuffer, input_coef);
-                        tr33.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb_luma(&obuffer, output, output_coef);
+                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        tr33.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -674,9 +607,9 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_luma_rgb(luma, ibuffer, input_coef);
-                        tr34.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba_luma(&obuffer, output, output_coef);
+                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        tr34.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -688,9 +621,9 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        expand_luma_rgba(luma, ibuffer, input_coef);
-                        tr43.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgb_luma(&obuffer, output, output_coef);
+                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        tr43.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
                 Arc::new(move |input: &[P], output: &mut [P]| {
@@ -702,9 +635,9 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        expand_luma_rgba(luma, ibuffer, input_coef);
-                        tr44.transform(&ibuffer, obuffer).expect("transform failed");
-                        clamp_rgba_luma(&obuffer, output, output_coef);
+                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        tr44.transform(ibuffer, obuffer).expect("transform failed");
+                        Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
                 }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
             ]
@@ -716,6 +649,232 @@ impl CicpTransform {
             rgb_luma,
             luma_luma,
         })
+    }
+
+    pub(crate) fn transform_dynamic(&self, lhs: &mut DynamicImage, rhs: &DynamicImage) {
+        let mut ibuffer = [0.0f32; 1200];
+        let mut obuffer = [0.0f32; 1200];
+
+        let pixels = (u64::from(lhs.width()) * u64::from(lhs.height())) as usize;
+
+        let input_samples;
+        let output_samples;
+
+        let inner_transform = match (lhs.color(), rhs.color()) {
+            (
+                ColorType::L8
+                | ColorType::L16
+                | ColorType::Rgb8
+                | ColorType::Rgb16
+                | ColorType::Rgb32F,
+                ColorType::L8
+                | ColorType::L16
+                | ColorType::Rgb8
+                | ColorType::Rgb16
+                | ColorType::Rgb32F,
+            ) => {
+                output_samples = 3;
+                input_samples = 3;
+                &*self.f32.slices[0]
+            }
+            (
+                ColorType::La8
+                | ColorType::La16
+                | ColorType::Rgba8
+                | ColorType::Rgba16
+                | ColorType::Rgba32F,
+                ColorType::L8
+                | ColorType::L16
+                | ColorType::Rgb8
+                | ColorType::Rgb16
+                | ColorType::Rgb32F,
+            ) => {
+                output_samples = 4;
+                input_samples = 3;
+                &*self.f32.slices[1]
+            }
+            (
+                ColorType::L8
+                | ColorType::L16
+                | ColorType::Rgb8
+                | ColorType::Rgb16
+                | ColorType::Rgb32F,
+                ColorType::La8
+                | ColorType::La16
+                | ColorType::Rgba8
+                | ColorType::Rgba16
+                | ColorType::Rgba32F,
+            ) => {
+                output_samples = 3;
+                input_samples = 4;
+                &*self.f32.slices[2]
+            }
+            (
+                ColorType::La8
+                | ColorType::La16
+                | ColorType::Rgba8
+                | ColorType::Rgba16
+                | ColorType::Rgba32F,
+                ColorType::La8
+                | ColorType::La16
+                | ColorType::Rgba8
+                | ColorType::Rgba16
+                | ColorType::Rgba32F,
+            ) => {
+                output_samples = 4;
+                input_samples = 4;
+                &*self.f32.slices[3]
+            }
+        };
+
+        const STEP: usize = 150;
+        for start_idx in (0..pixels).step_by(STEP) {
+            let end_idx = (start_idx + STEP).min(pixels);
+            let count = end_idx - start_idx;
+
+            // Expand pixels from `other` into `ibuffer`. All of these have different types, so
+            // here's two large switch statements.
+            match rhs {
+                DynamicImage::ImageLuma8(buf) => {
+                    CicpTransform::expand_luma_rgb(
+                        &buf.inner_pixels()[start_idx..end_idx],
+                        &mut ibuffer[..3 * count],
+                        self.input_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA8(buf) => {
+                    CicpTransform::expand_luma_rgba(
+                        &buf.inner_pixels()[2 * start_idx..2 * end_idx],
+                        &mut ibuffer[..4 * count],
+                        self.input_coefs,
+                    );
+                }
+                DynamicImage::ImageRgb8(buf) => {
+                    CicpTransform::expand_rgb(
+                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &mut ibuffer[..3 * count],
+                    );
+                }
+                DynamicImage::ImageRgba8(buf) => {
+                    CicpTransform::expand_rgba(
+                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &mut ibuffer[..4 * count],
+                    );
+                }
+                DynamicImage::ImageLuma16(buf) => {
+                    CicpTransform::expand_luma_rgb(
+                        &buf.inner_pixels()[start_idx..end_idx],
+                        &mut ibuffer[..3 * count],
+                        self.input_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA16(buf) => {
+                    CicpTransform::expand_luma_rgba(
+                        &buf.inner_pixels()[2 * start_idx..2 * end_idx],
+                        &mut ibuffer[..4 * count],
+                        self.input_coefs,
+                    );
+                }
+                DynamicImage::ImageRgb16(buf) => {
+                    CicpTransform::expand_rgb(
+                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &mut ibuffer[..3 * count],
+                    );
+                }
+
+                DynamicImage::ImageRgba16(buf) => {
+                    CicpTransform::expand_rgba(
+                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &mut ibuffer[..4 * count],
+                    );
+                }
+                DynamicImage::ImageRgb32F(buf) => {
+                    CicpTransform::expand_rgb(
+                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &mut ibuffer[..3 * count],
+                    );
+                }
+                DynamicImage::ImageRgba32F(buf) => {
+                    CicpTransform::expand_rgba(
+                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &mut ibuffer[..4 * count],
+                    );
+                }
+            }
+
+            let islice = &ibuffer[..input_samples * count];
+            let oslice = &mut obuffer[..output_samples * count];
+
+            inner_transform(islice, oslice);
+
+            match lhs {
+                DynamicImage::ImageLuma8(buf) => {
+                    CicpTransform::clamp_rgb_luma(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[start_idx..end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA8(buf) => {
+                    CicpTransform::clamp_rgba_luma(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[2 * start_idx..2 * end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageRgb8(buf) => {
+                    CicpTransform::clamp_rgb(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                    );
+                }
+                DynamicImage::ImageRgba8(buf) => {
+                    CicpTransform::clamp_rgba(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                    );
+                }
+                DynamicImage::ImageLuma16(buf) => {
+                    CicpTransform::clamp_rgb_luma(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[start_idx..end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA16(buf) => {
+                    CicpTransform::clamp_rgba_luma(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[2 * start_idx..2 * end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageRgb16(buf) => {
+                    CicpTransform::clamp_rgba(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                    );
+                }
+
+                DynamicImage::ImageRgba16(buf) => {
+                    CicpTransform::clamp_rgba(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                    );
+                }
+                DynamicImage::ImageRgb32F(buf) => {
+                    CicpTransform::clamp_rgb(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                    );
+                }
+                DynamicImage::ImageRgba32F(buf) => {
+                    CicpTransform::clamp_rgba(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                    );
+                }
+            }
+        }
     }
 
     // Note on this design: When we dispatch into this function, we have a `Self` type that is
@@ -751,9 +910,84 @@ impl CicpTransform {
         (LayoutWithColor::Rgba, LayoutWithColor::Rgb),
         (LayoutWithColor::Rgba, LayoutWithColor::Rgba),
     ];
+
+    pub(crate) fn expand_luma_rgb<P: ColorComponentForCicp>(
+        luma: &[P],
+        rgb: &mut [f32],
+        coef: [f32; 3],
+    ) {
+        for (&pix, rgb) in luma.iter().zip(rgb.chunks_exact_mut(3)) {
+            let luma = pix.expand_to_f32();
+            rgb[0] = luma * coef[0];
+            rgb[1] = luma * coef[1];
+            rgb[2] = luma * coef[2];
+        }
+    }
+
+    pub(crate) fn expand_luma_rgba<P: ColorComponentForCicp>(
+        luma: &[P],
+        rgb: &mut [f32],
+        coef: [f32; 3],
+    ) {
+        for (pix, rgb) in luma.chunks_exact(2).zip(rgb.chunks_exact_mut(4)) {
+            let luma = pix[0].expand_to_f32();
+            rgb[0] = luma * coef[0];
+            rgb[1] = luma * coef[1];
+            rgb[2] = luma * coef[2];
+            rgb[3] = pix[1].expand_to_f32();
+        }
+    }
+
+    pub(crate) fn expand_rgb<P: ColorComponentForCicp>(input: &[P], output: &mut [f32]) {
+        for (&component, val) in input.iter().zip(output) {
+            *val = component.expand_to_f32();
+        }
+    }
+
+    pub(crate) fn expand_rgba<P: ColorComponentForCicp>(input: &[P], output: &mut [f32]) {
+        for (&component, val) in input.iter().zip(output) {
+            *val = component.expand_to_f32();
+        }
+    }
+
+    pub(crate) fn clamp_rgb<P: ColorComponentForCicp>(input: &[f32], output: &mut [P]) {
+        // Everything is mapped..
+        for (&component, val) in input.iter().zip(output) {
+            *val = P::clamp_from_f32(component);
+        }
+    }
+
+    pub(crate) fn clamp_rgba<P: ColorComponentForCicp>(input: &[f32], output: &mut [P]) {
+        for (&component, val) in input.iter().zip(output) {
+            *val = P::clamp_from_f32(component);
+        }
+    }
+
+    pub(crate) fn clamp_rgb_luma<P: ColorComponentForCicp>(
+        input: &[f32],
+        output: &mut [P],
+        coef: [f32; 3],
+    ) {
+        for (rgb, pix) in input.chunks_exact(3).zip(output) {
+            let luma = rgb[0] * coef[0] + rgb[1] * coef[1] + rgb[2] * coef[2];
+            *pix = P::clamp_from_f32(luma);
+        }
+    }
+
+    pub(crate) fn clamp_rgba_luma<P: ColorComponentForCicp>(
+        input: &[f32],
+        output: &mut [P],
+        coef: [f32; 3],
+    ) {
+        for (rgba, pix) in input.chunks_exact(4).zip(output.chunks_exact_mut(2)) {
+            let luma = rgba[0] * coef[0] + rgba[1] * coef[1] + rgba[2] * coef[2];
+            pix[0] = P::clamp_from_f32(luma);
+            pix[1] = P::clamp_from_f32(rgba[3]);
+        }
+    }
 }
 
-trait ColorComponentForCicp: Copy {
+pub(crate) trait ColorComponentForCicp: Copy {
     fn expand_to_f32(self) -> f32;
 
     fn clamp_from_f32(val: f32) -> Self;
@@ -766,7 +1000,7 @@ impl ColorComponentForCicp for u8 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        (val * Self::MAX as f32).clamp(0., Self::MAX as f32) as u8
+        (val * Self::MAX as f32 + 0.5).clamp(0., Self::MAX as f32) as u8
     }
 }
 
@@ -777,7 +1011,7 @@ impl ColorComponentForCicp for u16 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        (val * Self::MAX as f32).clamp(0., Self::MAX as f32) as u16
+        (val * Self::MAX as f32 + 0.5).clamp(0., Self::MAX as f32) as u16
     }
 }
 

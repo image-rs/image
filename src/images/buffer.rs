@@ -1453,15 +1453,11 @@ pub struct ConvertColorOptions {
 }
 
 impl ConvertColorOptions {
-    pub(crate) fn as_transform<FromType, IntoType>(
+    pub(crate) fn as_transform(
         &mut self,
         from_color: Cicp,
         into_color: Cicp,
-    ) -> Result<&'_ CicpApplicable<'_, FromType::Subpixel>, ImageError>
-    where
-        FromType: PixelWithColorType,
-        IntoType: PixelWithColorType,
-    {
+    ) -> Result<&CicpTransform, ImageError> {
         if let Some(tr) = &self.transform {
             if !tr.is_applicable(from_color, into_color) {
                 self.transform = None;
@@ -1472,21 +1468,31 @@ impl ConvertColorOptions {
             self.transform = CicpTransform::new(from_color, into_color);
         }
 
-        let Some(transform) = &self.transform else {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    crate::error::ImageFormatHint::Unknown,
-                    // One of them is responsible.
-                    UnsupportedErrorKind::ColorspaceCicp(if from_color.qualify_stability() {
-                        into_color
-                    } else {
-                        from_color
-                    }),
-                ),
-            ));
-        };
+        self.transform.as_ref().ok_or_else(|| {
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                crate::error::ImageFormatHint::Unknown,
+                // One of them is responsible.
+                UnsupportedErrorKind::ColorspaceCicp(if from_color.qualify_stability() {
+                    into_color
+                } else {
+                    from_color
+                }),
+            ))
+        })
+    }
 
-        Ok(transform.supported_transform_fn::<FromType, IntoType>())
+    pub(crate) fn as_transform_fn<FromType, IntoType>(
+        &mut self,
+        from_color: Cicp,
+        into_color: Cicp,
+    ) -> Result<&'_ CicpApplicable<'_, FromType::Subpixel>, ImageError>
+    where
+        FromType: PixelWithColorType,
+        IntoType: PixelWithColorType,
+    {
+        Ok(self
+            .as_transform(from_color, into_color)?
+            .supported_transform_fn::<FromType, IntoType>())
     }
 }
 
@@ -1523,8 +1529,8 @@ where
             )));
         }
 
-        let transform =
-            options.as_transform::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
+        let transform = options
+            .as_transform_fn::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
 
         let from = from.inner_pixels();
         let into = self.inner_pixels_mut();
@@ -1555,7 +1561,8 @@ where
     where
         IntoType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
     {
-        let transform = options.as_transform::<SelfPixel, IntoType>(self.color_space(), color)?;
+        let transform =
+            options.as_transform_fn::<SelfPixel, IntoType>(self.color_space(), color)?;
 
         let (width, height) = self.dimensions();
         let mut target = ImageBuffer::new(width, height);
@@ -1578,7 +1585,8 @@ where
             return Ok(());
         }
 
-        let transform = options.as_transform::<SelfPixel, SelfPixel>(self.color_space(), color)?;
+        let transform =
+            options.as_transform_fn::<SelfPixel, SelfPixel>(self.color_space(), color)?;
 
         let mut scratch = [<SelfPixel::Subpixel as crate::Primitive>::DEFAULT_MIN_VALUE; 1200];
         let chunk_len = scratch.len() / usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT)

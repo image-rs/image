@@ -3,10 +3,7 @@ use std::io::{self, BufWriter, Seek, Write};
 use std::path::Path;
 
 use crate::color::{self, FromColor, IntoColor};
-use crate::error::{
-    ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
-    UnsupportedErrorKind,
-};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::imageops::{gaussian_blur_dyn_image, GaussianBlurParameters};
 use crate::images::buffer::{
@@ -1092,36 +1089,8 @@ impl DynamicImage {
     pub fn copy_from_color(
         &mut self,
         other: &DynamicImage,
-        options: ConvertColorOptions,
+        mut options: ConvertColorOptions,
     ) -> ImageResult<()> {
-        // If any of these images are luma we are only correct when they are in Linear sRGB. Half
-        // of that is the color convert trait which can't pass information and thus only uses
-        // coefficients which are for the D65 whitepoint in sRGB primaries. The other half is that
-        // moxcms support for expressing an YCbCr space with transfer is not there yet.
-        //
-        // Implementation ideas: Maybe we'll get that by buffering into a full YCbCr image
-        // (misusing RgbaImage as a buffer for it probably) as soon as moxcms has the full aToB
-        // support that allows us to do M -> curve -> B conversion. More advance would entail
-        // dropping two of the output channels (CbCr) only for writing so we can allocate the right
-        // image right away but it's been deemed too complex to implement right away.
-        if self.color().channel_count() < 3 && self.color_space() != Cicp::SRGB_LINEAR {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    crate::error::ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::ColorLayout(self.color().into()),
-                ),
-            ));
-        }
-
-        if other.color().channel_count() < 3 && other.color_space() != Cicp::SRGB_LINEAR {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    crate::error::ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::ColorLayout(self.color().into()),
-                ),
-            ));
-        }
-
         // Try to no-op this transformation, we may be lucky..
         if self.color_space() == other.color_space() {
             // Nothing to transform, just rescale samples and type cast.
@@ -1175,37 +1144,13 @@ impl DynamicImage {
             _ => {}
         };
 
-        // We did not find a match pair to copy data directly. So we do it with intermediate steps
-        // in RGBA f32 space which is sure to work. Our transform implementation works on matching
-        // sample types so first transform the original image.
-        let source_fb;
-        let source = if let DynamicImage::ImageRgba32F(img) = other {
-            img
-        } else {
-            // This would always clone the buffer, but it's not clear if self or the other is in
-            // the wrong sample format.
-            source_fb = other.to_rgba32f();
-            &source_fb
-        };
-
-        let mut target_fb = None;
-        let target = if let DynamicImage::ImageRgba32F(img) = self {
-            img
-        } else {
-            let target = target_fb.insert(source.clone());
-            target.set_rgb_primaries(self.color_space().primaries);
-            target.set_transfer_function(self.color_space().transfer);
-            target
-        };
-
-        target.copy_from_color_space(source, options)?;
-
-        // If we used an intermediate buffer in the target color space, then now convert from that
-        // buffer into our own sample layout.
-        if let Some(intermediate) = target_fb {
-            let intermediate = DynamicImage::ImageRgba32F(intermediate);
-            dynamic_map!(self, ref mut p, *p = intermediate.to());
-        }
+        // If we reach here we have a mismatch of sample types. Our conversion supports only input
+        // and output of the same sample type. As a simplification we will do the conversion only
+        // in `f32` samples. Thus we first convert the source to `f32` samples taking care it does
+        // not involve (lossy) color conversion (into with luma -> rgb for instance). Note: we do
+        // not have Luma<f32> as a type.
+        let cicp = options.as_transform(other.color_space(), self.color_space())?;
+        cicp.transform_dynamic(self, other);
 
         Ok(())
     }

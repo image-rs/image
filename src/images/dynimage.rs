@@ -1080,13 +1080,16 @@ impl DynamicImage {
     /// - The primaries and transfer functions of both image's color spaces must be supported,
     ///   otherwise returns a [`ImageError::Unsupported`].
     ///
+    /// See also [`Self::apply_color_space`] and [`Self::convert_color_space`] to modify an image
+    /// directly.
+    ///
     /// ## Accuracy
     ///
     /// All color values are subject to change to their _intended_ values. Please do not rely on
     /// them further than your own colorimetric understanding shows them correct. For instance,
     /// conversion of RGB to their corresponding Luma values needs to be modified in future
     /// versions of this library. Expect colors to be too bright or too dark until further notice.
-    pub fn copy_from_color(
+    pub fn copy_from_color_space(
         &mut self,
         other: &DynamicImage,
         mut options: ConvertColorOptions,
@@ -1152,6 +1155,90 @@ impl DynamicImage {
         let cicp = options.as_transform(other.color_space(), self.color_space())?;
         cicp.transform_dynamic(self, other);
 
+        Ok(())
+    }
+
+    /// Change the color space, modifying pixel values to refer to the same colors.
+    ///
+    /// On success, this dynamic image contains color data equivalent to its previous color data.
+    /// The sample type of `self` is not changed, the data representation is transformed within the
+    /// current buffer.
+    ///
+    /// Returns `Ok` if:
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    /// - The target `Cicp` must have full range and an `Identity` matrix. (This library's
+    ///   [`Luma`][`crate::Luma`] refers implicity to a chromaticity derived non-constant luminance
+    ///   color).
+    ///
+    /// See also [`Self::copy_from_color_space`].
+    pub fn apply_color_space(
+        &mut self,
+        cicp: Cicp,
+        options: ConvertColorOptions,
+    ) -> ImageResult<()> {
+        // If the color space is already set, we can just return.
+        if self.color_space() == cicp {
+            return Ok(());
+        }
+
+        // Forward compatibility: make sure we do not drop any details here.
+        if Cicp::from(cicp.into_rgb()) != cicp {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic("Not an RGB like CICP color space".to_string()),
+            )));
+        }
+
+        // We could conceivably do this in-place faster but to handle the Luma conversion as we
+        // want this requires the full machinery as `CicpTransform::transform_dynamic` which is
+        // quite the replication. Let's just see if it is fast enough. Feel free to PR something if
+        // it is easy enough to review.
+        let mut target = self.clone();
+        target.set_rgb_primaries(cicp.primaries);
+        target.set_transfer_function(cicp.transfer);
+        target.copy_from_color_space(self, options)?;
+
+        *self = target;
+        Ok(())
+    }
+
+    /// Change the color space and pixel type of this image.
+    ///
+    /// On success, this dynamic image contains color data equivalent to its previous color data
+    /// with another type of pixels.
+    ///
+    /// Returns `Ok` if:
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    /// - The target `Cicp` must have full range and an `Identity` matrix. (This library's
+    ///   [`Luma`][`crate::Luma`] refers implicity to a chromaticity derived non-constant luminance
+    ///   color).
+    ///
+    /// See also [`Self::copy_from_color_space`].
+    pub fn convert_color_space(
+        &mut self,
+        cicp: Cicp,
+        options: ConvertColorOptions,
+        color: color::ColorType,
+    ) -> ImageResult<()> {
+        if self.color() == color {
+            return self.apply_color_space(cicp, options);
+        }
+
+        // Forward compatibility: make sure we do not drop any details here.
+        if Cicp::from(cicp.into_rgb()) != cicp {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic("Not an RGB like CICP color space".to_string()),
+            )));
+        }
+
+        let mut target = DynamicImage::new(self.width(), self.height(), color);
+
+        target.set_rgb_primaries(cicp.primaries);
+        target.set_transfer_function(cicp.transfer);
+        target.copy_from_color_space(self, options)?;
+
+        *self = target;
         Ok(())
     }
 
@@ -1523,6 +1610,8 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use crate::metadata::CicpTransform;
+    use crate::ConvertColorOptions;
     use crate::{color::ColorType, images::dynimage::Gray16Image};
     use crate::{metadata::Cicp, ImageBuffer, Luma, Rgb, Rgba};
 
@@ -1685,7 +1774,7 @@ mod test {
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
         target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
-        let result = target.copy_from_color(&source, Default::default());
+        let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         let target = target.as_rgba8().expect("Sample type unchanged");
@@ -1707,7 +1796,7 @@ mod test {
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
         target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
-        let result = target.copy_from_color(&source, Default::default());
+        let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         let target = target.as_rgba8().expect("Sample type unchanged");
@@ -1725,7 +1814,7 @@ mod test {
         });
 
         // No color space change takes place, but still sample should be converted.
-        let result = target.copy_from_color(&source, Default::default());
+        let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         let target = target.as_rgba8().expect("Sample type unchanged");
@@ -1743,10 +1832,159 @@ mod test {
         });
 
         // No color space change takes place, but still sample should be converted.
-        let result = target.copy_from_color(&source, Default::default());
+        let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         // FIXME: but the result value is .. not ideal.
         target.as_luma8().expect("Sample type unchanged");
+    }
+
+    #[test]
+    fn copy_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for from in TYPES {
+            for to in TYPES {
+                let mut source = super::DynamicImage::new(16, 16, from);
+                let mut target = super::DynamicImage::new(16, 16, to);
+
+                source.set_rgb_primaries(Cicp::SRGB.primaries);
+                source.set_transfer_function(Cicp::SRGB.transfer);
+
+                target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+                target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+                target
+                    .copy_from_color_space(
+                        &source,
+                        ConvertColorOptions {
+                            transform: Some(transform.clone()),
+                            ..Default::default()
+                        },
+                    )
+                    .expect("Failed to convert color space");
+            }
+        }
+    }
+
+    #[test]
+    fn apply_color_space() {
+        let mut buffer = super::DynamicImage::ImageRgb8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u8::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+        buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+        buffer
+            .apply_color_space(Cicp::DISPLAY_P3, Default::default())
+            .unwrap();
+
+        let target = buffer.as_rgb8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn apply_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for buffer in TYPES {
+            let mut buffer = super::DynamicImage::new(16, 16, buffer);
+
+            buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+            buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+            buffer
+                .apply_color_space(
+                    Cicp::DISPLAY_P3,
+                    ConvertColorOptions {
+                        transform: Some(transform.clone()),
+                        ..Default::default()
+                    },
+                )
+                .expect("Failed to convert color space");
+        }
+    }
+
+    #[test]
+    fn convert_color_space() {
+        let mut buffer = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+        buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+        buffer
+            .convert_color_space(Cicp::DISPLAY_P3, Default::default(), ColorType::Rgb8)
+            .unwrap();
+
+        let target = buffer.as_rgb8().expect("Sample type now rgb8");
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn convert_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for from in TYPES {
+            for to in TYPES {
+                let mut buffer = super::DynamicImage::new(16, 16, from);
+
+                buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+                buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+                let options = ConvertColorOptions {
+                    transform: Some(transform.clone()),
+                    ..Default::default()
+                };
+
+                buffer
+                    .convert_color_space(Cicp::DISPLAY_P3, options, to)
+                    .expect("Failed to convert color space");
+            }
+        }
     }
 }

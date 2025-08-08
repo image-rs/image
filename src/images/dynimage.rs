@@ -1135,42 +1135,42 @@ impl DynamicImage {
         match (&mut *self, other) {
             // u8 sample types
             (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgb8(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgba8(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgb8(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgba8(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             // u16 sample types
             (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgb16(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgba16(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgb16(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgba16(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             // 32F sample types.
             (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgb32F(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgba32F(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgb32F(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgba32F(other)) => {
-                return img.copy_from_color(other, options);
+                return img.copy_from_color_space(other, options);
             }
             _ => {}
         };
@@ -1198,7 +1198,7 @@ impl DynamicImage {
             target
         };
 
-        target.copy_from_color(source, options)?;
+        target.copy_from_color_space(source, options)?;
 
         // If we used an intermediate buffer in the target color space, then now convert from that
         // buffer into our own sample layout.

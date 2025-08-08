@@ -1486,11 +1486,7 @@ impl ConvertColorOptions {
             ));
         };
 
-        let transform = transform
-            .supported_transform_fn::<FromType, IntoType>()
-            .map_err(ImageError::Unsupported)?;
-
-        Ok(transform)
+        Ok(transform.supported_transform_fn::<FromType, IntoType>())
     }
 }
 
@@ -1512,7 +1508,7 @@ where
     ///
     /// To copy color data of arbitrary channel layouts use `DynamicImage` with the overhead of
     /// having data converted into and from RGB representation.
-    pub fn copy_from_color<FromType, D>(
+    pub fn copy_from_color_space<FromType, D>(
         &mut self,
         from: &ImageBuffer<FromType, D>,
         mut options: ConvertColorOptions,
@@ -1549,9 +1545,9 @@ where
     /// This will avoid an allocation if the target layout or the color conversion is not supported
     /// (yet).
     ///
-    /// See [`ImageBuffer::copy_from_color`] if you intend to assign to an existing buffer,
+    /// See [`ImageBuffer::copy_from_color_space`] if you intend to assign to an existing buffer,
     /// swapping the argument with `self`.
-    pub fn to_color<IntoType>(
+    pub fn to_color_space<IntoType>(
         &self,
         color: Cicp,
         mut options: ConvertColorOptions,
@@ -1570,6 +1566,33 @@ where
         transform(from, into);
 
         Ok(target)
+    }
+
+    /// Apply a color space to an image, transforming the pixel representation.
+    pub fn apply_color_space(
+        &mut self,
+        color: Cicp,
+        mut options: ConvertColorOptions,
+    ) -> ImageResult<()> {
+        if self.color_space() == color {
+            return Ok(());
+        }
+
+        let transform = options.as_transform::<SelfPixel, SelfPixel>(self.color_space(), color)?;
+
+        let mut scratch = [<SelfPixel::Subpixel as crate::Primitive>::DEFAULT_MIN_VALUE; 1200];
+        let chunk_len = scratch.len() / usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT)
+            * usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT);
+
+        for chunk in self.data.chunks_mut(chunk_len) {
+            let scratch = &mut scratch[..chunk.len()];
+            scratch.copy_from_slice(chunk);
+            transform(scratch, chunk);
+        }
+
+        self.color = color.into_rgb();
+
+        Ok(())
     }
 }
 
@@ -1934,10 +1957,43 @@ mod test {
         target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
         target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
-        let result = target.copy_from_color(&source, Default::default());
+        let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
         assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn gray_conversions() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Luma([255u8]));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()));
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+
+        target.set_rgb_primaries(Cicp::SRGB.primaries);
+        target.set_transfer_function(Cicp::SRGB.transfer);
+
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(target[(0, 0)], Rgba([54u8, 182, 18, 255]));
+    }
+
+    #[test]
+    fn apply_color() {
+        let mut buffer = ImageBuffer::from_fn(128, 128, |_, _| Rgb([255u8, 0, 0]));
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+        buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+        buffer
+            .apply_color_space(Cicp::DISPLAY_P3, Default::default())
+            .expect("supported transform");
+
+        buffer.pixels().for_each(|&p| {
+            assert_eq!(p, Rgb([234u8, 51, 35]));
+        });
     }
 
     #[test]
@@ -1947,7 +2003,7 @@ mod test {
         source.set_transfer_function(Cicp::SRGB.transfer);
 
         let target = source
-            .to_color::<Rgb<u8>>(Cicp::DISPLAY_P3, Default::default())
+            .to_color_space::<Rgb<u8>>(Cicp::DISPLAY_P3, Default::default())
             .expect("supported transform");
 
         assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));

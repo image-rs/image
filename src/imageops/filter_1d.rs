@@ -1,47 +1,11 @@
 #![forbid(unsafe_code)]
 use crate::error::{LimitError, LimitErrorKind};
+use crate::math::multiply_accumulate;
 use crate::ImageError;
+
 use num_traits::{AsPrimitive, MulAdd};
 use std::mem::size_of;
 use std::ops::{Add, Mul};
-
-#[cfg(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-))]
-#[inline(always)]
-/// Uses fused multiply add when available
-///
-/// It is important not to call it if FMA flag is not turned on,
-/// Rust inserts libc `fmaf` based implementation here if FMA is clearly not available at compile time.
-/// This needs for speed only, one rounding error don't do anything useful here, thus it's blocked when
-/// we can't detect FMA availability at compile time.
-fn mla<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
-    acc: T,
-    a: T,
-    b: T,
-) -> T {
-    MulAdd::mul_add(a, b, acc)
-}
-
-#[inline(always)]
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-fn mla<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
-    acc: T,
-    a: T,
-    b: T,
-) -> T {
-    acc + a * b
-}
 
 pub(crate) trait SafeMul<S> {
     fn safe_mul(&self, rhs: S) -> Result<S, ImageError>;
@@ -297,11 +261,11 @@ fn filter_symmetric_column<T, F, const N: usize>(
                 let bw1 = &rw_src[(cx + 16)..(cx + 32)];
 
                 for ((dst, fw), bw) in store0.iter_mut().zip(fw0).zip(bw0) {
-                    *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+                    *dst = multiply_accumulate(*dst, fw.as_().add(bw.as_()), coeff);
                 }
 
                 for ((dst, fw), bw) in store1.iter_mut().zip(fw1).zip(bw1) {
-                    *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+                    *dst = multiply_accumulate(*dst, fw.as_().add(bw.as_()), coeff);
                 }
             }
 
@@ -338,7 +302,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
             let bw = &arena_src[other_side][cx..(cx + 16)];
 
             for ((dst, fw), bw) in store.iter_mut().zip(fw).zip(bw) {
-                *dst = mla(*dst, fw.as_().add(bw.as_()), coeff);
+                *dst = multiply_accumulate(*dst, fw.as_().add(bw.as_()), coeff);
             }
         }
 
@@ -363,10 +327,10 @@ fn filter_symmetric_column<T, F, const N: usize>(
             let other_side = length - i - 1;
             let fw = &arena_src[i][cx..(cx + 4)];
             let bw = &arena_src[other_side][cx..(cx + 4)];
-            k0 = mla(k0, fw[0].as_().add(bw[0].as_()), coeff);
-            k1 = mla(k1, fw[1].as_().add(bw[1].as_()), coeff);
-            k2 = mla(k2, fw[2].as_().add(bw[2].as_()), coeff);
-            k3 = mla(k3, fw[3].as_().add(bw[3].as_()), coeff);
+            k0 = multiply_accumulate(k0, fw[0].as_().add(bw[0].as_()), coeff);
+            k1 = multiply_accumulate(k1, fw[1].as_().add(bw[1].as_()), coeff);
+            k2 = multiply_accumulate(k2, fw[2].as_().add(bw[2].as_()), coeff);
+            k3 = multiply_accumulate(k3, fw[3].as_().add(bw[3].as_()), coeff);
         }
 
         chunk[0] = k0.to_();
@@ -387,7 +351,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
             let other_side = length - i - 1;
             let fw = &arena_src[i][x..(x + 1)];
             let bw = &arena_src[other_side][x..(x + 1)];
-            k0 = mla(k0, fw[0].as_().add(bw[0].as_()), coeff);
+            k0 = multiply_accumulate(k0, fw[0].as_().add(bw[0].as_()), coeff);
         }
 
         *chunk = k0.to_();
@@ -435,10 +399,10 @@ where
             let other_side = length - i - 1;
             let fw = &src[(i * N)..(i * N) + 4];
             let bw = &src[(other_side * N)..(other_side * N) + 4];
-            k0 = mla(k0, fw[0].as_() + bw[0].as_(), coeff);
-            k1 = mla(k1, fw[1].as_() + bw[1].as_(), coeff);
-            k2 = mla(k2, fw[2].as_() + bw[2].as_(), coeff);
-            k3 = mla(k3, fw[3].as_() + bw[3].as_(), coeff);
+            k0 = multiply_accumulate(k0, fw[0].as_() + bw[0].as_(), coeff);
+            k1 = multiply_accumulate(k1, fw[1].as_() + bw[1].as_(), coeff);
+            k2 = multiply_accumulate(k2, fw[2].as_() + bw[2].as_(), coeff);
+            k3 = multiply_accumulate(k3, fw[3].as_() + bw[3].as_(), coeff);
         }
 
         dst[0] = k0.to_();
@@ -460,7 +424,7 @@ where
             let other_side = length - i - 1;
             let fw = &src[(i * N)..(i * N) + 1];
             let bw = &src[(other_side * N)..(other_side * N) + 1];
-            k0 = mla(k0, fw[0].as_() + bw[0].as_(), coeff);
+            k0 = multiply_accumulate(k0, fw[0].as_() + bw[0].as_(), coeff);
         }
 
         *dst = k0.to_();

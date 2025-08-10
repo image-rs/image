@@ -3,6 +3,7 @@ use std::sync::Arc;
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
 use crate::{
+    math::multiply_accumulate,
     traits::{
         private::{LayoutWithColor, SealedPixelWithColorType},
         PixelWithColorType,
@@ -23,9 +24,9 @@ pub struct Cicp {
     pub matrix: CicpMatrixCoefficients,
     /// Whether the color components use all bits of the encoded values, or have headroom.
     ///
-    /// You'll want to use [`CicpVideoFullRangeFlag::FullRange`] for most cases except if you need
-    /// to emulate quite old TV settings. Some systems ignore this setting. `image` errors when
-    /// trying to create a non-full-range transform.
+    /// For compute purposes, `image` only supports [`CicpVideoFullRangeFlag::FullRange`] and you
+    /// get errors when trying to pass a non-full-range color profile to transform APIs such as
+    /// [`DynamicImage::apply_color_space`] or [`CicpTransform::new`].
     pub full_range: CicpVideoFullRangeFlag,
 }
 
@@ -269,9 +270,9 @@ impl CicpMatrixCoefficients {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum CicpVideoFullRangeFlag {
-    /// The color components are encoded in a limited range, e.g., 16-235 for 8-bit. This was used
-    /// for some in-band auxiliary data in the past (overswing of noisy filters to be clipped by
-    /// the analog decoder), but is generally not used anymore.
+    /// The color components are encoded in a limited range, e.g., 16-235 for 8-bit.
+    ///
+    /// Do note that `image` does not support computing with this setting (yet).
     NarrowRange = 0,
     /// The color components are encoded in the full range, e.g., 0-255 for 8-bit.
     FullRange = 1,
@@ -339,17 +340,18 @@ impl CicpTransform {
         let input_coefs = from.into_rgb().derived_luminance()?;
         let output_coefs = into.into_rgb().derived_luminance()?;
 
-        let mox_from = from.to_moxcms_profile()?;
-        let mox_into = into.to_moxcms_profile()?;
+        let mox_from = from.to_moxcms_compute_profile()?;
+        let mox_into = into.to_moxcms_compute_profile()?;
 
         let opt = moxcms::TransformOptions::default();
 
         let f32_fallback = {
             let try_f32 = Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                let (from, from_layout) = mox_from.mox_profile(from_layout);
-                let (into, into_layout) = mox_into.mox_profile(into_layout);
+                let (from, from_layout) = mox_from.map_layout(from_layout);
+                let (into, into_layout) = mox_into.map_layout(into_layout);
 
                 from.create_transform_f32(from_layout, into, into_layout, opt)
+                    .map(Arc::<dyn moxcms::TransformExecutor<f32> + Send + Sync>::from)
                     .ok()
             });
 
@@ -357,9 +359,7 @@ impl CicpTransform {
                 return None;
             }
 
-            try_f32
-                .map(Option::unwrap)
-                .map(Arc::<dyn moxcms::TransformExecutor<f32> + Send + Sync>::from)
+            try_f32.map(Option::unwrap)
         };
 
         // TODO: really these should be lazy, eh?
@@ -368,10 +368,11 @@ impl CicpTransform {
             into,
             u8: Self::build_transforms(
                 Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                    let (from, from_layout) = mox_from.mox_profile(from_layout);
-                    let (into, into_layout) = mox_into.mox_profile(into_layout);
+                    let (from, from_layout) = mox_from.map_layout(from_layout);
+                    let (into, into_layout) = mox_into.map_layout(into_layout);
 
                     from.create_transform_8bit(from_layout, into, into_layout, opt)
+                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
                         .ok()
                 }),
                 f32_fallback.clone(),
@@ -380,10 +381,11 @@ impl CicpTransform {
             )?,
             u16: Self::build_transforms(
                 Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                    let (from, from_layout) = mox_from.mox_profile(from_layout);
-                    let (into, into_layout) = mox_into.mox_profile(into_layout);
+                    let (from, from_layout) = mox_from.map_layout(from_layout);
+                    let (into, into_layout) = mox_into.map_layout(into_layout);
 
                     from.create_transform_16bit(from_layout, into, into_layout, opt)
+                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
                         .ok()
                 }),
                 f32_fallback.clone(),
@@ -391,13 +393,7 @@ impl CicpTransform {
                 output_coefs,
             )?,
             f32: Self::build_transforms(
-                Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                    let (from, from_layout) = mox_from.mox_profile(from_layout);
-                    let (into, into_layout) = mox_into.mox_profile(into_layout);
-
-                    from.create_transform_f32(from_layout, into, into_layout, opt)
-                        .ok()
-                }),
+                f32_fallback.clone().map(Some),
                 f32_fallback.clone(),
                 input_coefs,
                 output_coefs,
@@ -428,7 +424,7 @@ impl CicpTransform {
     }
 
     fn build_transforms<P: ColorComponentForCicp + Default + 'static>(
-        trs: [Option<Box<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 4],
+        trs: [Option<Arc<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 4],
         f32: [Arc<dyn moxcms::TransformExecutor<f32> + Send + Sync>; 4],
         input_coef: [f32; 3],
         output_coef: [f32; 3],
@@ -438,9 +434,7 @@ impl CicpTransform {
             return None;
         }
 
-        let trs = trs
-            .map(Option::unwrap)
-            .map(Arc::<dyn moxcms::TransformExecutor<P> + Send + Sync>::from);
+        let trs = trs.map(Option::unwrap);
 
         // rgb-rgb transforms are done directly via moxcms.
         let slices = trs.clone().map(|tr| {
@@ -969,7 +963,12 @@ impl CicpTransform {
         coef: [f32; 3],
     ) {
         for (rgb, pix) in input.chunks_exact(3).zip(output) {
-            let luma = rgb[0] * coef[0] + rgb[1] * coef[1] + rgb[2] * coef[2];
+            let mut luma = 0.0;
+
+            for (&component, coef) in rgb.iter().zip(coef) {
+                luma = multiply_accumulate(luma, component, coef);
+            }
+
             *pix = P::clamp_from_f32(luma);
         }
     }
@@ -980,7 +979,12 @@ impl CicpTransform {
         coef: [f32; 3],
     ) {
         for (rgba, pix) in input.chunks_exact(4).zip(output.chunks_exact_mut(2)) {
-            let luma = rgba[0] * coef[0] + rgba[1] * coef[1] + rgba[2] * coef[2];
+            let mut luma = 0.0;
+
+            for (&component, coef) in rgba[..3].iter().zip(coef) {
+                luma = multiply_accumulate(luma, component, coef);
+            }
+
             pix[0] = P::clamp_from_f32(luma);
             pix[1] = P::clamp_from_f32(rgba[3]);
         }
@@ -995,7 +999,8 @@ pub(crate) trait ColorComponentForCicp: Copy {
 
 impl ColorComponentForCicp for u8 {
     fn expand_to_f32(self) -> f32 {
-        self as f32 / Self::MAX as f32
+        const R: f32 = 1.0 / u8::MAX as f32;
+        self as f32 * R
     }
 
     #[inline]
@@ -1006,7 +1011,8 @@ impl ColorComponentForCicp for u8 {
 
 impl ColorComponentForCicp for u16 {
     fn expand_to_f32(self) -> f32 {
-        self as f32 / Self::MAX as f32
+        const R: f32 = 1.0 / u16::MAX as f32;
+        self as f32 * R
     }
 
     #[inline]
@@ -1083,7 +1089,37 @@ impl Cicp {
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
 
-    fn to_moxcms_profile(self) -> Option<RgbGrayProfile> {
+    /// Get an compute representation of an ICC profile for RGB.
+    ///
+    /// Note you should *not* be using this profile for export in a file, as discussed below.
+    ///
+    /// This is straightforward for Rgb and RgbA representations.
+    ///
+    /// Our luma models a Y component of a YCbCr color space. It turns out that ICC V4 does
+    /// not support pure Luma in any other whitepoint apart from D50 (the native profile
+    /// connection space). The use of a grayTRC does *not* take the chromatic adaptation
+    /// matrix into account. Of course we can encode the adaptation into the TRC as a
+    /// coefficient, the Y component of the product of the whitepoint adaptation matrix
+    /// inverse and the pcs's whitepoint XYZ, but that is only correct for gray -> gray
+    /// conversion (and that coefficient should generally be `1`).
+    ///
+    /// Hence we use a YCbCr. The data->pcs path could be modelled by ("M" curves, matrix, "B"
+    /// curves) where B curves or M curves are all the identity, depending on whether constant or
+    /// non-constant luma is in use. This is a subset of the capabilities that a lutAToBType
+    /// allows. Unfortunately, this is not implemented in moxcms yet and for efficiency we would
+    /// like to have a masked `create_transform_*` in which the CbCr channels are discarded /
+    /// assumed 0 instead of them being in memory. Due to this special case and for supporting
+    /// conversions between sample types, we implement said promotion as part of conversion to
+    /// Rgba32F in this crate.
+    ///
+    /// For export to file, it would arguably correct to use a carefully crafted gray profile which
+    /// we may implement in another function. That is, we could setup a tone reproduction curve
+    /// which maps each sample value (which ICC regards as D50) into XYZ D50 in such a way that it
+    /// _appears_ with the correct D50 luminance that we would get if we had used the conversion
+    /// unders its true input whitepoint. The resulting color has a slightly wrong chroma as it is
+    /// linearly dependent on D50 instead, but it's brightness would be correctly presented. At
+    /// least for perceptual intent this might be alright.
+    fn to_moxcms_compute_profile(self) -> Option<ColorProfile> {
         let mut rgb = moxcms::ColorProfile::new_srgb();
 
         rgb.update_rgb_colorimetry_from_cicp(moxcms::CicpProfile {
@@ -1096,27 +1132,7 @@ impl Cicp {
             },
         });
 
-        let gray = {
-            // I'd use record update syntax but there's a private field.
-            let mut p = rgb.clone();
-            p.color_space = moxcms::DataColorSpace::YCbr;
-            // Our luma models a Y component of a YCbCr color space. It turns out that ICC V4 does
-            // not support pure Luma in any other whitepoint apart from D50 (the native profile
-            // connection space). The use of a grayTRC does *not* take the chromatic adaptation
-            // matrix into account. Of course we can encode the adaptation into the TRC as a
-            // coefficient, the Y component of the product of the whitepoint adaptation matrix
-            // inverse and the pcs's whitepoint XYZ, but that is only correct for gray -> gray
-            // conversion (and that coefficient should generally be `1`).
-            //
-            // Hence we use a YCbCr. The data->pcs path could be modelled by ("M" curves, matrix,
-            // "B" curves) where B curves are all the identity, which is a subset of the
-            // capabilities that a lutAToBType allows. Unfortunately, this is not implemented in
-            // moxcms yet and for efficiency we would like to have a masked `create_transform_*` in
-            // which the CbCr channels are discarded / assumed 0 instead of them being in memory.
-            p
-        };
-
-        Some(RgbGrayProfile { rgb, gray })
+        Some(ColorProfile { rgb })
     }
 
     /// Whether we have invested enough testing to ensure that color values can be assumed to be
@@ -1250,18 +1266,17 @@ impl From<CicpRgb> for Cicp {
 }
 
 /// An RGB profile with its related (same tone-mapping) gray profile.
-struct RgbGrayProfile {
+struct ColorProfile {
     rgb: moxcms::ColorProfile,
-    gray: moxcms::ColorProfile,
 }
 
-impl RgbGrayProfile {
-    fn mox_profile(&self, layout: LayoutWithColor) -> (&moxcms::ColorProfile, moxcms::Layout) {
+impl ColorProfile {
+    fn map_layout(&self, layout: LayoutWithColor) -> (&moxcms::ColorProfile, moxcms::Layout) {
         match layout {
             LayoutWithColor::Rgb => (&self.rgb, moxcms::Layout::Rgb),
             LayoutWithColor::Rgba => (&self.rgb, moxcms::Layout::Rgba),
-            LayoutWithColor::Luma => (&self.gray, moxcms::Layout::Gray),
-            LayoutWithColor::LumaAlpha => (&self.gray, moxcms::Layout::GrayAlpha),
+            // See comment in `to_moxcms_profile`.
+            LayoutWithColor::Luma | LayoutWithColor::LumaAlpha => unreachable!(),
         }
     }
 }

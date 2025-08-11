@@ -251,6 +251,7 @@ where
     );
 
     let mut out = ImageBuffer::new(new_width, height);
+    out.copy_color_space_from(image);
     let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
@@ -503,6 +504,7 @@ where
     );
 
     let mut out = ImageBuffer::new(width, new_height);
+    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
     let mut ws = Vec::new();
 
     let ratio = height as f32 / new_height as f32;
@@ -615,7 +617,8 @@ where
     S: Primitive + Enlargeable + 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(new_width, new_height);
+    let mut out = image.buffer_with_dimensions(new_width, new_height);
+
     if height == 0 || width == 0 {
         return out;
     }
@@ -885,8 +888,7 @@ where
     ];
 
     let (width, height) = image.dimensions();
-
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -974,12 +976,12 @@ where
     };
 
     if is_empty {
-        return ImageBuffer::new(nwidth, nheight);
+        return image.buffer_with_dimensions(nwidth, nheight);
     }
 
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
-        let mut tmp = ImageBuffer::new(image.width(), image.height());
+        let mut tmp = image.buffer_like();
         tmp.copy_from(image, 0, 0).unwrap();
         return tmp;
     }

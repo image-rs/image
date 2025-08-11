@@ -3,7 +3,6 @@ use std::ops::{Index, IndexMut};
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::{
-    color::cicp::CicpTransform,
     error::TryFromExtendedColorError,
     traits::{Enlargeable, Pixel, Primitive},
 };

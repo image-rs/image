@@ -196,6 +196,18 @@ where
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
+
+    /// Create a buffer with the (color) metadata of the underlying image.
+    fn buffer_with_dimensions(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> ImageBuffer<
+        <I::Target as GenericImageView>::Pixel,
+        Vec<<<I::Target as GenericImageView>::Pixel as Pixel>::Subpixel>,
+    > {
+        self.image.buffer_with_dimensions(width, height)
+    }
 }
 
 #[allow(deprecated)]
@@ -217,5 +229,35 @@ where
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{metadata::Cicp, GenericImageView, RgbaImage};
+
+    #[test]
+    fn preserves_color_space() {
+        let mut buffer = RgbaImage::new(16, 16);
+        buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+
+        let view = buffer.view(0, 0, 16, 16);
+        let result = view.buffer_like();
+
+        assert_eq!(buffer.color_space(), result.color_space());
+    }
+
+    #[test]
+    fn deep_preserves_color_space() {
+        let mut buffer = RgbaImage::new(16, 16);
+        buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+
+        let view = buffer.view(0, 0, 16, 16);
+        let view = view.view(0, 0, 16, 16);
+        let result = view.buffer_like();
+
+        assert_eq!(buffer.color_space(), result.color_space());
     }
 }

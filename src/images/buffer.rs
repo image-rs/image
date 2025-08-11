@@ -1231,6 +1231,12 @@ where
         let indices = self.pixel_indices_unchecked(x, y);
         *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
+
+    fn buffer_with_dimensions(&self, width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let mut buffer = ImageBuffer::new(width, height);
+        buffer.copy_color_space_from(self);
+        buffer
+    }
 }
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
@@ -1376,6 +1382,15 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     pub fn into_vec(self) -> Vec<P::Subpixel> {
         self.into_raw()
     }
+
+    /// Transfer the meta data, not the pixel values.
+    ///
+    /// This will reinterpret all the pixels.
+    ///
+    /// We may want to export this but under what name?
+    pub(crate) fn copy_color_space_from<O: Pixel, C>(&mut self, other: &ImageBuffer<O, C>) {
+        self.color = other.color;
+    }
 }
 
 /// Provides color conversions for whole image buffers.
@@ -1423,9 +1438,13 @@ impl GrayImage {
     }
 }
 
-// TODO: Equality constraints are not yet supported in where clauses, when they
-// are, the T parameter should be removed in favor of ToType::Subpixel, which
-// will then be FromType::Subpixel.
+/// This copies the color space information but is somewhat wrong, in numeric terms this conversion
+/// fails to actually convert rgb/luma with consistent treatment. But this trait impl is too
+/// generic to handle it correctly (missing any CICP related parameter for the coefficients) so the
+/// best effort here is to copy the metadata and have slighly incorrect color. May you've only been
+/// adding an alpha channel or converting sample types, which is fine.
+///
+/// It will very likely be deprecated in a future release.
 impl<Container, FromType: Pixel, ToType: Pixel>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
 where
@@ -1448,6 +1467,7 @@ where
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);
+        buffer.copy_color_space_from(self);
         for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
             to.from_color(from);
         }

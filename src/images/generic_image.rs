@@ -1,7 +1,7 @@
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::math::Rect;
 use crate::traits::Pixel;
-use crate::SubImage;
+use crate::{ImageBuffer, SubImage};
 
 /// Trait to inspect an image.
 ///
@@ -110,6 +110,33 @@ pub trait GenericImageView {
         } else {
             Ok(SubImage::new(self, x, y, width, height))
         }
+    }
+
+    /// Create an empty [`ImageBuffer`] with the same pixel type as this image.
+    ///
+    /// This should ensure metadata such as the color space are transferred without copying any of
+    /// the pixel data. The idea is to prepare a buffer ready to be filled with a filtered or
+    /// portion of the channel data from the current image without performing the work of copying
+    /// the data into that buffer twice.
+    ///
+    /// The default implementation defers to [`GenericImageView::buffer_like`].
+    fn buffer_like(&self) -> ImageBuffer<Self::Pixel, Vec<<Self::Pixel as Pixel>::Subpixel>> {
+        let (w, h) = self.dimensions();
+        self.buffer_with_dimensions(w, h)
+    }
+
+    /// Create an empty [`ImageBuffer`] with different dimensions.
+    ///
+    /// See [`GenericImageView::buffer_like`].
+    ///
+    /// Uses for this are for instances preparing a buffer for only a portion of the image, or
+    /// extracting the metadata to prepare a buffer of a different pixel type.
+    fn buffer_with_dimensions(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> ImageBuffer<Self::Pixel, Vec<<Self::Pixel as Pixel>::Subpixel>> {
+        ImageBuffer::new(width, height)
     }
 }
 

@@ -19,23 +19,23 @@ use crate::{ImageBuffer, Pixel, Primitive};
 /// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
-    image_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,
+    input_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,
     sigma: f32,
 ) -> ImageBuffer<P, Vec<P::Subpixel>> {
-    let (width, height) = image_buffer.dimensions();
+    let (width, height) = input_buffer.dimensions();
 
     if width == 0 || height == 0 {
-        return image_buffer.clone();
+        return input_buffer.clone();
     }
 
     let num_passes = 3;
 
     let boxes = boxes_for_gauss(sigma, num_passes);
     if boxes.is_empty() {
-        return image_buffer.clone();
+        return input_buffer.clone();
     }
 
-    let samples = image_buffer.as_flat_samples().samples;
+    let samples = input_buffer.as_flat_samples().samples;
 
     let destination_size = match (width as usize)
         .safe_mul(height as usize)
@@ -94,7 +94,10 @@ pub fn fast_blur<P: Pixel>(
             box_container,
         );
     }
-    ImageBuffer::from_raw(width, height, dst).unwrap()
+
+    let mut buffer = ImageBuffer::from_raw(width, height, dst).unwrap();
+    buffer.copy_color_space_from(input_buffer);
+    buffer
 }
 
 #[inline]

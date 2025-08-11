@@ -17,7 +17,7 @@ pub struct Cicp {
     /// Defines the exact color of red, green, blue primary colors.
     pub primaries: CicpColorPrimaries,
     /// The electro-optical transfer function (EOTF) that maps color components to linear values.
-    pub transfer: CicpTransferFunction,
+    pub transfer: CicpTransferCharacteristics,
     /// A matrix between linear values and primary color representation.
     ///
     /// For an RGB space this is the identity matrix.
@@ -34,7 +34,7 @@ pub struct Cicp {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) struct CicpRgb {
     pub(crate) primaries: CicpColorPrimaries,
-    pub(crate) transfer: CicpTransferFunction,
+    pub(crate) transfer: CicpTransferCharacteristics,
     pub(crate) luminance: DerivedLuminance,
 }
 
@@ -50,6 +50,8 @@ pub(crate) struct CicpRgb {
 pub enum CicpColorPrimaries {
     /// ITU-R BT.709-6
     SRgb = 1,
+    /// Explicitly, the color space is not determined.
+    Unspecified = 2,
     /// ITU-R BT.470-6 System M
     RgbM = 4,
     /// ITU-R BT.470-6 System B, G
@@ -91,6 +93,7 @@ impl CicpColorPrimaries {
 
         match self {
             CicpColorPrimaries::SRgb => M::Bt709,
+            CicpColorPrimaries::Unspecified => M::Unspecified,
             CicpColorPrimaries::RgbM => M::Bt470M,
             CicpColorPrimaries::RgbB => M::Bt470Bg,
             CicpColorPrimaries::Bt601 => M::Bt601,
@@ -112,11 +115,13 @@ impl CicpColorPrimaries {
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
-pub enum CicpTransferFunction {
+pub enum CicpTransferCharacteristics {
     /// Rec. ITU-R BT.709-6
     /// Rec. ITU-R BT.1361-0 conventional
     /// (functionally the same as the values 6, 14 and 15)
     Bt709 = 1,
+    /// Explicitly, the transfer characteristics are not determined.
+    Unspecified = 2,
     /// Rec. ITU-R BT.470-6 System M (historical)
     /// United States National Television System Committee 1953 Recommendation for transmission standards for color television
     /// United States Federal Communications Commission (2003) Title 47 Code of Federal Regulations 73.682 (a) (20)
@@ -162,27 +167,28 @@ pub enum CicpTransferFunction {
     Bt2100Hlg = 18,
 }
 
-impl CicpTransferFunction {
+impl CicpTransferCharacteristics {
     fn to_moxcms(self) -> moxcms::TransferCharacteristics {
         use moxcms::TransferCharacteristics as T;
 
         match self {
-            CicpTransferFunction::Bt709 => T::Bt709,
-            CicpTransferFunction::Bt470M => T::Bt470M,
-            CicpTransferFunction::Bt470BG => T::Bt470Bg,
-            CicpTransferFunction::Bt601 => T::Bt601,
-            CicpTransferFunction::Smpte240m => T::Smpte240,
-            CicpTransferFunction::Linear => T::Linear,
-            CicpTransferFunction::Log100 => T::Log100,
-            CicpTransferFunction::LogSqrt => T::Log100sqrt10,
-            CicpTransferFunction::Iec61966_2_4 => T::Iec61966,
-            CicpTransferFunction::Bt1361 => T::Bt1361,
-            CicpTransferFunction::SRgb => T::Srgb,
-            CicpTransferFunction::Bt2020_10bit => T::Bt202010bit,
-            CicpTransferFunction::Bt2020_12bit => T::Bt202012bit,
-            CicpTransferFunction::Smpte2084 => T::Smpte2084,
-            CicpTransferFunction::Smpte428 => T::Smpte428,
-            CicpTransferFunction::Bt2100Hlg => T::Hlg,
+            CicpTransferCharacteristics::Bt709 => T::Bt709,
+            CicpTransferCharacteristics::Unspecified => T::Unspecified,
+            CicpTransferCharacteristics::Bt470M => T::Bt470M,
+            CicpTransferCharacteristics::Bt470BG => T::Bt470Bg,
+            CicpTransferCharacteristics::Bt601 => T::Bt601,
+            CicpTransferCharacteristics::Smpte240m => T::Smpte240,
+            CicpTransferCharacteristics::Linear => T::Linear,
+            CicpTransferCharacteristics::Log100 => T::Log100,
+            CicpTransferCharacteristics::LogSqrt => T::Log100sqrt10,
+            CicpTransferCharacteristics::Iec61966_2_4 => T::Iec61966,
+            CicpTransferCharacteristics::Bt1361 => T::Bt1361,
+            CicpTransferCharacteristics::SRgb => T::Srgb,
+            CicpTransferCharacteristics::Bt2020_10bit => T::Bt202010bit,
+            CicpTransferCharacteristics::Bt2020_12bit => T::Bt202012bit,
+            CicpTransferCharacteristics::Smpte2084 => T::Smpte2084,
+            CicpTransferCharacteristics::Smpte428 => T::Smpte428,
+            CicpTransferCharacteristics::Bt2100Hlg => T::Hlg,
         }
     }
 }
@@ -203,6 +209,8 @@ pub enum CicpMatrixCoefficients {
     /// IEC 61966-2-4 xvYCC709
     /// SMPTE RP 177 Annex B
     Bt709 = 1,
+    /// Explicitly, the matrix coefficients are not determined.
+    Unspecified = 2,
     /// United States Federal Communications Commission (2003) Title 47 Code of Federal Regulations 73.682 (a) (20)
     UsFCC = 4,
     ///  Rec. ITU-R BT.470-6 System B, G (historical)
@@ -246,6 +254,7 @@ impl CicpMatrixCoefficients {
 
         Some(match self {
             CicpMatrixCoefficients::Identity => M::Identity,
+            CicpMatrixCoefficients::Unspecified => M::Unspecified,
             CicpMatrixCoefficients::Bt709 => M::Bt709,
             CicpMatrixCoefficients::UsFCC => M::Fcc,
             CicpMatrixCoefficients::Bt470BG => M::Bt470Bg,
@@ -443,7 +452,7 @@ impl CicpTransform {
             }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>
         });
 
-        const N: usize = 150;
+        const N: usize = 256;
 
         // luma-rgb transforms expand the Luma to Rgb (and LumaAlpha to Rgba)
         let luma_rgb = {
@@ -646,8 +655,10 @@ impl CicpTransform {
     }
 
     pub(crate) fn transform_dynamic(&self, lhs: &mut DynamicImage, rhs: &DynamicImage) {
-        let mut ibuffer = [0.0f32; 1200];
-        let mut obuffer = [0.0f32; 1200];
+        const STEP: usize = 256;
+
+        let mut ibuffer = [0.0f32; 4 * STEP];
+        let mut obuffer = [0.0f32; 4 * STEP];
 
         let pixels = (u64::from(lhs.width()) * u64::from(lhs.height())) as usize;
 
@@ -721,7 +732,6 @@ impl CicpTransform {
             }
         };
 
-        const STEP: usize = 150;
         for start_idx in (0..pixels).step_by(STEP) {
             let end_idx = (start_idx + STEP).min(pixels);
             let count = end_idx - start_idx;
@@ -1064,7 +1074,7 @@ impl Cicp {
     /// The sRGB color space, BT.709 transfer function and D65 whitepoint.
     pub const SRGB: Self = Cicp {
         primaries: CicpColorPrimaries::SRgb,
-        transfer: CicpTransferFunction::SRgb,
+        transfer: CicpTransferCharacteristics::SRgb,
         matrix: CicpMatrixCoefficients::Identity,
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
@@ -1072,7 +1082,7 @@ impl Cicp {
     /// SRGB primaries and whitepoint with linear samples.
     pub const SRGB_LINEAR: Self = Cicp {
         primaries: CicpColorPrimaries::SRgb,
-        transfer: CicpTransferFunction::Linear,
+        transfer: CicpTransferCharacteristics::Linear,
         matrix: CicpMatrixCoefficients::Identity,
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
@@ -1084,7 +1094,7 @@ impl Cicp {
     /// whitepoint with sRGB and BT.2020.
     pub const DISPLAY_P3: Self = Cicp {
         primaries: CicpColorPrimaries::SmpteRp432,
-        transfer: CicpTransferFunction::SRgb,
+        transfer: CicpTransferCharacteristics::SRgb,
         matrix: CicpMatrixCoefficients::Identity,
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
@@ -1173,10 +1183,10 @@ impl Cicp {
             )
             && matches!(
                 self.transfer,
-                CicpTransferFunction::SRgb
-                    | CicpTransferFunction::Bt709
-                    | CicpTransferFunction::Bt601
-                    | CicpTransferFunction::Linear
+                CicpTransferCharacteristics::SRgb
+                    | CicpTransferCharacteristics::Bt709
+                    | CicpTransferCharacteristics::Bt601
+                    | CicpTransferCharacteristics::Linear
             )
     }
 
@@ -1185,6 +1195,12 @@ impl Cicp {
         CicpRgb {
             primaries: self.primaries,
             transfer: self.transfer,
+            // NOTE: if we add support for constant luminance (through the CMS having support for
+            // the Luma->YCbCr->Rgb expansion natively or otherwise) then consider if we should
+            // track here whether the matrix was `Identity` or `ChromaticityDerivedNonConstant` so
+            // that the `ImageBuffer::color_space()` function roundtrips the value. It may be
+            // important to know whether the non-constant chromaticity was an invention by `image`
+            // or part of the file. The colorimetry is the same either way.
             luminance: DerivedLuminance::NonConstant,
         }
     }
@@ -1266,6 +1282,12 @@ impl From<CicpRgb> for Cicp {
 }
 
 /// An RGB profile with its related (same tone-mapping) gray profile.
+///
+/// This is the whole input information which we must be able to pass to the CMS in a support
+/// transform, to handle all possible combinations of `ColorType` pixels that can be thrown at us.
+/// For instance, in a previous iteration we had a separate gray profile here (but now handle that
+/// internally by expansion to RGB through an YCbCr). Future iterations may add additional structs
+/// to be computed for validating `CicpTransform::new`.
 struct ColorProfile {
     rgb: moxcms::ColorProfile,
 }

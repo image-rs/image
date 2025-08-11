@@ -16,7 +16,7 @@ use crate::metadata::cicp::{CicpApplicable, CicpRgb};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::{
-    metadata::{Cicp, CicpColorPrimaries, CicpTransferFunction, CicpTransform},
+    metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
 };
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
@@ -1007,7 +1007,7 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
     /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
     /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
     /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
-    pub fn set_transfer_function(&mut self, tf: CicpTransferFunction) {
+    pub fn set_transfer_function(&mut self, tf: CicpTransferCharacteristics) {
         self.color.transfer = tf;
     }
 

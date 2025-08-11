@@ -6,7 +6,7 @@ use std::io::{Cursor, Read};
 use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 pub use self::cicp::{
-    Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferFunction, CicpTransform,
+    Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics, CicpTransform,
     CicpVideoFullRangeFlag,
 };
 

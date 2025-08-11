@@ -17,7 +17,7 @@ use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
     imageops,
-    metadata::{Cicp, CicpColorPrimaries, CicpTransferFunction},
+    metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
     ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
     ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
 };
@@ -729,7 +729,7 @@ impl DynamicImage {
     /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
     /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
     /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
-    pub fn set_transfer_function(&mut self, tf: CicpTransferFunction) {
+    pub fn set_transfer_function(&mut self, tf: CicpTransferCharacteristics) {
         dynamic_map!(self, ref mut p, p.set_transfer_function(tf));
     }
 

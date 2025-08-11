@@ -125,6 +125,8 @@ pub enum ParameterErrorKind {
     DimensionMismatch,
     /// Repeated an operation for which error that could not be cloned was emitted already.
     FailedAlready,
+    /// The cicp is required to be RGB-like but had other matrix transforms or narrow range.
+    RgbCicpRequired(Cicp),
     /// A string describing the parameter.
     /// This is discouraged and is likely to get deprecated (but not removed).
     Generic(String),
@@ -427,6 +429,10 @@ impl fmt::Display for ParameterError {
                 fmt,
                 "The end the image stream has been reached due to a previous error"
             ),
+            ParameterErrorKind::RgbCicpRequired(cicp) => {
+                write!(fmt, "The CICP {cicp:?} can not be used for RGB images",)
+            }
+
             ParameterErrorKind::Generic(message) => {
                 write!(fmt, "The parameter is malformed: {message}",)
             }

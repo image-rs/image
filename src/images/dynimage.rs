@@ -745,6 +745,14 @@ impl DynamicImage {
         dynamic_map!(self, ref p, p.color_space())
     }
 
+    /// Set primaries and transfer characteristics from a Cicp color space.
+    ///
+    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// a matrix or narrow range (studio encoding) channels.
+    pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
+        dynamic_map!(self, ref mut p, p.set_color_space(cicp))
+    }
+
     /// Whether the image contains an alpha channel
     ///
     /// This is a convenience wrapper around `self.color().has_alpha()`.
@@ -1189,20 +1197,12 @@ impl DynamicImage {
             return Ok(());
         }
 
-        // Forward compatibility: make sure we do not drop any details here.
-        if Cicp::from(cicp.into_rgb()) != cicp {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic("Not an RGB like CICP color space".to_string()),
-            )));
-        }
-
         // We could conceivably do this in-place faster but to handle the Luma conversion as we
         // want this requires the full machinery as `CicpTransform::transform_dynamic` which is
         // quite the replication. Let's just see if it is fast enough. Feel free to PR something if
         // it is easy enough to review.
         let mut target = self.clone();
-        target.set_rgb_primaries(cicp.primaries);
-        target.set_transfer_function(cicp.transfer);
+        target.set_color_space(cicp)?;
         target.copy_from_color_space(self, options)?;
 
         *self = target;
@@ -1233,16 +1233,9 @@ impl DynamicImage {
         }
 
         // Forward compatibility: make sure we do not drop any details here.
-        if Cicp::from(cicp.into_rgb()) != cicp {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic("Not an RGB like CICP color space".to_string()),
-            )));
-        }
-
+        let rgb = cicp.try_into_rgb()?;
         let mut target = DynamicImage::new(self.width(), self.height(), color);
-
-        target.set_rgb_primaries(cicp.primaries);
-        target.set_transfer_function(cicp.transfer);
+        dynamic_map!(target, ref mut p, p.set_rgb_color_space(rgb));
         target.copy_from_color_space(self, options)?;
 
         *self = target;

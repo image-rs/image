@@ -3,12 +3,13 @@ use std::sync::Arc;
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
 use crate::{
+    error::{ParameterError, ParameterErrorKind},
     math::multiply_accumulate,
     traits::{
         private::{LayoutWithColor, SealedPixelWithColorType},
         PixelWithColorType,
     },
-    ColorType, DynamicImage,
+    ColorType, DynamicImage, ImageError,
 };
 
 /// Reference: <https://www.itu.int/rec/T-REC-H.273-202407-I/en> (V4)
@@ -1202,6 +1203,16 @@ impl Cicp {
             // important to know whether the non-constant chromaticity was an invention by `image`
             // or part of the file. The colorimetry is the same either way.
             luminance: DerivedLuminance::NonConstant,
+        }
+    }
+
+    pub(crate) fn try_into_rgb(self) -> Result<CicpRgb, ImageError> {
+        if Cicp::from(self.into_rgb()) != self {
+            Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::RgbCicpRequired(self),
+            )))
+        } else {
+            Ok(self.into_rgb())
         }
     }
 }

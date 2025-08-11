@@ -1024,6 +1024,19 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
     pub fn color_space(&self) -> Cicp {
         self.color.into()
     }
+
+    /// Set primaries and transfer characteristics from a Cicp color space.
+    ///
+    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// a matrix or narrow range (studio encoding) channels.
+    pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
+        self.color = cicp.try_into_rgb()?;
+        Ok(())
+    }
+
+    pub(crate) fn set_rgb_color_space(&mut self, color: CicpRgb) {
+        self.color = color;
+    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>

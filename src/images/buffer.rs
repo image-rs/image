@@ -683,7 +683,7 @@ where
                 data: buf,
                 width,
                 height,
-                color: Cicp::SRGB_LINEAR.into_rgb(),
+                color: Cicp::SRGB.into_rgb(),
                 _phantom: PhantomData,
             })
         } else {
@@ -994,19 +994,28 @@ where
 impl<P: Pixel, Container> ImageBuffer<P, Container> {
     /// Define the color space for the image.
     ///
-    /// Reinterprets the existing red, blue, green channels as points in the new set of primary
-    /// colors, potentially changing the apparent shade of pixels.
+    /// The color data is unchanged. Reinterprets the existing red, blue, green channels as points
+    /// in the new set of primary colors, changing the apparent shade of pixels.
     ///
-    /// When this buffer contains Luma data the call has no effect.
+    /// Note that the primaries also define a reference whitepoint When this buffer contains Luma
+    /// data, the luminance channel is interpreted as the `Y` channel of a related `YCbCr` color
+    /// space as if by a non-constant chromaticity derived matrix. That is, coefficients are *not*
+    /// applied in the linear RGB space but use encoded channel values. (In a color space with the
+    /// linear transfer function there is no difference).
+    ///
+    /// The default color space is [`Cicp::SRGB`].
     pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
         self.color.primaries = color;
     }
 
     /// Define the transfer function for the image.
     ///
-    /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
-    /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
-    /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
+    /// The color data is unchanged. Reinterprets all (non-alpha) components in the image,
+    /// potentially changing the apparent shade of pixels. Individual components are always
+    /// interpreted as encoded numbers. To denote numbers in a linear RGB space, use
+    /// [`CicpTransferCharacteristics::Linear`].
+    ///
+    /// The default color space is [`Cicp::SRGB`].
     pub fn set_transfer_function(&mut self, tf: CicpTransferCharacteristics) {
         self.color.transfer = tf;
     }
@@ -1197,6 +1206,7 @@ where
         self.data.clone_from(&source.data);
         self.width = source.width;
         self.height = source.height;
+        self.color = source.color;
     }
 }
 
@@ -1300,6 +1310,8 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     ///
     /// all the pixels of this image have a value of zero, regardless of the data type or number of channels.
     ///
+    /// The color space is initially set to [`sRGB`][`Cicp::SRGB`].
+    ///
     /// # Panics
     ///
     /// Panics when the resulting image is larger than the maximum size of a vector.
@@ -1311,7 +1323,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
             data: vec![Zero::zero(); size],
             width,
             height,
-            color: Cicp::SRGB_LINEAR.into_rgb(),
+            color: Cicp::SRGB.into_rgb(),
             _phantom: PhantomData,
         }
     }

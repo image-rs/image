@@ -137,6 +137,8 @@ impl Clone for DynamicImage {
 impl DynamicImage {
     /// Creates a dynamic image backed by a buffer depending on
     /// the color type given.
+    ///
+    /// The color space is initially set to [`sRGB`][`Cicp::SRGB`].
     #[must_use]
     pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicImage {
         use color::ColorType::*;
@@ -716,19 +718,24 @@ impl DynamicImage {
 
     /// Define the color space for the image.
     ///
-    /// Reinterprets the existing red, blue, green channels as points in the new set of primary
-    /// colors, potentially changing the apparent shade of pixels.
+    /// The color data is unchanged. Reinterprets the existing red, blue, green channels as points
+    /// in the new set of primary colors, changing the apparent shade of pixels.
     ///
-    /// When this buffer contains Luma data the call has no effect.
+    /// Note that the primaries also define a reference whitepoint When this buffer contains Luma
+    /// data, the luminance channel is interpreted as the `Y` channel of a related `YCbCr` color
+    /// space as if by a non-constant chromaticity derived matrix. That is, coefficients are *not*
+    /// applied in the linear RGB space but use encoded channel values. (In a color space with the
+    /// linear transfer function there is no difference).
     pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
         dynamic_map!(self, ref mut p, p.set_rgb_primaries(color));
     }
 
     /// Define the transfer function for the image.
     ///
-    /// Reinterprets all (non-alpha) components in the image, potentially changing the apparent
-    /// shade of pixels. Individual components are always interpreted as encoded numbers. To denote
-    /// numbers in a linear RGB space, use [`CicpTransferFunction::Linear`].
+    /// The color data is unchanged. Reinterprets all (non-alpha) components in the image,
+    /// potentially changing the apparent shade of pixels. Individual components are always
+    /// interpreted as encoded numbers. To denote numbers in a linear RGB space, use
+    /// [`CicpTransferCharacteristics::Linear`].
     pub fn set_transfer_function(&mut self, tf: CicpTransferCharacteristics) {
         dynamic_map!(self, ref mut p, p.set_transfer_function(tf));
     }

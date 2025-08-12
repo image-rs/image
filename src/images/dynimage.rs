@@ -224,6 +224,13 @@ impl DynamicImage {
     }
 
     /// Encodes a dynamic image into a buffer.
+    ///
+    /// **WARNING**: Conversion between RGB and Luma is not aware of the color space and always
+    /// uses sRGB coefficients to determine a non-constant luminance from an RGB color (and
+    /// conversely).
+    ///
+    /// This unfortunately owes to the public bounds of `T` which does not allow for passing a
+    /// color space as a parameter. This function will likely be deprecated and replaced.
     #[inline]
     #[must_use]
     pub fn to<
@@ -247,73 +254,103 @@ impl DynamicImage {
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb8(&self) -> RgbImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb16(&self) -> Rgb16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb32f(&self) -> Rgb32FImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb32F(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba8(&self) -> RgbaImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba16(&self) -> Rgba16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba32f(&self) -> Rgba32FImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba32F(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma8(&self) -> GrayImage {
-        self.to()
+        match self {
+            DynamicImage::ImageLuma8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma16(&self) -> Gray16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageLuma16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
-        self.to()
+        dynamic_map!(self, ref p, p.cast_in_color_space())
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
-        self.to()
+        match self {
+            DynamicImage::ImageLumaA8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageLumaA16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-        self.to()
+        dynamic_map!(self, ref p, p.cast_in_color_space())
     }
 
     /// Consume the image and returns a RGB image.
@@ -662,7 +699,7 @@ impl DynamicImage {
         dynamic_map!(
             *self,
             ref image_buffer,
-            bytemuck::cast_slice(image_buffer.as_raw().as_ref())
+            bytemuck::cast_slice(image_buffer.as_raw())
         )
     }
 
@@ -1112,7 +1149,12 @@ impl DynamicImage {
         // Try to no-op this transformation, we may be lucky..
         if self.color_space() == other.color_space() {
             // Nothing to transform, just rescale samples and type cast.
-            dynamic_map!(self, ref mut p, *p = other.to());
+            dynamic_map!(
+                self,
+                ref mut p,
+                *p = dynamic_map!(other, ref o, o.cast_in_color_space())
+            );
+
             return Ok(());
         }
 
@@ -1949,6 +1991,42 @@ mod test {
 
         let target = buffer.as_rgb8().expect("Sample type now rgb8");
         assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn into_luma_is_color_space_aware() {
+        let mut buffer = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        buffer.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let luma8 = buffer.clone().into_luma8();
+        assert_eq!(luma8[(0, 0)], Luma([58u8]));
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+
+        let luma8 = buffer.clone().into_luma8();
+        assert_eq!(luma8[(0, 0)], Luma([54u8]));
+    }
+
+    #[test]
+    fn from_luma_is_color_space_aware() {
+        let mut buffer = super::DynamicImage::ImageLuma16({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma([u16::MAX]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        buffer.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let rgb8 = buffer.clone().into_rgb8();
+        assert_eq!(rgb8[(0, 0)], Rgb([58u8, 176u8, 20u8]));
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+
+        let rgb8 = buffer.clone().into_rgb8();
+        assert_eq!(rgb8[(0, 0)], Rgb([54u8, 182u8, 18u8]));
     }
 
     #[test]

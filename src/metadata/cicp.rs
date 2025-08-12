@@ -3,13 +3,15 @@ use std::sync::Arc;
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
 use crate::{
+    color::FromPrimitive,
     error::{ParameterError, ParameterErrorKind},
     math::multiply_accumulate,
     traits::{
         private::{LayoutWithColor, SealedPixelWithColorType},
         PixelWithColorType,
     },
-    ColorType, DynamicImage, ImageError,
+    utils::vec_try_with_capacity,
+    DynamicImage, ImageError, Pixel, Primitive,
 };
 
 /// Reference: <https://www.itu.int/rec/T-REC-H.273-202407-I/en> (V4)
@@ -666,66 +668,37 @@ impl CicpTransform {
         let input_samples;
         let output_samples;
 
-        let inner_transform = match (lhs.color(), rhs.color()) {
+        let inner_transform = match (
+            LayoutWithColor::from(lhs.color()),
+            LayoutWithColor::from(rhs.color()),
+        ) {
             (
-                ColorType::L8
-                | ColorType::L16
-                | ColorType::Rgb8
-                | ColorType::Rgb16
-                | ColorType::Rgb32F,
-                ColorType::L8
-                | ColorType::L16
-                | ColorType::Rgb8
-                | ColorType::Rgb16
-                | ColorType::Rgb32F,
+                LayoutWithColor::Luma | LayoutWithColor::Rgb,
+                LayoutWithColor::Luma | LayoutWithColor::Rgb,
             ) => {
                 output_samples = 3;
                 input_samples = 3;
                 &*self.f32.slices[0]
             }
             (
-                ColorType::La8
-                | ColorType::La16
-                | ColorType::Rgba8
-                | ColorType::Rgba16
-                | ColorType::Rgba32F,
-                ColorType::L8
-                | ColorType::L16
-                | ColorType::Rgb8
-                | ColorType::Rgb16
-                | ColorType::Rgb32F,
+                LayoutWithColor::LumaAlpha | LayoutWithColor::Rgba,
+                LayoutWithColor::Luma | LayoutWithColor::Rgb,
             ) => {
                 output_samples = 4;
                 input_samples = 3;
                 &*self.f32.slices[1]
             }
             (
-                ColorType::L8
-                | ColorType::L16
-                | ColorType::Rgb8
-                | ColorType::Rgb16
-                | ColorType::Rgb32F,
-                ColorType::La8
-                | ColorType::La16
-                | ColorType::Rgba8
-                | ColorType::Rgba16
-                | ColorType::Rgba32F,
+                LayoutWithColor::Luma | LayoutWithColor::Rgb,
+                LayoutWithColor::LumaAlpha | LayoutWithColor::Rgba,
             ) => {
                 output_samples = 3;
                 input_samples = 4;
                 &*self.f32.slices[2]
             }
             (
-                ColorType::La8
-                | ColorType::La16
-                | ColorType::Rgba8
-                | ColorType::Rgba16
-                | ColorType::Rgba32F,
-                ColorType::La8
-                | ColorType::La16
-                | ColorType::Rgba8
-                | ColorType::Rgba16
-                | ColorType::Rgba32F,
+                LayoutWithColor::LumaAlpha | LayoutWithColor::Rgba,
+                LayoutWithColor::LumaAlpha | LayoutWithColor::Rgba,
             ) => {
                 output_samples = 4;
                 input_samples = 4;
@@ -1000,6 +973,248 @@ impl CicpTransform {
             pix[1] = P::clamp_from_f32(rgba[3]);
         }
     }
+}
+
+impl CicpRgb {
+    /// Internal utility for converting color buffers of different pixel representations, assuming
+    /// they have this same cicp. This method returns a buffer, avoiding the pre-zeroing
+    /// the vector.
+    pub(crate) fn cast_pixels<FromColor, IntoColor>(
+        &self,
+        buffer: &[FromColor::Subpixel],
+        // Since this is not performance sensitive, we can use a dyn closure here instead of an
+        // impl closure just in case we call this from multiple different paths.
+        color_space_fallback: &dyn Fn() -> [f32; 3],
+    ) -> Vec<IntoColor::Subpixel>
+    where
+        FromColor: Pixel + SealedPixelWithColorType<TransformableSubpixel = FromColor::Subpixel>,
+        IntoColor: Pixel,
+        IntoColor: CicpPixelCast<FromColor>,
+        FromColor::Subpixel: ColorComponentForCicp,
+        IntoColor::Subpixel: ColorComponentForCicp + FromPrimitive<FromColor::Subpixel>,
+    {
+        use crate::traits::private::{LayoutWithColor as Layout, PrivateToken};
+        let from_layout = <FromColor as SealedPixelWithColorType>::layout(PrivateToken);
+        let into_layout = <IntoColor as SealedPixelWithColorType>::layout(PrivateToken);
+
+        let mut output = match self.cast_pixels_from_subpixels(buffer, from_layout, into_layout) {
+            Ok(ok) => return ok,
+            Err(buffer) => buffer,
+        };
+
+        // If we get here we need to transform through Rgb(a) 32F
+        let color_space_coefs = self
+            .derived_luminance()
+            // Since `cast_pixels` must be infallible we have no choice but to fallback to
+            // something here. This something is chosen by the caller, which would allow them to
+            // detect it has happened.
+            .unwrap_or_else(color_space_fallback);
+
+        const STEP: usize = 256;
+        let pixels = buffer.len() / from_layout.channels();
+
+        // All of the following is done in-place; so we must allow the buffer space in which the
+        // output is written ahead of time although such initialization is technically redundant.
+        // We best do this once to allow for a very efficient memset initialization.
+        output.resize(
+            pixels * into_layout.channels(),
+            <IntoColor::Subpixel as Primitive>::DEFAULT_MIN_VALUE,
+        );
+
+        let mut ibuffer = [0.0f32; 4 * STEP];
+        let mut obuffer = [0.0f32; 4 * STEP];
+
+        let ibuf_step = match from_layout {
+            Layout::Rgb | Layout::Luma => 3,
+            Layout::Rgba | Layout::LumaAlpha => 4,
+        };
+
+        let obuf_step = match into_layout {
+            Layout::Rgb | Layout::Luma => 3,
+            Layout::Rgba | Layout::LumaAlpha => 4,
+        };
+
+        for start_idx in (0..pixels).step_by(STEP) {
+            let end_idx = (start_idx + STEP).min(pixels);
+            let count = end_idx - start_idx;
+
+            let ibuffer = &mut ibuffer[..ibuf_step * count];
+
+            match from_layout {
+                Layout::Rgb => {
+                    CicpTransform::expand_rgb(&buffer[3 * start_idx..3 * end_idx], ibuffer)
+                }
+                Layout::Rgba => {
+                    CicpTransform::expand_rgba(&buffer[4 * start_idx..4 * end_idx], ibuffer)
+                }
+                Layout::Luma => CicpTransform::expand_luma_rgb(
+                    &buffer[start_idx..end_idx],
+                    ibuffer,
+                    color_space_coefs,
+                ),
+                Layout::LumaAlpha => CicpTransform::expand_luma_rgba(
+                    &buffer[2 * start_idx..2 * end_idx],
+                    ibuffer,
+                    color_space_coefs,
+                ),
+            }
+
+            // Add or subtract the alpha channel. We could do that as part of the store but this
+            // keeps the code simpler—there is a one-to-one correspondence with the methods needed
+            // for a full conversion.
+            let obuffer = match (ibuf_step, obuf_step) {
+                (3, 4) => {
+                    for (rgb, rgba) in ibuffer
+                        .chunks_exact(3)
+                        .zip(obuffer.chunks_exact_mut(4))
+                        .take(count)
+                    {
+                        rgba[0] = rgb[0];
+                        rgba[1] = rgb[1];
+                        rgba[2] = rgb[2];
+                        rgba[3] = 1.0;
+                    }
+
+                    &obuffer[..4 * count]
+                }
+                (4, 3) => {
+                    for (rgba, rgb) in ibuffer
+                        .chunks_exact(4)
+                        .zip(obuffer.chunks_exact_mut(3))
+                        .take(count)
+                    {
+                        rgb[0] = rgba[0];
+                        rgb[1] = rgba[1];
+                        rgb[2] = rgba[2];
+                    }
+
+                    &obuffer[..3 * count]
+                }
+                (n, m) => {
+                    debug_assert_eq!(n, m);
+                    &ibuffer[..m * count]
+                }
+            };
+
+            match into_layout {
+                Layout::Rgb => {
+                    CicpTransform::clamp_rgb(obuffer, &mut output[3 * start_idx..3 * end_idx]);
+                }
+                Layout::Rgba => {
+                    CicpTransform::clamp_rgba(obuffer, &mut output[4 * start_idx..4 * end_idx]);
+                }
+                Layout::Luma => {
+                    CicpTransform::clamp_rgb_luma(
+                        obuffer,
+                        &mut output[start_idx..end_idx],
+                        color_space_coefs,
+                    );
+                }
+                Layout::LumaAlpha => {
+                    CicpTransform::clamp_rgba_luma(
+                        obuffer,
+                        &mut output[2 * start_idx..2 * end_idx],
+                        color_space_coefs,
+                    );
+                }
+            }
+        }
+
+        output
+    }
+
+    /// Make sure this is only monomorphized for subpixel combinations, not for every pixel
+    /// combination! There's ample time to do that in `cast_pixels`.
+    pub(crate) fn cast_pixels_from_subpixels<FromSubpixel, IntoSubpixel>(
+        &self,
+        buffer: &[FromSubpixel],
+        from_layout: LayoutWithColor,
+        into_layout: LayoutWithColor,
+    ) -> Result<Vec<IntoSubpixel>, Vec<IntoSubpixel>>
+    where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        use crate::traits::private::LayoutWithColor as Layout;
+
+        assert!(buffer.len() % from_layout.channels() == 0);
+        let pixels = buffer.len() / from_layout.channels();
+
+        let mut output: Vec<IntoSubpixel> = vec_try_with_capacity(pixels * into_layout.channels())
+            // Not entirely failsafe, if you expand luma to rgba you can get a factor of 4 but at
+            // least this will not overflow. And that's why I'm a fan of in-place operations.
+            .expect("input layout already allocated with appropriate layout");
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        match (from_layout, into_layout) {
+            // First detect if we can use simple channel-by-channel component conversion.
+            (Layout::Rgb, Layout::Rgb)
+            | (Layout::Rgba, Layout::Rgba)
+            | (Layout::Luma, Layout::Luma)
+            | (Layout::LumaAlpha, Layout::LumaAlpha) => {
+                output.extend(buffer.iter().copied().map(map_channel));
+            }
+            (Layout::Rgb, Layout::Rgba) => {
+                // Use `as_chunks` with Rust 1.88
+                output.extend(buffer.chunks_exact(3).flat_map(|rgb| {
+                    let &rgb: &[_; 3] = rgb.try_into().unwrap();
+                    let [r, g, b] = rgb.map(map_channel);
+                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+                    [r, g, b, a]
+                }));
+            }
+            (Layout::Rgba, Layout::Rgb) => {
+                output.extend(buffer.chunks_exact(4).flat_map(|rgb| {
+                    let &[r, g, b, _]: &[_; 4] = rgb.try_into().unwrap();
+                    [r, g, b].map(map_channel)
+                }));
+            }
+            (Layout::Luma, Layout::LumaAlpha) => {
+                output.extend(buffer.iter().copied().flat_map(|luma| {
+                    let l = map_channel(luma);
+                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+                    [l, a]
+                }));
+            }
+            (Layout::LumaAlpha, Layout::Luma) => {
+                output.extend(buffer.chunks_exact(2).map(|rgb| {
+                    let &[luma, _]: &[_; 2] = rgb.try_into().unwrap();
+                    map_channel(luma)
+                }));
+            }
+            _ => return Err(output),
+        }
+
+        Ok(output)
+    }
+}
+
+/// Color types that can be converted by [`CicpRgb::cast_pixels`].
+///
+/// This is a utility to avoid dealing with lots of bounds everywhere. In the actual implementation
+/// we avoid the concrete pixel types and care just about the layout (as a runtime property) and
+/// the channel type to be promotable into a float for normalization. If the pixels have layouts
+/// that are convertible with intra-channel numerics we instead try and promote the channels via
+/// `Primitive` instead.
+pub(crate) trait CicpPixelCast<FromColor>
+where
+    // Ensure we can get components from both, get the layout, and that all components are
+    // compatible with our intermediate connection space (rgba32f).
+    Self: Pixel + SealedPixelWithColorType<TransformableSubpixel = <Self as Pixel>::Subpixel>,
+    FromColor:
+        Pixel + SealedPixelWithColorType<TransformableSubpixel = <FromColor as Pixel>::Subpixel>,
+    Self::Subpixel: ColorComponentForCicp + FromPrimitive<FromColor::Subpixel>,
+    FromColor::Subpixel: ColorComponentForCicp,
+{
+}
+
+impl<FromColor, IntoColor> CicpPixelCast<FromColor> for IntoColor
+where
+    IntoColor: Pixel + SealedPixelWithColorType<TransformableSubpixel = IntoColor::Subpixel>,
+    FromColor: Pixel + SealedPixelWithColorType<TransformableSubpixel = FromColor::Subpixel>,
+    IntoColor::Subpixel: ColorComponentForCicp + FromPrimitive<FromColor::Subpixel>,
+    FromColor::Subpixel: ColorComponentForCicp,
+{
 }
 
 pub(crate) trait ColorComponentForCicp: Copy {
@@ -1335,14 +1550,9 @@ fn derived_luminance() {
 }
 
 #[cfg(test)]
-// Disabled tests for now, but keeping the reference values. Since pixel conversion is typed based
-// we _should_ support all our primary `ColorType` options before offering this, currently Luma is
-// difficult. Otherwise we could also refine `PixelWithColorType` but it is already sealed and
-// internal and will, probably, quickly become highly confusing.
-#[cfg(any())]
-mod test_pixels {
+mod tests {
     use super::{Cicp, CicpTransform};
-    use crate::{Luma, Pixel, Rgba};
+    use crate::{Luma, LumaA, Rgb, Rgba};
 
     #[test]
     fn can_create_transforms() {
@@ -1352,43 +1562,51 @@ mod test_pixels {
         assert!(CicpTransform::new(Cicp::DISPLAY_P3, Cicp::DISPLAY_P3).is_some());
     }
 
-    #[test]
-    fn transform_rgb() {
-        let tr = CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).unwrap();
-        let p3 = Rgba::<u8>([255, 0, 0, 255]).to_rgba_with(&tr);
-        // Validated by python colour-science:
-        // colour.RGB_to_RGB(
-        //   [1.0, 0.0, 0.0],
-        //   colour.RGB_COLOURSPACES['sRGB'],
-        //   colour.RGB_COLOURSPACES['Display P3'],
-        //   apply_cctf_encoding=True,
-        //   apply_cctf_decoding=True) * 255
-        assert_eq!(p3.0, [234, 51, 35, 255]);
+    fn no_coefficient_fallback() -> [f32; 3] {
+        panic!("Fallback coefficients required")
     }
 
     #[test]
-    fn transform_luma() {
-        let tr = CicpTransform::new(Cicp::SRGB, Cicp::SRGB).unwrap();
-        // _, Y, _ = colour.RGB_to_XYZ(
-        //   [1.0, 0.0, 0.0],
-        //   colour.RGB_COLOURSPACES['sRGB'],
-        //   apply_cctf_decoding=True)
-        // colour.RGB_COLOURSPACES['sRGB']._cctf_encoding(Y)*255
-        let luma = Rgba::<u8>([255, 0, 0, 255]).to_luma_with(&tr);
-        assert_eq!(luma.0, [130u8]); // reference: 127.1021805160301
-
-        let luma = Rgba::<u8>([0, 255, 0, 255]).to_luma_with(&tr);
-        assert_eq!(luma.0, [220u8]); // reference: 219.93274897493274
-
-        let luma = Rgba::<u8>([0, 0, 255, 255]).to_luma_with(&tr);
-        assert_eq!(luma.0, [70u8]); // reference: 75.962697358369013
+    fn transform_pixels_srgb() {
+        // Non-constant luminance so:
+        // Y = dot(rgb, coefs)
+        let data = [255, 0, 0, 255];
+        let color = Cicp::SRGB.into_rgb();
+        let rgba = color.cast_pixels::<Rgba<u8>, Rgb<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(rgba, [255, 0, 0]);
+        let luma = color.cast_pixels::<Rgba<u8>, Luma<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [54]); // 255 * 0.2126
+        let luma_a = color.cast_pixels::<Rgba<u8>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma_a, [54, 255]);
     }
 
     #[test]
-    fn transform_luma_to_rgba() {
-        let tr = CicpTransform::new(Cicp::DISPLAY_P3, Cicp::SRGB).unwrap();
-        let srgb = Luma::<u8>([128]).to_rgb_with(&tr);
-        // All of them using the same transfer function so this is unsurprising
-        assert_eq!(srgb.0, [128, 128, 128]);
+    fn transform_pixels_srgb_16() {
+        // Non-constant luminance so:
+        // Y = dot(rgb, coefs)
+        let data = [u16::MAX];
+        let color = Cicp::SRGB.into_rgb();
+        let rgba = color.cast_pixels::<Luma<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(rgba, [54, 182, 18]);
+        let luma = color.cast_pixels::<Luma<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [u8::MAX]);
+        let luma_a = color.cast_pixels::<Luma<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma_a, [u8::MAX, 255]);
+    }
+
+    #[test]
+    fn transform_pixels_srgb_luma_alpha() {
+        // Non-constant luminance so:
+        // Y = dot(rgb, coefs)
+        let data = [u16::MAX, u16::MAX];
+        let color = Cicp::SRGB.into_rgb();
+        let rgba = color.cast_pixels::<LumaA<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(rgba, [54, 182, 18]);
+        let luma = color.cast_pixels::<LumaA<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [u8::MAX]);
+        let luma = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [u8::MAX, u8::MAX]);
+        let luma_a = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma_a, [u8::MAX, 255]);
     }
 }

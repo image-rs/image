@@ -6,13 +6,13 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
+use crate::color::{FromColor, FromPrimitive, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::math::Rect;
-use crate::metadata::cicp::{CicpApplicable, CicpRgb};
+use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 use crate::{
@@ -1546,6 +1546,35 @@ where
     SelfPixel: PixelWithColorType,
     C: Deref<Target = [SelfPixel::Subpixel]> + DerefMut,
 {
+    /// Convert the color data to another pixel type, the color space.
+    ///
+    /// This method is supposed to be called by exposed monomorphized methods, not directly by
+    /// users. In particular it serves to implement `DynamicImage`'s casts that go beyond those
+    /// offered by `PixelWithColorType` and include, e.g., `LumaAlpha<f32>`.
+    ///
+    /// Before exposing this method, decide if we want a design like [`DynamicImage::to`] (many
+    /// trait parameters) with color space aware `FromColor` or if we want a design that takes a
+    /// `ColorType` parameter / `PixelWithColorType`. The latter is not quite as flexible but
+    /// allows much greater internal changes that do not tie in with the _external_ stable API.
+    pub(crate) fn cast_in_color_space<IntoPixel>(
+        &self,
+    ) -> ImageBuffer<IntoPixel, Vec<IntoPixel::Subpixel>>
+    where
+        SelfPixel: Pixel,
+        IntoPixel: Pixel,
+        IntoPixel: CicpPixelCast<SelfPixel>,
+        SelfPixel::Subpixel: ColorComponentForCicp,
+        IntoPixel::Subpixel: ColorComponentForCicp + FromPrimitive<SelfPixel::Subpixel>,
+    {
+        let vec = self
+            .color
+            .cast_pixels::<SelfPixel, IntoPixel>(self.inner_pixels(), &|| [0.2126, 0.7152, 0.0722]);
+        let mut buffer = ImageBuffer::from_vec(self.width, self.height, vec)
+            .expect("cast_pixels returned the right number of pixels");
+        buffer.copy_color_space_from(self);
+        buffer
+    }
+
     /// Copy pixel data from one buffer to another, calculating equivalent color representations
     /// for the target's color space.
     ///

@@ -225,6 +225,28 @@ pub(crate) mod private {
         LumaAlpha,
     }
 
+    impl From<ColorType> for LayoutWithColor {
+        fn from(color: ColorType) -> LayoutWithColor {
+            match color {
+                ColorType::L8 | ColorType::L16 => LayoutWithColor::Luma,
+                ColorType::La8 | ColorType::La16 => LayoutWithColor::LumaAlpha,
+                ColorType::Rgb8 | ColorType::Rgb16 | ColorType::Rgb32F => LayoutWithColor::Rgb,
+                ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Rgba32F => LayoutWithColor::Rgba,
+            }
+        }
+    }
+
+    impl LayoutWithColor {
+        pub(crate) fn channels(self) -> usize {
+            match self {
+                Self::Rgb => 3,
+                Self::Rgba => 4,
+                Self::Luma => 1,
+                Self::LumaAlpha => 2,
+            }
+        }
+    }
+
     #[derive(Clone, Copy)]
     pub struct PrivateToken;
 
@@ -297,10 +319,24 @@ pub(crate) mod private {
         }
     }
 
+    impl SealedPixelWithColorType for Luma<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Luma
+        }
+    }
+
     impl SealedPixelWithColorType for LumaA<u16> {
         type TransformableSubpixel = u16;
         fn layout(_: PrivateToken) -> LayoutWithColor {
-            LayoutWithColor::Luma
+            LayoutWithColor::LumaAlpha
+        }
+    }
+
+    impl SealedPixelWithColorType for LumaA<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::LumaAlpha
         }
     }
 

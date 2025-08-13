@@ -1443,20 +1443,34 @@ impl CicpRgb {
 
         let primaries = match self.primaries {
             CicpColorPrimaries::SRgb => moxcms::ColorPrimaries::BT_709,
-            CicpColorPrimaries::SmpteRp431 => moxcms::ColorPrimaries::DISPLAY_P3,
-            CicpColorPrimaries::SmpteRp432 => moxcms::ColorPrimaries::DISPLAY_P3,
+            CicpColorPrimaries::RgbM => moxcms::ColorPrimaries::BT_470M,
+            CicpColorPrimaries::RgbB => moxcms::ColorPrimaries::BT_470BG,
             CicpColorPrimaries::Bt601 => moxcms::ColorPrimaries::BT_601,
             CicpColorPrimaries::Rgb240m => moxcms::ColorPrimaries::SMPTE_240,
-            _ => return None,
+            CicpColorPrimaries::GenericFilm => moxcms::ColorPrimaries::GENERIC_FILM,
+            CicpColorPrimaries::Rgb2020 => moxcms::ColorPrimaries::BT_2020,
+            CicpColorPrimaries::Xyz => moxcms::ColorPrimaries::XYZ,
+            CicpColorPrimaries::SmpteRp431 => moxcms::ColorPrimaries::DISPLAY_P3,
+            CicpColorPrimaries::SmpteRp432 => moxcms::ColorPrimaries::DISPLAY_P3,
+            CicpColorPrimaries::Industry22 => moxcms::ColorPrimaries::EBU_3213,
+            CicpColorPrimaries::Unspecified => return None,
         };
+
+        const ILLUMINANT_C: moxcms::Chromaticity = moxcms::Chromaticity::new(0.310, 0.316);
 
         let whitepoint = match self.primaries {
             CicpColorPrimaries::SRgb => moxcms::Chromaticity::D65,
-            CicpColorPrimaries::SmpteRp431 => moxcms::Chromaticity::new(0.314, 0.351),
-            CicpColorPrimaries::SmpteRp432 => moxcms::Chromaticity::D65,
+            CicpColorPrimaries::RgbM => ILLUMINANT_C,
+            CicpColorPrimaries::RgbB => moxcms::Chromaticity::D65,
             CicpColorPrimaries::Bt601 => moxcms::Chromaticity::D65,
             CicpColorPrimaries::Rgb240m => moxcms::Chromaticity::D65,
-            _ => return None,
+            CicpColorPrimaries::GenericFilm => ILLUMINANT_C,
+            CicpColorPrimaries::Rgb2020 => moxcms::Chromaticity::D65,
+            CicpColorPrimaries::Xyz => moxcms::Chromaticity::new(1. / 3., 1. / 3.),
+            CicpColorPrimaries::SmpteRp431 => moxcms::Chromaticity::new(0.314, 0.351),
+            CicpColorPrimaries::SmpteRp432 => moxcms::Chromaticity::D65,
+            CicpColorPrimaries::Industry22 => moxcms::Chromaticity::D65,
+            CicpColorPrimaries::Unspecified => return None,
         };
 
         let r = primaries.red.to_xyz();

@@ -1261,7 +1261,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         height: image.height() as usize,
     };
 
-    match image {
+    let mut target = match image {
         DynamicImage::ImageLuma8(img) => {
             let mut dest_image = vec![0u8; img.len()];
             filter_2d_sep_plane(
@@ -1402,7 +1402,11 @@ pub(crate) fn gaussian_blur_dyn_image(
                 Rgba32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
             )
         }
-    }
+    };
+
+    // Must succeed.
+    let _ = target.set_color_space(image.color_space());
+    target
 }
 
 fn gaussian_blur_indirect<I: GenericImageView>(
@@ -1514,7 +1518,7 @@ where
         _ => unreachable!(),
     }
 
-    let mut out = ImageBuffer::new(image.width(), image.height());
+    let mut out = image.buffer_like();
     for (dst, src) in out.pixels_mut().zip(transient_dst.chunks_exact_mut(CN)) {
         match CN {
             1 => {

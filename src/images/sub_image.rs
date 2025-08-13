@@ -80,8 +80,8 @@ impl<I> SubImage<I> {
         I: Deref,
         I::Target: GenericImageView + 'static,
     {
-        let mut out = ImageBuffer::new(self.inner.xstride, self.inner.ystride);
         let borrowed = &*self.inner.image;
+        let mut out = borrowed.buffer_with_dimensions(self.inner.xstride, self.inner.ystride);
 
         for y in 0..self.inner.ystride {
             for x in 0..self.inner.xstride {

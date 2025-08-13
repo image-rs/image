@@ -45,6 +45,27 @@ use crate::{
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
+///
+/// # Color space
+///
+/// Each image has an associated color space in the form of [CICP] data ([ITU Rec H.273]). Not all
+/// color spaces are supported in the sense that you can compute in them ([Context][w3c-png]).
+/// Conversion into different pixels types ([`ColorType`][`crate::ColorType`]) _generally_ take the
+/// color space into account, with the exception of [`DynamicImage::to`] due to historical design
+/// baggage.
+///
+/// The imageops functions operate in _encoded_ space, directly on the channel values, and do _not_
+/// linearize colors internally as you might be used to from GPU shader programming. Their return
+/// values however copy the color space annotation of the source.
+///
+/// The IO functions do _not yet_ write ICC or CICP indications into the result formats. We're
+/// aware of this problem, it is tracked in [#2493] and [#1460].
+///
+/// [CICP]: https://www.w3.org/TR/png-3/#cICP-chunk
+/// [w3c-png]: https://github.com/w3c/png/issues/312
+/// [ITU Rec H.273]: https://www.itu.int/rec/T-REC-H.273-202407-I/en
+/// [#2493]: https://github.com/image-rs/image/issues/2493
+/// [#1460]: https://github.com/image-rs/image/issues/1460
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DynamicImage {
@@ -836,6 +857,9 @@ impl DynamicImage {
 
     /// Invert the colors of this image.
     /// This method operates inplace.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     pub fn invert(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::invert(p));
     }
@@ -844,6 +868,9 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         if (nwidth, nheight) == self.dimensions() {
@@ -858,6 +885,9 @@ impl DynamicImage {
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
     /// `nwidth` and `nheight` are the new image's dimensions
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize_exact(
         &self,
@@ -876,6 +906,9 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         let (width2, height2) =
@@ -889,6 +922,9 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
@@ -900,6 +936,9 @@ impl DynamicImage {
     /// within the larger (relative to aspect ratio) of the bounds
     /// specified by `nwidth` and `nheight`, then cropped to
     /// fit within the other bound.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize_to_fill(
         &self,
@@ -934,6 +973,9 @@ impl DynamicImage {
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         gaussian_blur_dyn_image(
@@ -951,6 +993,9 @@ impl DynamicImage {
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn blur_advanced(&self, parameters: GaussianBlurParameters) -> DynamicImage {
         gaussian_blur_dyn_image(self, parameters)
@@ -964,6 +1009,9 @@ impl DynamicImage {
     ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
@@ -976,8 +1024,9 @@ impl DynamicImage {
     /// * `sigma` - value controls image flattening level.
     /// * `threshold` - is a control of how much to sharpen.
     ///
-    /// This method typically assumes that the input is scene-linear light.
-    /// If it is not, color distortion may occur.
+    /// This method typically assumes that the input is scene-linear light. If it is not, color
+    /// distortion may occur. It operates on pixel channel values directly without taking into
+    /// account color space data.
     ///
     /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
     /// for more information
@@ -992,8 +1041,9 @@ impl DynamicImage {
     ///
     /// * `kernel` - slice contains filter. Only slice len is 9 length is accepted.
     ///
-    /// This method typically assumes that the input is scene-linear light.
-    /// If it is not, color distortion may occur.
+    /// This method typically assumes that the input is scene-linear light. It operates on pixel
+    /// channel values directly without taking into account color space data. If it is not, color
+    /// distortion may occur.
     #[must_use]
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         assert_eq!(9, kernel.len(), "filter must be 3 x 3");
@@ -1004,6 +1054,9 @@ impl DynamicImage {
     /// Adjust the contrast of this image.
     /// `contrast` is the amount to adjust the contrast by.
     /// Negative values decrease the contrast and positive values increase the contrast.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
@@ -1012,6 +1065,9 @@ impl DynamicImage {
     /// Brighten the pixels of this image.
     /// `value` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn brighten(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
@@ -1021,6 +1077,9 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data. The HSV color space is dependent on the current color space primaries.
     #[must_use]
     pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
@@ -2063,6 +2122,50 @@ mod test {
                     .convert_color_space(Cicp::DISPLAY_P3, options, to)
                     .expect("Failed to convert color space");
             }
+        }
+    }
+
+    /// Check that operations that are not cicp-aware behave as such. We introduce new methods (not
+    /// based directly on the public imageops interface) at a later point.
+    #[cfg(feature = "png")]
+    #[test]
+    fn color_space_independent_imageops() {
+        let im_path = "./tests/images/png/16bpc/basn6a16.png";
+
+        let mut image = super::open(im_path).unwrap();
+        let mut clone = image.clone();
+
+        image.set_color_space(Cicp::SRGB).unwrap();
+        clone.set_color_space(Cicp::DISPLAY_P3).unwrap();
+
+        const IMAGEOPS: &[&dyn Fn(&super::DynamicImage) -> super::DynamicImage] = &[
+            &|img| img.resize(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.thumbnail(8, 8),
+            &|img| img.thumbnail_exact(8, 8),
+            &|img| img.resize_to_fill(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.blur(1.0),
+            &|img| {
+                img.blur_advanced(
+                    crate::imageops::GaussianBlurParameters::new_anisotropic_kernel_size(1.0, 2.0),
+                )
+            },
+            &|img| img.fast_blur(1.0),
+            &|img| img.unsharpen(1.0, 3),
+            &|img| img.filter3x3(&[0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0]),
+            &|img| img.adjust_contrast(0.5),
+            &|img| img.brighten(10),
+            &|img| img.huerotate(180),
+        ];
+
+        for (idx, &op) in IMAGEOPS.iter().enumerate() {
+            let result_a = op(&image);
+            let result_b = op(&clone);
+            assert_eq!(result_a.color_space(), image.color_space(), "{idx}");
+            assert_eq!(result_b.color_space(), clone.color_space(), "{idx}");
+
+            assert_ne!(result_a, result_b, "{idx}");
+            assert_eq!(result_a.as_bytes(), result_b.as_bytes(), "{idx}");
         }
     }
 }

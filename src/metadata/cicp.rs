@@ -1449,7 +1449,12 @@ impl CicpRgb {
             CicpColorPrimaries::Rgb240m => moxcms::ColorPrimaries::SMPTE_240,
             CicpColorPrimaries::GenericFilm => moxcms::ColorPrimaries::GENERIC_FILM,
             CicpColorPrimaries::Rgb2020 => moxcms::ColorPrimaries::BT_2020,
-            CicpColorPrimaries::Xyz => moxcms::ColorPrimaries::XYZ,
+            // Math is ill-defined here. The conversion of primaries to `xyz` with normalized `Y =
+            // 1.0` yields `[0.0, 1.0, 0.0]` for *all* the primaries instead of the desired values
+            // since some of them have `y = 0.0` which only permits `Y = 0.0`. Yay.
+            //
+            // We could special case this and return `[0.0, 1.0, 0.0]`.
+            CicpColorPrimaries::Xyz => return None,
             CicpColorPrimaries::SmpteRp431 => moxcms::ColorPrimaries::DISPLAY_P3,
             CicpColorPrimaries::SmpteRp432 => moxcms::ColorPrimaries::DISPLAY_P3,
             CicpColorPrimaries::Industry22 => moxcms::ColorPrimaries::EBU_3213,

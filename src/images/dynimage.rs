@@ -1711,7 +1711,7 @@ mod bench {
 
 #[cfg(test)]
 mod test {
-    use crate::metadata::CicpTransform;
+    use crate::metadata::{CicpColorPrimaries, CicpTransform};
     use crate::ConvertColorOptions;
     use crate::{color::ColorType, images::dynimage::Gray16Image};
     use crate::{metadata::Cicp, ImageBuffer, Luma, Rgb, Rgba};
@@ -2086,6 +2086,35 @@ mod test {
 
         let rgb8 = buffer.clone().into_rgb8();
         assert_eq!(rgb8[(0, 0)], Rgb([54u8, 182u8, 18u8]));
+    }
+
+    #[test]
+    fn from_luma_for_all_chromaticities() {
+        const CHROMA: &[(CicpColorPrimaries, [u8; 3])] = &[
+            (CicpColorPrimaries::SRgb, [54, 182, 18]),
+            (CicpColorPrimaries::RgbM, [76, 150, 29]),
+            (CicpColorPrimaries::RgbB, [57, 180, 18]),
+            (CicpColorPrimaries::Bt601, [54, 179, 22]),
+            (CicpColorPrimaries::Rgb240m, [54, 179, 22]),
+            (CicpColorPrimaries::GenericFilm, [65, 173, 17]),
+            (CicpColorPrimaries::Rgb2020, [67, 173, 15]),
+            // (CicpColorPrimaries::Xyz, [0, 0, 0]),
+            (CicpColorPrimaries::SmpteRp431, [53, 184, 18]),
+            (CicpColorPrimaries::SmpteRp432, [58, 176, 20]),
+            (CicpColorPrimaries::Industry22, [59, 171, 24]),
+            // Falls back to sRGB
+            (CicpColorPrimaries::Unspecified, [54, 182, 18]),
+        ];
+
+        let mut buffer = super::DynamicImage::ImageLuma16({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma([u16::MAX]))
+        });
+
+        for &(chroma, expected) in CHROMA {
+            buffer.set_rgb_primaries(chroma);
+            let rgb = buffer.to_rgb8();
+            assert_eq!(rgb[(0, 0)], Rgb(expected), "Failed for chroma: {chroma:?}");
+        }
     }
 
     #[test]

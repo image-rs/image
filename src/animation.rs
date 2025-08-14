@@ -137,6 +137,17 @@ impl Delay {
     /// use image::Delay;
     /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
     /// ```
+    ///
+    /// The ratio is reduced on construction which means equality comparisons is reliable even when
+    /// mixing different bases.
+    ///
+    /// ```
+    /// use image::Delay;
+    /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
+    /// let delay_10000us = Delay::from_numer_denom_ms(10_000, 1_000);
+    ///
+    /// assert_eq!(delay_10ms, delay_10000us);
+    /// ```
     #[must_use]
     pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {
         Delay {

@@ -64,6 +64,19 @@ impl Clone for Frame {
 }
 
 /// The delay of a frame relative to the previous one.
+///
+/// The ratio is reduced on construction which means equality comparisons is reliable even when
+/// mixing different bases. Note however that there is an upper limit to the delays that can be
+/// represented exactly when using [`Self::from_saturating_duration`] which depends on the
+/// granularity of the interval.
+///
+/// ```
+/// use image::Delay;
+/// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
+/// let delay_10000us = Delay::from_numer_denom_ms(10_000, 1_000);
+///
+/// assert_eq!(delay_10ms, delay_10000us);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub struct Delay {
     ratio: Ratio,
@@ -136,17 +149,6 @@ impl Delay {
     /// ```
     /// use image::Delay;
     /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
-    /// ```
-    ///
-    /// The ratio is reduced on construction which means equality comparisons is reliable even when
-    /// mixing different bases.
-    ///
-    /// ```
-    /// use image::Delay;
-    /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
-    /// let delay_10000us = Delay::from_numer_denom_ms(10_000, 1_000);
-    ///
-    /// assert_eq!(delay_10ms, delay_10000us);
     /// ```
     #[must_use]
     pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {

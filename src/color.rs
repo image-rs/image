@@ -2,7 +2,10 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::{
+    error::TryFromExtendedColorError,
+    traits::{Enlargeable, Pixel, Primitive},
+};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -229,6 +232,28 @@ impl ExtendedColorType {
     }
 
     /// Returns the ColorType that is equivalent to this ExtendedColorType.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::{ColorType, ExtendedColorType};
+    ///
+    /// assert_eq!(Some(ColorType::L8), ExtendedColorType::L8.color_type());
+    /// assert_eq!(None, ExtendedColorType::L1.color_type());
+    /// ```
+    ///
+    /// The method is equivalent to converting via the `TryFrom`/`TryInto` traits except for the
+    /// error path. Choose the more ergonomic option in your usage.
+    ///
+    /// ```
+    /// use image::{ColorType, ExtendedColorType, ImageError};
+    ///
+    /// fn handle_errors() -> Result<(), ImageError> {
+    ///     let color: ColorType = ExtendedColorType::L8.try_into()?;
+    ///     assert_eq!(color, ColorType::L8);
+    ///     # Ok(())
+    /// }
+    /// ```
     pub fn color_type(&self) -> Option<ColorType> {
         match *self {
             ExtendedColorType::L8 => Some(ColorType::L8),
@@ -250,6 +275,7 @@ impl ExtendedColorType {
         row_pitch.saturating_mul(height as u64)
     }
 }
+
 impl From<ColorType> for ExtendedColorType {
     fn from(c: ColorType) -> Self {
         match c {
@@ -267,11 +293,13 @@ impl From<ColorType> for ExtendedColorType {
     }
 }
 
-impl TryInto<ColorType> for ExtendedColorType {
-    type Error = ();
+impl TryFrom<ExtendedColorType> for ColorType {
+    type Error = TryFromExtendedColorError;
 
-    fn try_into(self) -> Result<ColorType, Self::Error> {
-        self.color_type().ok_or(())
+    fn try_from(value: ExtendedColorType) -> Result<ColorType, Self::Error> {
+        value
+            .color_type()
+            .ok_or(TryFromExtendedColorError { was: value })
     }
 }
 

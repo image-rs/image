@@ -496,6 +496,42 @@ impl fmt::Display for ImageFormatHint {
     }
 }
 
+/// Converting [`ExtendedColorType`] to [`ColorType`] failed.
+///
+/// This type is convertible to [`ImageError`] as [`ImageError::Unsupported`].
+#[derive(Clone)]
+#[allow(missing_copy_implementations)]
+pub struct TryFromExtendedColorError {
+    pub(crate) was: ExtendedColorType,
+}
+
+impl fmt::Debug for TryFromExtendedColorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl fmt::Display for TryFromExtendedColorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "The pixel layout {:?} is not supported as a buffer ColorType",
+            self.was
+        )
+    }
+}
+
+impl Error for TryFromExtendedColorError {}
+
+impl From<TryFromExtendedColorError> for ImageError {
+    fn from(err: TryFromExtendedColorError) -> ImageError {
+        ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+            ImageFormatHint::Unknown,
+            UnsupportedErrorKind::Color(err.was),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

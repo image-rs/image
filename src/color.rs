@@ -2,7 +2,10 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Enlargeable, Pixel, Primitive};
+use crate::{
+    error::TryFromExtendedColorError,
+    traits::{Enlargeable, Pixel, Primitive},
+};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -230,6 +233,45 @@ impl ExtendedColorType {
         }
     }
 
+    /// Returns the ColorType that is equivalent to this ExtendedColorType.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::{ColorType, ExtendedColorType};
+    ///
+    /// assert_eq!(Some(ColorType::L8), ExtendedColorType::L8.color_type());
+    /// assert_eq!(None, ExtendedColorType::L1.color_type());
+    /// ```
+    ///
+    /// The method is equivalent to converting via the `TryFrom`/`TryInto` traits except for the
+    /// error path. Choose the more ergonomic option in your usage.
+    ///
+    /// ```
+    /// use image::{ColorType, ExtendedColorType, ImageError};
+    ///
+    /// fn handle_errors() -> Result<(), ImageError> {
+    ///     let color: ColorType = ExtendedColorType::L8.try_into()?;
+    ///     assert_eq!(color, ColorType::L8);
+    ///     # Ok(())
+    /// }
+    /// ```
+    pub fn color_type(&self) -> Option<ColorType> {
+        match *self {
+            ExtendedColorType::L8 => Some(ColorType::L8),
+            ExtendedColorType::La8 => Some(ColorType::La8),
+            ExtendedColorType::Rgb8 => Some(ColorType::Rgb8),
+            ExtendedColorType::Rgba8 => Some(ColorType::Rgba8),
+            ExtendedColorType::L16 => Some(ColorType::L16),
+            ExtendedColorType::La16 => Some(ColorType::La16),
+            ExtendedColorType::Rgb16 => Some(ColorType::Rgb16),
+            ExtendedColorType::Rgba16 => Some(ColorType::Rgba16),
+            ExtendedColorType::Rgb32F => Some(ColorType::Rgb32F),
+            ExtendedColorType::Rgba32F => Some(ColorType::Rgba32F),
+            _ => None,
+        }
+    }
+
     /// Returns the number of bytes required to hold a width x height image of this color type.
     pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
@@ -237,6 +279,7 @@ impl ExtendedColorType {
         row_pitch.saturating_mul(height as u64)
     }
 }
+
 impl From<ColorType> for ExtendedColorType {
     fn from(c: ColorType) -> Self {
         match c {
@@ -251,6 +294,16 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
         }
+    }
+}
+
+impl TryFrom<ExtendedColorType> for ColorType {
+    type Error = TryFromExtendedColorError;
+
+    fn try_from(value: ExtendedColorType) -> Result<ColorType, Self::Error> {
+        value
+            .color_type()
+            .ok_or(TryFromExtendedColorError { was: value })
     }
 }
 

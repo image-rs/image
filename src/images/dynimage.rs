@@ -2098,7 +2098,8 @@ mod test {
             (CicpColorPrimaries::Rgb240m, [54, 179, 22]),
             (CicpColorPrimaries::GenericFilm, [65, 173, 17]),
             (CicpColorPrimaries::Rgb2020, [67, 173, 15]),
-            // (CicpColorPrimaries::Xyz, [0, 0, 0]),
+            // Note: here red=X and blue=Z and both are free of luminance
+            (CicpColorPrimaries::Xyz, [0, 255, 0]),
             (CicpColorPrimaries::SmpteRp431, [53, 184, 18]),
             (CicpColorPrimaries::SmpteRp432, [58, 176, 20]),
             (CicpColorPrimaries::Industry22, [59, 171, 24]),

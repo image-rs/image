@@ -1437,10 +1437,6 @@ impl CicpRgb {
     ///
     /// Returns cofactors for red, green, and blue in that order.
     pub(crate) fn derived_luminance(&self) -> Option<[f32; 3]> {
-        fn det(yg: f32, zg: f32, yb: f32, zb: f32) -> f32 {
-            yg * zb - zg * yb
-        }
-
         let primaries = match self.primaries {
             CicpColorPrimaries::SRgb => moxcms::ColorPrimaries::BT_709,
             CicpColorPrimaries::RgbM => moxcms::ColorPrimaries::BT_470M,
@@ -1449,12 +1445,7 @@ impl CicpRgb {
             CicpColorPrimaries::Rgb240m => moxcms::ColorPrimaries::SMPTE_240,
             CicpColorPrimaries::GenericFilm => moxcms::ColorPrimaries::GENERIC_FILM,
             CicpColorPrimaries::Rgb2020 => moxcms::ColorPrimaries::BT_2020,
-            // Math is ill-defined here. The conversion of primaries to `xyz` with normalized `Y =
-            // 1.0` yields `[0.0, 1.0, 0.0]` for *all* the primaries instead of the desired values
-            // since some of them have `y = 0.0` which only permits `Y = 0.0`. Yay.
-            //
-            // We could special case this and return `[0.0, 1.0, 0.0]`.
-            CicpColorPrimaries::Xyz => return None,
+            CicpColorPrimaries::Xyz => moxcms::ColorPrimaries::XYZ,
             CicpColorPrimaries::SmpteRp431 => moxcms::ColorPrimaries::DISPLAY_P3,
             CicpColorPrimaries::SmpteRp432 => moxcms::ColorPrimaries::DISPLAY_P3,
             CicpColorPrimaries::Industry22 => moxcms::ColorPrimaries::EBU_3213,
@@ -1478,40 +1469,10 @@ impl CicpRgb {
             CicpColorPrimaries::Unspecified => return None,
         };
 
-        let r = primaries.red.to_xyz();
-        let g = primaries.green.to_xyz();
-        let b = primaries.blue.to_xyz();
-        let w = whitepoint.to_xyz();
+        let matrix = primaries.transform_to_xyz(whitepoint);
 
-        let denominator = {
-            let co_xr = det(g.y, g.z, b.y, b.z);
-            let co_xg = det(b.y, b.z, r.y, r.z);
-            let co_xb = det(r.y, r.z, g.y, g.z);
-
-            w.y * (r.x * co_xr + g.x * co_xg + b.x * co_xb)
-        };
-
-        let nominator_r = {
-            let co_xw = det(g.y, g.z, b.y, b.z);
-            let co_yw = det(b.x, b.z, g.x, g.z);
-            let co_zw = det(g.x, g.y, b.x, b.y);
-
-            r.y * (w.x * co_xw + w.y * co_yw + w.z * co_zw)
-        };
-
-        let nominator_b = {
-            let co_xw = det(r.y, r.z, g.y, g.z);
-            let co_yw = det(g.x, g.z, r.x, r.z);
-            let co_zw = det(r.x, r.y, g.x, g.y);
-
-            b.y * (w.x * co_xw + w.y * co_yw + w.z * co_zw)
-        };
-
-        let kr = nominator_r / denominator;
-        let kb = nominator_b / denominator;
-        let kg = 1.0 - kr - kb;
-
-        Some([kr, kg, kb])
+        // Our result is the Y row of this matrix.
+        Some(matrix.v[1])
     }
 }
 

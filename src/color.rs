@@ -264,6 +264,8 @@ impl ExtendedColorType {
             ExtendedColorType::La16 => Some(ColorType::La16),
             ExtendedColorType::Rgb16 => Some(ColorType::Rgb16),
             ExtendedColorType::Rgba16 => Some(ColorType::Rgba16),
+            ExtendedColorType::Rgb32F => Some(ColorType::Rgb32F),
+            ExtendedColorType::Rgba32F => Some(ColorType::Rgba32F),
             _ => None,
         }
     }

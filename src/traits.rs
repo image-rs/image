@@ -169,7 +169,9 @@ impl Lerp for f32 {
 
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
-pub trait PixelWithColorType: Pixel + private::SealedPixelWithColorType {
+pub trait PixelWithColorType:
+    Pixel + private::SealedPixelWithColorType<TransformableSubpixel = <Self as Pixel>::Subpixel>
+{
     /// This pixel has the format of one of the predefined `ColorType`s,
     /// such as `Rgb8`, `La16` or `Rgba32F`.
     /// This is needed for automatically detecting
@@ -211,23 +213,203 @@ impl PixelWithColorType for LumaA<u16> {
 }
 
 /// Prevents down-stream users from implementing the `Primitive` trait
-mod private {
+pub(crate) mod private {
     use crate::color::*;
+    use crate::metadata::cicp::{self, CicpApplicable};
 
-    pub trait SealedPixelWithColorType {}
-    impl SealedPixelWithColorType for Rgb<u8> {}
-    impl SealedPixelWithColorType for Rgb<u16> {}
-    impl SealedPixelWithColorType for Rgb<f32> {}
+    #[derive(Clone, Copy, Debug)]
+    pub enum LayoutWithColor {
+        Rgb,
+        Rgba,
+        Luma,
+        LumaAlpha,
+    }
 
-    impl SealedPixelWithColorType for Rgba<u8> {}
-    impl SealedPixelWithColorType for Rgba<u16> {}
-    impl SealedPixelWithColorType for Rgba<f32> {}
+    impl From<ColorType> for LayoutWithColor {
+        fn from(color: ColorType) -> LayoutWithColor {
+            match color {
+                ColorType::L8 | ColorType::L16 => LayoutWithColor::Luma,
+                ColorType::La8 | ColorType::La16 => LayoutWithColor::LumaAlpha,
+                ColorType::Rgb8 | ColorType::Rgb16 | ColorType::Rgb32F => LayoutWithColor::Rgb,
+                ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Rgba32F => LayoutWithColor::Rgba,
+            }
+        }
+    }
 
-    impl SealedPixelWithColorType for Luma<u8> {}
-    impl SealedPixelWithColorType for LumaA<u8> {}
+    impl LayoutWithColor {
+        pub(crate) fn channels(self) -> usize {
+            match self {
+                Self::Rgb => 3,
+                Self::Rgba => 4,
+                Self::Luma => 1,
+                Self::LumaAlpha => 2,
+            }
+        }
+    }
 
-    impl SealedPixelWithColorType for Luma<u16> {}
-    impl SealedPixelWithColorType for LumaA<u16> {}
+    #[derive(Clone, Copy)]
+    pub struct PrivateToken;
+
+    pub trait SealedPixelWithColorType {
+        #[expect(private_bounds)] // This is a sealed trait.
+        type TransformableSubpixel: HelpDispatchTransform;
+        fn layout(_: PrivateToken) -> LayoutWithColor;
+    }
+
+    impl SealedPixelWithColorType for Rgb<u8> {
+        type TransformableSubpixel = u8;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgb
+        }
+    }
+
+    impl SealedPixelWithColorType for Rgb<u16> {
+        type TransformableSubpixel = u16;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgb
+        }
+    }
+
+    impl SealedPixelWithColorType for Rgb<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgb
+        }
+    }
+
+    impl SealedPixelWithColorType for Rgba<u8> {
+        type TransformableSubpixel = u8;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgba
+        }
+    }
+
+    impl SealedPixelWithColorType for Rgba<u16> {
+        type TransformableSubpixel = u16;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgba
+        }
+    }
+
+    impl SealedPixelWithColorType for Rgba<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Rgba
+        }
+    }
+
+    impl SealedPixelWithColorType for Luma<u8> {
+        type TransformableSubpixel = u8;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Luma
+        }
+    }
+
+    impl SealedPixelWithColorType for LumaA<u8> {
+        type TransformableSubpixel = u8;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::LumaAlpha
+        }
+    }
+
+    impl SealedPixelWithColorType for Luma<u16> {
+        type TransformableSubpixel = u16;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Luma
+        }
+    }
+
+    impl SealedPixelWithColorType for Luma<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::Luma
+        }
+    }
+
+    impl SealedPixelWithColorType for LumaA<u16> {
+        type TransformableSubpixel = u16;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::LumaAlpha
+        }
+    }
+
+    impl SealedPixelWithColorType for LumaA<f32> {
+        type TransformableSubpixel = f32;
+        fn layout(_: PrivateToken) -> LayoutWithColor {
+            LayoutWithColor::LumaAlpha
+        }
+    }
+
+    // Consider a situation in a function bounded `Self: Pixel + PixelWithColorType`. Then, if we
+    // tried this directly:
+    //
+    // <
+    //   <Self as SealedPixelWithColorType>::TransformableSubpixel as HelpDispatchTransform
+    // >::transform_on::<Self>(tr, LayoutWithColor::Rgb);
+    //
+    // the type checker is mightily confused. I think what's going on is as follows: It find the
+    // fact that `Self::Subpixel` is used for `TransformableSubpixel` from the bound on
+    // `PixelWithColorType`, but then there is no existing bound on `Subpixel` that would guarantee
+    // that `HelpDispatchTransform` is fulfilled. That would only be available by substituting
+    // _back_ so that the bound on `TransformableSubpixel` gets applied to the `Subpixel` generic,
+    // too. But now there are no variables here, so unification of bounds takes place we never
+    // never get to see the bound (until next gen, I guess?). It finally find that there is still
+    // an unfulfilled bound and complains.
+    //
+    // Hence we must avoid mentioning the `Pixel` and `PixelWithColorType` bound so that _only_ the
+    // `TransformableSubpixel` is available. Then all substitutions work forwards, and since we
+    // return a `TransformableSubpixel` we get the function back without new variables to solve
+    // for, and that can then be unified just fine. This extra function essentially introduces that
+    // missing unknown which can unify the available impl set. Yay.
+    pub(crate) fn dispatch_transform_from_sealed<P: SealedPixelWithColorType>(
+        transform: &cicp::CicpTransform,
+        into: LayoutWithColor,
+    ) -> &'_ CicpApplicable<'_, P::TransformableSubpixel> {
+        <P::TransformableSubpixel as HelpDispatchTransform>::transform_on::<P>(transform, into)
+    }
+
+    pub(crate) fn double_dispatch_transform_from_sealed<
+        P: SealedPixelWithColorType,
+        Into: SealedPixelWithColorType,
+    >(
+        transform: &cicp::CicpTransform,
+    ) -> &'_ CicpApplicable<'_, P::TransformableSubpixel> {
+        dispatch_transform_from_sealed::<P>(transform, Into::layout(PrivateToken))
+    }
+
+    pub(crate) trait HelpDispatchTransform: Sized + 'static {
+        fn transform_on<O: SealedPixelWithColorType<TransformableSubpixel = Self>>(
+            transform: &cicp::CicpTransform,
+            into: LayoutWithColor,
+        ) -> &'_ (dyn Fn(&[Self], &mut [Self]) + Send + Sync);
+    }
+
+    impl HelpDispatchTransform for u8 {
+        fn transform_on<O: SealedPixelWithColorType<TransformableSubpixel = Self>>(
+            transform: &cicp::CicpTransform,
+            into: LayoutWithColor,
+        ) -> &'_ (dyn Fn(&[Self], &mut [Self]) + Send + Sync) {
+            &**transform.select_transform_u8::<O>(into)
+        }
+    }
+
+    impl HelpDispatchTransform for u16 {
+        fn transform_on<O: SealedPixelWithColorType<TransformableSubpixel = Self>>(
+            transform: &cicp::CicpTransform,
+            into: LayoutWithColor,
+        ) -> &'_ (dyn Fn(&[Self], &mut [Self]) + Send + Sync) {
+            &**transform.select_transform_u16::<O>(into)
+        }
+    }
+
+    impl HelpDispatchTransform for f32 {
+        fn transform_on<O: SealedPixelWithColorType<TransformableSubpixel = Self>>(
+            transform: &cicp::CicpTransform,
+            into: LayoutWithColor,
+        ) -> &'_ (dyn Fn(&[Self], &mut [Self]) + Send + Sync) {
+            &**transform.select_transform_f32::<O>(into)
+        }
+    }
 }
 
 /// A generalized pixel.

@@ -3,6 +3,7 @@
 use num_traits::NumCast;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
+use crate::metadata::{CicpColorPrimaries, CicpTransferCharacteristics};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{GenericImage, GenericImageView, ImageBuffer};
@@ -32,6 +33,7 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
+    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma();
@@ -52,6 +54,7 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
+    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
 
     for (x, y, pixel) in image.pixels() {
         let grayscale = pixel.to_luma_alpha();
@@ -90,8 +93,7 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -157,8 +159,7 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
@@ -223,8 +224,7 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
 
     let angle: f64 = NumCast::from(value).unwrap();
 
@@ -534,7 +534,10 @@ where
     Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
 {
+    // Special case, we do *not* want to copy the color space here.
     let mut indices = ImageBuffer::new(image.width(), image.height());
+    indices.set_rgb_primaries(CicpColorPrimaries::Unspecified);
+    indices.set_transfer_function(CicpTransferCharacteristics::Unspecified);
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8]);
     }

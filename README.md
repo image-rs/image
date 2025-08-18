@@ -42,25 +42,36 @@ image format encoders and decoders.
 
 <!--- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
 
-| Format   | Decoding                                  | Encoding                                |
-| -------- | ----------------------------------------- | --------------------------------------- |
-| AVIF     | Yes \*                                    | Yes (lossy only)                        |
-| BMP      | Yes                                       | Yes                                     |
-| DDS      | Yes                                       | ---                                     |
-| Farbfeld | Yes                                       | Yes                                     |
-| GIF      | Yes                                       | Yes                                     |
-| HDR      | Yes                                       | Yes                                     |
-| ICO      | Yes                                       | Yes                                     |
-| JPEG     | Yes                                       | Yes                                     |
-| EXR      | Yes                                       | Yes                                     |
-| PNG      | Yes                                       | Yes                                     |
-| PNM      | Yes                                       | Yes                                     |
-| QOI      | Yes                                       | Yes                                     |
-| TGA      | Yes                                       | Yes                                     |
-| TIFF     | Yes                                       | Yes                                     |
-| WebP     | Yes                                       | Yes (lossless only)                     |
+| Format   | Decoding                                  | Encoding                                | Feature |
+| -------- | ----------------------------------------- | --------------------------------------- | ------- |
+| AVIF     | Yes \*                                    | Yes (lossy only)                        | `avif` |
+| BMP      | Yes                                       | Yes                                     | `bmp` |
+| DDS      | Yes                                       | ---                                     | `dds` |
+| Farbfeld | Yes                                       | Yes                                     | `ff` |
+| GIF      | Yes                                       | Yes                                     | `gif` |
+| HDR      | Yes                                       | Yes                                     | `hdr` |
+| ICO      | Yes                                       | Yes                                     | `ico` |
+| JPEG     | Yes                                       | Yes                                     | `jpeg` |
+| EXR      | Yes                                       | Yes                                     | `exr` |
+| PNG      | Yes                                       | Yes                                     | `png` |
+| PNM      | Yes                                       | Yes                                     | `pnm` |
+| QOI      | Yes                                       | Yes                                     | `qoi` |
+| TGA      | Yes                                       | Yes                                     | `tga` |
+| TIFF     | Yes                                       | Yes                                     | `tiff` |
+| WebP     | Yes                                       | Yes (lossless only)                     | `webp` |
 
 - \* Requires the `avif-native` feature, uses the libdav1d C library.
+
+Other feature flags for the `image` crate:
+
+| Feature       | Description
+| ------------- | -----------
+| `rayon`       | Enables multi-threading with rayon context in some dependencies
+| `nasm`        | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
+| `color_quant` | Includes `color_quant` as an implementation of `imageops::ColorMap`
+| `avif-native` | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
+| `serde`       | Enables `serde` integration for various structs and options
+| `benchmarks`  | This feature is used (internally) for benchmark dependencies
 
 ## Image Types
 

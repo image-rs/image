@@ -46,6 +46,7 @@ interface lets third-party crates act as format implementations for `image`. If
 you need to handle some other image format, check crates.io for crates that
 implement it.
 
+
 ## Feature Flags
 
 | Feature           | Description
@@ -57,53 +58,42 @@ implement it.
 | `avif-native`     | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
 | `serde`           | Enables `serde` integration for various structs and options
 
-## Image Types
+## Image buffer types
 
-This crate provides a number of different types for representing images.
-Individual pixels within images are indexed with (0,0) at the top left corner.
+`image` provides the following pixel types to describe the layout of pixels:
++ **Rgb**: RGB pixel
++ **Rgba**: RGB with alpha (RGBA pixel)
++ **Luma**: Grayscale pixel
++ **LumaA**: Grayscale with alpha
+
+All pixels are parameterised by their component type. Conversion between
+pixel types uses a non-constant luminance `sRGB` model however fully
+featured buffers have an associated CICP color space for more diverse
+conversions.
 
 ### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
+
 An image parameterised by its Pixel type, represented by a width and height and
 a vector of pixels. It provides direct access to its pixels and implements the
-`GenericImageView` and `GenericImage` traits.
+`GenericImageView` and `GenericImage` traits. The main use cases are defining
+input images and working on a common layout of contents.
 
 ### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
-A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
-Its exact image type is determined at runtime. It is the type returned when
-opening an image. For convenience `DynamicImage` reimplements all image
-processing functions.
+
+A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types. Its
+type of pixels is determined at runtime within a set of basic types of layouts
+and channels. This type is returned when opening an image. For convenience
+`DynamicImage` reimplements all image processing functions.
 
 ### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
 
 ### [`SubImage`](https://docs.rs/image/*/image/struct.SubImage.html)
+
 A view into another image, delimited by the coordinates of a rectangle.
 The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
-
-
-## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
-
-All image format decoders implement the `ImageDecoder` trait which provide
-basic methods for getting image metadata and decoding images. Some formats
-additionally provide `ImageDecoderRect` implementations which allow for
-decoding only part of an image at once.
-
-The most important methods for decoders are...
-+ **dimensions**: Return a tuple containing the width and height of the image.
-+ **color_type**: Return the color type of the image data produced by this decoder.
-+ **read_image**: Decode the entire image into a slice of bytes.
-
-## Pixels
-
-`image` provides the following pixel types:
-+ **Rgb**: RGB pixel
-+ **Rgba**: RGB with alpha (RGBA pixel)
-+ **Luma**: Grayscale pixel
-+ **LumaA**: Grayscale with alpha
-
-All pixels are parameterised by their component type.
 
 ## Image Processing Functions
 
@@ -129,6 +119,7 @@ Note that some of the functions are very slow in debug mode. Make sure to use re
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 
 ## Examples
+
 ### Opening and Saving Images
 
 `image` provides the [`open`](https://docs.rs/image/latest/image/fn.open.html) function for opening images from a path.  The image
@@ -151,6 +142,9 @@ println!("{:?}", img.color());
 // Write the contents of this image to the Writer in PNG format.
 img.save("test.png").unwrap();
 ```
+
+The decoder module provides global hooks to register format detection patterns
+and as well as other decoder implementations.
 
 ### Generating Fractals
 
@@ -205,7 +199,7 @@ Example output:
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function [`save_buffer`](https://docs.rs/image/latest/image/fn.save_buffer.html) to save a buffer to a file.
 
 ```rust,no_run
-let buffer: &[u8] = unimplemented!(); // Generate the image data
+let buffer: &[u8] = todo!("your turn, generate data");
 
 // Save the buffer as "image.png"
 image::save_buffer("image.png", buffer, 800, 600, image::ExtendedColorType::Rgb8).unwrap()

@@ -91,6 +91,9 @@ pub trait ImageDecoder {
     /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
     /// `max_image_height` limits.
     ///
+    /// **Note**: By default, _no_ limits are defined. This may be changed in future major version
+    /// increases.
+    ///
     /// [`Limits`]: ./io/struct.Limits.html
     /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
     /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions

@@ -8,33 +8,6 @@ Maintainers: [@197g](https://github.com/197g), [@fintelia](https://github.com/fi
 
 [How to contribute](https://github.com/image-rs/organization/blob/master/CONTRIBUTING.md)
 
-## An Image Processing Library
-
-This crate provides basic image processing functions and methods for converting to and from various image formats.
-
-All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
-
-## High level API
-
-Load images using [`ImageReader`]:
-
-```rust,ignore
-use std::io::Cursor;
-use image::ImageReader;
-
-let img = ImageReader::open("myimage.png")?.decode()?;
-let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
-```
-
-And save them using [`save`] or [`write_to`] methods:
-
-```rust,ignore
-img.save("empty.jpg")?;
-
-let mut bytes: Vec<u8> = Vec::new();
-img2.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
-```
-
 ## Supported Image Formats
 
 With default features enabled, `image` provides implementations of many common
@@ -73,21 +46,55 @@ Other feature flags for the `image` crate:
 | `serde`       | Enables `serde` integration for various structs and options
 | `benchmarks`  | This feature is used (internally) for benchmark dependencies
 
-## Image Types
+### High level IO interfaces
+
+Load images using [`ImageReader`]:
+
+```rust,ignore
+use std::io::Cursor;
+use image::ImageReader;
+
+let img = ImageReader::open("myimage.png")?.decode()?;
+let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+```
+
+And save them using [`save`] or [`write_to`] methods:
+
+```rust,ignore
+img.save("empty.jpg")?;
+
+let mut bytes: Vec<u8> = Vec::new();
+img2.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
+```
+
+## Image Buffer Types
 
 This crate provides a number of different types for representing images.
 Individual pixels within images are indexed with (0,0) at the top left corner.
 
+### Pixels
+
+`image` provides the following pixel types:
++ **Rgb**: RGB pixel
++ **Rgba**: RGB with alpha (RGBA pixel)
++ **Luma**: Grayscale pixel
++ **LumaA**: Grayscale with alpha
+
+All pixels are parameterised by their component type. Conversion on a
+type-level between these types uses a non-constant luminance `sRGB` model.
+
 ### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
+
 An image parameterised by its Pixel type, represented by a width and height and
 a vector of pixels. It provides direct access to its pixels and implements the
-`GenericImageView` and `GenericImage` traits.
+`GenericImageView` and `GenericImage` traits. The main use cases are defining
+input images and working on a common layout of contents.
 
-### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
-A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
-Its exact image type is determined at runtime. It is the type returned when
-opening an image. For convenience `DynamicImage` reimplements all image
-processing functions.
+### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html) A
+`DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types. Its
+type of pixels is determined at runtime within a set of basic types of layouts
+and channels. This type is returned when opening an image. For convenience
+`DynamicImage` reimplements all image processing functions.
 
 ### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
@@ -97,7 +104,6 @@ Traits that provide methods for inspecting (`GenericImageView`) and manipulating
 A view into another image, delimited by the coordinates of a rectangle.
 The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
-
 
 ## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
 
@@ -110,16 +116,6 @@ The most important methods for decoders are...
 + **dimensions**: Return a tuple containing the width and height of the image.
 + **color_type**: Return the color type of the image data produced by this decoder.
 + **read_image**: Decode the entire image into a slice of bytes.
-
-## Pixels
-
-`image` provides the following pixel types:
-+ **Rgb**: RGB pixel
-+ **Rgba**: RGB with alpha (RGBA pixel)
-+ **Luma**: Grayscale pixel
-+ **LumaA**: Grayscale with alpha
-
-All pixels are parameterised by their component type.
 
 ## Image Processing Functions
 
@@ -145,6 +141,7 @@ Note that some of the functions are very slow in debug mode. Make sure to use re
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 
 ## Examples
+
 ### Opening and Saving Images
 
 `image` provides the [`open`](https://docs.rs/image/latest/image/fn.open.html) function for opening images from a path.  The image
@@ -221,7 +218,7 @@ Example output:
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function [`save_buffer`](https://docs.rs/image/latest/image/fn.save_buffer.html) to save a buffer to a file.
 
 ```rust,no_run
-let buffer: &[u8] = unimplemented!(); // Generate the image data
+let buffer: &[u8] = todo!("your turn, generate data");
 
 // Save the buffer as "image.png"
 image::save_buffer("image.png", buffer, 800, 600, image::ExtendedColorType::Rgb8).unwrap()

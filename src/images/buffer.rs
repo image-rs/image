@@ -1504,9 +1504,7 @@ impl ConvertColorOptions {
         into_color: Cicp,
     ) -> Result<&CicpTransform, ImageError> {
         if let Some(tr) = &self.transform {
-            if !tr.is_applicable(from_color, into_color) {
-                self.transform = None;
-            }
+            tr.check_applicable(from_color, into_color)?;
         }
 
         if self.transform.is_none() {
@@ -1762,6 +1760,7 @@ mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::metadata::Cicp;
+    use crate::metadata::CicpTransform;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
@@ -2089,6 +2088,22 @@ mod test {
             .expect("supported transform");
 
         assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn transformation_mismatch() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Luma([255u8]));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()));
+
+        source.set_color_space(Cicp::SRGB).unwrap();
+        target.set_color_space(Cicp::DISPLAY_P3).unwrap();
+
+        let options = super::ConvertColorOptions {
+            transform: CicpTransform::new(Cicp::SRGB, Cicp::SRGB),
+        };
+
+        let result = target.copy_from_color_space(&source, options);
+        assert!(matches!(result, Err(crate::ImageError::Parameter(_))));
     }
 }
 

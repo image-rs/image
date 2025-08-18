@@ -431,8 +431,21 @@ impl CicpTransform {
     }
 
     /// Does this transform realize the conversion `from` to `into`.
-    pub(crate) fn is_applicable(&self, from: Cicp, into: Cicp) -> bool {
-        self.from == from && self.into == into
+    pub(crate) fn check_applicable(&self, from: Cicp, into: Cicp) -> Result<(), ImageError> {
+        let check_expectation = |expected, found| {
+            if expected == found {
+                Ok(())
+            } else {
+                Err(ParameterError::from_kind(
+                    ParameterErrorKind::CicpMismatch { expected, found },
+                ))
+            }
+        };
+
+        check_expectation(self.from, from).map_err(ImageError::Parameter)?;
+        check_expectation(self.into, into).map_err(ImageError::Parameter)?;
+
+        Ok(())
     }
 
     fn build_transforms<P: ColorComponentForCicp + Default + 'static>(

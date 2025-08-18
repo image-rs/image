@@ -132,6 +132,13 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+    /// An operation expected a concrete color space but another was found.
+    CicpMismatch {
+        /// The cicp that was expected.
+        expected: Cicp,
+        /// The cicp that was found.
+        found: Cicp,
+    },
 }
 
 /// An error was encountered while decoding an image.
@@ -437,6 +444,12 @@ impl fmt::Display for ParameterError {
                 write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+            ParameterErrorKind::CicpMismatch { expected, found } => {
+                write!(
+                    fmt,
+                    "The color space {found:?} does not match the expected {expected:?}",
+                )
+            }
         }?;
 
         if let Some(underlying) = &self.underlying {

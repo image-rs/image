@@ -42,6 +42,10 @@ pub struct Limits {
     pub max_alloc: Option<u64>,
 }
 
+/// Add some reasonable limits.
+///
+/// **Note**: This is not equivalent to _not_ adding limits. This may be changed in future major
+/// version increases.
 impl Default for Limits {
     fn default() -> Limits {
         Limits {

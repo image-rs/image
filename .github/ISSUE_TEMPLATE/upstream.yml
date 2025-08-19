@@ -1,0 +1,62 @@
+name: Format/Dependency issue
+description: An issue that relies on being fixed upstream
+title: "[upstream] "
+labels: ["dependency-tracked"]
+body:
+  - type: markdown
+    id: explanation
+    attributes:
+      value: |
+        If this is a bug in a dependency that can be fixed in a minor version,
+        please file it there instead. If you're not sure or if that fix
+        requires changes in `image` (including using new APIs, increasing the
+        minimum version) then file it in *both*. If you're unsure about the
+        affected dependency leave the link below blank and a maintainer will
+        forward it appropriately.
+
+  - type: textarea
+    id: affected-functionality
+    attributes:
+      label: Affected functionality
+      description: Which part of image is affected?
+      placeholder: The (encoder/decoder/dependency) should …
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: operating-systems
+    attributes:
+      label: Which operating systems does this bug appear on?
+      description: You may select more than one.
+      multiple: true
+      options:
+        - label: macOS
+        - label: Windows
+        - label: Linux
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: How may the fix be validated?
+      placeholder: The decoder is supposed to … bug instead …
+    validations:
+      required: false
+
+  - type: input
+    id: upstream-links
+    attributes:
+      label: Upstream issue link(s)
+      description: Paste the URL(s) to the issue(s) in the upstream repository, if known.
+      placeholder: https://github.com/other/repo/issues/123
+    validations:
+      required: false
+
+  - type: textarea
+    id: tracking-notes
+    attributes:
+      label: Tracking notes
+      description: Further summary of relevant discussion, workarounds, or other relevant notes.
+      placeholder: Add context/workarounds here.
+    validations:
+      required: false

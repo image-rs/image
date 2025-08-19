@@ -1,10 +1,9 @@
-name: Format/Dependency issue
-description: An issue that relies on being fixed upstream
+name: "Format/Dependency issue"
+description: "An issue that relies on being fixed upstream"
 title: "[upstream] "
 labels: ["dependency-tracked"]
 body:
   - type: markdown
-    id: explanation
     attributes:
       value: |
         If this is a bug in a dependency that can be fixed in a minor version,
@@ -28,7 +27,6 @@ body:
     attributes:
       label: Which operating systems does this bug appear on?
       description: You may select more than one.
-      multiple: true
       options:
         - label: macOS
         - label: Windows

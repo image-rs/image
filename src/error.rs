@@ -126,6 +126,8 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+    /// The operation is only applicable to pixels with an alpha channel.
+    NoAlphaChannel,
 }
 
 /// An error was encountered while decoding an image.
@@ -419,6 +421,12 @@ impl fmt::Display for ParameterError {
                 write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+            ParameterErrorKind::NoAlphaChannel => {
+                write!(
+                    fmt,
+                    "The operation requires an alpha channel but the pixel type does not have one",
+                )
+            }
         }?;
 
         if let Some(underlying) = &self.underlying {

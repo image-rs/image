@@ -1488,13 +1488,18 @@ where
     }
 }
 
-/// Inputs to [`ImageBuffer::copy_color`].
+/// Inputs to [`ImageBuffer::copy_from_color_space`].
 #[non_exhaustive]
 #[derive(Default)]
 pub struct ConvertColorOptions {
     /// A pre-calculated transform. This is only used when the actual colors of the input and
     /// output image match the color spaces with which the was constructed.
     pub transform: Option<CicpTransform>,
+    /// Make sure we can later add options that are bound to the thread. That does not mean that
+    /// all attributes will be bound to the thread, only that we can add `!Sync` options later. You
+    /// should be constructing the options at the call site with each attribute being cheap to move
+    /// into here.
+    pub(crate) _auto_traits: PhantomData<std::rc::Rc<()>>,
 }
 
 impl ConvertColorOptions {
@@ -2100,6 +2105,7 @@ mod test {
 
         let options = super::ConvertColorOptions {
             transform: CicpTransform::new(Cicp::SRGB, Cicp::SRGB),
+            ..super::ConvertColorOptions::default()
         };
 
         let result = target.copy_from_color_space(&source, options);

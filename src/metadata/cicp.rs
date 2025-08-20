@@ -339,8 +339,9 @@ impl CicpTransform {
     ///
     /// Returns `None` if the transformation is not (yet) supported.
     ///
-    /// This is used with [`ConvertColorOptions`][`crate::ConvertColorOptions`],
-    /// [`ImageBuffer::copy_from_color`][`crate::ImageBuffer::copy_from_color`].
+    /// This is used with [`ConvertColorOptions`][`crate::ConvertColorOptions`] in
+    /// [`ImageBuffer::copy_from_color_space`][`crate::ImageBuffer::copy_from_color_space`],
+    /// [`DynamicImage::copy_from_color_space`][`DynamicImage::copy_from_color_space`].
     pub fn new(from: Cicp, into: Cicp) -> Option<Self> {
         if !from.qualify_stability() || !into.qualify_stability() {
             // To avoid regressions, we do not support all kinds of transforms from the start.

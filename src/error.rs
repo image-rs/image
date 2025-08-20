@@ -540,7 +540,7 @@ impl fmt::Display for ImageFormatHint {
     }
 }
 
-/// Converting [`ExtendedColorType`] to [`ColorType`] failed.
+/// Converting [`ExtendedColorType`] to [`ColorType`][`crate::ColorType`] failed.
 ///
 /// This type is convertible to [`ImageError`] as [`ImageError::Unsupported`].
 #[derive(Clone)]

@@ -778,6 +778,30 @@ where
             .into_view_mut()
             .expect("buffer always uses a non-overlapping strided layout")
     }
+
+    /// Extract the alpha channel as a Luma image.
+    ///
+    /// If the pixel does not have an alpha channel, the value is filled with a fully opaque mask
+    /// using the maximum value of the corresponding subpixel type.
+    pub fn to_alpha_mask(&self) -> ImageBuffer<Luma<P::Subpixel>, Vec<P::Subpixel>> {
+        let pixels = self.subpixels().chunks_exact(P::CHANNEL_COUNT.into());
+        let mut mask = vec![<P::Subpixel as Primitive>::DEFAULT_MAX_VALUE; pixels.len()];
+
+        if P::HAS_ALPHA {
+            assert!(
+                P::CHANNEL_COUNT > 0,
+                "Pixel with zero channels indicated an alpha channel"
+            );
+
+            for (p, alpha) in pixels.zip(mask.iter_mut()) {
+                // If the pixel has an alpha channel, use it.
+                *alpha = *p.last().unwrap();
+            }
+        }
+
+        ImageBuffer::from_vec(self.width, self.height, mask)
+            .expect("used the right pixel and channel count")
+    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -941,6 +965,47 @@ where
 
         self.width = selection.width;
         self.height = selection.height;
+    }
+
+    /// Fill the alpha channel of this image from a Luma mask.
+    ///
+    /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
+    /// dimensions. Otherwise, if the pixel type does not have an alpha channel this is a no-op.
+    pub fn apply_alpha_mask<RhsContainer>(
+        &mut self,
+        mask: &ImageBuffer<Luma<P::Subpixel>, RhsContainer>,
+    ) -> ImageResult<()>
+    where
+        RhsContainer: Deref<Target = [P::Subpixel]>,
+    {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        if !P::HAS_ALPHA {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::NoAlphaChannel,
+            )));
+        }
+
+        assert!(
+            P::CHANNEL_COUNT > 0,
+            "Pixel with zero channels indicated an alpha channel"
+        );
+
+        let pixels = self
+            .subpixels_mut()
+            .chunks_exact_mut(P::CHANNEL_COUNT.into());
+
+        let mask = mask.subpixels();
+        for (p, alpha) in pixels.zip(mask.iter()) {
+            // If the pixel has an alpha channel, use it.
+            *p.last_mut().unwrap() = *alpha;
+        }
+
+        Ok(())
     }
 }
 
@@ -2444,6 +2509,27 @@ mod test {
         assert_eq!(expanded.get_pixel(0, 1), &Rgba([255, 255, 255, 255]));
         assert_eq!(expanded.get_pixel(1, 1), &Rgba([255, 255, 255, 255]));
         assert_eq!(expanded.get_pixel(0, 0), &Rgba([255, 255, 255, 255]));
+    }
+
+    #[test]
+    fn alpha_mask_of_gray() {
+        let image: GrayImage = ImageBuffer::new(4, 4);
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_raw(), &[255; 16]);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn alpha_mask_extraction() {
+        let image: ImageBuffer<LumaA<u8>, _> = ImageBuffer::from_raw(4, 4, vec![
+            0, 1, 0, 2, 0, 3, 0, 4,
+            0, 5, 0, 6, 0, 7, 0, 8,
+            0, 9, 0, 10, 0, 11, 0, 12,
+            0, 13, 0, 14, 0, 15, 0, 16,
+        ]).unwrap();
+
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_raw(), &(1u8..17).collect::<Vec<_>>());
     }
 }
 

@@ -1197,3 +1197,17 @@ mod tests {
         });
     }
 }
+
+// Tests regressions of `encode_image` against #1412, confusion about the subimage's position vs.
+// dimensions. (We no longer have a position, four `u32` returns was confusing).
+#[test]
+fn sub_image_encoder_regression_1412() {
+    let image = DynamicImage::new_rgb8(1280, 720);
+    let subimg = crate::imageops::crop_imm(&image, 0, 358, 425, 361);
+
+    let mut encoded_crop = vec![];
+    let mut encoder = JpegEncoder::new(&mut encoded_crop);
+
+    let result = encoder.encode_image(&*subimg);
+    assert!(result.is_ok(), "Failed to encode subimage: {result:?}");
+}

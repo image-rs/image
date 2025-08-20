@@ -6,7 +6,6 @@
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 
 use std::borrow::Cow;
-use std::fmt;
 use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DisposeOp};
@@ -14,8 +13,8 @@ use png::{BlendOp, DisposeOp};
 use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
-    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
+    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::utils::vec_try_with_capacity;
 use crate::{
@@ -526,12 +525,6 @@ pub enum FilterType {
     Adaptive,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-enum BadPngRepresentation {
-    ColorType(ExtendedColorType),
-}
-
 impl<W: Write> PngEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PngEncoder<W> {
@@ -685,10 +678,12 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 };
                 self.encode_inner(buf, width, height, color_type)
             }
-            _ => Err(ImageError::Encoding(EncodingError::new(
-                ImageFormat::Png.into(),
-                BadPngRepresentation::ColorType(color_type),
-            ))),
+            _ => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Hdr.into(),
+                    UnsupportedErrorKind::Color(color_type),
+                ),
+            )),
         }
     }
 
@@ -725,18 +720,6 @@ impl ImageError {
         }
     }
 }
-
-impl fmt::Display for BadPngRepresentation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::ColorType(color_type) => {
-                write!(f, "The color {color_type:?} can not be represented in PNG.")
-            }
-        }
-    }
-}
-
-impl std::error::Error for BadPngRepresentation {}
 
 #[cfg(test)]
 mod tests {

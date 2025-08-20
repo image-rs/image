@@ -300,11 +300,12 @@ impl<W: Write> PnmEncoder<W> {
                 }
             }
             (_, _) => {
-                return Err(ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::Generic(
-                        "Color type can not be represented in the chosen format".to_owned(),
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Pnm.into(),
+                        UnsupportedErrorKind::Color(color),
                     ),
-                )));
+                ))
             }
         };
 

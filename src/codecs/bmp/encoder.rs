@@ -3,6 +3,7 @@ use std::io::{self, Write};
 
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
 };
 use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 
@@ -49,19 +50,21 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         image: &[u8],
         width: u32,
         height: u32,
-        c: ExtendedColorType,
+        color_type: ExtendedColorType,
         palette: Option<&[[u8; 3]]>,
     ) -> ImageResult<()> {
-        if palette.is_some() && c != ExtendedColorType::L8 && c != ExtendedColorType::La8 {
-            return Err(ImageError::IoError(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "Unsupported color type {c:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8)."
+        if palette.is_some()
+            && color_type != ExtendedColorType::L8
+            && color_type != ExtendedColorType::La8
+        {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "Palette given which must only be used with L8 or La8 color types".to_string(),
                 ),
             )));
         }
 
-        let expected_buffer_len = c.buffer_size(width, height);
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             image.len() as u64,
@@ -72,7 +75,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
         let (dib_header_size, written_pixel_size, palette_color_count) =
-            get_pixel_info(c, palette)?;
+            get_pixel_info(color_type, palette)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
         let image_size = width
             .checked_mul(height)
@@ -137,7 +140,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         }
 
         // write image data
-        match c {
+        match color_type {
             ExtendedColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
             ExtendedColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
             ExtendedColorType::L8 => {
@@ -147,10 +150,12 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                 self.encode_gray(image, width, height, row_pad_size, 2, palette)?;
             }
             _ => {
-                return Err(ImageError::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    &get_unsupported_error_message(c)[..],
-                )))
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Bmp.into(),
+                        UnsupportedErrorKind::Color(color_type),
+                    ),
+                ));
             }
         }
 

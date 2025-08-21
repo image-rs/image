@@ -22,7 +22,7 @@
 //!     - (chroma) subsampling not supported yet by the exr library
 use exr::prelude::*;
 
-use crate::error::{DecodingError, EncodingError, ImageFormatHint};
+use crate::error::{DecodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -272,10 +272,12 @@ fn write_buffer(
 
         // TODO other color types and channel types
         unsupported_color_type => {
-            return Err(ImageError::Encoding(EncodingError::new(
-                ImageFormatHint::Exact(ImageFormat::OpenExr),
-                format!("writing color type {unsupported_color_type:?} not yet supported"),
-            )))
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::OpenExr.into(),
+                    UnsupportedErrorKind::Color(unsupported_color_type),
+                ),
+            ))
         }
     }
 

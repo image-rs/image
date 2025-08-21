@@ -3,7 +3,7 @@ use std::io::{Result, Write};
 
 use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use crate::color::Rgb;
-use crate::error::{EncodingError, ImageFormatHint, ImageResult};
+use crate::error::{ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat};
 
 /// Radiance HDR encoder
@@ -29,11 +29,12 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
                 // the length will be checked inside encode_pixels
                 self.encode_pixels(rgbe_pixels, width as usize, height as usize)
             }
-
-            _ => Err(ImageError::Encoding(EncodingError::new(
-                ImageFormatHint::Exact(ImageFormat::Hdr),
-                "hdr format currently only supports the `Rgb32F` color type".to_string(),
-            ))),
+            _ => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Hdr.into(),
+                    UnsupportedErrorKind::Color(color_type),
+                ),
+            )),
         }
     }
 }

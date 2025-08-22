@@ -108,10 +108,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
     /// Get the currently determined format.
     pub fn format(&self) -> Option<ImageFormat> {
-        if let Some(Format::BuiltIn(ref format)) = self.format {
-            return Some(*format);
+        match self.format {
+            Some(Format::BuiltIn(ref format)) => Some(*format),
+            Some(Format::Extension(ref ext)) => ImageFormat::from_extension(ext),
+            None => None,
         }
-        None
     }
 
     /// Supply the format as which to interpret the read image.
@@ -158,16 +159,18 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = match format {
             Format::BuiltIn(format) => format,
             Format::Extension(ext) => {
-                let hooks = DECODING_HOOKS.read().unwrap();
-                if let Some(hooks) = hooks.as_ref() {
-                    if let Some(hook) = hooks.get(&ext) {
-                        return hook(GenericReader(BufReader::new(Box::new(reader))));
+                {
+                    let hooks = DECODING_HOOKS.read().unwrap();
+                    if let Some(hooks) = hooks.as_ref() {
+                        if let Some(hook) = hooks.get(&ext) {
+                            return hook(GenericReader(BufReader::new(Box::new(reader))));
+                        }
                     }
                 }
 
-                return Err(ImageError::Unsupported(
+                ImageFormat::from_extension(&ext).ok_or(ImageError::Unsupported(
                     ImageFormatHint::PathExtension(ext.into()).into(),
-                ));
+                ))?
             }
         };
 
@@ -269,10 +272,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         )?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
-        if let Some(format) = free_functions::guess_format_impl(&start[..len as usize]) {
-            return Ok(Some(Format::BuiltIn(format)));
-        }
-
         let hooks = GUESS_FORMAT_HOOKS.read().unwrap();
         for &(signature, mask, ref extension) in &*hooks {
             if mask.is_empty() {
@@ -288,6 +287,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             {
                 return Ok(Some(Format::Extension(extension.clone())));
             }
+        }
+
+        if let Some(format) = free_functions::guess_format_impl(&start[..len as usize]) {
+            return Ok(Some(Format::BuiltIn(format)));
         }
 
         Ok(None)
@@ -348,12 +351,10 @@ impl ImageReader<BufReader<File>> {
     }
 
     fn open_impl(path: &Path) -> io::Result<Self> {
-        let format = path.extension().filter(|ext| !ext.is_empty()).map(|ext| {
-            match ImageFormat::from_extension(ext) {
-                Some(format) => Format::BuiltIn(format),
-                None => Format::Extension(ext.to_owned()),
-            }
-        });
+        let format = path
+            .extension()
+            .filter(|ext| !ext.is_empty())
+            .map(|ext| Format::Extension(ext.to_owned()));
 
         Ok(ImageReader {
             inner: BufReader::new(File::open(path)?),

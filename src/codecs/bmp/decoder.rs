@@ -1265,7 +1265,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         match image_type {
                             ImageType::RLE8 => {
                                 // A pixel run isn't allowed to span rows.
-                                // imagemagic produces invalid images where n_pixels exceeds row length,
+                                // imagemagick produces invalid images where n_pixels exceeds row length,
                                 // so we clamp n_pixels to the row length to display them properly:
                                 // https://github.com/image-rs/image/issues/2321
                                 //

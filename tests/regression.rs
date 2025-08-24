@@ -99,6 +99,38 @@ fn bad_bmps() {
     }
 }
 
+// Test that BMP bitmaps with extra `BI_BITFIELD` values are parsed correctly.
+//
+// The test data comes from a `CF_DIBV5` bitmap on the Windows clipboard. It is a screenshot
+// of a Rust function in VSCode with syntax highlighting enabled (dark theme). When parsed correctly the entire left
+// side of the image should be grey pixels (the VSCode editor background color). When it isn't read correctly,
+// some of the yellow from the function's name highlighting on the right is shifted into this left region.
+#[cfg(feature = "bmp")]
+#[test]
+fn bmp_bitfields() {
+    let path = BASE_PATH
+        .iter()
+        .collect::<PathBuf>()
+        .join(IMAGE_DIR)
+        .join("bmp/raw")
+        .join("windows_dibv5_dump.bin");
+    let im_file = BufReader::new(File::open(path).unwrap());
+    let decoder = image::codecs::bmp::BmpDecoder::new_without_file_header(im_file).unwrap();
+
+    let im_buffer = image::DynamicImage::from_decoder(decoder)
+        .unwrap()
+        .into_rgba8()
+        .into_raw();
+
+    // All of the pixels in this range should be grey with no transparency.
+    // Before parsing was fixed, there are pixels like `[220, 220, 175 255]` which are
+    // a yellow-ish that shouldn't be there.
+    assert!(im_buffer[19880..19960]
+        .iter()
+        .copied()
+        .all(|b| b == 31 || b == 255));
+}
+
 #[test]
 fn bad_gif_oom() {
     let data = [

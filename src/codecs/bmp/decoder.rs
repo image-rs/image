@@ -1262,13 +1262,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         x += length as usize;
                     }
                     RLEInsn::PixelRun(n_pixels, palette_index) => {
-                        // A pixel run isn't allowed to span rows.
-                        // imagemagic produces invalid images where n_pixels exceeds row length,
-                        // so we clamp n_pixels to the row length to display them properly:
-                        // https://github.com/image-rs/image/issues/2321
                         match image_type {
                             ImageType::RLE8 => {
-                                // set_8bit_pixel_run() minus the many layers of abstraction and complexity
+                                // A pixel run isn't allowed to span rows.
+                                // imagemagic produces invalid images where n_pixels exceeds row length,
+                                // so we clamp n_pixels to the row length to display them properly:
+                                // https://github.com/image-rs/image/issues/2321
+                                //
+                                // This is like set_8bit_pixel_run() but doesn't fail when `n_pixels` is too large
                                 let repeat_pixel: [u8; 3] = p[palette_index as usize];
                                 (&mut pixel_iter).take(n_pixels as usize).for_each(|p| {
                                     p[2] = repeat_pixel[2];

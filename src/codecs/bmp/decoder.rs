@@ -1268,6 +1268,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         // https://github.com/image-rs/image/issues/2321
                         match image_type {
                             ImageType::RLE8 => {
+                                // set_8bit_pixel_run() minus the many layers of abstraction and complexity
                                 let repeat_pixel: [u8; 3] = p[palette_index as usize];
                                 (&mut pixel_iter).take(n_pixels as usize).for_each(|p| {
                                     p[2] = repeat_pixel[2];

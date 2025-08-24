@@ -821,12 +821,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
             }
 
-            match self.image_type {
-                ImageType::Bitfields16 | ImageType::Bitfields32 => self.read_bitmasks()?,
-                _ => {}
-            }
+            let mut bitmask_size = 0;
+            if self.image_type == ImageType::Bitfields16
+                || self.image_type == ImageType::Bitfields32
+            {
+                self.read_bitmasks()?;
+                bitmask_size = 12;
+            };
 
-            self.reader.seek(SeekFrom::Start(bmp_header_end))?;
+            self.reader
+                .seek(SeekFrom::Start(bmp_header_end + bitmask_size))?;
 
             match self.image_type {
                 ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,

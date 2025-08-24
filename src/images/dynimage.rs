@@ -11,7 +11,7 @@ use crate::images::buffer::{
     Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
 };
 use crate::io::encoder::ImageEncoderBoxed;
-use crate::io::free_functions::{self, encoder_for_format};
+use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
@@ -1069,7 +1069,7 @@ impl DynamicImage {
     /// convert the image to some color type supported by the encoder. This may result in a loss of
     /// precision or the removal of the alpha channel.
     pub fn write_to<W: Write + Seek>(&self, mut w: W, format: ImageFormat) -> ImageResult<()> {
-        let encoder = encoder_for_format(format, &mut w)?;
+        let encoder = format.encoder(&mut w)?;
         self.write_with_encoder_impl(encoder)
     }
 
@@ -1111,7 +1111,7 @@ impl DynamicImage {
         Q: AsRef<Path>,
     {
         let file = &mut BufWriter::new(File::create(path)?);
-        let encoder = encoder_for_format(format, file)?;
+        let encoder = format.encoder(file)?;
         self.write_with_encoder_impl(encoder)
     }
 }
@@ -1357,7 +1357,7 @@ pub fn write_buffer_with_format<W: Write + Seek>(
     color: impl Into<ExtendedColorType>,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    let encoder = encoder_for_format(format, buffered_writer)?;
+    let encoder = format.encoder(buffered_writer)?;
     encoder.write_image(buf, width, height, color.into())
 }
 

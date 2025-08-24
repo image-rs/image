@@ -3,12 +3,11 @@ use std::io::{self, BufRead, BufWriter, Seek, Write};
 use std::path::Path;
 use std::{iter, mem::size_of};
 
-use crate::io::encoder::ImageEncoderBoxed;
-use crate::{codecs::*, ExtendedColorType, ImageReader};
+use crate::{ExtendedColorType, ImageReader};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    ParameterErrorKind,
 };
 use crate::{DynamicImage, ImageDecoder, ImageFormat};
 
@@ -53,52 +52,8 @@ pub fn save_buffer_with_format(
     format: ImageFormat,
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
-    let encoder = encoder_for_format(format, buffered_file_write)?;
+    let encoder = format.encoder(buffered_file_write)?;
     encoder.write_image(buf, width, height, color.into())
-}
-
-pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
-    format: ImageFormat,
-    buffered_write: &'a mut W,
-) -> ImageResult<Box<dyn ImageEncoderBoxed + 'a>> {
-    Ok(match format {
-        #[cfg(feature = "png")]
-        ImageFormat::Png => Box::new(png::PngEncoder::new(buffered_write)),
-        #[cfg(feature = "jpeg")]
-        ImageFormat::Jpeg => Box::new(jpeg::JpegEncoder::new(buffered_write)),
-        #[cfg(feature = "pnm")]
-        ImageFormat::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
-        #[cfg(feature = "gif")]
-        ImageFormat::Gif => Box::new(gif::GifEncoder::new(buffered_write)),
-        #[cfg(feature = "ico")]
-        ImageFormat::Ico => Box::new(ico::IcoEncoder::new(buffered_write)),
-        #[cfg(feature = "bmp")]
-        ImageFormat::Bmp => Box::new(bmp::BmpEncoder::new(buffered_write)),
-        #[cfg(feature = "ff")]
-        ImageFormat::Farbfeld => Box::new(farbfeld::FarbfeldEncoder::new(buffered_write)),
-        #[cfg(feature = "tga")]
-        ImageFormat::Tga => Box::new(tga::TgaEncoder::new(buffered_write)),
-        #[cfg(feature = "exr")]
-        ImageFormat::OpenExr => Box::new(openexr::OpenExrEncoder::new(buffered_write)),
-        #[cfg(feature = "tiff")]
-        ImageFormat::Tiff => Box::new(tiff::TiffEncoder::new(buffered_write)),
-        #[cfg(feature = "avif")]
-        ImageFormat::Avif => Box::new(avif::AvifEncoder::new(buffered_write)),
-        #[cfg(feature = "qoi")]
-        ImageFormat::Qoi => Box::new(qoi::QoiEncoder::new(buffered_write)),
-        #[cfg(feature = "webp")]
-        ImageFormat::WebP => Box::new(webp::WebPEncoder::new_lossless(buffered_write)),
-        #[cfg(feature = "hdr")]
-        ImageFormat::Hdr => Box::new(hdr::HdrEncoder::new(buffered_write)),
-        _ => {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{format:?}"))),
-                ),
-            ));
-        }
-    })
 }
 
 static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [

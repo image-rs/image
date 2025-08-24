@@ -1277,14 +1277,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 });
                             }
                             ImageType::RLE4 => {
-                                if !set_4bit_pixel_run(
+                                // set_4bit_pixel_run will return `false` if `n_pixels` is too large,
+                                // but we ignore that error to support broken images written by imagemagick
+                                set_4bit_pixel_run(
                                     &mut pixel_iter,
                                     p,
                                     repeat(&palette_index),
                                     n_pixels as usize,
-                                ) {
-                                    return Err(DecoderError::CorruptRleData.into());
-                                }
+                                );
                             }
                             _ => unreachable!(),
                         }

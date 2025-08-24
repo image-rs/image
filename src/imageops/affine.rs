@@ -12,7 +12,7 @@ where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(height, width);
+    let mut out = image.buffer_with_dimensions(height, width);
     let _ = rotate90_in(image, &mut out);
     out
 }
@@ -25,7 +25,7 @@ where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_with_dimensions(width, height);
     let _ = rotate180_in(image, &mut out);
     out
 }
@@ -38,7 +38,7 @@ where
     I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(height, width);
+    let mut out = image.buffer_with_dimensions(height, width);
     let _ = rotate270_in(image, &mut out);
     out
 }
@@ -128,8 +128,7 @@ pub fn flip_horizontal<I: GenericImageView>(
 where
     I::Pixel: 'static,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
     let _ = flip_horizontal_in(image, &mut out);
     out
 }
@@ -141,8 +140,7 @@ pub fn flip_vertical<I: GenericImageView>(
 where
     I::Pixel: 'static,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
+    let mut out = image.buffer_like();
     let _ = flip_vertical_in(image, &mut out);
     out
 }

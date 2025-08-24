@@ -821,16 +821,29 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
             }
 
-            let mut bitmask_size = 0;
+            let mut bitmask_bytes_offset = 0;
             if self.image_type == ImageType::Bitfields16
                 || self.image_type == ImageType::Bitfields32
             {
                 self.read_bitmasks()?;
-                bitmask_size = 12;
+
+                // Per https://learn.microsoft.com/en-us/windows/win32/gdi/bitmap-header-types, bitmaps
+                // using the `BITMAPINFOHEADER`, `BITMAPV4HEADER`, or `BITMAPV5HEADER` structures with
+                // an image type of `BI_BITFIELD` contain RGB bitfield masks immediately after the header.
+                //
+                // `read_bitmasks` correctly reads these from earlier in the header itself but we must
+                // ensure the reader starts on the image data itself, not these extra mask bytes.
+                if matches!(
+                    self.bmp_header_type,
+                    BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5
+                ) {
+                    // This is `size_of::<u32>() * 3` (a red, green, and blue mask), but with less noise.
+                    bitmask_bytes_offset = 12;
+                }
             };
 
             self.reader
-                .seek(SeekFrom::Start(bmp_header_end + bitmask_size))?;
+                .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
 
             match self.image_type {
                 ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,

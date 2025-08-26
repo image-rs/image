@@ -1013,7 +1013,7 @@ where
     ///
     /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
     /// dimensions. Otherwise, if the pixel type does not have an alpha channel this is a no-op.
-    pub fn apply_alpha_mask<RhsContainer>(
+    pub fn apply_alpha_channel<RhsContainer>(
         &mut self,
         mask: &ImageBuffer<Luma<P::Subpixel>, RhsContainer>,
     ) -> ImageResult<()>
@@ -2206,6 +2206,44 @@ mod test {
 
         let mask = image.to_alpha_mask();
         assert_eq!(mask.as_raw(), &(1u8..17).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn apply_alpha_mask() {
+        let mut image: ImageBuffer<LumaA<u8>, _> = ImageBuffer::new(4, 4);
+
+        let alpha = ImageBuffer::from_pixel(4, 4, Luma([255]));
+        image.apply_alpha_channel(&alpha).expect("can apply");
+
+        for pixel in image.pixels() {
+            assert_eq!(pixel.0, [0, 255]);
+        }
+    }
+
+    #[test]
+    fn apply_alpha_mask_rgb() {
+        let mut image: ImageBuffer<Rgba<u8>, _> = ImageBuffer::new(4, 4);
+
+        let alpha = ImageBuffer::from_pixel(4, 4, Luma([255]));
+        image.apply_alpha_channel(&alpha).expect("can apply");
+
+        for pixel in image.pixels() {
+            assert_eq!(pixel.0, [0, 0, 0, 255]);
+        }
+    }
+
+    #[test]
+    fn can_not_apply_alpha_mask() {
+        ImageBuffer::<LumaA<u8>, _>::new(4, 4)
+            .apply_alpha_channel(&ImageBuffer::new(1, 1))
+            .expect_err("can not apply with wrong dimensions");
+
+        ImageBuffer::<Luma<u8>, _>::new(4, 4)
+            .apply_alpha_channel(&ImageBuffer::new(4, 4))
+            .expect_err("can not apply without alpha channel");
+        ImageBuffer::<Rgb<u8>, _>::new(4, 4)
+            .apply_alpha_channel(&ImageBuffer::new(4, 4))
+            .expect_err("can not apply without alpha channel");
     }
 }
 

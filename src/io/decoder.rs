@@ -133,6 +133,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).exif_metadata()
     }
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        (**self).orientation()
+    }
     fn total_bytes(&self) -> u64 {
         (**self).total_bytes()
     }

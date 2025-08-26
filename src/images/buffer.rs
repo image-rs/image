@@ -1494,7 +1494,10 @@ where
 pub struct ConvertColorOptions {
     /// A pre-calculated transform. This is only used when the actual colors of the input and
     /// output image match the color spaces with which the was constructed.
-    pub transform: Option<CicpTransform>,
+    ///
+    /// FIXME: Clarify that the transform is cheap to clone, i.e. internally an Arc of precomputed
+    /// tables and not expensive despite having `Clone`.
+    pub(crate) transform: Option<CicpTransform>,
     /// Make sure we can later add options that are bound to the thread. That does not mean that
     /// all attributes will be bound to the thread, only that we can add `!Sync` options later. You
     /// should be constructing the options at the call site with each attribute being cheap to move

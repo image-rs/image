@@ -18,7 +18,7 @@ use std::error::Error;
 use std::{fmt, io};
 
 use crate::color::ExtendedColorType;
-use crate::ImageFormat;
+use crate::{metadata::Cicp, ImageFormat};
 
 /// The generic error type for image operations.
 ///
@@ -82,6 +82,10 @@ pub struct UnsupportedError {
 pub enum UnsupportedErrorKind {
     /// The required color type can not be handled.
     Color(ExtendedColorType),
+    /// Dealing with an intricate layout is not implemented for an algorithm.
+    ColorLayout(ExtendedColorType),
+    /// The colors or transfer function of the CICP are not supported.
+    ColorspaceCicp(Cicp),
     /// An image format is not supported.
     Format(ImageFormatHint),
     /// Some feature specified by string.
@@ -121,11 +125,20 @@ pub enum ParameterErrorKind {
     DimensionMismatch,
     /// Repeated an operation for which error that could not be cloned was emitted already.
     FailedAlready,
+    /// The cicp is required to be RGB-like but had other matrix transforms or narrow range.
+    RgbCicpRequired(Cicp),
     /// A string describing the parameter.
     /// This is discouraged and is likely to get deprecated (but not removed).
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+    /// An operation expected a concrete color space but another was found.
+    CicpMismatch {
+        /// The cicp that was expected.
+        expected: Cicp,
+        /// The cicp that was found.
+        found: Cicp,
+    },
 }
 
 /// An error was encountered while decoding an image.
@@ -387,6 +400,14 @@ impl fmt::Display for UnsupportedError {
                 "The encoder or decoder for {} does not support the color type `{:?}`",
                 self.format, color,
             ),
+            UnsupportedErrorKind::ColorLayout(layout) => write!(
+                fmt,
+                "Converting with the texel memory layout {layout:?} is not supported",
+            ),
+            UnsupportedErrorKind::ColorspaceCicp(color) => write!(
+                fmt,
+                "The colorimetric interpretation of a CICP color space is not supported for `{color:?}`",
+            ),
             UnsupportedErrorKind::GenericFeature(message) => match &self.format {
                 ImageFormatHint::Unknown => write!(
                     fmt,
@@ -415,10 +436,20 @@ impl fmt::Display for ParameterError {
                 fmt,
                 "The end the image stream has been reached due to a previous error"
             ),
+            ParameterErrorKind::RgbCicpRequired(cicp) => {
+                write!(fmt, "The CICP {cicp:?} can not be used for RGB images",)
+            }
+
             ParameterErrorKind::Generic(message) => {
                 write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+            ParameterErrorKind::CicpMismatch { expected, found } => {
+                write!(
+                    fmt,
+                    "The color space {found:?} does not match the expected {expected:?}",
+                )
+            }
         }?;
 
         if let Some(underlying) = &self.underlying {
@@ -509,7 +540,7 @@ impl fmt::Display for ImageFormatHint {
     }
 }
 
-/// Converting [`ExtendedColorType`] to [`ColorType`] failed.
+/// Converting [`ExtendedColorType`] to [`ColorType`][`crate::ColorType`] failed.
 ///
 /// This type is convertible to [`ImageError`] as [`ImageError::Unsupported`].
 #[derive(Clone)]

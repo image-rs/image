@@ -1,6 +1,50 @@
 //! Shared mathematical utility functions.
-
 use std::cmp::max;
+use std::ops::{Add, Mul};
+
+use num_traits::MulAdd;
+
+#[cfg(any(
+    all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "fma"
+    ),
+    all(target_arch = "aarch64", target_feature = "neon")
+))]
+#[inline(always)]
+/// Uses fused multiply add when available
+///
+/// It is important not to call it if FMA flag is not turned on,
+/// Rust inserts libc `fmaf` based implementation here if FMA is clearly not available at compile time.
+/// This needs for speed only, one rounding error don't do anything useful here, thus it's blocked when
+/// we can't detect FMA availability at compile time.
+pub(crate) fn multiply_accumulate<
+    T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>,
+>(
+    acc: T,
+    a: T,
+    b: T,
+) -> T {
+    MulAdd::mul_add(a, b, acc)
+}
+
+#[inline(always)]
+#[cfg(not(any(
+    all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "fma"
+    ),
+    all(target_arch = "aarch64", target_feature = "neon")
+)))]
+pub(crate) fn multiply_accumulate<
+    T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>,
+>(
+    acc: T,
+    a: T,
+    b: T,
+) -> T {
+    acc + a * b
+}
 
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter

@@ -16,8 +16,10 @@ use crate::math::resize_dimensions;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
-    imageops, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
-    ImageFormat, ImageReader, Luma, LumaA,
+    imageops,
+    metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
+    ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
+    ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -43,6 +45,27 @@ use crate::{
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
+///
+/// # Color space
+///
+/// Each image has an associated color space in the form of [CICP] data ([ITU Rec H.273]). Not all
+/// color spaces are supported in the sense that you can compute in them ([Context][w3c-png]).
+/// Conversion into different pixels types ([`ColorType`][`crate::ColorType`]) _generally_ take the
+/// color space into account, with the exception of [`DynamicImage::to`] due to historical design
+/// baggage.
+///
+/// The imageops functions operate in _encoded_ space, directly on the channel values, and do _not_
+/// linearize colors internally as you might be used to from GPU shader programming. Their return
+/// values however copy the color space annotation of the source.
+///
+/// The IO functions do _not yet_ write ICC or CICP indications into the result formats. We're
+/// aware of this problem, it is tracked in [#2493] and [#1460].
+///
+/// [CICP]: https://www.w3.org/TR/png-3/#cICP-chunk
+/// [w3c-png]: https://github.com/w3c/png/issues/312
+/// [ITU Rec H.273]: https://www.itu.int/rec/T-REC-H.273-202407-I/en
+/// [#2493]: https://github.com/image-rs/image/issues/2493
+/// [#1460]: https://github.com/image-rs/image/issues/1460
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DynamicImage {
@@ -135,6 +158,8 @@ impl Clone for DynamicImage {
 impl DynamicImage {
     /// Creates a dynamic image backed by a buffer depending on
     /// the color type given.
+    ///
+    /// The color space is initially set to [`sRGB`][`Cicp::SRGB`].
     #[must_use]
     pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicImage {
         use color::ColorType::*;
@@ -220,6 +245,13 @@ impl DynamicImage {
     }
 
     /// Encodes a dynamic image into a buffer.
+    ///
+    /// **WARNING**: Conversion between RGB and Luma is not aware of the color space and always
+    /// uses sRGB coefficients to determine a non-constant luminance from an RGB color (and
+    /// conversely).
+    ///
+    /// This unfortunately owes to the public bounds of `T` which does not allow for passing a
+    /// color space as a parameter. This function will likely be deprecated and replaced.
     #[inline]
     #[must_use]
     pub fn to<
@@ -243,73 +275,103 @@ impl DynamicImage {
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb8(&self) -> RgbImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb16(&self) -> Rgb16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGB image.
     #[must_use]
     pub fn to_rgb32f(&self) -> Rgb32FImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgb32F(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba8(&self) -> RgbaImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba16(&self) -> Rgba16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as an RGBA image.
     #[must_use]
     pub fn to_rgba32f(&self) -> Rgba32FImage {
-        self.to()
+        match self {
+            DynamicImage::ImageRgba32F(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma8(&self) -> GrayImage {
-        self.to()
+        match self {
+            DynamicImage::ImageLuma8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma16(&self) -> Gray16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageLuma16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a Luma image.
     #[must_use]
     pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
-        self.to()
+        dynamic_map!(self, ref p, p.cast_in_color_space())
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
-        self.to()
+        match self {
+            DynamicImage::ImageLumaA8(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
-        self.to()
+        match self {
+            DynamicImage::ImageLumaA16(x) => x.clone(),
+            x => dynamic_map!(x, ref p, p.cast_in_color_space()),
+        }
     }
 
     /// Returns a copy of this image as a `LumaA` image.
     #[must_use]
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
-        self.to()
+        dynamic_map!(self, ref p, p.cast_in_color_space())
     }
 
     /// Consume the image and returns a RGB image.
@@ -658,7 +720,7 @@ impl DynamicImage {
         dynamic_map!(
             *self,
             ref image_buffer,
-            bytemuck::cast_slice(image_buffer.as_raw().as_ref())
+            bytemuck::cast_slice(image_buffer.as_raw())
         )
     }
 
@@ -712,6 +774,43 @@ impl DynamicImage {
         dynamic_map!(*self, ref p, { p.height() })
     }
 
+    /// Define the color space for the image.
+    ///
+    /// The color data is unchanged. Reinterprets the existing red, blue, green channels as points
+    /// in the new set of primary colors, changing the apparent shade of pixels.
+    ///
+    /// Note that the primaries also define a reference whitepoint When this buffer contains Luma
+    /// data, the luminance channel is interpreted as the `Y` channel of a related `YCbCr` color
+    /// space as if by a non-constant chromaticity derived matrix. That is, coefficients are *not*
+    /// applied in the linear RGB space but use encoded channel values. (In a color space with the
+    /// linear transfer function there is no difference).
+    pub fn set_rgb_primaries(&mut self, color: CicpColorPrimaries) {
+        dynamic_map!(self, ref mut p, p.set_rgb_primaries(color));
+    }
+
+    /// Define the transfer function for the image.
+    ///
+    /// The color data is unchanged. Reinterprets all (non-alpha) components in the image,
+    /// potentially changing the apparent shade of pixels. Individual components are always
+    /// interpreted as encoded numbers. To denote numbers in a linear RGB space, use
+    /// [`CicpTransferCharacteristics::Linear`].
+    pub fn set_transfer_function(&mut self, tf: CicpTransferCharacteristics) {
+        dynamic_map!(self, ref mut p, p.set_transfer_function(tf));
+    }
+
+    /// Get the Cicp encoding of this buffer's color data.
+    pub fn color_space(&self) -> Cicp {
+        dynamic_map!(self, ref p, p.color_space())
+    }
+
+    /// Set primaries and transfer characteristics from a Cicp color space.
+    ///
+    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// a matrix or narrow range (studio encoding) channels.
+    pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
+        dynamic_map!(self, ref mut p, p.set_color_space(cicp))
+    }
+
     /// Whether the image contains an alpha channel
     ///
     /// This is a convenience wrapper around `self.color().has_alpha()`.
@@ -758,6 +857,9 @@ impl DynamicImage {
 
     /// Invert the colors of this image.
     /// This method operates inplace.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     pub fn invert(&mut self) {
         dynamic_map!(*self, ref mut p, imageops::invert(p));
     }
@@ -766,6 +868,9 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         if (nwidth, nheight) == self.dimensions() {
@@ -780,6 +885,9 @@ impl DynamicImage {
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
     /// `nwidth` and `nheight` are the new image's dimensions
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize_exact(
         &self,
@@ -798,6 +906,9 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         let (width2, height2) =
@@ -811,6 +922,9 @@ impl DynamicImage {
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
@@ -822,6 +936,9 @@ impl DynamicImage {
     /// within the larger (relative to aspect ratio) of the bounds
     /// specified by `nwidth` and `nheight`, then cropped to
     /// fit within the other bound.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn resize_to_fill(
         &self,
@@ -856,6 +973,9 @@ impl DynamicImage {
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         gaussian_blur_dyn_image(
@@ -873,6 +993,9 @@ impl DynamicImage {
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn blur_advanced(&self, parameters: GaussianBlurParameters) -> DynamicImage {
         gaussian_blur_dyn_image(self, parameters)
@@ -886,6 +1009,9 @@ impl DynamicImage {
     ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn fast_blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
@@ -898,8 +1024,9 @@ impl DynamicImage {
     /// * `sigma` - value controls image flattening level.
     /// * `threshold` - is a control of how much to sharpen.
     ///
-    /// This method typically assumes that the input is scene-linear light.
-    /// If it is not, color distortion may occur.
+    /// This method typically assumes that the input is scene-linear light. If it is not, color
+    /// distortion may occur. It operates on pixel channel values directly without taking into
+    /// account color space data.
     ///
     /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
     /// for more information
@@ -914,8 +1041,9 @@ impl DynamicImage {
     ///
     /// * `kernel` - slice contains filter. Only slice len is 9 length is accepted.
     ///
-    /// This method typically assumes that the input is scene-linear light.
-    /// If it is not, color distortion may occur.
+    /// This method typically assumes that the input is scene-linear light. It operates on pixel
+    /// channel values directly without taking into account color space data. If it is not, color
+    /// distortion may occur.
     #[must_use]
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         assert_eq!(9, kernel.len(), "filter must be 3 x 3");
@@ -926,6 +1054,9 @@ impl DynamicImage {
     /// Adjust the contrast of this image.
     /// `contrast` is the amount to adjust the contrast by.
     /// Negative values decrease the contrast and positive values increase the contrast.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
@@ -934,6 +1065,9 @@ impl DynamicImage {
     /// Brighten the pixels of this image.
     /// `value` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
     #[must_use]
     pub fn brighten(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
@@ -943,6 +1077,9 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data. The HSV color space is dependent on the current color space primaries.
     #[must_use]
     pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
@@ -1041,6 +1178,169 @@ impl DynamicImage {
                 *image = new_image;
             }
         }
+    }
+
+    /// Copy pixel data from one buffer to another.
+    ///
+    /// On success, this dynamic image contains color data equivalent to the sources color data.
+    /// Neither the color space nor the sample type of `self` is changed, the data representation
+    /// is transformed and copied into the current buffer.
+    ///
+    /// Returns `Ok` if:
+    /// - Both images to have the same dimensions, otherwise returns a [`ImageError::Parameter`].
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    ///
+    /// See also [`Self::apply_color_space`] and [`Self::convert_color_space`] to modify an image
+    /// directly.
+    ///
+    /// ## Accuracy
+    ///
+    /// All color values are subject to change to their _intended_ values. Please do not rely on
+    /// them further than your own colorimetric understanding shows them correct. For instance,
+    /// conversion of RGB to their corresponding Luma values needs to be modified in future
+    /// versions of this library. Expect colors to be too bright or too dark until further notice.
+    pub fn copy_from_color_space(
+        &mut self,
+        other: &DynamicImage,
+        mut options: ConvertColorOptions,
+    ) -> ImageResult<()> {
+        // Try to no-op this transformation, we may be lucky..
+        if self.color_space() == other.color_space() {
+            // Nothing to transform, just rescale samples and type cast.
+            dynamic_map!(
+                self,
+                ref mut p,
+                *p = dynamic_map!(other, ref o, o.cast_in_color_space())
+            );
+
+            return Ok(());
+        }
+
+        // Do a transformation from existing buffer to existing buffer, only for color types that
+        // are currently supported. Other color types must use the fallback below. If we expand the
+        // range of supported color types we must consider how to write this more neatly.
+        match (&mut *self, other) {
+            // u8 sample types
+            (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgb8(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgb8(img), DynamicImage::ImageRgba8(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgb8(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba8(img), DynamicImage::ImageRgba8(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            // u16 sample types
+            (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgb16(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgb16(img), DynamicImage::ImageRgba16(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgb16(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba16(img), DynamicImage::ImageRgba16(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            // 32F sample types.
+            (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgb32F(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgb32F(img), DynamicImage::ImageRgba32F(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgb32F(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            (DynamicImage::ImageRgba32F(img), DynamicImage::ImageRgba32F(other)) => {
+                return img.copy_from_color_space(other, options);
+            }
+            _ => {}
+        };
+
+        // If we reach here we have a mismatch of sample types. Our conversion supports only input
+        // and output of the same sample type. As a simplification we will do the conversion only
+        // in `f32` samples. Thus we first convert the source to `f32` samples taking care it does
+        // not involve (lossy) color conversion (into with luma -> rgb for instance). Note: we do
+        // not have Luma<f32> as a type.
+        let cicp = options.as_transform(other.color_space(), self.color_space())?;
+        cicp.transform_dynamic(self, other);
+
+        Ok(())
+    }
+
+    /// Change the color space, modifying pixel values to refer to the same colors.
+    ///
+    /// On success, this dynamic image contains color data equivalent to its previous color data.
+    /// The sample type of `self` is not changed, the data representation is transformed within the
+    /// current buffer.
+    ///
+    /// Returns `Ok` if:
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    /// - The target `Cicp` must have full range and an `Identity` matrix. (This library's
+    ///   [`Luma`][`crate::Luma`] refers implicity to a chromaticity derived non-constant luminance
+    ///   color).
+    ///
+    /// See also [`Self::copy_from_color_space`].
+    pub fn apply_color_space(
+        &mut self,
+        cicp: Cicp,
+        options: ConvertColorOptions,
+    ) -> ImageResult<()> {
+        // If the color space is already set, we can just return.
+        if self.color_space() == cicp {
+            return Ok(());
+        }
+
+        // We could conceivably do this in-place faster but to handle the Luma conversion as we
+        // want this requires the full machinery as `CicpTransform::transform_dynamic` which is
+        // quite the replication. Let's just see if it is fast enough. Feel free to PR something if
+        // it is easy enough to review.
+        let mut target = self.clone();
+        target.set_color_space(cicp)?;
+        target.copy_from_color_space(self, options)?;
+
+        *self = target;
+        Ok(())
+    }
+
+    /// Change the color space and pixel type of this image.
+    ///
+    /// On success, this dynamic image contains color data equivalent to its previous color data
+    /// with another type of pixels.
+    ///
+    /// Returns `Ok` if:
+    /// - The primaries and transfer functions of both image's color spaces must be supported,
+    ///   otherwise returns a [`ImageError::Unsupported`].
+    /// - The target `Cicp` must have full range and an `Identity` matrix. (This library's
+    ///   [`Luma`][`crate::Luma`] refers implicity to a chromaticity derived non-constant luminance
+    ///   color).
+    ///
+    /// See also [`Self::copy_from_color_space`].
+    pub fn convert_color_space(
+        &mut self,
+        cicp: Cicp,
+        options: ConvertColorOptions,
+        color: color::ColorType,
+    ) -> ImageResult<()> {
+        if self.color() == color {
+            return self.apply_color_space(cicp, options);
+        }
+
+        // Forward compatibility: make sure we do not drop any details here.
+        let rgb = cicp.try_into_rgb()?;
+        let mut target = DynamicImage::new(self.width(), self.height(), color);
+        dynamic_map!(target, ref mut p, p.set_rgb_color_space(rgb));
+        target.copy_from_color_space(self, options)?;
+
+        *self = target;
+        Ok(())
     }
 
     fn write_with_encoder_impl<'a>(
@@ -1258,7 +1558,7 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
-    let image = match color_type {
+    let mut image = match color_type {
         color::ColorType::Rgb8 => {
             let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
@@ -1308,14 +1608,20 @@ fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
             let buf = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
-    };
-
-    match image {
-        Some(image) => Ok(image),
-        None => Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        ))),
     }
+    .ok_or_else(|| {
+        ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        ))
+    })?;
+
+    // Presume SRGB for now. This is the one we convert into in some decoders and the one that is
+    // most widely used in the wild. FIXME: add an API to decoder to indicate the color space as a
+    // CICP directly or through interpreting the ICC information.
+    image.set_rgb_primaries(Cicp::SRGB.primaries);
+    image.set_transfer_function(Cicp::SRGB.transfer);
+
+    Ok(image)
 }
 
 /// Open the image located at the path specified.
@@ -1405,7 +1711,10 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use crate::metadata::{CicpColorPrimaries, CicpTransform};
+    use crate::ConvertColorOptions;
     use crate::{color::ColorType, images::dynimage::Gray16Image};
+    use crate::{metadata::Cicp, ImageBuffer, Luma, Rgb, Rgba};
 
     #[test]
     fn test_empty_file() {
@@ -1430,11 +1739,11 @@ mod test {
 
     fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
         use crate::{GenericImage as _, GenericImageView as _};
-        img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
+        img.put_pixel(0, 0, Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
         assert_eq!(
             img.grayscale().get_pixel(0, 0),
-            crate::color::Rgba([54, 54, 54, expected_alpha])
+            Rgba([54, 54, 54, expected_alpha])
         );
     }
 
@@ -1526,7 +1835,7 @@ mod test {
     #[test]
     fn issue_1705_can_turn_16bit_image_into_bytes() {
         let pixels = vec![65535u16; 64 * 64];
-        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+        let img = ImageBuffer::from_vec(64, 64, pixels).unwrap();
 
         let img = super::DynamicImage::ImageLuma16(img);
         assert!(img.as_luma16().is_some());
@@ -1549,5 +1858,344 @@ mod test {
         // test conversion using turbofish syntax
         let converted = image_luma8.to::<Luma<u16>>();
         assert_eq!(image_luma8.to_luma16(), converted);
+    }
+
+    #[test]
+    fn color_conversion_srgb_p3() {
+        let mut source = super::DynamicImage::ImageRgb8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([255, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn color_conversion_preserves_sample() {
+        let mut source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+        target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([234u8, 51, 35, 255]));
+    }
+
+    #[test]
+    fn color_conversion_preserves_sample_in_fastpath() {
+        let source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageRgba8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgba(Default::default()))
+        });
+
+        // No color space change takes place, but still sample should be converted.
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        let target = target.as_rgba8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgba([255u8, 0, 0, 255]));
+    }
+
+    #[test]
+    fn color_conversion_rgb_to_luma() {
+        let source = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([0, u16::MAX, 0]))
+        });
+
+        let mut target = super::DynamicImage::ImageLuma8({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma(Default::default()))
+        });
+
+        // No color space change takes place, but still sample should be converted.
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        // FIXME: but the result value is .. not ideal.
+        target.as_luma8().expect("Sample type unchanged");
+    }
+
+    #[test]
+    fn copy_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for from in TYPES {
+            for to in TYPES {
+                let mut source = super::DynamicImage::new(16, 16, from);
+                let mut target = super::DynamicImage::new(16, 16, to);
+
+                source.set_rgb_primaries(Cicp::SRGB.primaries);
+                source.set_transfer_function(Cicp::SRGB.transfer);
+
+                target.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+                target.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+                target
+                    .copy_from_color_space(
+                        &source,
+                        ConvertColorOptions {
+                            transform: Some(transform.clone()),
+                            ..Default::default()
+                        },
+                    )
+                    .expect("Failed to convert color space");
+            }
+        }
+    }
+
+    #[test]
+    fn apply_color_space() {
+        let mut buffer = super::DynamicImage::ImageRgb8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u8::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+        buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+        buffer
+            .apply_color_space(Cicp::DISPLAY_P3, Default::default())
+            .unwrap();
+
+        let target = buffer.as_rgb8().expect("Sample type unchanged");
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn apply_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for buffer in TYPES {
+            let mut buffer = super::DynamicImage::new(16, 16, buffer);
+
+            buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+            buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+            buffer
+                .apply_color_space(
+                    Cicp::DISPLAY_P3,
+                    ConvertColorOptions {
+                        transform: Some(transform.clone()),
+                        ..Default::default()
+                    },
+                )
+                .expect("Failed to convert color space");
+        }
+    }
+
+    #[test]
+    fn convert_color_space() {
+        let mut buffer = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+        buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+        buffer
+            .convert_color_space(Cicp::DISPLAY_P3, Default::default(), ColorType::Rgb8)
+            .unwrap();
+
+        let target = buffer.as_rgb8().expect("Sample type now rgb8");
+        assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    #[test]
+    fn into_luma_is_color_space_aware() {
+        let mut buffer = super::DynamicImage::ImageRgb16({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u16::MAX, 0, 0]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        buffer.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let luma8 = buffer.clone().into_luma8();
+        assert_eq!(luma8[(0, 0)], Luma([58u8]));
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+
+        let luma8 = buffer.clone().into_luma8();
+        assert_eq!(luma8[(0, 0)], Luma([54u8]));
+    }
+
+    #[test]
+    fn from_luma_is_color_space_aware() {
+        let mut buffer = super::DynamicImage::ImageLuma16({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma([u16::MAX]))
+        });
+
+        buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
+        buffer.set_transfer_function(Cicp::DISPLAY_P3.transfer);
+
+        let rgb8 = buffer.clone().into_rgb8();
+        assert_eq!(rgb8[(0, 0)], Rgb([58u8, 176u8, 20u8]));
+
+        buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+
+        let rgb8 = buffer.clone().into_rgb8();
+        assert_eq!(rgb8[(0, 0)], Rgb([54u8, 182u8, 18u8]));
+    }
+
+    #[test]
+    fn from_luma_for_all_chromaticities() {
+        const CHROMA: &[(CicpColorPrimaries, [u8; 3])] = &[
+            (CicpColorPrimaries::SRgb, [54, 182, 18]),
+            (CicpColorPrimaries::RgbM, [76, 150, 29]),
+            (CicpColorPrimaries::RgbB, [57, 180, 18]),
+            (CicpColorPrimaries::Bt601, [54, 179, 22]),
+            (CicpColorPrimaries::Rgb240m, [54, 179, 22]),
+            (CicpColorPrimaries::GenericFilm, [65, 173, 17]),
+            (CicpColorPrimaries::Rgb2020, [67, 173, 15]),
+            // Note: here red=X and blue=Z and both are free of luminance
+            (CicpColorPrimaries::Xyz, [0, 255, 0]),
+            (CicpColorPrimaries::SmpteRp431, [53, 184, 18]),
+            (CicpColorPrimaries::SmpteRp432, [58, 176, 20]),
+            (CicpColorPrimaries::Industry22, [59, 171, 24]),
+            // Falls back to sRGB
+            (CicpColorPrimaries::Unspecified, [54, 182, 18]),
+        ];
+
+        let mut buffer = super::DynamicImage::ImageLuma16({
+            ImageBuffer::from_fn(128, 128, |_, _| Luma([u16::MAX]))
+        });
+
+        for &(chroma, expected) in CHROMA {
+            buffer.set_rgb_primaries(chroma);
+            let rgb = buffer.to_rgb8();
+            assert_eq!(rgb[(0, 0)], Rgb(expected), "Failed for chroma: {chroma:?}");
+        }
+    }
+
+    #[test]
+    fn convert_color_space_coverage() {
+        const TYPES: [ColorType; 10] = [
+            ColorType::L8,
+            ColorType::La8,
+            ColorType::Rgb8,
+            ColorType::Rgba8,
+            ColorType::L16,
+            ColorType::La16,
+            ColorType::Rgb16,
+            ColorType::Rgba16,
+            ColorType::Rgb32F,
+            ColorType::Rgba32F,
+        ];
+
+        let transform =
+            CicpTransform::new(Cicp::SRGB, Cicp::DISPLAY_P3).expect("Failed to create transform");
+
+        for from in TYPES {
+            for to in TYPES {
+                let mut buffer = super::DynamicImage::new(16, 16, from);
+
+                buffer.set_rgb_primaries(Cicp::SRGB.primaries);
+                buffer.set_transfer_function(Cicp::SRGB.transfer);
+
+                let options = ConvertColorOptions {
+                    transform: Some(transform.clone()),
+                    ..Default::default()
+                };
+
+                buffer
+                    .convert_color_space(Cicp::DISPLAY_P3, options, to)
+                    .expect("Failed to convert color space");
+            }
+        }
+    }
+
+    /// Check that operations that are not cicp-aware behave as such. We introduce new methods (not
+    /// based directly on the public imageops interface) at a later point.
+    #[cfg(feature = "png")]
+    #[test]
+    fn color_space_independent_imageops() {
+        let im_path = "./tests/images/png/16bpc/basn6a16.png";
+
+        let mut image = super::open(im_path).unwrap();
+        let mut clone = image.clone();
+
+        image.set_color_space(Cicp::SRGB).unwrap();
+        clone.set_color_space(Cicp::DISPLAY_P3).unwrap();
+
+        const IMAGEOPS: &[&dyn Fn(&super::DynamicImage) -> super::DynamicImage] = &[
+            &|img| img.resize(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.thumbnail(8, 8),
+            &|img| img.thumbnail_exact(8, 8),
+            &|img| img.resize_to_fill(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.blur(1.0),
+            &|img| {
+                img.blur_advanced(
+                    crate::imageops::GaussianBlurParameters::new_anisotropic_kernel_size(1.0, 2.0),
+                )
+            },
+            &|img| img.fast_blur(1.0),
+            &|img| img.unsharpen(1.0, 3),
+            &|img| img.filter3x3(&[0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0]),
+            &|img| img.adjust_contrast(0.5),
+            &|img| img.brighten(10),
+            &|img| img.huerotate(180),
+        ];
+
+        for (idx, &op) in IMAGEOPS.iter().enumerate() {
+            let result_a = op(&image);
+            let result_b = op(&clone);
+            assert_eq!(result_a.color_space(), image.color_space(), "{idx}");
+            assert_eq!(result_b.color_space(), clone.color_space(), "{idx}");
+
+            assert_ne!(result_a, result_b, "{idx}");
+            assert_eq!(result_a.as_bytes(), result_b.as_bytes(), "{idx}");
+        }
     }
 }

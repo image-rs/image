@@ -631,8 +631,8 @@ impl<'a> FlatSamples<'a> {
 
     fn all_smaller(&self, max_val: u32) -> bool {
         match *self {
-            FlatSamples::U8(arr) => arr.iter().any(|&val| u32::from(val) > max_val),
-            FlatSamples::U16(arr) => arr.iter().any(|&val| u32::from(val) > max_val),
+            FlatSamples::U8(arr) => arr.iter().all(|&val| u32::from(val) <= max_val),
+            FlatSamples::U16(arr) => arr.iter().all(|&val| u32::from(val) <= max_val),
         }
     }
 
@@ -726,4 +726,45 @@ impl TupleEncoding<'_> {
                 .map_err(ImageError::IoError),
         }
     }
+}
+
+#[test]
+fn pbm_allows_black() {
+    let imgbuf = crate::DynamicImage::new_luma8(50, 50);
+
+    let mut buffer = vec![];
+    let encoder =
+        PnmEncoder::new(&mut buffer).with_subtype(PnmSubtype::Bitmap(SampleEncoding::Ascii));
+
+    imgbuf
+        .write_with_encoder(encoder)
+        .expect("all-zeroes is a black image");
+}
+
+#[test]
+fn pbm_allows_white() {
+    let imgbuf =
+        crate::DynamicImage::ImageLuma8(crate::ImageBuffer::from_pixel(50, 50, crate::Luma([1])));
+
+    let mut buffer = vec![];
+    let encoder =
+        PnmEncoder::new(&mut buffer).with_subtype(PnmSubtype::Bitmap(SampleEncoding::Ascii));
+
+    imgbuf
+        .write_with_encoder(encoder)
+        .expect("all-zeroes is a white image");
+}
+
+#[test]
+fn pbm_verifies_pixels() {
+    let imgbuf =
+        crate::DynamicImage::ImageLuma8(crate::ImageBuffer::from_pixel(50, 50, crate::Luma([255])));
+
+    let mut buffer = vec![];
+    let encoder =
+        PnmEncoder::new(&mut buffer).with_subtype(PnmSubtype::Bitmap(SampleEncoding::Ascii));
+
+    imgbuf
+        .write_with_encoder(encoder)
+        .expect_err("failed to catch violating samples");
 }

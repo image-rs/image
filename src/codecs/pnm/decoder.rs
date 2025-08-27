@@ -305,6 +305,11 @@ impl<R: Read> PnmDecoder<R> {
         Ok(decoder)
     }
 
+    /// Get the header of the decoded image.
+    pub fn header(&self) -> &PnmHeader {
+        &self.header
+    }
+
     /// Extract the reader and header after an image has been read.
     pub fn into_inner(self) -> (R, PnmHeader) {
         (self.reader, self.header)

@@ -117,6 +117,7 @@ pub trait ImageDecoder {
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()>;
 }
 
+#[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn dimensions(&self) -> (u32, u32) {
         (**self).dimensions()
@@ -132,6 +133,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).exif_metadata()
+    }
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        (**self).orientation()
     }
     fn total_bytes(&self) -> u64 {
         (**self).total_bytes()

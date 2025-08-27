@@ -10,7 +10,7 @@
 
 Features:
   - Added an API for external image format implementations to register themselves as decoders for a specific format in `image` (#2372)
-  - Added [CICP](https://www.color.org/iccmax/download/CICP_tag_and_type_amendment.pdf) awarenes via [moxcms](https://crates.io/crates/moxcms) to support HDR images (#2531)
+  - Added [CICP](https://www.color.org/iccmax/download/CICP_tag_and_type_amendment.pdf) awarenes via [moxcms](https://crates.io/crates/moxcms) to support color spaces (#2531). The support for transforming is limited for now and will be gradually expanded.
   - You can now embed Exif metadata when writing JPEG, PNG and WebP images (#2537, #2539)
   - Added functions to extract orientation from Exif metadata and optionally clear it in the Exif chunk (#2484)
   - Serde support for more types (#2445)
@@ -22,6 +22,7 @@ API improvements:
   - Implemented `TryFrom<ExtendedColorType>` for `ColorType` (#2444)
   - Added `const HAS_ALPHA` to trait `Pixel`
   - Unified the error for unsupported encoder colors (#2543)
+  - Added a `hooks` module to customize builtin behavior, `register_format_detection_hook` and  `register_decoding_hook` for the determining format of a file and selecting an `ImageDecoder` implementation respectively.
 
 Performance improvements:
   - Gaussian blur (#2496) and box blur (#2515) are now faster

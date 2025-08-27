@@ -91,7 +91,7 @@ impl ImageFormat {
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
                 "exr" => ImageFormat::OpenExr,
-                "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
+                "pbm" | "pam" | "ppm" | "pgm" | "pnm" => ImageFormat::Pnm,
                 "ff" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
                 "pcx" => ImageFormat::Pcx,

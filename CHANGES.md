@@ -17,7 +17,7 @@ Features:
 API improvements:
   - `save`, `save_with_format`, `write_to` and `write_with_encoder` methods on `DynamicImage` now automatically convert the pixel format when necessary instead of returning an error (#2501)
   - Added `DynamicImage::has_alpha()` convenience method
-  - implemented `TryFrom<ExtendedColorType>` for `ColorType` (#2444)
+  - Implemented `TryFrom<ExtendedColorType>` for `ColorType` (#2444)
   - Added `const HAS_ALPHA` to trait `Pixel`
   - Unified the error for unsupported encoder colors (#2543)
 

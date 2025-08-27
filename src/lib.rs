@@ -291,6 +291,7 @@ pub mod codecs {
 
 mod animation;
 mod color;
+pub mod hooks;
 mod images;
 /// Deprecated io module the original io module has been renamed to `image_reader`.
 /// This is going to be internal.

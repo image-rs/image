@@ -9,6 +9,8 @@
 ### Version 0.25.7
 
 Features:
+  - Added an API for external image format implementations to register themselves as decoders for a specific format in `image` (#2372)
+  - Added [CICP](https://www.color.org/iccmax/download/CICP_tag_and_type_amendment.pdf) awarenes via [moxcms](https://crates.io/crates/moxcms) to support HDR images (#2531)
   - You can now embed Exif metadata when writing JPEG, PNG and WebP images (#2537, #2539)
   - Added functions to extract orientation from Exif metadata and optionally clear it in the Exif chunk (#2484)
   - Serde support for more types (#2445)
@@ -28,6 +30,7 @@ Performance improvements:
 Bug fixes:
   - Many improvements to image format decoding: TIFF, WebP, AVIF, GIF, BMP, TGA
   - Fixed `GifEncoder::encode()` ignoring the speed parameter and always using the slowest speed (#2504)
+  - `.pnm` is now recognized as a file extension for the PNM format (#2559)
 
 
 ### Version 0.25.6

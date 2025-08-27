@@ -1007,7 +1007,7 @@ impl CicpRgb {
         FromColor::Subpixel: ColorComponentForCicp,
         IntoColor::Subpixel: ColorComponentForCicp + FromPrimitive<FromColor::Subpixel>,
     {
-        use crate::traits::private::{LayoutWithColor as Layout, PrivateToken};
+        use crate::traits::private::PrivateToken;
         let from_layout = <FromColor as SealedPixelWithColorType>::layout(PrivateToken);
         let into_layout = <IntoColor as SealedPixelWithColorType>::layout(PrivateToken);
 
@@ -1024,7 +1024,6 @@ impl CicpRgb {
             // detect it has happened.
             .unwrap_or_else(color_space_fallback);
 
-        const STEP: usize = 256;
         let pixels = buffer.len() / from_layout.channels();
 
         // All of the following is done in-place; so we must allow the buffer space in which the
@@ -1034,6 +1033,31 @@ impl CicpRgb {
             pixels * into_layout.channels(),
             <IntoColor::Subpixel as Primitive>::DEFAULT_MIN_VALUE,
         );
+
+        Self::cast_pixels_by_fallback(
+            buffer,
+            output.as_mut_slice(),
+            from_layout,
+            into_layout,
+            color_space_coefs,
+        );
+        output
+    }
+
+    fn cast_pixels_by_fallback<
+        From: Primitive + ColorComponentForCicp,
+        Into: ColorComponentForCicp,
+    >(
+        buffer: &[From],
+        output: &mut [Into],
+        from_layout: LayoutWithColor,
+        into_layout: LayoutWithColor,
+        color_space_coefs: [f32; 3],
+    ) {
+        use LayoutWithColor as Layout;
+
+        const STEP: usize = 256;
+        let pixels = buffer.len() / from_layout.channels();
 
         let mut ibuffer = [0.0f32; 4 * STEP];
         let mut obuffer = [0.0f32; 4 * STEP];
@@ -1133,8 +1157,6 @@ impl CicpRgb {
                 }
             }
         }
-
-        output
     }
 
     /// Make sure this is only monomorphized for subpixel combinations, not for every pixel

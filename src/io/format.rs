@@ -77,7 +77,7 @@ impl ImageFormat {
         // thin wrapper function to strip generics
         fn inner(ext: &OsStr) -> Option<ImageFormat> {
             let ext = ext.to_str()?.to_ascii_lowercase();
-
+            // NOTE: when updating this, also update extensions_str()
             Some(match ext.as_str() {
                 "avif" => ImageFormat::Avif,
                 "jpg" | "jpeg" | "jfif" => ImageFormat::Jpeg,
@@ -283,12 +283,13 @@ impl ImageFormat {
     /// that yields a slice of `OsStr` which is blocked by several features of const evaluation.
     #[must_use]
     pub fn extensions_str(self) -> &'static [&'static str] {
+        // NOTE: when updating this, also update from_extension()
         match self {
             ImageFormat::Png => &["png"],
             ImageFormat::Jpeg => &["jpg", "jpeg"],
             ImageFormat::Gif => &["gif"],
             ImageFormat::WebP => &["webp"],
-            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm"],
+            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm", "pnm"],
             ImageFormat::Tiff => &["tiff", "tif"],
             ImageFormat::Tga => &["tga"],
             ImageFormat::Dds => &["dds"],

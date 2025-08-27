@@ -22,7 +22,7 @@ API improvements:
   - Implemented `TryFrom<ExtendedColorType>` for `ColorType` (#2444)
   - Added `const HAS_ALPHA` to trait `Pixel`
   - Unified the error for unsupported encoder colors (#2543)
-  - Added a `hooks` module to customize builtin behavior, `register_format_detection_hook` and  `register_decoding_hook` for the determining format of a file and selecting an `ImageDecoder` implementation respectively.
+  - Added a `hooks` module to customize builtin behavior, `register_format_detection_hook` and  `register_decoding_hook` for the determining format of a file and selecting an `ImageDecoder` implementation respectively. (#2372)
 
 Performance improvements:
   - Gaussian blur (#2496) and box blur (#2515) are now faster

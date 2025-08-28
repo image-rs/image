@@ -25,6 +25,7 @@ use crate::{
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+const XMP_KEY: &str = "XML:com.adobe.xmp";
 
 /// PNG decoder
 pub struct PngDecoder<R: BufRead + Seek> {
@@ -45,6 +46,7 @@ impl<R: BufRead + Seek> PngDecoder<R> {
 
         let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
         let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
+        decoder.set_ignore_text_chunk(false);
 
         let info = decoder.read_header_info().map_err(ImageError::from_png)?;
         limits.check_dimensions(info.width, info.height)?;
@@ -184,6 +186,24 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .exif_metadata
             .as_ref()
             .map(|x| x.to_vec()))
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        if let Some(mut itx_chunk) = self
+            .reader
+            .info()
+            .utf8_text
+            .iter()
+            .find(|chunk| chunk.keyword.contains(XMP_KEY))
+            .cloned()
+        {
+            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
+            return itx_chunk
+                .get_text()
+                .map(|text| Some(text.as_bytes().to_vec()))
+                .map_err(ImageError::from_png);
+        }
+        Ok(None)
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

@@ -178,6 +178,15 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }
 
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self
+            .reader
+            .info()
+            .exif_metadata
+            .as_ref()
+            .map(|x| x.to_vec()))
+    }
+
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
 

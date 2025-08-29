@@ -29,7 +29,7 @@ Performance improvements:
   - Improve compilation times by avoiding unnecessary instantiation of generic functions (#2468, #2470)
 
 Bug fixes:
-  - Many improvements to image format decoding: TIFF, WebP, AVIF, GIF, BMP, TGA
+  - Many improvements to image format decoding: TIFF, WebP, AVIF, PNG, GIF, BMP, TGA
   - Fixed `GifEncoder::encode()` ignoring the speed parameter and always using the slowest speed (#2504)
   - `.pnm` is now recognized as a file extension for the PNM format (#2559)
 

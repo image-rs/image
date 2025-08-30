@@ -62,6 +62,11 @@ image format encoders and decoders.
 
 - \* Requires the `avif-native` feature, uses the libdav1d C library.
 
+Decoding support for additional image formats not listed above is provided by [image-extras](https://github.com/image-rs/image-extras).
+
+We also provide a plugin interface that lets third-party crates act as format implementations for `image`.
+If the format you need is not listed above, check crates.io for crates that implement it.
+
 Other feature flags for the `image` crate:
 
 | Feature       | Description

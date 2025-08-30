@@ -1,5 +1,5 @@
 name: "Format/Dependency issue"
-description: "An issue that relies on being fixed upstream"
+description: "A bug in existing formats that relies on being fixed upstream"
 title: "[upstream] "
 labels: ["dependency-tracked"]
 body:

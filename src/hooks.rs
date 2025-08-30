@@ -100,6 +100,33 @@ pub fn decoding_hook_registered(extension: &OsStr) -> bool {
 /// The signature field holds the magic bytes from the start of the file that must be matched to
 /// detect the format. The mask field is optional and can be used to specify which bytes in the
 /// signature should be ignored during the detection.
+///
+/// # Examples
+///
+/// ## Using the mask to ignore some bytes
+///
+/// ```
+/// # use image::hooks::register_format_detection_hook;
+/// // WebP signature is 'riff' followed by 4 bytes of length and then by 'webp'.
+/// // This requires a mask to ignore the length.
+/// register_format_detection_hook("webp".into(),
+///      &[b'r', b'i', b'f', b'f', 0, 0, 0, 0, b'w', b'e', b'b', b'p'],
+/// Some(&[0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff]),
+/// );
+/// ```
+///
+/// ## Multiple signatures
+///
+/// ```
+/// # use image::hooks::register_format_detection_hook;
+/// // JPEG XL has two different signatures: https://en.wikipedia.org/wiki/JPEG_XL
+/// // This function should be called twice to register them both.
+/// register_format_detection_hook("jxl".into(), &[0xff, 0x0a], None);
+/// register_format_detection_hook("jxl".into(),
+///      &[0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a], None,
+/// );
+/// ```
+///
 pub fn register_format_detection_hook(
     extension: OsString,
     signature: &'static [u8],

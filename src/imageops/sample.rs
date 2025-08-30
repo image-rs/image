@@ -228,6 +228,7 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 
 // Sample the rows of the supplied image using the provided filter.
 // The height of the image remains unchanged.
+//
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
@@ -868,6 +869,11 @@ where
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+///
+/// # Border behavior
+///
+/// The filter will not look outside the source region. The outer most rows and columns of the
+/// output image remain unset.
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -1864,5 +1870,17 @@ mod tests {
         assert!(result.into_raw().into_iter().all(|c| c == 0));
         let result = resize(&empty, 256, 256, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn filter_3x3_border() {
+        let out = super::filter3x3(
+            &crate::GrayImage::from_pixel(3, 3, crate::Luma([255])),
+            &[1.0; 9],
+        );
+
+        assert_eq!(out[(0, 0)], crate::Luma([0]));
+        assert_eq!(out[(1, 1)], crate::Luma([255]));
+        assert_eq!(out[(2, 2)], crate::Luma([0]));
     }
 }

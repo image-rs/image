@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Enabling something that is not yet possible
-labels: enhancement
+labels: new-feature
 title: ''
 assignees: ''
 

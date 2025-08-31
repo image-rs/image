@@ -1,0 +1,44 @@
+name: "File format request"
+description: "An encoded file format that you need"
+title: "Supporting format …"
+labels: ["topic: formats"]
+body:
+- type: markdown
+  attributes:
+    value: |
+      Please understand that maintainer time is limited and many image formats
+      are complex, even the seemingly simple ones. We do not generally start
+      from-scratch implementations. Formats are supported by including existing
+      libraries with bindings such that they can be optionally enabled. Among
+      our preference for such dependencies are:
+      * Good test coverage
+      * Purely Rust
+      * Only the necessary amount of `unsafe` in the dependency tree, encapsulated in well-reviewed libraries
+      * A small dependency list
+
+      For further information, see the discussion page:
+      <https://github.com/image-rs/image/discussions/2570>. You can think of it
+      like a mini-RFC forum.
+
+      The issue type for new formats is reserved for tracking concrete
+      implementation and their bindings, i.e. discussing an API mismatch that
+      prevents a library from having its bindings for `image` written.
+
+- type: input
+  id: library-reference
+  attributes:
+    label: Link to existing library
+    placeholder: "e.g. https://crates.io/crates/ravif"
+  validations:
+    required: true
+
+- type: checkboxes
+  id: do-not-click-me-if-you-intended-to-just-ask-for-something
+  attributes:
+    label: You understand that you should not open an issue just requesting a format
+    options:
+    - label: My issue is referencing an existing library
+      required: true
+    - label: I understand that wishes for formats should generally be discussed on the discussion page first
+  validations:
+    required: true

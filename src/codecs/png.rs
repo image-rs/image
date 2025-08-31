@@ -297,8 +297,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         if self.has_thumbnail {
             // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
             let mut limits = self.inner.limits.clone();
-            limits.reserve_usize(self.inner.reader.output_buffer_size())?;
-            let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+
+            let buffer_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            })?;
+
+            limits.reserve_usize(buffer_size)?;
+            let mut buffer = vec![0; buffer_size];
             // TODO: add `png::Reader::change_limits()` and call it here
             // to also constrain the internal buffer allocations in the PNG crate
             self.inner
@@ -355,7 +360,10 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         let mut limits = self.inner.limits.clone();
 
         // Read next frame data.
-        let raw_frame_size = self.inner.reader.output_buffer_size();
+        let raw_frame_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
+            ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+        })?;
+
         limits.reserve_usize(raw_frame_size)?;
         let mut buffer = vec![0; raw_frame_size];
         // TODO: add `png::Reader::change_limits()` and call it here
@@ -588,21 +596,20 @@ impl<W: Write> PngEncoder<W> {
                 ))
             }
         };
+
         let comp = match self.compression {
-            CompressionType::Default => png::Compression::Default,
-            CompressionType::Best => png::Compression::Best,
+            CompressionType::Default => png::Compression::Balanced,
+            CompressionType::Best => png::Compression::High,
             _ => png::Compression::Fast,
         };
-        let (filter, adaptive_filter) = match self.filter {
-            FilterType::NoFilter => (
-                png::FilterType::NoFilter,
-                png::AdaptiveFilterType::NonAdaptive,
-            ),
-            FilterType::Sub => (png::FilterType::Sub, png::AdaptiveFilterType::NonAdaptive),
-            FilterType::Up => (png::FilterType::Up, png::AdaptiveFilterType::NonAdaptive),
-            FilterType::Avg => (png::FilterType::Avg, png::AdaptiveFilterType::NonAdaptive),
-            FilterType::Paeth => (png::FilterType::Paeth, png::AdaptiveFilterType::NonAdaptive),
-            FilterType::Adaptive => (png::FilterType::Sub, png::AdaptiveFilterType::Adaptive),
+
+        let filter = match self.filter {
+            FilterType::NoFilter => png::Filter::NoFilter,
+            FilterType::Sub => png::Filter::Sub,
+            FilterType::Up => png::Filter::Up,
+            FilterType::Avg => png::Filter::Avg,
+            FilterType::Paeth => png::Filter::Paeth,
+            FilterType::Adaptive => png::Filter::Adaptive,
         };
 
         let mut info = png::Info::with_size(width, height);
@@ -621,7 +628,6 @@ impl<W: Write> PngEncoder<W> {
         encoder.set_depth(bits);
         encoder.set_compression(comp);
         encoder.set_filter(filter);
-        encoder.set_adaptive_filter(adaptive_filter);
         let mut writer = encoder
             .write_header()
             .map_err(|e| ImageError::IoError(e.into()))?;

@@ -45,7 +45,6 @@ impl<R: BufRead + Seek> PngDecoder<R> {
 
         let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
         let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
-        decoder.set_ignore_text_chunk(true);
 
         let info = decoder.read_header_info().map_err(ImageError::from_png)?;
         limits.check_dimensions(info.width, info.height)?;

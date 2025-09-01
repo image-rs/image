@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
 
-use png::{BlendOp, DisposeOp};
+use png::{BlendOp, DeflateCompression, DisposeOp};
 
 use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
@@ -498,6 +498,7 @@ impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
 pub struct PngEncoder<W: Write> {
     w: W,
     compression: CompressionType,
+    deflate_compression: Option<DeflateCompressionType>,
     filter: FilterType,
     icc_profile: Vec<u8>,
     exif_metadata: Vec<u8>,
@@ -541,12 +542,57 @@ pub enum FilterType {
     Adaptive,
 }
 
+/// Advanced compression settings with more customization options than [CompressionType].
+///
+/// Note that this setting only affects DEFLATE compression.
+/// Another setting that influences the compression ratio and lets you choose
+/// between encoding speed and compression ratio is the [FilterType].
+///
+/// ### Stability guarantees
+///
+/// The implementation details of DEFLATE compression may evolve over time,
+/// even without a semver-breaking change to the version of this crate.
+///
+/// If a certain compression setting is superseded by other options,
+/// it may be marked deprecated and remapped to a different option.
+/// You will see a deprecation notice when compiling code relying on such options.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
+pub enum DeflateCompressionType {
+    /// Do not compress the data at all.
+    ///
+    /// Useful for incompressible images, or when speed is paramount and you don't care about size
+    /// at all.
+    ///
+    /// This mode also disables filters, forcing [Filter::NoFilter].
+    NoCompression,
+
+    /// Excellent for creating lightly compressed PNG images very quickly.
+    ///
+    /// Uses the [fdeflate](https://crates.io/crates/fdeflate) crate under the hood to achieve
+    /// speeds far exceeding what libpng is capable of while still providing a decent compression
+    /// ratio.
+    FdeflateUltraFast,
+
+    /// Compression level between 1 and 9, where higher values mean better compression at the cost of
+    /// speed.
+    ///
+    /// This is currently implemented via [flate2](https://crates.io/crates/flate2) crate
+    /// by passing through the [compression level](flate2::Compression::new).
+    ///
+    /// The implementation details and the exact meaning of each level may change in the future,
+    /// including in semver-compatible releases.
+    Level(u8),
+    // Other variants can be added in the future
+}
+
 impl<W: Write> PngEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PngEncoder<W> {
         PngEncoder {
             w,
             compression: CompressionType::default(),
+            deflate_compression: None,
             filter: FilterType::default(),
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
@@ -573,10 +619,16 @@ impl<W: Write> PngEncoder<W> {
         PngEncoder {
             w,
             compression,
+            deflate_compression: None,
             filter,
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
         }
+    }
+
+    /// Sets the DEFLATE compression level for this encoder. See [DeflateCompressionType] for more info.
+    pub fn set_deflate_compression(&mut self, compression: DeflateCompressionType) {
+        self.deflate_compression = Some(compression)
     }
 
     fn encode_inner(
@@ -620,6 +672,12 @@ impl<W: Write> PngEncoder<W> {
             FilterType::Adaptive => png::Filter::Adaptive,
         };
 
+        let deflate_compression = self.deflate_compression.map(|c| match c {
+            DeflateCompressionType::NoCompression => DeflateCompression::NoCompression,
+            DeflateCompressionType::FdeflateUltraFast => DeflateCompression::FdeflateUltraFast,
+            DeflateCompressionType::Level(n) => DeflateCompression::Level(n),
+        });
+
         let mut info = png::Info::with_size(width, height);
 
         if !self.icc_profile.is_empty() {
@@ -636,6 +694,9 @@ impl<W: Write> PngEncoder<W> {
         encoder.set_depth(bits);
         encoder.set_compression(comp);
         encoder.set_filter(filter);
+        if let Some(advanced_comp) = deflate_compression {
+            encoder.set_deflate_compression(advanced_comp);
+        }
         let mut writer = encoder
             .write_header()
             .map_err(|e| ImageError::IoError(e.into()))?;

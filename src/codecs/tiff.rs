@@ -43,6 +43,7 @@ where
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
+
         match inner.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
@@ -297,6 +298,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+
         match self
             .inner
             .unwrap()

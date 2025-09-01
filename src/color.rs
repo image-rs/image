@@ -154,6 +154,8 @@ pub enum ExtendedColorType {
 
     /// Pixel is 8-bit CMYK
     Cmyk8,
+    /// Pixel is 16-bit CMYK
+    Cmyk16,
 
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
@@ -195,7 +197,8 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgba16
             | ExtendedColorType::Rgba32F
             | ExtendedColorType::Bgra8
-            | ExtendedColorType::Cmyk8 => 4,
+            | ExtendedColorType::Cmyk8
+            | ExtendedColorType::Cmyk16 => 4,
         }
     }
 
@@ -229,6 +232,7 @@ impl ExtendedColorType {
             ExtendedColorType::Bgr8 => 24,
             ExtendedColorType::Bgra8 => 32,
             ExtendedColorType::Cmyk8 => 32,
+            ExtendedColorType::Cmyk16 => 64,
             ExtendedColorType::Unknown(bpp) => bpp as u16,
         }
     }

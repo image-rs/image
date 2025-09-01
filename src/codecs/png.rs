@@ -614,11 +614,14 @@ impl<W: Write> PngEncoder<W> {
             CompressionType::Best => png::Compression::High,
             CompressionType::Fast => png::Compression::Fast,
             CompressionType::Uncompressed => png::Compression::NoCompression,
+            CompressionType::Level(0) => png::Compression::NoCompression,
             CompressionType::Level(_) => png::Compression::Fast, // whatever, will be overridden
         };
 
         let advanced_comp = match self.compression {
-            CompressionType::Level(n) => Some(DeflateCompression::Level(n)),
+            // Do not set level 0 as a Zlib level to avoid Zlib backend variance.
+            // For example, in miniz_oxide level 0 is very slow.
+            CompressionType::Level(n @ 1..) => Some(DeflateCompression::Level(n)),
             _ => None,
         };
 

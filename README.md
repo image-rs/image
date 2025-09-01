@@ -43,8 +43,8 @@ image format encoders and decoders.](https://docs.rs/image/latest/image/codecs/i
 Decoding support for additional image formats is provided by
 [`image-extras`](https://github.com/image-rs/image-extras), and the same plugin
 interface lets third-party crates act as format implementations for `image`. If
-the format you need to handle some other image format, check crates.io for
-crates that implement it.
+you need to handle some other image format, check crates.io for crates that
+implement it.
 
 ## Feature Flags
 

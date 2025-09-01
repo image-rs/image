@@ -6,6 +6,34 @@
 
 ## Changes
 
+### Version 0.25.7
+
+Features:
+  - Added an API for external image format implementations to register themselves as decoders for a specific format in `image` (#2372)
+  - Added [CICP](https://www.color.org/iccmax/download/CICP_tag_and_type_amendment.pdf) awarenes via [moxcms](https://crates.io/crates/moxcms) to support color spaces (#2531). The support for transforming is limited for now and will be gradually expanded.
+  - You can now embed Exif metadata when writing JPEG, PNG and WebP images (#2537, #2539)
+  - Added functions to extract orientation from Exif metadata and optionally clear it in the Exif chunk (#2484)
+  - Serde support for more types (#2445)
+  - PNM encoder now supports writing 16-bit images (#2431)
+
+API improvements:
+  - `save`, `save_with_format`, `write_to` and `write_with_encoder` methods on `DynamicImage` now automatically convert the pixel format when necessary instead of returning an error (#2501)
+  - Added `DynamicImage::has_alpha()` convenience method
+  - Implemented `TryFrom<ExtendedColorType>` for `ColorType` (#2444)
+  - Added `const HAS_ALPHA` to trait `Pixel`
+  - Unified the error for unsupported encoder colors (#2543)
+  - Added a `hooks` module to customize builtin behavior, `register_format_detection_hook` and  `register_decoding_hook` for the determining format of a file and selecting an `ImageDecoder` implementation respectively. (#2372)
+
+Performance improvements:
+  - Gaussian blur (#2496) and box blur (#2515) are now faster
+  - Improve compilation times by avoiding unnecessary instantiation of generic functions (#2468, #2470)
+
+Bug fixes:
+  - Many improvements to image format decoding: TIFF, WebP, AVIF, PNG, GIF, BMP, TGA
+  - Fixed `GifEncoder::encode()` ignoring the speed parameter and always using the slowest speed (#2504)
+  - `.pnm` is now recognized as a file extension for the PNM format (#2559)
+
+
 ### Version 0.25.6
 
 Features:

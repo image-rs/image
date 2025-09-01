@@ -557,7 +557,7 @@ pub enum FilterType {
 /// it may be marked deprecated and remapped to a different option.
 /// You will see a deprecation notice when compiling code relying on such options.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum DeflateCompressionType {
     /// Do not compress the data at all.
     ///

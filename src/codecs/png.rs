@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
 
-use png::{BlendOp, DisposeOp};
+use png::{BlendOp, DeflateCompression, DisposeOp};
 
 use crate::animation::{Delay, Frame, Frames, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
@@ -503,7 +503,7 @@ pub struct PngEncoder<W: Write> {
     exif_metadata: Vec<u8>,
 }
 
-/// Compression level of a PNG encoder. The default setting is `Fast`.
+/// DEFLATE compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 #[derive(Default)]
@@ -515,6 +515,8 @@ pub enum CompressionType {
     Fast,
     /// High compression level
     Best,
+    /// Detailed compression level between 1 and 9
+    Level(u8),
 }
 
 /// Filter algorithms used to process image data to improve compression.
@@ -608,7 +610,13 @@ impl<W: Write> PngEncoder<W> {
         let comp = match self.compression {
             CompressionType::Default => png::Compression::Balanced,
             CompressionType::Best => png::Compression::High,
-            _ => png::Compression::Fast,
+            CompressionType::Fast => png::Compression::Fast,
+            CompressionType::Level(_) => png::Compression::Fast, // whatever, will be overridden
+        };
+
+        let advanced_comp = match self.compression {
+            CompressionType::Level(n) => Some(DeflateCompression::Level(n)),
+            _ => None,
         };
 
         let filter = match self.filter {
@@ -635,6 +643,9 @@ impl<W: Write> PngEncoder<W> {
         encoder.set_color(ct);
         encoder.set_depth(bits);
         encoder.set_compression(comp);
+        if let Some(compression) = advanced_comp {
+            encoder.set_deflate_compression(compression);
+        }
         encoder.set_filter(filter);
         let mut writer = encoder
             .write_header()

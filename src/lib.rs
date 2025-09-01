@@ -208,27 +208,23 @@ pub use crate::images::flat;
 ///
 /// # Supported formats
 ///
-/// <!--- NOTE: Make sure to keep this table in sync with the README -->
-///
-/// | Format   | Decoding                                  | Encoding                                |
-/// | -------- | ----------------------------------------- | --------------------------------------- |
-/// | AVIF     | Yes \*                                    | Yes (lossy only)                        |
-/// | BMP      | Yes                                       | Yes                                     |
-/// | DDS      | Yes                                       | ---                                     |
-/// | Farbfeld | Yes                                       | Yes                                     |
-/// | GIF      | Yes                                       | Yes                                     |
-/// | HDR      | Yes                                       | Yes                                     |
-/// | ICO      | Yes                                       | Yes                                     |
-/// | JPEG     | Yes                                       | Yes                                     |
-/// | EXR      | Yes                                       | Yes                                     |
-/// | PNG      | Yes                                       | Yes                                     |
-/// | PNM      | Yes                                       | Yes                                     |
-/// | QOI      | Yes                                       | Yes                                     |
-/// | TGA      | Yes                                       | Yes                                     |
-/// | TIFF     | Yes                                       | Yes                                     |
-/// | WebP     | Yes                                       | Yes (lossless only)                     |
-///
-/// - \* Requires the `avif-native` feature, uses the libdav1d C library.
+/// | Feature | Format   | Notes
+/// | ------- | -------- | -----
+/// | `avif`  | AVIF     | Decoding requires the `avif-native` feature, uses the libdav1d C library.
+/// | `bmp`   | BMP      |
+/// | `dds`   | DDS      | Only decoding is supported.
+/// | `exr`   | OpenEXR  |
+/// | `ff`    | Farbfeld |
+/// | `gif`   | GIF      |
+/// | `hdr`   | HDR      |
+/// | `ico`   | ICO      |
+/// | `jpeg`  | JPEG     |
+/// | `png`   | PNG      |
+/// | `pnm`   | PNM      |
+/// | `qoi`   | QOI      |
+/// | `tga`   | TGA      |
+/// | `tiff`  | TIFF     |
+/// | `webp`  | WebP     | Only lossless encoding is currently supported.
 ///
 /// ## A note on format specific features
 ///

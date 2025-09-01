@@ -37,46 +37,25 @@ img2.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
 
 ## Supported Image Formats
 
-With default features enabled, `image` provides implementations of many common
-image format encoders and decoders.
+With default features enabled, `image` provides implementations of [many common
+image format encoders and decoders.](https://docs.rs/image/latest/image/codecs/index.html#supported-formats)
 
-<!--- NOTE: Make sure to keep this table in sync with the one in src/lib.rs -->
+Decoding support for additional image formats is provided by
+[`image-extras`](https://github.com/image-rs/image-extras), and the same plugin
+interface lets third-party crates act as format implementations for `image`. If
+the format you need to handle some other image format, check crates.io for
+crates that implement it.
 
-| Format   | Decoding                                  | Encoding                                | Feature |
-| -------- | ----------------------------------------- | --------------------------------------- | ------- |
-| AVIF     | Yes \*                                    | Yes (lossy only)                        | `avif` |
-| BMP      | Yes                                       | Yes                                     | `bmp` |
-| DDS      | Yes                                       | ---                                     | `dds` |
-| Farbfeld | Yes                                       | Yes                                     | `ff` |
-| GIF      | Yes                                       | Yes                                     | `gif` |
-| HDR      | Yes                                       | Yes                                     | `hdr` |
-| ICO      | Yes                                       | Yes                                     | `ico` |
-| JPEG     | Yes                                       | Yes                                     | `jpeg` |
-| EXR      | Yes                                       | Yes                                     | `exr` |
-| PNG      | Yes                                       | Yes                                     | `png` |
-| PNM      | Yes                                       | Yes                                     | `pnm` |
-| QOI      | Yes                                       | Yes                                     | `qoi` |
-| TGA      | Yes                                       | Yes                                     | `tga` |
-| TIFF     | Yes                                       | Yes                                     | `tiff` |
-| WebP     | Yes                                       | Yes (lossless only)                     | `webp` |
+## Feature Flags
 
-- \* Requires the `avif-native` feature, uses the libdav1d C library.
-
-Decoding support for additional image formats not listed above is provided by [image-extras](https://github.com/image-rs/image-extras).
-
-We also provide a plugin interface that lets third-party crates act as format implementations for `image`.
-If the format you need is not listed above, check crates.io for crates that implement it.
-
-Other feature flags for the `image` crate:
-
-| Feature       | Description
-| ------------- | -----------
-| `rayon`       | Enables multi-threading with rayon context in some dependencies
-| `nasm`        | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
-| `color_quant` | Includes `color_quant` as an implementation of `imageops::ColorMap`
-| `avif-native` | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
-| `serde`       | Enables `serde` integration for various structs and options
-| `benchmarks`  | This feature is used (internally) for benchmark dependencies
+| Feature           | Description
+| ----------------- | -----------
+| `default-formats` | Format support for common image formats: AVIF, BMP, DDS, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
+| `rayon`           | Enables multi-threading with rayon context in some dependencies
+| `nasm`            | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
+| `color_quant`     | Includes `color_quant` as an implementation of `imageops::ColorMap`
+| `avif-native`     | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
+| `serde`           | Enables `serde` integration for various structs and options
 
 ## Image Types
 

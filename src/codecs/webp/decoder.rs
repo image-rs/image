@@ -84,6 +84,12 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         Ok(exif)
     }
 
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner
+            .xmp_metadata()
+            .map_err(ImageError::from_webp_decode)
+    }
+
     fn orientation(&mut self) -> ImageResult<Orientation> {
         // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
         if self.orientation.is_none() {

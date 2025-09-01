@@ -20,6 +20,8 @@ use crate::error::{
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
+const TAG_XML_PACKET: Tag = Tag::Unknown(700);
+
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
 where
@@ -262,6 +264,24 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         } else {
             Ok(None)
         }
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let Some(decoder) = &mut self.inner else {
+            return Ok(None);
+        };
+
+        let value = match decoder.get_tag(TAG_XML_PACKET) {
+            Ok(value) => value,
+            Err(tiff::TiffError::FormatError(tiff::TiffFormatError::RequiredTagNotFound(_))) => {
+                return Ok(None);
+            }
+            Err(err) => return Err(ImageError::from_tiff_decode(err)),
+        };
+        value
+            .into_u8_vec()
+            .map(Some)
+            .map_err(ImageError::from_tiff_decode)
     }
 
     fn orientation(&mut self) -> ImageResult<Orientation> {

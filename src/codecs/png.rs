@@ -515,6 +515,8 @@ pub enum CompressionType {
     Fast,
     /// High compression level
     Best,
+    /// No compression whatsoever
+    Uncompressed,
     /// Detailed compression level between 1 and 9
     Level(u8),
 }
@@ -611,6 +613,7 @@ impl<W: Write> PngEncoder<W> {
             CompressionType::Default => png::Compression::Balanced,
             CompressionType::Best => png::Compression::High,
             CompressionType::Fast => png::Compression::Fast,
+            CompressionType::Uncompressed => png::Compression::NoCompression,
             CompressionType::Level(_) => png::Compression::Fast, // whatever, will be overridden
         };
 

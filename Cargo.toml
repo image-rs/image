@@ -116,3 +116,8 @@ harness = false
 path = "benches/blur.rs"
 name = "blur"
 harness = false
+
+# because of https://github.com/image-rs/image/pull/2583
+# TODO: remove when shipping the next major release after 0.25
+[package.metadata.cargo-semver-checks.lints]
+enum_discriminants_undefined_non_unit_variant = { level = "warn" }

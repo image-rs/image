@@ -1582,29 +1582,49 @@ mod tests {
     fn transform_pixels_srgb_16() {
         // Non-constant luminance so:
         // Y = dot(rgb, coefs)
-        let data = [u16::MAX];
+        let data = [u16::MAX / 2];
         let color = Cicp::SRGB.into_rgb();
         let rgba = color.cast_pixels::<Luma<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(rgba, [u8::MAX; 3]);
+        assert_eq!(rgba, [127; 3]);
         let luma = color.cast_pixels::<Luma<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(luma, [u8::MAX]);
+        assert_eq!(luma, [127]);
         let luma_a = color.cast_pixels::<Luma<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(luma_a, [u8::MAX, 255]);
+        assert_eq!(luma_a, [127, 255]);
+
+        let data = [u16::MAX / 2 + 1];
+        let color = Cicp::SRGB.into_rgb();
+        let rgba = color.cast_pixels::<Luma<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(rgba, [128; 3]);
+        let luma = color.cast_pixels::<Luma<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [128]);
+        let luma_a = color.cast_pixels::<Luma<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma_a, [128, 255]);
     }
 
     #[test]
     fn transform_pixels_srgb_luma_alpha() {
         // Non-constant luminance so:
         // Y = dot(rgb, coefs)
-        let data = [u16::MAX, u16::MAX];
+        let data = [u16::MAX / 2, u16::MAX];
         let color = Cicp::SRGB.into_rgb();
         let rgba = color.cast_pixels::<LumaA<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(rgba, [u8::MAX; 3]);
+        assert_eq!(rgba, [127; 3]);
         let luma = color.cast_pixels::<LumaA<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(luma, [u8::MAX]);
+        assert_eq!(luma, [127]);
         let luma = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(luma, [u8::MAX, u8::MAX]);
+        assert_eq!(luma, [127, u8::MAX]);
         let luma_a = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(luma_a, [u8::MAX, 255]);
+        assert_eq!(luma_a, [127, 255]);
+
+        let data = [u16::MAX / 2 + 1, u16::MAX];
+        let color = Cicp::SRGB.into_rgb();
+        let rgba = color.cast_pixels::<LumaA<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(rgba, [128; 3]);
+        let luma = color.cast_pixels::<LumaA<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [128]);
+        let luma = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma, [128, u8::MAX]);
+        let luma_a = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
+        assert_eq!(luma_a, [128, 255]);
     }
 }

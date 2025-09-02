@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.25.7"
+version = "0.25.8"
 edition = "2021"
 resolver = "2"
 

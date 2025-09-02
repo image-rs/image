@@ -315,7 +315,7 @@ pub struct CicpTransform {
     u8: RgbTransforms<u8>,
     u16: RgbTransforms<u16>,
     f32: RgbTransforms<f32>,
-    input_coefs: [f32; 3],
+    // Converting RGB to Y in the output.
     output_coefs: [f32; 3],
 }
 
@@ -350,7 +350,10 @@ impl CicpTransform {
             return None;
         }
 
-        let input_coefs = from.into_rgb().derived_luminance()?;
+        // Unused, but introduces symmetry to the supported color space transforms. That said we
+        // calculate the derived luminance coefficients for all color that have a matching moxcms
+        // profile so this really should not block anything.
+        let _input_coefs = from.into_rgb().derived_luminance()?;
         let output_coefs = into.into_rgb().derived_luminance()?;
 
         let mox_from = from.to_moxcms_compute_profile()?;
@@ -389,7 +392,6 @@ impl CicpTransform {
                         .ok()
                 }),
                 f32_fallback.clone(),
-                input_coefs,
                 output_coefs,
             )?,
             u16: Self::build_transforms(
@@ -402,16 +404,13 @@ impl CicpTransform {
                         .ok()
                 }),
                 f32_fallback.clone(),
-                input_coefs,
                 output_coefs,
             )?,
             f32: Self::build_transforms(
                 f32_fallback.clone().map(Some),
                 f32_fallback.clone(),
-                input_coefs,
                 output_coefs,
             )?,
-            input_coefs,
             output_coefs,
         })
     }
@@ -452,7 +451,6 @@ impl CicpTransform {
     fn build_transforms<P: ColorComponentForCicp + Default + 'static>(
         trs: [Option<Arc<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 4],
         f32: [Arc<dyn moxcms::TransformExecutor<f32> + Send + Sync>; 4],
-        input_coef: [f32; 3],
         output_coef: [f32; 3],
     ) -> Option<RgbTransforms<P>> {
         // We would use `[array]::try_map` here, but it is not stable yet.
@@ -484,7 +482,7 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgb(luma, ibuffer);
                         tr33.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgb(obuffer, output);
                     }
@@ -497,7 +495,7 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgb(luma, ibuffer);
                         tr34.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgba(obuffer, output);
                     }
@@ -510,7 +508,7 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgba(luma, ibuffer);
                         tr43.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgb(obuffer, output);
                     }
@@ -523,7 +521,7 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgba(luma, ibuffer);
                         tr44.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgba(obuffer, output);
                     }
@@ -613,7 +611,7 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgb(luma, ibuffer);
                         tr33.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
@@ -627,7 +625,7 @@ impl CicpTransform {
                         let n = luma.len();
                         let ibuffer = &mut ibuffer[..3 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgb(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgb(luma, ibuffer);
                         tr34.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
@@ -641,7 +639,7 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgba(luma, ibuffer);
                         tr43.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgb_luma(obuffer, output, output_coef);
                     }
@@ -655,7 +653,7 @@ impl CicpTransform {
                         let n = luma.len() / 2;
                         let ibuffer = &mut ibuffer[..4 * n];
                         let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgba(luma, ibuffer, input_coef);
+                        Self::expand_luma_rgba(luma, ibuffer);
                         tr44.transform(ibuffer, obuffer).expect("transform failed");
                         Self::clamp_rgba_luma(obuffer, output, output_coef);
                     }
@@ -731,14 +729,12 @@ impl CicpTransform {
                     CicpTransform::expand_luma_rgb(
                         &buf.inner_pixels()[start_idx..end_idx],
                         &mut ibuffer[..3 * count],
-                        self.input_coefs,
                     );
                 }
                 DynamicImage::ImageLumaA8(buf) => {
                     CicpTransform::expand_luma_rgba(
                         &buf.inner_pixels()[2 * start_idx..2 * end_idx],
                         &mut ibuffer[..4 * count],
-                        self.input_coefs,
                     );
                 }
                 DynamicImage::ImageRgb8(buf) => {
@@ -757,14 +753,12 @@ impl CicpTransform {
                     CicpTransform::expand_luma_rgb(
                         &buf.inner_pixels()[start_idx..end_idx],
                         &mut ibuffer[..3 * count],
-                        self.input_coefs,
                     );
                 }
                 DynamicImage::ImageLumaA16(buf) => {
                     CicpTransform::expand_luma_rgba(
                         &buf.inner_pixels()[2 * start_idx..2 * end_idx],
                         &mut ibuffer[..4 * count],
-                        self.input_coefs,
                     );
                 }
                 DynamicImage::ImageRgb16(buf) => {
@@ -903,29 +897,21 @@ impl CicpTransform {
         (LayoutWithColor::Rgba, LayoutWithColor::Rgba),
     ];
 
-    pub(crate) fn expand_luma_rgb<P: ColorComponentForCicp>(
-        luma: &[P],
-        rgb: &mut [f32],
-        coef: [f32; 3],
-    ) {
+    pub(crate) fn expand_luma_rgb<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
         for (&pix, rgb) in luma.iter().zip(rgb.chunks_exact_mut(3)) {
             let luma = pix.expand_to_f32();
-            rgb[0] = luma * coef[0];
-            rgb[1] = luma * coef[1];
-            rgb[2] = luma * coef[2];
+            rgb[0] = luma;
+            rgb[1] = luma;
+            rgb[2] = luma;
         }
     }
 
-    pub(crate) fn expand_luma_rgba<P: ColorComponentForCicp>(
-        luma: &[P],
-        rgb: &mut [f32],
-        coef: [f32; 3],
-    ) {
+    pub(crate) fn expand_luma_rgba<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
         for (pix, rgb) in luma.chunks_exact(2).zip(rgb.chunks_exact_mut(4)) {
             let luma = pix[0].expand_to_f32();
-            rgb[0] = luma * coef[0];
-            rgb[1] = luma * coef[1];
-            rgb[2] = luma * coef[2];
+            rgb[0] = luma;
+            rgb[1] = luma;
+            rgb[2] = luma;
             rgb[3] = pix[1].expand_to_f32();
         }
     }
@@ -1085,16 +1071,12 @@ impl CicpRgb {
                 Layout::Rgba => {
                     CicpTransform::expand_rgba(&buffer[4 * start_idx..4 * end_idx], ibuffer)
                 }
-                Layout::Luma => CicpTransform::expand_luma_rgb(
-                    &buffer[start_idx..end_idx],
-                    ibuffer,
-                    color_space_coefs,
-                ),
-                Layout::LumaAlpha => CicpTransform::expand_luma_rgba(
-                    &buffer[2 * start_idx..2 * end_idx],
-                    ibuffer,
-                    color_space_coefs,
-                ),
+                Layout::Luma => {
+                    CicpTransform::expand_luma_rgb(&buffer[start_idx..end_idx], ibuffer)
+                }
+                Layout::LumaAlpha => {
+                    CicpTransform::expand_luma_rgba(&buffer[2 * start_idx..2 * end_idx], ibuffer)
+                }
             }
 
             // Add or subtract the alpha channel. We could do that as part of the store but this
@@ -1603,7 +1585,7 @@ mod tests {
         let data = [u16::MAX];
         let color = Cicp::SRGB.into_rgb();
         let rgba = color.cast_pixels::<Luma<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(rgba, [54, 182, 18]);
+        assert_eq!(rgba, [u8::MAX; 3]);
         let luma = color.cast_pixels::<Luma<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
         assert_eq!(luma, [u8::MAX]);
         let luma_a = color.cast_pixels::<Luma<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);
@@ -1617,7 +1599,7 @@ mod tests {
         let data = [u16::MAX, u16::MAX];
         let color = Cicp::SRGB.into_rgb();
         let rgba = color.cast_pixels::<LumaA<u16>, Rgb<u8>>(&data, &no_coefficient_fallback);
-        assert_eq!(rgba, [54, 182, 18]);
+        assert_eq!(rgba, [u8::MAX; 3]);
         let luma = color.cast_pixels::<LumaA<u16>, Luma<u8>>(&data, &no_coefficient_fallback);
         assert_eq!(luma, [u8::MAX]);
         let luma = color.cast_pixels::<LumaA<u16>, LumaA<u8>>(&data, &no_coefficient_fallback);

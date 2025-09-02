@@ -2066,7 +2066,24 @@ mod test {
         let result = target.copy_from_color_space(&source, Default::default());
 
         assert!(result.is_ok(), "{result:?}");
-        assert_eq!(target[(0, 0)], Rgba([54u8, 182, 18, 255]));
+        assert_eq!(target[(0, 0)], Rgba([u8::MAX; 4]));
+    }
+
+    #[test]
+    fn rgb_to_gray_conversion() {
+        let mut source = ImageBuffer::from_fn(128, 128, |_, _| Rgb([128u8; 3]));
+        let mut target = ImageBuffer::from_fn(128, 128, |_, _| Luma(Default::default()));
+
+        source.set_rgb_primaries(Cicp::SRGB.primaries);
+        source.set_transfer_function(Cicp::SRGB.transfer);
+
+        target.set_rgb_primaries(Cicp::SRGB.primaries);
+        target.set_transfer_function(Cicp::SRGB.transfer);
+
+        let result = target.copy_from_color_space(&source, Default::default());
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(target[(0, 0)], Luma([128u8]));
     }
 
     #[test]

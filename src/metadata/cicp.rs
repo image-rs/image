@@ -1249,7 +1249,8 @@ impl ColorComponentForCicp for u8 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        (val * Self::MAX as f32 + 0.5).clamp(0., Self::MAX as f32) as u8
+        // Note: saturating conversion does the clamp for us
+        (val * Self::MAX as f32).round() as u8
     }
 }
 
@@ -1261,7 +1262,8 @@ impl ColorComponentForCicp for u16 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        (val * Self::MAX as f32 + 0.5).clamp(0., Self::MAX as f32) as u16
+        // Note: saturating conversion does the clamp for us
+        (val * Self::MAX as f32).round() as u16
     }
 }
 

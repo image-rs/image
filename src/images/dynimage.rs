@@ -2063,11 +2063,13 @@ mod test {
 
         let luma8 = buffer.clone().into_luma8();
         assert_eq!(luma8[(0, 0)], Luma([58u8]));
+        assert_eq!(luma8.color_space(), Cicp::DISPLAY_P3);
 
         buffer.set_rgb_primaries(Cicp::SRGB.primaries);
 
         let luma8 = buffer.clone().into_luma8();
         assert_eq!(luma8[(0, 0)], Luma([54u8]));
+        assert_ne!(luma8.color_space(), Cicp::DISPLAY_P3);
     }
 
     #[test]
@@ -2080,41 +2082,84 @@ mod test {
         buffer.set_transfer_function(Cicp::DISPLAY_P3.transfer);
 
         let rgb8 = buffer.clone().into_rgb8();
-        assert_eq!(rgb8[(0, 0)], Rgb([58u8, 176u8, 20u8]));
+        assert_eq!(rgb8[(0, 0)], Rgb([u8::MAX; 3]));
+        assert_eq!(rgb8.color_space(), Cicp::DISPLAY_P3);
 
         buffer.set_rgb_primaries(Cicp::SRGB.primaries);
 
         let rgb8 = buffer.clone().into_rgb8();
-        assert_eq!(rgb8[(0, 0)], Rgb([54u8, 182u8, 18u8]));
+        assert_eq!(rgb8[(0, 0)], Rgb([u8::MAX; 3]));
+        assert_ne!(rgb8.color_space(), Cicp::DISPLAY_P3);
     }
 
     #[test]
     fn from_luma_for_all_chromaticities() {
-        const CHROMA: &[(CicpColorPrimaries, [u8; 3])] = &[
-            (CicpColorPrimaries::SRgb, [54, 182, 18]),
-            (CicpColorPrimaries::RgbM, [76, 150, 29]),
-            (CicpColorPrimaries::RgbB, [57, 180, 18]),
-            (CicpColorPrimaries::Bt601, [54, 179, 22]),
-            (CicpColorPrimaries::Rgb240m, [54, 179, 22]),
-            (CicpColorPrimaries::GenericFilm, [65, 173, 17]),
-            (CicpColorPrimaries::Rgb2020, [67, 173, 15]),
+        const CHROMA: &[CicpColorPrimaries] = &[
+            (CicpColorPrimaries::SRgb),
+            (CicpColorPrimaries::RgbM),
+            (CicpColorPrimaries::RgbB),
+            (CicpColorPrimaries::Bt601),
+            (CicpColorPrimaries::Rgb240m),
+            (CicpColorPrimaries::GenericFilm),
+            (CicpColorPrimaries::Rgb2020),
             // Note: here red=X and blue=Z and both are free of luminance
-            (CicpColorPrimaries::Xyz, [0, 255, 0]),
-            (CicpColorPrimaries::SmpteRp431, [53, 184, 18]),
-            (CicpColorPrimaries::SmpteRp432, [58, 176, 20]),
-            (CicpColorPrimaries::Industry22, [59, 171, 24]),
+            (CicpColorPrimaries::Xyz),
+            (CicpColorPrimaries::SmpteRp431),
+            (CicpColorPrimaries::SmpteRp432),
+            (CicpColorPrimaries::Industry22),
             // Falls back to sRGB
-            (CicpColorPrimaries::Unspecified, [54, 182, 18]),
+            (CicpColorPrimaries::Unspecified),
         ];
 
         let mut buffer = super::DynamicImage::ImageLuma16({
             ImageBuffer::from_fn(128, 128, |_, _| Luma([u16::MAX]))
         });
 
-        for &(chroma, expected) in CHROMA {
+        for &chroma in CHROMA {
             buffer.set_rgb_primaries(chroma);
             let rgb = buffer.to_rgb8();
-            assert_eq!(rgb[(0, 0)], Rgb(expected), "Failed for chroma: {chroma:?}");
+            assert_eq!(
+                rgb[(0, 0)],
+                Rgb([u8::MAX; 3]),
+                "Failed for chroma: {chroma:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_rgb_for_all_chromaticities() {
+        // The colors following the coefficients must result in a luma that is the square-root
+        // length of the coefficient vector, which is unique enough for a test.
+        const CHROMA: &[(CicpColorPrimaries, [u8; 3], u8)] = &[
+            (CicpColorPrimaries::SRgb, [54, 182, 18], 143),
+            (CicpColorPrimaries::RgbM, [76, 150, 29], 114),
+            (CicpColorPrimaries::RgbB, [57, 180, 18], 141),
+            (CicpColorPrimaries::Bt601, [54, 179, 22], 139),
+            (CicpColorPrimaries::Rgb240m, [54, 179, 22], 139),
+            (CicpColorPrimaries::GenericFilm, [65, 173, 17], 135),
+            (CicpColorPrimaries::Rgb2020, [67, 173, 15], 136),
+            // Note: here red=X and blue=Z and both are free of luminance
+            (CicpColorPrimaries::Xyz, [0, 255, 0], 255),
+            (CicpColorPrimaries::SmpteRp431, [53, 184, 18], 145),
+            (CicpColorPrimaries::SmpteRp432, [58, 176, 20], 137),
+            (CicpColorPrimaries::Industry22, [59, 171, 24], 131),
+            // Falls back to sRGB
+            (CicpColorPrimaries::Unspecified, [54, 182, 18], 143),
+        ];
+
+        let mut buffer = super::DynamicImage::ImageRgb8({
+            ImageBuffer::from_fn(128, 128, |_, _| Rgb([u8::MAX; 3]))
+        });
+
+        for &(chroma, rgb, luma) in CHROMA {
+            buffer.set_rgb_primaries(chroma);
+
+            for px in buffer.as_mut_rgb8().unwrap().pixels_mut() {
+                px.0 = rgb;
+            }
+
+            let buf = buffer.to_luma8();
+            assert_eq!(buf[(0, 0)], Luma([luma]), "Failed for chroma: {chroma:?}");
         }
     }
 

@@ -16,6 +16,9 @@ Features:
   - Serde support for more types (#2445)
   - PNM encoder now supports writing 16-bit images (#2431)
 
+Structural changes:
+  - Increased MSRV to 1.85.0 (from 1.78.0)
+
 API improvements:
   - `save`, `save_with_format`, `write_to` and `write_with_encoder` methods on `DynamicImage` now automatically convert the pixel format when necessary instead of returning an error (#2501)
   - Added `DynamicImage::has_alpha()` convenience method

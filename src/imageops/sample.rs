@@ -868,7 +868,7 @@ where
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
-pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
+pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32; 9]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,

@@ -82,6 +82,7 @@ where
             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
             tiff::ColorType::CMYK(8) => ColorType::Rgb8,
+            tiff::ColorType::CMYK(16) => ColorType::Rgb16,
             tiff::ColorType::RGB(32) => ColorType::Rgb32F,
             tiff::ColorType::RGBA(32) => ColorType::Rgba32F,
 
@@ -108,6 +109,7 @@ where
         let original_color_type = match tiff_color_type {
             tiff::ColorType::Gray(1) => ExtendedColorType::L1,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
+            tiff::ColorType::CMYK(16) => ExtendedColorType::Cmyk16,
             _ => color_type.into(),
         };
 
@@ -123,10 +125,11 @@ where
     fn total_bytes_buffer(&self) -> u64 {
         let dimensions = self.dimensions();
         let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
-        let bytes_per_pixel = if self.original_color_type == ExtendedColorType::Cmyk8 {
-            16
-        } else {
-            u64::from(self.color_type().bytes_per_pixel())
+
+        let bytes_per_pixel = match self.original_color_type {
+            ExtendedColorType::Cmyk8 => 4,
+            ExtendedColorType::Cmyk16 => 8,
+            _ => u64::from(self.color_type().bytes_per_pixel()),
         };
         total_pixels.saturating_mul(bytes_per_pixel)
     }
@@ -331,6 +334,12 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
                 }
             }
+            DecodingResult::U16(v) if self.original_color_type == ExtendedColorType::Cmyk16 => {
+                let mut out_cur = Cursor::new(buf);
+                for cmyk in v.chunks_exact(4) {
+                    out_cur.write_all(bytemuck::cast_slice(&cmyk_to_rgb16(cmyk)))?;
+                }
+            }
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::L1 => {
                 let width = self.dimensions.0;
                 let row_bytes = width.div_ceil(8);
@@ -396,6 +405,18 @@ fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
         ((255. - c) * kf) as u8,
         ((255. - m) * kf) as u8,
         ((255. - y) * kf) as u8,
+    ]
+}
+
+fn cmyk_to_rgb16(cmyk: &[u16]) -> [u16; 3] {
+    let c = f32::from(cmyk[0]);
+    let m = f32::from(cmyk[1]);
+    let y = f32::from(cmyk[2]);
+    let kf = 1. - f32::from(cmyk[3]) / 65535.;
+    [
+        ((65535. - c) * kf) as u16,
+        ((65535. - m) * kf) as u16,
+        ((65535. - y) * kf) as u16,
     ]
 }
 

@@ -893,10 +893,9 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
-    #[allow(clippy::redundant_guards)]
-    let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
+    let inverse_sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         x if x == 0.0 => 1.0,
-        sum => sum,
+        sum => 1.0 / sum,
     };
 
     for y in 1..height - 1 {
@@ -928,7 +927,12 @@ where
                 t.3 += vec.3 * k;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
+            let (t1, t2, t3, t4) = (
+                t.0 * inverse_sum,
+                t.1 * inverse_sum,
+                t.2 * inverse_sum,
+                t.3 * inverse_sum,
+            );
 
             #[allow(deprecated)]
             let t = Pixel::from_channels(

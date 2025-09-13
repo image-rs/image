@@ -898,7 +898,6 @@ where
         x if x == 0.0 => 1.0,
         sum => sum,
     };
-    let sum = (sum, sum, sum, sum);
 
     for y in 1..height - 1 {
         for x in 1..width - 1 {
@@ -908,7 +907,6 @@ where
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let k = (k, k, k, k);
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
@@ -924,13 +922,13 @@ where
                     NumCast::from(k4).unwrap(),
                 );
 
-                t.0 += vec.0 * k.0;
-                t.1 += vec.1 * k.1;
-                t.2 += vec.2 * k.2;
-                t.3 += vec.3 * k.3;
+                t.0 += vec.0 * k;
+                t.1 += vec.1 * k;
+                t.2 += vec.2 * k;
+                t.3 += vec.3 * k;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
 
             #[allow(deprecated)]
             let t = Pixel::from_channels(

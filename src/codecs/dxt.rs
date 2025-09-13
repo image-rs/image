@@ -196,6 +196,7 @@ fn alpha_table_dxt5(alpha0: u8, alpha1: u8) -> [u8; 8] {
 
 /// decodes an 8-byte dxt color block into the RGB channels of a 16xRGB or 16xRGBA block.
 /// source should have a length of 8, dest a length of 48 (RGB) or 64 (RGBA)
+#[allow(clippy::needless_range_loop)] // False positive, the 0..3 loop is not an enumerate
 fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     // sanity checks, also enable the compiler to elide all following bound checks
     assert!(source.len() == 8 && (dest.len() == 48 || dest.len() == 64));

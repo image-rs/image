@@ -116,3 +116,22 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
 
     Ok(())
 }
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff() -> Result<(), image::ImageError> {
+    const IPTC_TIFF_PATH: &str = "tests/images/tiff/testsuite/l1_iptc.tiff";
+    const EXPECTED_METADATA: &[u8] = &[
+        28, 2, 90, 0, 8, 75, 105, 110, 103, 115, 116, 111, 110, 28, 2, 0, 0, 2, 0, 4,
+    ];
+
+    let img_path = PathBuf::from_str(IPTC_TIFF_PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = tiff_decoder.iptc_metadata()?;
+    assert!(metadata.is_some());
+    assert_eq!(EXPECTED_METADATA, metadata.unwrap());
+
+    Ok(())
+}

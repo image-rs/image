@@ -731,7 +731,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
-                    ImageFormat::Hdr.into(),
+                    ImageFormat::Png.into(),
                     UnsupportedErrorKind::Color(color_type),
                 ),
             )),

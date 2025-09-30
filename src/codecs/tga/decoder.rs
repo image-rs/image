@@ -87,6 +87,13 @@ impl<R: Read> TgaDecoder<R> {
         let raw_bytes_per_pixel = (header.pixel_depth as usize).div_ceil(8);
         let num_alpha_bits = header.image_desc & ALPHA_BIT_MASK;
 
+        if width == 0 || height == 0 {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Tga.into(),
+                "Invalid empty image",
+            )));
+        }
+
         // Validate header
         if ![8, 16, 24, 32].contains(&header.pixel_depth) || ![0, 8].contains(&num_alpha_bits) {
             return Err(ImageError::Unsupported(

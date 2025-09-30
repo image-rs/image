@@ -6,7 +6,16 @@
 
 ## Changes
 
-### Version 0.25.7
+### Version 0.25.8
+
+Re-release of `0.25.7`
+
+Fixes:
+- Reverted a signature change to `load_from_memory` that lead to large scale
+  type inference breakage despite being technically compatible.
+- Color conversion Luma to Rgb used incorrect coefficients instead of broadcasting.
+
+### Version 0.25.7 (yanked)
 
 Features:
   - Added an API for external image format implementations to register themselves as decoders for a specific format in `image` (#2372)

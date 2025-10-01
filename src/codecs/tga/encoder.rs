@@ -11,6 +11,9 @@ enum EncoderError {
 
     /// Invalid TGA height.
     HeightInvalid(u32),
+
+    /// Empty
+    Empty(u32, u32),
 }
 
 impl fmt::Display for EncoderError {
@@ -18,6 +21,7 @@ impl fmt::Display for EncoderError {
         match self {
             EncoderError::WidthInvalid(s) => f.write_fmt(format_args!("Invalid TGA width: {s}")),
             EncoderError::HeightInvalid(s) => f.write_fmt(format_args!("Invalid TGA height: {s}")),
+            EncoderError::Empty(w, h) => f.write_fmt(format_args!("Invalid TGA size: {w}x{h}")),
         }
     }
 }
@@ -173,6 +177,10 @@ impl<W: Write> TgaEncoder<W> {
         );
 
         // Validate dimensions.
+        if width == 0 || height == 0 {
+            return Err(ImageError::from(EncoderError::Empty(width, height)));
+        }
+
         let width = u16::try_from(width)
             .map_err(|_| ImageError::from(EncoderError::WidthInvalid(width)))?;
 

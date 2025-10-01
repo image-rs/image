@@ -9,7 +9,7 @@ use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
-use tiff::decoder::{Decoder, DecodingResult};
+use tiff::decoder::{ifd::Value, Decoder, DecodingResult};
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -21,6 +21,8 @@ use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
 const TAG_XML_PACKET: Tag = Tag::Unknown(700);
+const TAG_PHOTOSHOP: Tag = Tag::Unknown(34377);
+const TAG_RICHTIFF_IPTC: Tag = Tag::Unknown(33723);
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -284,6 +286,30 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             .map_err(ImageError::from_tiff_decode)
     }
 
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let Some(decoder) = &mut self.inner else {
+            return Ok(None);
+        };
+
+        if let Ok(value) = decoder.get_tag(TAG_PHOTOSHOP) {
+            let mut result = Vec::new();
+            value_to_bytes(value, &mut result)?;
+            return Ok(Some(result));
+        }
+
+        let value = match decoder.get_tag(TAG_RICHTIFF_IPTC) {
+            Ok(value) => value,
+            Err(tiff::TiffError::FormatError(tiff::TiffFormatError::RequiredTagNotFound(_))) => {
+                return Ok(None);
+            }
+            Err(err) => return Err(ImageError::from_tiff_decode(err)),
+        };
+
+        let mut result = Vec::new();
+        value_to_bytes(value, &mut result)?;
+        Ok(Some(result))
+    }
+
     fn orientation(&mut self) -> ImageResult<Orientation> {
         if let Some(decoder) = &mut self.inner {
             Ok(decoder
@@ -509,4 +535,39 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
+}
+
+/// This method converts a `Value` to a vector of bytes. A `Value` in Tiff can have different
+/// types, e.g. a byte, a short or a float. This method intents to convert all these types to
+/// a vector of bytes (e.g. a u32 can be represented as a [u8; 4]). However, since this is only
+/// intended to parse values stored in XMP, IPTC and EXIF metadata sections, we ignore / return
+/// an error on a few Values that don't make sense in this context (e.g. Value::Ifd).
+fn value_to_bytes(value: Value, bytes: &mut Vec<u8>) -> ImageResult<()> {
+    match value {
+        Value::Byte(val) => bytes.push(val.to_le()),
+        Value::SignedByte(val) => bytes.push(val.to_le() as u8),
+        Value::Short(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::SignedShort(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::Signed(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::SignedBig(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::Unsigned(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::UnsignedBig(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::Float(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::Double(val) => bytes.extend_from_slice(&val.to_le_bytes()),
+        Value::List(values) => {
+            for value in values {
+                value_to_bytes(value, bytes)?;
+            }
+        }
+        Value::Ascii(val) => bytes.extend_from_slice(val.as_bytes()),
+        _ => {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature("unable to process metadata".to_owned()),
+                ),
+            ))
+        }
+    }
+    Ok(())
 }

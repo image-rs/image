@@ -30,6 +30,7 @@ where
     dimensions: (u32, u32),
     color_type: ColorType,
     original_color_type: ExtendedColorType,
+    start_pos: u64,
 
     // We only use an Option here so we can call with_limits on the decoder without moving.
     inner: Option<Decoder<R>>,
@@ -40,7 +41,8 @@ where
     R: BufRead + Seek,
 {
     /// Create a new `TiffDecoder`.
-    pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
+    pub fn new(mut r: R) -> Result<TiffDecoder<R>, ImageError> {
+        let start_pos = r.stream_position()?;
         let mut inner = Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
@@ -115,6 +117,7 @@ where
             dimensions,
             color_type,
             original_color_type,
+            start_pos,
             inner: Some(inner),
         })
     }
@@ -264,6 +267,27 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         } else {
             Ok(None)
         }
+    }
+
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let Some(decoder) = &mut self.inner else {
+            return Ok(None);
+        };
+
+        // Get access to the inner reader and remember the current position.
+        let reader = decoder.inner();
+        let last_pos = reader.stream_position()?;
+
+        // TIFF uses the same structure as EXIF, so we can just use the file itself
+        // as the source of decoding EXIF.
+        reader.seek(io::SeekFrom::Start(self.start_pos))?;
+        let mut result = Vec::new();
+        reader.read_to_end(&mut result)?;
+
+        // Restore the previous position.
+        reader.seek(io::SeekFrom::Start(last_pos))?;
+
+        Ok(Some(result))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

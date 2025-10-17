@@ -377,10 +377,9 @@ trait HeaderReader: Read {
         Ok(magic)
     }
 
-    /// Reads a string as well as a single whitespace after it, ignoring comments
-    fn read_next_string(&mut self) -> ImageResult<String> {
-        let mut bytes = Vec::new();
-
+    /// Reads an integer as well as a single whitespace after it, ignoring comments
+    /// and leading whitespace
+    fn read_next_u32(&mut self) -> ImageResult<u32> {
         // pair input bytes with a bool mask to remove comments
         #[allow(clippy::unbuffered_bytes)]
         let mark_comments = self.bytes().scan(true, |partof, read| {
@@ -394,10 +393,15 @@ trait HeaderReader: Read {
             Some((cur_enabled, Ok(byte)))
         });
 
+        // Streaming parse of the integer. To match Netpbm, this accepts values
+        // with leading zeros, like 000005, but no leading + or -
+        let mut value: u32 = 0;
+        let mut found_digit = false;
+
         for (_, byte) in mark_comments.filter(|e| e.0) {
             match byte {
                 Ok(b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ') => {
-                    if !bytes.is_empty() {
+                    if found_digit {
                         break; // We're done as we already have some content
                     }
                 }
@@ -405,26 +409,29 @@ trait HeaderReader: Read {
                     return Err(DecoderError::NonAsciiByteInHeader(byte).into())
                 }
                 Ok(byte) => {
-                    bytes.push(byte);
+                    let digit = match byte {
+                        b'0'..=b'9' => u32::from(byte - b'0'),
+                        _ => {
+                            return Err(DecoderError::InvalidDigit(ErrorDataSource::Preamble).into())
+                        }
+                    };
+                    value = value
+                        .checked_mul(10)
+                        .ok_or(DecoderError::Overflow(ErrorDataSource::Preamble))?;
+                    value = value
+                        .checked_add(digit)
+                        .ok_or(DecoderError::Overflow(ErrorDataSource::Preamble))?;
+                    found_digit = true;
                 }
                 Err(_) => break,
             }
         }
 
-        if bytes.is_empty() {
+        if !found_digit {
             return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into()));
         }
 
-        if !bytes.as_slice().is_ascii() {
-            // We have only filled the buffer with characters for which `byte.is_ascii()` holds.
-            unreachable!("Non-ASCII character should have returned sooner")
-        }
-
-        let string = String::from_utf8(bytes)
-            // We checked the precondition ourselves a few lines before, `bytes.as_slice().is_ascii()`.
-            .unwrap_or_else(|_| unreachable!("Only ASCII characters should be decoded"));
-
-        Ok(string)
+        Ok(value)
     }
 
     fn read_next_line(&mut self) -> ImageResult<String> {
@@ -439,12 +446,6 @@ trait HeaderReader: Read {
 
         String::from_utf8(buffer)
             .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e)))
-    }
-
-    fn read_next_u32(&mut self) -> ImageResult<u32> {
-        let s = self.read_next_string()?;
-        s.parse::<u32>()
-            .map_err(|err| DecoderError::UnparsableValue(ErrorDataSource::Preamble, s, err).into())
     }
 
     fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
@@ -1470,5 +1471,38 @@ ENDHDR
         let mut image = vec![0; decoder.total_bytes() as usize];
 
         let _ = decoder.read_image(&mut image).unwrap_err();
+    }
+
+    #[test]
+    fn no_integers_with_plus() {
+        let data = b"P3 +1 1 1\n";
+        assert!(PnmDecoder::new(&data[..]).is_err());
+    }
+
+    #[test]
+    fn incomplete_pnm_header() {
+        let data = b"P5 2 3 \n";
+        assert!(PnmDecoder::new(&data[..]).is_err());
+    }
+
+    #[test]
+    fn leading_zeros() {
+        let data = b"P2 03 00000000000002 00100\n011 22 033\n44 055 66\n";
+        let decoder = PnmDecoder::new(&data[..]).unwrap();
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        assert!(decoder.read_image(&mut image).is_ok());
+    }
+
+    #[test]
+    fn header_overflow() {
+        let data = b"P1 4294967295 4294967297\n";
+        assert!(PnmDecoder::new(&data[..]).is_err());
+    }
+
+    #[test]
+    fn header_large_dimension() {
+        let data = b"P4 1 01234567890\n";
+        let decoder = PnmDecoder::new(&data[..]).unwrap();
+        assert!(decoder.dimensions() == (1, 1234567890));
     }
 }

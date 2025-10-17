@@ -77,7 +77,7 @@ enum DecoderError {
     TupleTypeUnrecognised,
 
     /// Overflowed the specified value when parsing
-    Overflow,
+    Overflow(ErrorDataSource),
 }
 
 impl Display for DecoderError {
@@ -149,7 +149,9 @@ impl Display for DecoderError {
                 tuple_type.name()
             )),
             DecoderError::TupleTypeUnrecognised => f.write_str("Tuple type not recognized"),
-            DecoderError::Overflow => f.write_str("Overflow when parsing value"),
+            DecoderError::Overflow(src) => f.write_fmt(format_args!(
+                "Overflow when parsing integer in {src}"
+            ))
         }
     }
 }
@@ -657,12 +659,15 @@ impl<R: Read> PnmDecoder<R> {
                 let mut bytes = vec![];
                 self.reader.read_exact_vec(&mut bytes, bytecount)?;
 
-                let width: usize = width.try_into().map_err(|_| DecoderError::Overflow)?;
-                let components: usize =
-                    components.try_into().map_err(|_| DecoderError::Overflow)?;
+                let width: usize = width
+                    .try_into()
+                    .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
+                let components: usize = components
+                    .try_into()
+                    .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
                 let row_size = width
                     .checked_mul(components)
-                    .ok_or(DecoderError::Overflow)?;
+                    .ok_or(DecoderError::Overflow(ErrorDataSource::Sample))?;
 
                 S::from_bytes(&bytes, row_size, buf)?;
             }
@@ -719,8 +724,12 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
             b'0'..=b'9' => u16::from(c - b'0'),
             _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Sample).into()),
         };
-        v = v.checked_mul(10).ok_or(DecoderError::Overflow)?;
-        v = v.checked_add(digit).ok_or(DecoderError::Overflow)?;
+        v = v
+            .checked_mul(10)
+            .ok_or(DecoderError::Overflow(ErrorDataSource::Sample))?;
+        v = v
+            .checked_add(digit)
+            .ok_or(DecoderError::Overflow(ErrorDataSource::Sample))?;
         had_any = true;
     }
 
@@ -728,7 +737,7 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
         return Err(DecoderError::InputTooShort.into());
     }
 
-    Ok(T::try_from(v).or(Err(DecoderError::Overflow))?)
+    Ok(T::try_from(v).or(Err(DecoderError::Overflow(ErrorDataSource::Sample)))?)
 }
 
 impl Sample for U8 {

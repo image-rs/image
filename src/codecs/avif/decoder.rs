@@ -649,7 +649,7 @@ impl<R: Read> AvifDecoder<R> {
         // Expand current bit depth to target 16
         let target_expand_bits = 16u32 - self.picture.bit_depth() as u32;
         for item in target.iter_mut() {
-            *item = (*item << target_expand_bits) | (*item >> (16 - target_expand_bits));
+            *item = (*item).rotate_left(target_expand_bits);
         }
 
         Ok(())

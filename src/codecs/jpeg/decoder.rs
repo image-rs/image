@@ -35,7 +35,8 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
-        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(input.as_slice()), options);
+        let mut decoder =
+            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(input.as_slice()), options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
@@ -72,7 +73,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
-        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
+        let mut decoder =
+            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         Ok(decoder.icc_profile())
     }
@@ -82,7 +84,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
-        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
+        let mut decoder =
+            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         let exif = decoder.exif().cloned();
 

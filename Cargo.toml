@@ -121,6 +121,3 @@ harness = false
 # TODO: remove when shipping the next major release after 0.25
 [package.metadata.cargo-semver-checks.lints]
 enum_discriminants_undefined_non_unit_variant = { level = "warn" }
-
-[patch.crates-io]
-tiff = { git = "https://github.com/image-rs/image-tiff", rev = "4adba46b9f5f4ef70fbef0cf1507afb79caf1e64" }

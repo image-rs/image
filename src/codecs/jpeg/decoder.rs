@@ -44,7 +44,22 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
         let width: u16 = width.try_into().unwrap();
         let height: u16 = height.try_into().unwrap();
-        let orig_color_space = decoder.output_colorspace().unwrap();
+        let orig_color_space = decoder.input_colorspace().expect("headers were decoded");
+
+        // Now configure the decoder color output.
+        decoder.set_options({
+            let requested_color = match orig_color_space {
+                ZuneColorSpace::RGB
+                | ZuneColorSpace::RGBA
+                | ZuneColorSpace::Luma
+                | ZuneColorSpace::LumaA => orig_color_space,
+                // Late failure
+                _ => ZuneColorSpace::RGB,
+            };
+
+            decoder.options().jpeg_set_out_colorspace(requested_color)
+        });
+
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
         Ok(JpegDecoder {

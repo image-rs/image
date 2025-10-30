@@ -144,14 +144,25 @@ impl<W: Write> JpegEncoder<W> {
 
         self.write_exif()?;
 
+        let encode_jpeg = |color: jpeg_encoder::ColorType| {
+            self.encoder
+                .encode(image, width, height, color)
+                .map_err(|err| {
+                    ImageError::Encoding(EncodingError::new(
+                        ImageFormatHint::Exact(ImageFormat::Jpeg),
+                        err,
+                    ))
+                })
+        };
+
         match color_type {
             ExtendedColorType::L8 => {
                 let color = jpeg_encoder::ColorType::Luma;
-                Ok(self.encoder.encode(image, width, height, color).unwrap()) // TODO: error handling
+                encode_jpeg(color)
             }
             ExtendedColorType::Rgb8 => {
                 let color = jpeg_encoder::ColorType::Rgb;
-                Ok(self.encoder.encode(image, width, height, color).unwrap()) // TODO: error handling
+                encode_jpeg(color)
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(

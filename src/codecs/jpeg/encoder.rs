@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use std::io::Write;
 
-use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 
 use jpeg_encoder::Encoder;
@@ -125,11 +125,8 @@ impl<W: Write> JpegEncoder<W> {
             image.len(),
         );
 
-        // TODO: error out instead of panicking
-        let width: u16 = width.try_into().expect("width too large to encode in JPEG");
-        let height: u16 = height
-            .try_into()
-            .expect("height too large to encode in JPEG");
+        let width: u16 = width.try_into().map_err(|_| ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))?;
+        let height: u16 = height.try_into().map_err(|_| ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))?;
 
         match color_type {
             ExtendedColorType::L8 => {

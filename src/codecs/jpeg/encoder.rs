@@ -18,6 +18,8 @@ use num_traits::ToPrimitive;
 use super::entropy::build_huff_lut_const;
 use super::transform;
 
+use jpeg_encoder::Encoder;
+
 // Markers
 // Baseline DCT
 static SOF0: u8 = 0xC0;
@@ -330,6 +332,15 @@ impl PixelDensity {
             unit: PixelDensityUnit::Inches,
         }
     }
+
+    /// Converts pixel density to the representation used by jpeg-encoder crate
+    fn to_encoder_repr(&self) -> jpeg_encoder::Density {
+        match self.unit {
+            PixelDensityUnit::PixelAspectRatio => todo!(), // Not supported in jpeg-encoder?
+            PixelDensityUnit::Inches => jpeg_encoder::Density::Inch {x: self.density.0, y: self.density.1},
+            PixelDensityUnit::Centimeters => jpeg_encoder::Density::Centimeter {x: self.density.0, y: self.density.1},
+        }
+    }
 }
 
 impl Default for PixelDensity {
@@ -343,21 +354,8 @@ impl Default for PixelDensity {
 }
 
 /// The representation of a JPEG encoder
-pub struct JpegEncoder<W> {
-    writer: BitWriter<W>,
-
-    components: Vec<Component>,
-    tables: Vec<[u8; 64]>,
-
-    luma_dctable: Cow<'static, [(u8, u16); 256]>,
-    luma_actable: Cow<'static, [(u8, u16); 256]>,
-    chroma_dctable: Cow<'static, [(u8, u16); 256]>,
-    chroma_actable: Cow<'static, [(u8, u16); 256]>,
-
-    pixel_density: PixelDensity,
-
-    icc_profile: Vec<u8>,
-    exif: Vec<u8>,
+pub struct JpegEncoder<W: Write> {
+    encoder: Encoder<W>,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -370,66 +368,8 @@ impl<W: Write> JpegEncoder<W> {
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
     pub fn new_with_quality(w: W, quality: u8) -> JpegEncoder<W> {
-        let components = vec![
-            Component {
-                id: LUMAID,
-                h: 1,
-                v: 1,
-                tq: LUMADESTINATION,
-                dc_table: LUMADESTINATION,
-                ac_table: LUMADESTINATION,
-                _dc_pred: 0,
-            },
-            Component {
-                id: CHROMABLUEID,
-                h: 1,
-                v: 1,
-                tq: CHROMADESTINATION,
-                dc_table: CHROMADESTINATION,
-                ac_table: CHROMADESTINATION,
-                _dc_pred: 0,
-            },
-            Component {
-                id: CHROMAREDID,
-                h: 1,
-                v: 1,
-                tq: CHROMADESTINATION,
-                dc_table: CHROMADESTINATION,
-                ac_table: CHROMADESTINATION,
-                _dc_pred: 0,
-            },
-        ];
-
-        // Derive our quantization table scaling value using the libjpeg algorithm
-        let scale = u32::from(clamp(quality, 1, 100));
-        let scale = if scale < 50 {
-            5000 / scale
-        } else {
-            200 - scale * 2
-        };
-
-        let mut tables = vec![STD_LUMA_QTABLE, STD_CHROMA_QTABLE];
-        for t in tables.iter_mut() {
-            for v in t.iter_mut() {
-                *v = clamp((u32::from(*v) * scale + 50) / 100, 1, u32::from(u8::MAX)) as u8;
-            }
-        }
-
         JpegEncoder {
-            writer: BitWriter::new(w),
-
-            components,
-            tables,
-
-            luma_dctable: Cow::Borrowed(&STD_LUMA_DC_HUFF_LUT),
-            luma_actable: Cow::Borrowed(&STD_LUMA_AC_HUFF_LUT),
-            chroma_dctable: Cow::Borrowed(&STD_CHROMA_DC_HUFF_LUT),
-            chroma_actable: Cow::Borrowed(&STD_CHROMA_AC_HUFF_LUT),
-
-            pixel_density: PixelDensity::default(),
-
-            icc_profile: Vec::new(),
-            exif: Vec::new(),
+            encoder: Encoder::new(w, quality),
         }
     }
 
@@ -437,21 +377,19 @@ impl<W: Write> JpegEncoder<W> {
     /// If this method is not called, then a default pixel aspect ratio of 1x1 will be applied,
     /// and no DPI information will be stored in the image.
     pub fn set_pixel_density(&mut self, pixel_density: PixelDensity) {
-        self.pixel_density = pixel_density;
+        self.encoder.set_density(pixel_density.to_encoder_repr());
     }
 
     /// Encodes the image stored in the raw byte buffer ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     ///
-    /// The Image in encoded with subsampling ratio 4:2:2
-    ///
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
     #[track_caller]
-    pub fn encode(
-        &mut self,
+    fn encode(
+        self,
         image: &[u8],
         width: u32,
         height: u32,
@@ -465,16 +403,18 @@ impl<W: Write> JpegEncoder<W> {
             image.len(),
         );
 
+        // TODO: error out instead of panicking
+        let width: u16 = width.try_into().expect("width too large to encode in JPEG");
+        let height: u16 = height.try_into().expect("height too large to encode in JPEG");
+
         match color_type {
             ExtendedColorType::L8 => {
-                let image: ImageBuffer<Luma<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
+                let color = jpeg_encoder::ColorType::Luma;
+                Ok(self.encoder.encode(image, width, height, color).unwrap()) // TODO: error handling
             }
             ExtendedColorType::Rgb8 => {
-                let image: ImageBuffer<Rgb<_>, _> =
-                    ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
+                let color = jpeg_encoder::ColorType::Rgb;
+                Ok(self.encoder.encode(image, width, height, color).unwrap()) // TODO: error handling
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -486,240 +426,21 @@ impl<W: Write> JpegEncoder<W> {
     }
 
     fn write_exif(&mut self) -> ImageResult<()> {
-        if !self.exif.is_empty() {
-            let mut formatted = EXIF_HEADER.to_vec();
-            formatted.extend_from_slice(&self.exif);
-            self.writer.write_segment(APP1, &formatted)?;
-        }
-
-        Ok(())
-    }
-
-    /// Encodes the given image.
-    ///
-    /// As a special feature this does not require the whole image to be present in memory at the
-    /// same time such that it may be computed on the fly, which is why this method exists on this
-    /// encoder but not on others. Instead the encoder will iterate over 8-by-8 blocks of pixels at
-    /// a time, inspecting each pixel exactly once. You can rely on this behaviour when calling
-    /// this method.
-    ///
-    /// The Image in encoded with subsampling ratio 4:2:2
-    pub fn encode_image<I: GenericImageView>(&mut self, image: &I) -> ImageResult<()>
-    where
-        I::Pixel: PixelWithColorType,
-    {
-        let n = I::Pixel::CHANNEL_COUNT;
-        let color_type = I::Pixel::COLOR_TYPE;
-        let num_components = if n == 1 || n == 2 { 1 } else { 3 };
-
-        self.writer.write_marker(SOI)?;
-
-        let mut buf = Vec::new();
-
-        build_jfif_header(&mut buf, self.pixel_density);
-        self.writer.write_segment(APP0, &buf)?;
-        self.write_exif()?;
-
-        // Write ICC profile chunks if present
-        self.write_icc_profile_chunks()?;
-
-        build_frame_header(
-            &mut buf,
-            8,
-            // TODO: not idiomatic yet. Should be an EncodingError and mention jpg. Further it
-            // should check dimensions prior to writing.
-            u16::try_from(image.width()).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?,
-            u16::try_from(image.height()).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?,
-            &self.components[..num_components],
-        );
-        self.writer.write_segment(SOF0, &buf)?;
-
-        assert_eq!(self.tables.len(), 2);
-        let numtables = if num_components == 1 { 1 } else { 2 };
-
-        for (i, table) in self.tables[..numtables].iter().enumerate() {
-            build_quantization_segment(&mut buf, 8, i as u8, table);
-            self.writer.write_segment(DQT, &buf)?;
-        }
-
-        build_huffman_segment(
-            &mut buf,
-            DCCLASS,
-            LUMADESTINATION,
-            &STD_LUMA_DC_CODE_LENGTHS,
-            &STD_LUMA_DC_VALUES,
-        );
-        self.writer.write_segment(DHT, &buf)?;
-
-        build_huffman_segment(
-            &mut buf,
-            ACCLASS,
-            LUMADESTINATION,
-            &STD_LUMA_AC_CODE_LENGTHS,
-            &STD_LUMA_AC_VALUES,
-        );
-        self.writer.write_segment(DHT, &buf)?;
-
-        if num_components == 3 {
-            build_huffman_segment(
-                &mut buf,
-                DCCLASS,
-                CHROMADESTINATION,
-                &STD_CHROMA_DC_CODE_LENGTHS,
-                &STD_CHROMA_DC_VALUES,
-            );
-            self.writer.write_segment(DHT, &buf)?;
-
-            build_huffman_segment(
-                &mut buf,
-                ACCLASS,
-                CHROMADESTINATION,
-                &STD_CHROMA_AC_CODE_LENGTHS,
-                &STD_CHROMA_AC_VALUES,
-            );
-            self.writer.write_segment(DHT, &buf)?;
-        }
-
-        build_scan_header(&mut buf, &self.components[..num_components]);
-        self.writer.write_segment(SOS, &buf)?;
-
-        if ExtendedColorType::Rgb8 == color_type || ExtendedColorType::Rgba8 == color_type {
-            self.encode_rgb(image)
-        } else {
-            self.encode_gray(image)
-        }?;
-
-        self.writer.pad_byte()?;
-        self.writer.write_marker(EOI)?;
-        Ok(())
-    }
-
-    fn encode_gray<I: GenericImageView>(&mut self, image: &I) -> io::Result<()> {
-        let mut yblock = [0u8; 64];
-        let mut y_dcprev = 0;
-        let mut dct_yblock = [0i32; 64];
-
-        for y in (0..image.height()).step_by(8) {
-            for x in (0..image.width()).step_by(8) {
-                copy_blocks_gray(image, x, y, &mut yblock);
-
-                // Level shift and fdct
-                // Coeffs are scaled by 8
-                transform::fdct(&yblock, &mut dct_yblock);
-
-                // Quantization
-                for (i, dct) in dct_yblock.iter_mut().enumerate() {
-                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
-                }
-
-                let la = &*self.luma_actable;
-                let ld = &*self.luma_dctable;
-
-                y_dcprev = self.writer.write_block(&dct_yblock, y_dcprev, ld, la)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn encode_rgb<I: GenericImageView>(&mut self, image: &I) -> io::Result<()> {
-        let mut y_dcprev = 0;
-        let mut cb_dcprev = 0;
-        let mut cr_dcprev = 0;
-
-        let mut dct_yblock = [0i32; 64];
-        let mut dct_cb_block = [0i32; 64];
-        let mut dct_cr_block = [0i32; 64];
-
-        let mut yblock = [0u8; 64];
-        let mut cb_block = [0u8; 64];
-        let mut cr_block = [0u8; 64];
-
-        for y in (0..image.height()).step_by(8) {
-            for x in (0..image.width()).step_by(8) {
-                // RGB -> YCbCr
-                copy_blocks_ycbcr(image, x, y, &mut yblock, &mut cb_block, &mut cr_block);
-
-                // Level shift and fdct
-                // Coeffs are scaled by 8
-                transform::fdct(&yblock, &mut dct_yblock);
-                transform::fdct(&cb_block, &mut dct_cb_block);
-                transform::fdct(&cr_block, &mut dct_cr_block);
-
-                // Quantization
-                for i in 0usize..64 {
-                    dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
-                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / f32::from(self.tables[1][i]))
-                        .round() as i32;
-                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / f32::from(self.tables[1][i]))
-                        .round() as i32;
-                }
-
-                let la = &*self.luma_actable;
-                let ld = &*self.luma_dctable;
-                let cd = &*self.chroma_dctable;
-                let ca = &*self.chroma_actable;
-
-                y_dcprev = self.writer.write_block(&dct_yblock, y_dcprev, ld, la)?;
-                cb_dcprev = self.writer.write_block(&dct_cb_block, cb_dcprev, cd, ca)?;
-                cr_dcprev = self.writer.write_block(&dct_cr_block, cr_dcprev, cd, ca)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn write_icc_profile_chunks(&mut self) -> io::Result<()> {
-        if self.icc_profile.is_empty() {
-            return Ok(());
-        }
-
-        const MAX_CHUNK_SIZE: usize = 65533 - 14;
-        const MAX_CHUNK_COUNT: usize = 255;
-        const MAX_ICC_PROFILE_SIZE: usize = MAX_CHUNK_SIZE * MAX_CHUNK_COUNT;
-
-        if self.icc_profile.len() > MAX_ICC_PROFILE_SIZE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "ICC profile too large",
-            ));
-        }
-
-        let chunk_iter = self.icc_profile.chunks(MAX_CHUNK_SIZE);
-        let num_chunks = chunk_iter.len() as u8;
-        let mut segment = Vec::new();
-
-        for (i, chunk) in chunk_iter.enumerate() {
-            let chunk_number = (i + 1) as u8;
-            let length = 14 + chunk.len();
-
-            segment.clear();
-            segment.reserve(length);
-            segment.extend_from_slice(b"ICC_PROFILE\0");
-            segment.push(chunk_number);
-            segment.push(num_chunks);
-            segment.extend_from_slice(chunk);
-
-            self.writer.write_segment(APP2, &segment)?;
-        }
-
-        Ok(())
+        todo!(); // no convenience method in jpeg-encoder
+        // if !self.exif.is_empty() {
+        //     let mut formatted = EXIF_HEADER.to_vec();
+        //     formatted.extend_from_slice(&self.exif);
+        //     self.writer.write_segment(APP1, &formatted)?;
+        // }
+        //
+        // Ok(())
     }
 }
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
     #[track_caller]
     fn write_image(
-        mut self,
+        self,
         buf: &[u8],
         width: u32,
         height: u32,
@@ -729,12 +450,12 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.icc_profile = icc_profile;
+        self.encoder.add_icc_profile(&icc_profile);
         Ok(())
     }
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.exif = exif;
+        todo!(); // no convenience method in jpeg-encoder yet
         Ok(())
     }
 
@@ -1196,18 +917,4 @@ mod tests {
             let _x = JpegEncoder::new(&mut y);
         });
     }
-}
-
-// Tests regressions of `encode_image` against #1412, confusion about the subimage's position vs.
-// dimensions. (We no longer have a position, four `u32` returns was confusing).
-#[test]
-fn sub_image_encoder_regression_1412() {
-    let image = DynamicImage::new_rgb8(1280, 720);
-    let subimg = crate::imageops::crop_imm(&image, 0, 358, 425, 361);
-
-    let mut encoded_crop = vec![];
-    let mut encoder = JpegEncoder::new(&mut encoded_crop);
-
-    let result = encoder.encode_image(&*subimg);
-    assert!(result.is_ok(), "Failed to encode subimage: {result:?}");
 }

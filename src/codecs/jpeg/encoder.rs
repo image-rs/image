@@ -81,6 +81,7 @@ impl Default for PixelDensity {
 /// The representation of a JPEG encoder
 pub struct JpegEncoder<W: Write> {
     encoder: Encoder<W>,
+    exif: Vec<u8>,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -95,6 +96,7 @@ impl<W: Write> JpegEncoder<W> {
     pub fn new_with_quality(w: W, quality: u8) -> JpegEncoder<W> {
         JpegEncoder {
             encoder: Encoder::new(w, quality),
+            exif: Vec::new(),
         }
     }
 
@@ -114,7 +116,7 @@ impl<W: Write> JpegEncoder<W> {
     /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
     #[track_caller]
     fn encode(
-        self,
+        mut self,
         image: &[u8],
         width: u32,
         height: u32,
@@ -140,6 +142,8 @@ impl<W: Write> JpegEncoder<W> {
         let width: u16 = width.try_into().map_err(|_| dimension_err())?;
         let height: u16 = height.try_into().map_err(|_| dimension_err())?;
 
+        self.write_exif()?;
+
         match color_type {
             ExtendedColorType::L8 => {
                 let color = jpeg_encoder::ColorType::Luma;
@@ -159,17 +163,27 @@ impl<W: Write> JpegEncoder<W> {
     }
 
     fn write_exif(&mut self) -> ImageResult<()> {
-        todo!(); // no convenience method in jpeg-encoder
+        if !self.exif.is_empty() {
+            let mut formatted = EXIF_HEADER.to_vec();
+            formatted.extend_from_slice(&self.exif);
+            self.encoder
+                .add_app_segment(APP1, &formatted)
+                .map_err(|_| {
+                    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                        ImageFormat::Jpeg.into(),
+                        UnsupportedErrorKind::GenericFeature("Exif chunk too large".to_string()),
+                    ))
+                })?;
+        }
 
-        // if !self.exif.is_empty() {
-        //     let mut formatted = EXIF_HEADER.to_vec();
-        //     formatted.extend_from_slice(&self.exif);
-        //     self.writer.write_segment(APP1, &formatted)?;
-        // }
-        //
-        // Ok(())
+        Ok(())
     }
 }
+
+// E x i f \0 \0
+/// The header for an EXIF APP1 segment
+const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+const APP1: u8 = 0xE1;
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
     #[track_caller]
@@ -184,7 +198,7 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.encoder.add_icc_profile(&icc_profile).map_err(|e| {
+        self.encoder.add_icc_profile(&icc_profile).map_err(|_| {
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Jpeg.into(),
                 UnsupportedErrorKind::GenericFeature("ICC chunk too large".to_string()),
@@ -193,7 +207,7 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
-        todo!(); // no convenience method in jpeg-encoder yet
+        self.exif = exif;
         Ok(())
     }
 

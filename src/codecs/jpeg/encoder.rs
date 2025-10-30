@@ -303,6 +303,41 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_exif_icc() {
+        // create a 2x2 8-bit image buffer containing a white diagonal
+        let img = [255u8, 0, 0, 255];
+
+        let exif = vec![1, 2, 3];
+        let icc = vec![4, 5, 6];
+
+        // encode it into a memory buffer
+        let mut encoded_img = Vec::new();
+        {
+            let mut encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
+
+            encoder.set_exif_metadata(exif.clone()).unwrap();
+            encoder.set_icc_profile(icc.clone()).unwrap();
+
+            encoder
+                .write_image(&img[..], 2, 2, ExtendedColorType::L8)
+                .expect("Could not encode image");
+        }
+
+        let mut decoder =
+            JpegDecoder::new(Cursor::new(encoded_img)).expect("Could not decode image");
+        let decoded_exif = decoder
+            .exif_metadata()
+            .expect("Error decoding Exif")
+            .expect("Exif is empty");
+        assert_eq!(exif, decoded_exif);
+        let decoded_icc = decoder
+            .icc_profile()
+            .expect("Error decoding ICC")
+            .expect("ICC is empty");
+        assert_eq!(icc, decoded_icc);
+    }
+
+    #[test]
     fn test_image_too_large() {
         // JPEG cannot encode images larger than 65,535×65,535
         // create a 65,536×1 8-bit black image buffer

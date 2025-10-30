@@ -22,6 +22,8 @@ const EXPECTED_WEBP_TIFF_METADATA: &str = "<?xpacket begin='\u{feff}' id='W5M0Mp
 
 const XMP_TIFF_PATH: &str = "tests/images/tiff/testsuite/l1_xmp.tiff";
 
+const EXIF_TIFF_PATH: &str = "tests/images/tiff/testsuite/l1.tiff";
+
 #[test]
 #[cfg(feature = "png")]
 fn test_read_xmp_png() -> Result<(), image::ImageError> {
@@ -61,6 +63,20 @@ fn test_read_xmp_tiff() -> Result<(), image::ImageError> {
     let metadata = tiff_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_WEBP_TIFF_METADATA.as_bytes(), metadata.unwrap());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_exif_tiff() -> Result<(), image::ImageError> {
+    let img_path = PathBuf::from_str(EXIF_TIFF_PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut tiff_decoder = TiffDecoder::new(std::io::Cursor::new(&data))?;
+    let metadata = tiff_decoder.exif_metadata()?;
+    assert!(metadata.is_some());
+    assert_eq!(data, metadata.unwrap());
 
     Ok(())
 }

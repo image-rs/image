@@ -1,7 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 use std::io::Write;
 
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{
+    EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
+};
 use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 
 use jpeg_encoder::Encoder;
@@ -125,8 +128,17 @@ impl<W: Write> JpegEncoder<W> {
             image.len(),
         );
 
-        let width: u16 = width.try_into().map_err(|_| ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))?;
-        let height: u16 = height.try_into().map_err(|_| ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))?;
+        let dimension_err = || {
+            ImageError::Encoding(EncodingError::new(
+                ImageFormatHint::Exact(ImageFormat::Jpeg),
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                )),
+            ))
+        };
+
+        let width: u16 = width.try_into().map_err(|_| dimension_err())?;
+        let height: u16 = height.try_into().map_err(|_| dimension_err())?;
 
         match color_type {
             ExtendedColorType::L8 => {
@@ -208,7 +220,6 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::Bencher;
 
-    use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageError};
     use crate::{ImageDecoder as _, ImageFormat};
 
@@ -287,12 +298,10 @@ mod tests {
         let encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
         let result = encoder.write_image(&img, 65_536, 1, ExtendedColorType::L8);
         match result {
-            Err(ImageError::Parameter(err)) => {
-                assert_eq!(err.kind(), DimensionMismatch);
-            }
+            Err(ImageError::Encoding(_)) => (),
             other => {
                 panic!(
-                    "Encoding an image that is too large should return a DimensionError \
+                    "Encoding an image that is too large should return an EncodingError \
                                 it returned {other:?} instead"
                 )
             }

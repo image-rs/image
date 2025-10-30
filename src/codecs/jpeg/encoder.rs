@@ -183,7 +183,7 @@ impl<W: Write> JpegEncoder<W> {
 // E x i f \0 \0
 /// The header for an EXIF APP1 segment
 const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
-const APP1: u8 = 0xE1;
+const APP1: u8 = 1;
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
     #[track_caller]

@@ -175,8 +175,12 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.encoder.add_icc_profile(&icc_profile);
-        Ok(())
+        self.encoder.add_icc_profile(&icc_profile).map_err(|e| {
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Jpeg.into(),
+                UnsupportedErrorKind::GenericFeature("ICC chunk too large".to_string()),
+            )
+        })
     }
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {

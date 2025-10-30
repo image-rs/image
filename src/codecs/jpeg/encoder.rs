@@ -1,14 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 use std::io::Write;
 
-use crate::error::{
-    ImageError, ImageResult, UnsupportedError,
-    UnsupportedErrorKind,
-};
-use crate::{
-    ColorType, DynamicImage, ExtendedColorType, ImageEncoder,
-    ImageFormat,
-};
+use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 
 use jpeg_encoder::Encoder;
 
@@ -59,8 +53,14 @@ impl PixelDensity {
     fn to_encoder_repr(&self) -> jpeg_encoder::Density {
         match self.unit {
             PixelDensityUnit::PixelAspectRatio => todo!(), // Not supported in jpeg-encoder?
-            PixelDensityUnit::Inches => jpeg_encoder::Density::Inch {x: self.density.0, y: self.density.1},
-            PixelDensityUnit::Centimeters => jpeg_encoder::Density::Centimeter {x: self.density.0, y: self.density.1},
+            PixelDensityUnit::Inches => jpeg_encoder::Density::Inch {
+                x: self.density.0,
+                y: self.density.1,
+            },
+            PixelDensityUnit::Centimeters => jpeg_encoder::Density::Centimeter {
+                x: self.density.0,
+                y: self.density.1,
+            },
         }
     }
 }
@@ -127,7 +127,9 @@ impl<W: Write> JpegEncoder<W> {
 
         // TODO: error out instead of panicking
         let width: u16 = width.try_into().expect("width too large to encode in JPEG");
-        let height: u16 = height.try_into().expect("height too large to encode in JPEG");
+        let height: u16 = height
+            .try_into()
+            .expect("height too large to encode in JPEG");
 
         match color_type {
             ExtendedColorType::L8 => {
@@ -149,6 +151,7 @@ impl<W: Write> JpegEncoder<W> {
 
     fn write_exif(&mut self) -> ImageResult<()> {
         todo!(); // no convenience method in jpeg-encoder
+
         // if !self.exif.is_empty() {
         //     let mut formatted = EXIF_HEADER.to_vec();
         //     formatted.extend_from_slice(&self.exif);

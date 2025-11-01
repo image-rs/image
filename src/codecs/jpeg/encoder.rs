@@ -1,10 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 use std::borrow::Cow;
 use std::io::{self, Write};
+use std::{error, fmt};
 
 use crate::error::{
-    ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
-    UnsupportedErrorKind,
+    EncodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::traits::PixelWithColorType;
 use crate::utils::clamp;
@@ -342,6 +342,32 @@ impl Default for PixelDensity {
     }
 }
 
+/// Errors that can occur when encoding a JPEG image
+#[derive(Debug, Copy, Clone)]
+enum EncoderError {
+    /// JPEG does not support this size
+    InvalidSize(u32, u32),
+}
+
+impl fmt::Display for EncoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EncoderError::InvalidSize(w, h) => f.write_fmt(format_args!(
+                "Invalid image size ({w} x {h}) to encode as JPEG: \
+                 width and height must be >= 1 and <= 65535"
+            )),
+        }
+    }
+}
+
+impl From<EncoderError> for ImageError {
+    fn from(e: EncoderError) -> ImageError {
+        ImageError::Encoding(EncodingError::new(ImageFormat::Jpeg.into(), e))
+    }
+}
+
+impl error::Error for EncoderError {}
+
 /// The representation of a JPEG encoder
 pub struct JpegEncoder<W> {
     writer: BitWriter<W>,
@@ -512,6 +538,11 @@ impl<W: Write> JpegEncoder<W> {
         let color_type = I::Pixel::COLOR_TYPE;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
+        let (width, height) = match (u16::try_from(image.width()), u16::try_from(image.height())) {
+            (Ok(w @ 1..), Ok(h @ 1..)) => (w, h),
+            _ => return Err(EncoderError::InvalidSize(image.width(), image.height()).into()),
+        };
+
         self.writer.write_marker(SOI)?;
 
         let mut buf = Vec::new();
@@ -526,18 +557,8 @@ impl<W: Write> JpegEncoder<W> {
         build_frame_header(
             &mut buf,
             8,
-            // TODO: not idiomatic yet. Should be an EncodingError and mention jpg. Further it
-            // should check dimensions prior to writing.
-            u16::try_from(image.width()).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?,
-            u16::try_from(image.height()).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?,
+            width,
+            height,
             &self.components[..num_components],
         );
         self.writer.write_segment(SOF0, &buf)?;
@@ -945,7 +966,6 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::Bencher;
 
-    use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageError};
     use crate::{ImageDecoder as _, ImageFormat};
 
@@ -1053,16 +1073,11 @@ mod tests {
         let mut encoded = Vec::new();
         let encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
         let result = encoder.write_image(&img, 65_536, 1, ExtendedColorType::L8);
-        match result {
-            Err(ImageError::Parameter(err)) => {
-                assert_eq!(err.kind(), DimensionMismatch);
-            }
-            other => {
-                panic!(
-                    "Encoding an image that is too large should return a DimensionError \
-                                it returned {other:?} instead"
-                )
-            }
+        if !matches!(result, Err(ImageError::Encoding(_))) {
+            panic!(
+                "Encoding an image that is too large should return an \
+                EncodingError; it returned {result:?} instead"
+            )
         }
     }
 

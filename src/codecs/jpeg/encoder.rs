@@ -157,17 +157,10 @@ impl<W: Write> JpegEncoder<W> {
             image.len(),
         );
 
-        let dimension_err = || {
-            ImageError::Encoding(EncodingError::new(
-                ImageFormatHint::Exact(ImageFormat::Jpeg),
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                )),
-            ))
+        let (width, height) = match (u16::try_from(width), u16::try_from(height)) {
+            (Ok(w @ 1..), Ok(h @ 1..)) => (w, h),
+            _ => return Err(EncoderError::InvalidSize(width, height).into()),
         };
-
-        let width: u16 = width.try_into().map_err(|_| dimension_err())?;
-        let height: u16 = height.try_into().map_err(|_| dimension_err())?;
 
         self.write_exif()?;
 

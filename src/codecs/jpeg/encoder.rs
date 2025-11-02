@@ -3,8 +3,7 @@ use std::io::Write;
 use std::{error, fmt};
 
 use crate::error::{
-    EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
-    UnsupportedError, UnsupportedErrorKind,
+    EncodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
 

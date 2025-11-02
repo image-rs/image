@@ -107,7 +107,6 @@ impl error::Error for EncoderError {}
 /// The representation of a JPEG encoder
 pub struct JpegEncoder<W: Write> {
     encoder: Encoder<W>,
-    exif: Vec<u8>,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -122,7 +121,6 @@ impl<W: Write> JpegEncoder<W> {
     pub fn new_with_quality(w: W, quality: u8) -> JpegEncoder<W> {
         JpegEncoder {
             encoder: Encoder::new(w, quality),
-            exif: Vec::new(),
         }
     }
 
@@ -142,7 +140,7 @@ impl<W: Write> JpegEncoder<W> {
     /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
     #[track_caller]
     fn encode(
-        mut self,
+        self,
         image: &[u8],
         width: u32,
         height: u32,
@@ -160,8 +158,6 @@ impl<W: Write> JpegEncoder<W> {
             (Ok(w @ 1..), Ok(h @ 1..)) => (w, h),
             _ => return Err(EncoderError::InvalidSize(width, height).into()),
         };
-
-        self.write_exif()?;
 
         let encode_jpeg = |color: jpeg_encoder::ColorType| {
             self.encoder
@@ -190,23 +186,6 @@ impl<W: Write> JpegEncoder<W> {
                 ),
             )),
         }
-    }
-
-    fn write_exif(&mut self) -> ImageResult<()> {
-        if !self.exif.is_empty() {
-            let mut formatted = EXIF_HEADER.to_vec();
-            formatted.extend_from_slice(&self.exif);
-            self.encoder
-                .add_app_segment(APP1, &formatted)
-                .map_err(|_| {
-                    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                        ImageFormat::Jpeg.into(),
-                        UnsupportedErrorKind::GenericFeature("Exif chunk too large".to_string()),
-                    ))
-                })?;
-        }
-
-        Ok(())
     }
 }
 
@@ -237,7 +216,16 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.exif = exif;
+        let mut formatted = EXIF_HEADER.to_vec();
+        formatted.extend_from_slice(&exif);
+        self.encoder
+            .add_app_segment(APP1, &formatted)
+            .map_err(|_| {
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Jpeg.into(),
+                    UnsupportedErrorKind::GenericFeature("Exif chunk too large".to_string()),
+                )
+            })?;
         Ok(())
     }
 

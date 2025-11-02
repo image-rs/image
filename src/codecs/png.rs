@@ -26,6 +26,7 @@ use crate::{
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 const XMP_KEY: &str = "XML:com.adobe.xmp";
+const IPTC_KEYS: &[&str] = &["Raw profile type iptc", "Raw profile type 8bim"];
 
 /// PNG decoder
 pub struct PngDecoder<R: BufRead + Seek> {
@@ -202,6 +203,35 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
                 .get_text()
                 .map(|text| Some(text.as_bytes().to_vec()))
                 .map_err(ImageError::from_png);
+        }
+        Ok(None)
+    }
+
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        if let Some(mut text_chunk) = self
+            .reader
+            .info()
+            .compressed_latin1_text
+            .iter()
+            .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
+            .cloned()
+        {
+            text_chunk.decompress_text().map_err(ImageError::from_png)?;
+            return text_chunk
+                .get_text()
+                .map(|text| Some(text.as_bytes().to_vec()))
+                .map_err(ImageError::from_png);
+        }
+
+        if let Some(text_chunk) = self
+            .reader
+            .info()
+            .uncompressed_latin1_text
+            .iter()
+            .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
+            .cloned()
+        {
+            return Ok(Some(text_chunk.text.into_bytes()));
         }
         Ok(None)
     }

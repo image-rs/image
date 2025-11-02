@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 use std::io::Write;
+use std::{error, fmt};
 
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
@@ -77,6 +78,32 @@ impl Default for PixelDensity {
         }
     }
 }
+
+/// Errors that can occur when encoding a JPEG image
+#[derive(Debug, Copy, Clone)]
+enum EncoderError {
+    /// JPEG does not support this size
+    InvalidSize(u32, u32),
+}
+
+impl fmt::Display for EncoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EncoderError::InvalidSize(w, h) => f.write_fmt(format_args!(
+                "Invalid image size ({w} x {h}) to encode as JPEG: \
+                 width and height must be >= 1 and <= 65535"
+            )),
+        }
+    }
+}
+
+impl From<EncoderError> for ImageError {
+    fn from(e: EncoderError) -> ImageError {
+        ImageError::Encoding(EncodingError::new(ImageFormat::Jpeg.into(), e))
+    }
+}
+
+impl error::Error for EncoderError {}
 
 /// The representation of a JPEG encoder
 pub struct JpegEncoder<W: Write> {

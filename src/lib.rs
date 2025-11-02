@@ -117,7 +117,7 @@
 #![deny(deprecated)]
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;

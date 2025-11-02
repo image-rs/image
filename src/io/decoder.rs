@@ -39,6 +39,13 @@ pub trait ImageDecoder {
         Ok(None)
     }
 
+    /// Returns the raw [IPTC](https://en.wikipedia.org/wiki/IPTC_Information_Interchange_Model) chunk, if it is present.
+    ///
+    /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
     /// Returns the orientation of the image.
     ///
     /// This is usually obtained from the Exif metadata, if present. Formats that don't support
@@ -144,6 +151,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).xmp_metadata()
+    }
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        (**self).iptc_metadata()
     }
     fn orientation(&mut self) -> ImageResult<Orientation> {
         (**self).orientation()

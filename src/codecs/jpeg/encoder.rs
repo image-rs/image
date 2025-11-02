@@ -53,7 +53,7 @@ impl PixelDensity {
     }
 
     /// Converts pixel density to the representation used by jpeg-encoder crate
-    fn to_encoder_repr(&self) -> jpeg_encoder::Density {
+    fn to_encoder_repr(self) -> jpeg_encoder::Density {
         match self.unit {
             PixelDensityUnit::PixelAspectRatio => jpeg_encoder::Density::None, // TODO: https://github.com/vstroebel/jpeg-encoder/issues/21
             PixelDensityUnit::Inches => jpeg_encoder::Density::Inch {

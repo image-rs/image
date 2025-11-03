@@ -166,6 +166,13 @@ impl<W: Write> JpegEncoder<W> {
         self.encoder.set_sampling_factor(sampling.to_encoder_repr());
     }
 
+    /// Spend extra time optimizing Huffman tables. Slightly reduces file size at the cost of encoding speed.
+    ///
+    /// Defaults to **false**.
+    pub fn set_optimize_huffman_tables(&mut self, optimize: bool) {
+        self.encoder.set_optimized_huffman_tables(optimize);
+    }
+
     /// Set the pixel density of the images the encoder will encode.
     /// If this method is not called, then a default pixel aspect ratio of 1x1 will be applied,
     /// and no DPI information will be stored in the image.

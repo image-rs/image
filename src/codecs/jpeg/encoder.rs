@@ -23,6 +23,38 @@ pub enum PixelDensityUnit {
     Centimeters,
 }
 
+/// Controls the resolution of the color information.
+///
+/// Human eye is much less sensitive to the detail of color than brightness.
+/// JPEG can exploit this to significantly reduce the file size by storing color information
+/// (Cb and Cr channels) in a lower resolution than brightness (Y channel) without visual quality loss.
+///
+/// See the documentation on each variant for details.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ChromaSubsampling {
+    /// **4:4:4** Color information is encoded in full resolution. Results in larger file size.
+    ///
+    /// Recommended when the image has small brightly colored elements, e.g. artwork or screenshots.
+    S444,
+    /// **4:2:2** The resolution of color information is reduced by a factor of 2 in the horizontal direction.
+    S422,
+    /// **4:2:0** The resolution of color information is reduced by a factor of 2 both horizontally and vertically.
+    ///
+    /// Results in a smaller file size. Well suited for photographs where it incurs no visial quality loss.
+    S420,
+}
+
+impl ChromaSubsampling {
+    fn to_encoder_repr(self) -> jpeg_encoder::SamplingFactor {
+        match self {
+            ChromaSubsampling::S444 => jpeg_encoder::SamplingFactor::R_4_4_4,
+            ChromaSubsampling::S422 => jpeg_encoder::SamplingFactor::R_4_2_2,
+            ChromaSubsampling::S420 => jpeg_encoder::SamplingFactor::R_4_2_0,
+        }
+    }
+}
+
 /// Represents the pixel density of an image
 ///
 /// For example, a 300 DPI image is represented by:
@@ -118,10 +150,20 @@ impl<W: Write> JpegEncoder<W> {
     /// Create a new encoder that writes its output to ```w```, and has
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
+    ///
+    /// By default quality settings 90 or above use [chroma subsampling](ChromaSubsampling)
+    /// mode [4:4:4](ChromaSubsampling::S444), while quality below 90 subsampling mode
+    /// [4:2:0](ChromaSubsampling::S420).
+    /// This can be overridden using [Self::set_chroma_subsampling].
     pub fn new_with_quality(w: W, quality: u8) -> JpegEncoder<W> {
         JpegEncoder {
             encoder: Encoder::new(w, quality),
         }
+    }
+
+    /// Sets the chroma subsampling mode. See [ChromaSubsampling] for details.
+    pub fn set_chroma_subsampling(&mut self, sampling: ChromaSubsampling) {
+        self.encoder.set_sampling_factor(sampling.to_encoder_repr());
     }
 
     /// Set the pixel density of the images the encoder will encode.

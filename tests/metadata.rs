@@ -116,3 +116,19 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
 
     Ok(())
 }
+
+#[test]
+#[cfg(feature = "jpeg")]
+fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
+    const IMG_PATH: &str = "tests/images/jpg/exif-xmp-metadata.jpg";
+    const EXPECTED_METADATA: &[u8] = include_bytes!("images/jpg/expected_xmp.bin");
+    let img_path = PathBuf::from_str(IMG_PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut tiff_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = tiff_decoder.xmp_metadata()?;
+    assert!(metadata.is_some());
+    assert_eq!(EXPECTED_METADATA, &metadata.unwrap());
+
+    Ok(())
+}

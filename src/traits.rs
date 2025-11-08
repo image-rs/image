@@ -441,13 +441,12 @@ pub trait Pixel: Copy + Clone {
     ///
     /// ### Note for Pixel trait implementors
     ///
-    /// The provided implementation retrieves the last channel in the pixel,
-    /// because such pixel formats are an overwhelming majority.
-    /// If that is not the case for your format, you should override this method.
+    /// While this is a provided method, it is a good idea to override it for efficiency
+    /// if your pixel type does have an alpha channel.
     #[inline]
     fn alpha(&self) -> Self::Subpixel {
         if Self::HAS_ALPHA {
-            *self.channels().last().unwrap()
+            *self.to_luma_alpha().channels().last().unwrap()
         } else {
             Self::Subpixel::DEFAULT_MAX_VALUE
         }

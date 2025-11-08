@@ -435,6 +435,24 @@ pub trait Pixel: Copy + Clone {
     /// Returns true if the alpha channel is contained.
     const HAS_ALPHA: bool = false;
 
+    /// Retrieve the value of the alpha channel for this pixel.
+    ///
+    /// If there is no alpha channel, returns [Primitive::DEFAULT_MAX_VALUE].
+    ///
+    /// ### Note for Pixel trait implementors
+    ///
+    /// The provided implementation retrieves the last channel in the pixel,
+    /// because such pixel formats are an overwhelming majority.
+    /// If that is not the case for your format, you should override this method.
+    #[inline]
+    fn alpha(&self) -> Self::Subpixel {
+        if Self::HAS_ALPHA {
+            *self.channels().last().unwrap()
+        } else {
+            Self::Subpixel::DEFAULT_MAX_VALUE
+        }
+    }
+
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
     #[deprecated(since = "0.24.0", note = "Use `channels()` or `channels_mut()`")]

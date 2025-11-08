@@ -344,6 +344,7 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
     #[inline]
     fn alpha(&self) -> Self::Subpixel {
         if Self::HAS_ALPHA {
+            // all our types have alpha channel at the end: RgbA, LumaA
             *self.channels().last().unwrap()
         } else {
             Self::Subpixel::DEFAULT_MAX_VALUE

@@ -341,6 +341,15 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
 
     const HAS_ALPHA: bool = $alphas > 0;
 
+    #[inline]
+    fn alpha(&self) -> Self::Subpixel {
+        if Self::HAS_ALPHA {
+            *self.channels().last().unwrap()
+        } else {
+            Self::Subpixel::DEFAULT_MAX_VALUE
+        }
+    }
+
     fn channels4(&self) -> (T, T, T, T) {
         const CHANNELS: usize = $channels;
         let mut channels = [T::DEFAULT_MAX_VALUE; 4];

@@ -1,10 +1,13 @@
-use std::ops::{AddAssign, BitXor};
+use std::{
+    borrow::Cow,
+    ops::{AddAssign, BitXor},
+};
 
 use crate::{DynamicImage, ImageBuffer, Pixel};
 use pic_scale_safe::ResamplingFunction;
 
 pub(crate) fn resize_impl(
-    image: &mut DynamicImage,
+    image: &DynamicImage,
     dst_width: u32,
     dst_height: u32,
     algorithm: ResamplingFunction,
@@ -20,13 +23,21 @@ pub(crate) fn resize_impl(
     let mut premultiplied_by_alpha = false;
     // There is no need to premultiply for nearest-neighbor resampling because it does not perform any blending.
     // This is actually a valuable optimization because -thumbnail uses nearest-neighbor for a part of the process.
-    if algorithm != ResamplingFunction::Nearest {
-        premultiplied_by_alpha = premultiply_alpha_if_needed(image);
+    let mut image = Cow::Borrowed(image);
+    if algorithm != ResamplingFunction::Nearest && !has_constant_alpha(image.as_ref()) {
+        // TODO: once we can make a semver-breaking change,
+        // change function signature to modify the original or take ownership of it to reduce peak memory use,
+        // because the .into_owned() below is unnecessary:
+        // https://github.com/Shnatsel/wondermagick/blob/4a19503136b0812d6d5d44ba49a60792f6690313/src/operations/resize.rs#L64-L83
+        let mut premult_image = image.into_owned();
+        premultiply_alpha(&mut premult_image);
+        image = Cow::Owned(premult_image);
+        premultiplied_by_alpha = true;
     }
 
     use pic_scale_safe::*;
     use DynamicImage::*;
-    let mut resized = match image {
+    let mut resized = match image.as_ref() {
         ImageLuma8(src) => {
             let resized = resize_plane8(src.as_raw(), src_size, dst_size, alg)?;
             ImageLuma8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
@@ -74,40 +85,29 @@ pub(crate) fn resize_impl(
     Ok(resized)
 }
 
-/// Return value indicates whether the image was in premultiplied by alpha
-#[must_use]
-fn premultiply_alpha_if_needed(image: &mut DynamicImage) -> bool {
+fn premultiply_alpha(image: &mut DynamicImage) {
     use pic_scale_safe::*;
-    if !has_constant_alpha(image) {
-        match image {
-            DynamicImage::ImageLuma8(_) => false,
-            DynamicImage::ImageLumaA8(buf) => {
-                premultiply_la8(buf.as_mut());
-                true
-            }
-            DynamicImage::ImageRgb8(_) => false,
-            DynamicImage::ImageRgba8(buf) => {
-                premultiply_rgba8(buf.as_mut());
-                true
-            }
-            DynamicImage::ImageLuma16(_) => false,
-            DynamicImage::ImageLumaA16(buf) => {
-                premultiply_la16(buf.as_mut(), 16);
-                true
-            }
-            DynamicImage::ImageRgb16(_) => false,
-            DynamicImage::ImageRgba16(buf) => {
-                premultiply_rgba16(buf.as_mut(), 16);
-                true
-            }
-            DynamicImage::ImageRgb32F(_) => false,
-            DynamicImage::ImageRgba32F(buf) => {
-                premultiply_rgba_f32(buf.as_mut());
-                true
-            }
+    match image {
+        DynamicImage::ImageLuma8(_) => (),
+        DynamicImage::ImageLumaA8(buf) => {
+            premultiply_la8(buf.as_mut());
         }
-    } else {
-        false
+        DynamicImage::ImageRgb8(_) => (),
+        DynamicImage::ImageRgba8(buf) => {
+            premultiply_rgba8(buf.as_mut());
+        }
+        DynamicImage::ImageLuma16(_) => (),
+        DynamicImage::ImageLumaA16(buf) => {
+            premultiply_la16(buf.as_mut(), 16);
+        }
+        DynamicImage::ImageRgb16(_) => (),
+        DynamicImage::ImageRgba16(buf) => {
+            premultiply_rgba16(buf.as_mut(), 16);
+        }
+        DynamicImage::ImageRgb32F(_) => (),
+        DynamicImage::ImageRgba32F(buf) => {
+            premultiply_rgba_f32(buf.as_mut());
+        }
     }
 }
 

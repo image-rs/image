@@ -8,13 +8,13 @@ pub(crate) fn resize_impl(
     dst_width: u32,
     dst_height: u32,
     algorithm: ResamplingFunction,
-) -> Result<(), String> {
+) -> Result<DynamicImage, String> {
     if image.width() == dst_width && image.height() == dst_height {
-        return Ok(());
+        return Ok(image.clone());
     }
     let alg = algorithm; // otherwise rustfmt breaks up too-long-lines and the formatting is a mess
-    let src_size = pic_scale_safe::ImageSize::new(image.width() as usize, image.height() as usize);
-    let dst_size = pic_scale_safe::ImageSize::new(dst_width as usize, dst_height as usize);
+    let src_size = ImageSize::new(image.width() as usize, image.height() as usize);
+    let dst_size = ImageSize::new(dst_width as usize, dst_height as usize);
 
     // Premultiply the image by alpha channel to avoid color bleed from fully transparent pixels.
     let mut premultiplied_by_alpha = false;
@@ -25,53 +25,53 @@ pub(crate) fn resize_impl(
     }
 
     use pic_scale_safe::*;
-    match image {
-        DynamicImage::ImageLuma8(src) => {
+    use DynamicImage::*;
+    let mut resized = match image {
+        ImageLuma8(src) => {
             let resized = resize_plane8(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageLuma8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageLumaA8(src) => {
+        ImageLumaA8(src) => {
             let resized = resize_plane8_with_alpha(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageLumaA8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgb8(src) => {
+        ImageRgb8(src) => {
             let resized = resize_rgb8(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgb8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgba8(src) => {
+        ImageRgba8(src) => {
             let resized = resize_rgba8(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgba8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageLuma16(src) => {
+        ImageLuma16(src) => {
             let resized = resize_plane16(src.as_raw(), src_size, dst_size, 16, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageLuma16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageLumaA16(src) => {
+        ImageLumaA16(src) => {
             let resized = resize_plane16_with_alpha(src.as_raw(), src_size, dst_size, 16, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageLumaA16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgb16(src) => {
+        ImageRgb16(src) => {
             let resized = resize_rgb16(src.as_raw(), src_size, dst_size, 16, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgb16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgba16(src) => {
+        ImageRgba16(src) => {
             let resized = resize_rgba16(src.as_raw(), src_size, dst_size, 16, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgba16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgb32F(src) => {
+        ImageRgb32F(src) => {
             let resized = resize_rgb_f32(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgb32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        DynamicImage::ImageRgba32F(src) => {
+        ImageRgba32F(src) => {
             let resized = resize_rgba_f32(src.as_raw(), src_size, dst_size, alg)?;
-            *src = ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap();
+            ImageRgba32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
-        _ => unreachable!(),
-    }
+    };
     if premultiplied_by_alpha {
-        unpremultiply_alpha(image);
+        unpremultiply_alpha(&mut resized);
     }
-    Ok(())
+    Ok(resized)
 }
 
 /// Return value indicates whether the image was in premultiplied by alpha

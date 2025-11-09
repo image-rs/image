@@ -32,7 +32,7 @@ mod affine;
 pub mod colorops;
 mod fast_blur;
 mod filter_1d;
-mod resize;
+pub(crate) mod resize;
 mod sample;
 
 pub use fast_blur::fast_blur;

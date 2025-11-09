@@ -895,7 +895,7 @@ impl DynamicImage {
         nheight: u32,
         filter: imageops::FilterType,
     ) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
+        imageops::resize::resize_impl(self, nwidth, nheight, filter).unwrap()
     }
 
     /// Scale this image down to fit within a specific size.

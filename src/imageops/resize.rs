@@ -96,7 +96,7 @@ pub(crate) fn resize_impl(
 fn convert_filter_type(filter: FilterType) -> ResamplingFunction {
     match filter {
         FilterType::Nearest => ResamplingFunction::Nearest,
-        FilterType::Triangle => ResamplingFunction::Bartlett,
+        FilterType::Triangle => ResamplingFunction::Bilinear,
         FilterType::CatmullRom => ResamplingFunction::CatmullRom,
         FilterType::Gaussian => ResamplingFunction::Gaussian,
         FilterType::Lanczos3 => ResamplingFunction::Lanczos3,

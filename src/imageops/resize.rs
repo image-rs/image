@@ -3,18 +3,19 @@ use std::{
     ops::{AddAssign, BitXor},
 };
 
-use crate::{DynamicImage, ImageBuffer, Pixel};
+use crate::{imageops::FilterType, DynamicImage, ImageBuffer, Pixel};
 use pic_scale_safe::ResamplingFunction;
 
 pub(crate) fn resize_impl(
     image: &DynamicImage,
     dst_width: u32,
     dst_height: u32,
-    algorithm: ResamplingFunction,
+    algorithm: FilterType,
 ) -> Result<DynamicImage, String> {
     if image.width() == dst_width && image.height() == dst_height {
         return Ok(image.clone());
     }
+    let algorithm = convert_filter_type(algorithm);
     let alg = algorithm; // otherwise rustfmt breaks up too-long-lines and the formatting is a mess
     let src_size = ImageSize::new(image.width() as usize, image.height() as usize);
     let dst_size = ImageSize::new(dst_width as usize, dst_height as usize);
@@ -83,6 +84,16 @@ pub(crate) fn resize_impl(
         unpremultiply_alpha(&mut resized);
     }
     Ok(resized)
+}
+
+fn convert_filter_type(filter: FilterType) -> ResamplingFunction {
+    match filter {
+        FilterType::Nearest => ResamplingFunction::Nearest,
+        FilterType::Triangle => ResamplingFunction::Bartlett,
+        FilterType::CatmullRom => ResamplingFunction::CatmullRom,
+        FilterType::Gaussian => ResamplingFunction::Gaussian,
+        FilterType::Lanczos3 => ResamplingFunction::Lanczos3,
+    }
 }
 
 fn premultiply_alpha(image: &mut DynamicImage) {

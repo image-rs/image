@@ -1,3 +1,10 @@
+//! Implementation of resizing delegated to pic-scale-safe crate.
+//! It is an all-safe-code implementation with competitive performance
+//! and with optional parallelism to boost it even further.
+//!
+//! Everything that references pic-scale-safe crate is contained to this file
+//! so that it could easily be made an optional dependency in the future.
+
 use std::{
     borrow::Cow,
     ops::{AddAssign, BitXor},

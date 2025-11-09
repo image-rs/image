@@ -87,7 +87,7 @@ tiff = ["dep:tiff"]
 webp = ["dep:image-webp"]
 
 # Other features
-rayon = ["dep:rayon", "ravif?/threading", "pic-scale-safe/rayon"] # Enables multi-threading
+rayon = ["dep:rayon", "ravif?/threading"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d

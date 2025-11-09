@@ -87,6 +87,8 @@ tiff = ["dep:tiff"]
 webp = ["dep:image-webp"]
 
 # Other features
+# TODO: add pic-scale-safe rayon in the next breaking release,
+# see https://github.com/image-rs/image/pull/2639#discussion_r2508356543
 rayon = ["dep:rayon", "ravif?/threading"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization

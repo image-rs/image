@@ -1688,7 +1688,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// [`load`]: fn.load.html
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    // Note: this function (and `load_from_memory`) where supposed to be generic over `AsRef<[u8]>`
+    // Note: this function (and `load_from_memory`) were supposed to be generic over `AsRef<[u8]>`
     // so that we do not monomorphize copies of all our decoders unless some downsteam crate
     // actually calls one of these functions. See https://github.com/image-rs/image/pull/2470.
     //

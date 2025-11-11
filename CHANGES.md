@@ -16,6 +16,7 @@ Features:
  - Allow extracting the alpha channel of a `Pixel` in a generic way (#2638)
 
 Structural changes:
+ - EXR format decoding now only uses multi-threading via Rayon when the `rayon` feature is enabled (#2643)
  - Upgraded zune-jpeg to 0.5.x, ravif to 0.12.x
  - pnm: parse integers in PBM/PGM/PPM headers without allocations (#2620)
  - Replace `doc_auto_cfg` with `doc_cfg` (#2637)

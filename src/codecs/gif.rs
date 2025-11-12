@@ -214,6 +214,16 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // Similar to XMP metadata
+        Ok(self.reader.icc_profile().map(Vec::from))
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // XMP metadata must be part of the header which is read with `read_info`.
+        Ok(self.reader.xmp_metadata().map(Vec::from))
+    }
+
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
     }
@@ -634,20 +644,16 @@ impl ImageError {
     fn from_decoding(err: gif::DecodingError) -> ImageError {
         use gif::DecodingError::*;
         match err {
-            err @ Format(_) => {
-                ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), err))
-            }
             Io(io_err) => ImageError::IoError(io_err),
+            other => ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), other)),
         }
     }
 
     fn from_encoding(err: gif::EncodingError) -> ImageError {
         use gif::EncodingError::*;
         match err {
-            err @ Format(_) => {
-                ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), err))
-            }
             Io(io_err) => ImageError::IoError(io_err),
+            other => ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), other)),
         }
     }
 }

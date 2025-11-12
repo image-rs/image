@@ -9,15 +9,16 @@
 ### Version 0.25.9
 
 Features:
- - Support extracting XMP metadata from PNG, JPEG, WebP and TIFF files (#2567, #2634)
+ - Support extracting XMP metadata from PNG, JPEG, GIF, WebP and TIFF files (#2567, #2634, #2644)
  - Support reading IPTC metadata from PNG and JPG files (#2611)
+ - Support reading ICC profile from GIF files (#2644)
  - Allow setting a specific DEFLATE compression level when writing PNG (#2583)
  - Initial support for 16-bit CMYK TIFF files (#2588)
  - Allow extracting the alpha channel of a `Pixel` in a generic way (#2638)
 
 Structural changes:
  - EXR format decoding now only uses multi-threading via Rayon when the `rayon` feature is enabled (#2643)
- - Upgraded zune-jpeg to 0.5.x, ravif to 0.12.x
+ - Upgraded zune-jpeg to 0.5.x, ravif to 0.12.x, gif to 0.14.x
  - pnm: parse integers in PBM/PGM/PPM headers without allocations (#2620)
  - Replace `doc_auto_cfg` with `doc_cfg` (#2637)
 

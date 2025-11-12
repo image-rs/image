@@ -214,6 +214,16 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // Similar to XMP metadata
+        Ok(self.reader.icc_profile().map(Vec::from))
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // XMP metadata must be part of the header which is read with `read_info`.
+        Ok(self.reader.xmp_metadata().map(Vec::from))
+    }
+
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
     }

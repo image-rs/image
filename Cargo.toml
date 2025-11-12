@@ -55,6 +55,7 @@ rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.10.3", optional = true }
 zune-core = { version = "0.5.0", default-features = false, optional = true }
 zune-jpeg = { version = "0.5.5", optional = true }
+jpeg-encoder = { version = "0.6.1", optional = true, features = ["simd"] }
 serde = { version = "1.0.214", optional = true, features = ["derive"] }
 
 [dev-dependencies]
@@ -77,7 +78,7 @@ ff = [] # Farbfeld image format
 gif = ["dep:gif", "dep:color_quant"]
 hdr = []
 ico = ["bmp", "png"]
-jpeg = ["dep:zune-core", "dep:zune-jpeg"]
+jpeg = ["dep:zune-core", "dep:zune-jpeg", "dep:jpeg-encoder"]
 png = ["dep:png"]
 pnm = []
 qoi = ["dep:qoi"]

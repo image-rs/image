@@ -634,20 +634,16 @@ impl ImageError {
     fn from_decoding(err: gif::DecodingError) -> ImageError {
         use gif::DecodingError::*;
         match err {
-            err @ Format(_) => {
-                ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), err))
-            }
             Io(io_err) => ImageError::IoError(io_err),
+            other => ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), other)),
         }
     }
 
     fn from_encoding(err: gif::EncodingError) -> ImageError {
         use gif::EncodingError::*;
         match err {
-            err @ Format(_) => {
-                ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), err))
-            }
             Io(io_err) => ImageError::IoError(io_err),
+            other => ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), other)),
         }
     }
 }

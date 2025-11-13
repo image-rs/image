@@ -2,7 +2,6 @@ use std::error;
 use std::fmt::{self, Display};
 use std::io::{self, Read};
 use std::mem::size_of;
-use std::num::ParseIntError;
 use std::str;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
@@ -14,13 +13,21 @@ use crate::error::{
 use crate::io::ReadExt;
 use crate::{utils, ImageDecoder, ImageFormat};
 
+/// A limit on the maximum length of the TUPLTYPE field in a PAM image that the
+/// PnmDecoder will accept.
+///
+/// This exactly matches the hard limit of 255 bytes + 1 null on the TUPLTYPE
+/// from libnetpbm itself. Imposing this hard limit makes it possible to parse
+/// PAM without requiring any configurable memory limits, and reduces the risk
+/// that users of `image` may create files incompatible with the reference
+/// implementation of the format.
+const MAX_TUPLE_TYPE_LENGTH: usize = 255;
+
 /// All errors that can occur when attempting to parse a PNM
 #[derive(Debug, Clone)]
 enum DecoderError {
     /// PNM's "P[123456]" signature wrong or missing
     PnmMagicInvalid([u8; 2]),
-    /// Couldn't parse the specified string as an integer from the specified source
-    UnparsableValue(ErrorDataSource, String, ParseIntError),
 
     /// More than the exactly one allowed plane specified by the format
     NonAsciiByteInHeader(u8),
@@ -36,8 +43,8 @@ enum DecoderError {
 
     /// The specified line was specified twice
     HeaderLineDuplicated(PnmHeaderLine),
-    /// The line with the specified ID was not understood
-    HeaderLineUnknown(String),
+    /// The line with the specified identifier was not understood
+    HeaderLineUnknown { token: String, too_long: bool },
     /// At least one of the required lines were missing from the header (are `None` here)
     ///
     /// Same names as [`PnmHeaderLine`](enum.PnmHeaderLine.html)
@@ -48,6 +55,10 @@ enum DecoderError {
         depth: Option<u32>,
         maxval: Option<u32>,
     },
+    /// ENDHDR is not alone on its line
+    InvalidEndHeader,
+    /// PAM Header line only has a first token and no value
+    HeaderLineMissingValue,
 
     /// Not enough data was provided to the Decoder to decode the image
     InputTooShort,
@@ -71,6 +82,10 @@ enum DecoderError {
         tuple_type: ArbitraryTuplType,
         depth: u32,
     },
+    /// A tuple type row in the PAM header did not contain a non-whitespace value
+    TupleTypeEmpty,
+    /// The tuple type was not too long
+    TupleTypeTooLong,
     /// The tuple type was not recognised by the parser
     TupleTypeUnrecognised,
 
@@ -85,9 +100,6 @@ impl Display for DecoderError {
                 "Expected magic constant for PNM: P1..P7, got [{:#04X?}, {:#04X?}]",
                 magic[0], magic[1]
             )),
-            DecoderError::UnparsableValue(src, data, err) => {
-                f.write_fmt(format_args!("Error parsing {data:?} as {src}: {err}"))
-            }
 
             DecoderError::NonAsciiByteInHeader(c) => {
                 f.write_fmt(format_args!("Non-ASCII character {c:#04X?} in header"))
@@ -105,8 +117,12 @@ impl Display for DecoderError {
             DecoderError::HeaderLineDuplicated(line) => {
                 f.write_fmt(format_args!("Duplicate {line} line"))
             }
-            DecoderError::HeaderLineUnknown(identifier) => f.write_fmt(format_args!(
-                "Unknown header line with identifier {identifier:?}"
+            DecoderError::HeaderLineUnknown{ token, too_long } => f.write_fmt(format_args!(
+                "Unknown header line with identifier {token:?}{}", if *too_long {
+                    "... (truncated)"
+                } else {
+                    ""
+                }
             )),
             DecoderError::HeaderLineMissing {
                 height,
@@ -116,7 +132,8 @@ impl Display for DecoderError {
             } => f.write_fmt(format_args!(
                 "Missing header line: have height={height:?}, width={width:?}, depth={depth:?}, maxval={maxval:?}"
             )),
-
+            DecoderError::InvalidEndHeader => f.write_str("Unexpected token after ENDHDR"),
+            DecoderError::HeaderLineMissingValue => f.write_str("Missing second token in PAM header line"),
             DecoderError::InputTooShort => {
                 f.write_str("Not enough data was provided to the Decoder to decode the image")
             }
@@ -146,6 +163,10 @@ impl Display for DecoderError {
                 depth,
                 tuple_type.name()
             )),
+            DecoderError::TupleTypeEmpty => f.write_str("The PAM tuple type row did not contain a value"),
+            DecoderError::TupleTypeTooLong => f.write_fmt(format_args!(
+                "The PAM tuple type name was longer than {MAX_TUPLE_TYPE_LENGTH} ASCII letters"
+            )),
             DecoderError::TupleTypeUnrecognised => f.write_str("Tuple type not recognized"),
             DecoderError::Overflow(src) => f.write_fmt(format_args!(
                 "Overflow when parsing integer in {src}"
@@ -162,14 +183,7 @@ impl From<DecoderError> for ImageError {
     }
 }
 
-impl error::Error for DecoderError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            DecoderError::UnparsableValue(_, _, err) => Some(err),
-            _ => None,
-        }
-    }
-}
+impl error::Error for DecoderError {}
 
 /// Single-value lines in a PNM header
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -432,20 +446,6 @@ trait HeaderReader: Read {
         Ok(value)
     }
 
-    fn read_next_line(&mut self) -> ImageResult<String> {
-        let mut buffer = Vec::new();
-        loop {
-            let mut byte = [0];
-            if self.read(&mut byte)? == 0 || byte[0] == b'\n' {
-                break;
-            }
-            buffer.push(byte[0]);
-        }
-
-        String::from_utf8(buffer)
-            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e)))
-    }
-
     fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
         let width = self.read_next_u32()?;
         let height = self.read_next_u32()?;
@@ -484,23 +484,187 @@ trait HeaderReader: Read {
         })
     }
 
-    fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
-        fn parse_single_value_line(
-            line_val: &mut Option<u32>,
-            rest: &str,
-            line: PnmHeaderLine,
-        ) -> ImageResult<()> {
-            if line_val.is_some() {
-                Err(DecoderError::HeaderLineDuplicated(line).into())
-            } else {
-                let v = rest.trim().parse().map_err(|err| {
-                    DecoderError::UnparsableValue(ErrorDataSource::Line(line), rest.to_owned(), err)
-                })?;
-                *line_val = Some(v);
-                Ok(())
+    /// Read the next byte, returning an error on EOF or if the byte is not valid ASCII
+    fn read_ascii_char(&mut self) -> ImageResult<u8> {
+        let mut buf = [0];
+        if self.read(&mut buf)? == 0 {
+            return Err(DecoderError::UnexpectedPnmHeaderEnd.into());
+        }
+        let [byte] = buf;
+        if !byte.is_ascii() {
+            return Err(DecoderError::NonAsciiLineInPamHeader.into());
+        }
+        Ok(byte)
+    }
+
+    /// Read through the header until a nonempty noncomment line is reached, store
+    /// the identifier in the provided buffer, and return its length and whether
+    /// the identifier is the only thing on the line. The stored identifier will
+    /// be valid ASCII text.
+    fn read_next_pam_identifier(&mut self, identifier: &mut [u8]) -> ImageResult<(usize, bool)> {
+        // Scan until an identifier starts
+        let mut in_comment = false;
+        loop {
+            match self.read_ascii_char()? {
+                b'\n' => {
+                    // Empty line or end of comment
+                    in_comment = false;
+                }
+                b'#' => {
+                    in_comment = true;
+                }
+                // Skip whitespace before the identifier token
+                b'\t' | b'\x0b' | b'\x0c' | b'\r' | b' ' => (),
+                b => {
+                    if !in_comment {
+                        // Start of an identifier
+                        identifier[0] = b;
+                        break;
+                    }
+                }
+            }
+        }
+        let mut id_len = 1;
+
+        // Scan the identifier
+        loop {
+            match self.read_ascii_char()? {
+                b'\t' | b'\x0b' | b'\x0c' | b'\r' | b' ' => {
+                    return Ok((id_len, false));
+                }
+                b'\n' => {
+                    return Ok((id_len, true));
+                }
+                b => {
+                    if id_len >= identifier.len() {
+                        return Err(DecoderError::HeaderLineUnknown {
+                            token: str::from_utf8(identifier).expect("expected ascii").into(),
+                            too_long: true,
+                        }
+                        .into());
+                    }
+                    identifier[id_len] = b;
+                    id_len += 1;
+                }
+            }
+        }
+    }
+
+    /// Read a whitespace gap within a line and return the first non-whitespace
+    /// character following it. Will only return ASCII characters.
+    fn read_pam_intraline_whitespace(&mut self) -> ImageResult<u8> {
+        loop {
+            match self.read_ascii_char()? {
+                b'\t' | b'\x0b' | b'\x0c' | b'\r' | b' ' => (),
+                b => {
+                    return Ok(b);
+                }
+            }
+        }
+    }
+
+    /// Read the ASCII decimal value at the end of a PAM header line and following
+    /// whitespace characters up to and including the trailing \n. Similarly to
+    /// the PNM parsers, this accepts leading zeros. This writes the value into
+    /// `line_val` or errors if `*line_val` was not None.
+    fn read_pam_decimal_value(
+        &mut self,
+        line_val: &mut Option<u32>,
+        line: PnmHeaderLine,
+    ) -> ImageResult<()> {
+        if line_val.is_some() {
+            return Err(DecoderError::HeaderLineDuplicated(line).into());
+        }
+
+        let first_char = self.read_pam_intraline_whitespace()?;
+
+        let mut value = match first_char {
+            b'0'..=b'9' => u32::from(first_char - b'0'),
+            _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Line(line)).into()),
+        };
+
+        loop {
+            match self.read_ascii_char()? {
+                b'\t' | b'\x0b' | b'\x0c' | b'\r' | b' ' => {
+                    break;
+                }
+                b'\n' => {
+                    *line_val = Some(value);
+                    return Ok(());
+                }
+                b @ b'0'..=b'9' => {
+                    let digit = u32::from(b - b'0');
+                    value = value
+                        .checked_mul(10)
+                        .ok_or(DecoderError::Overflow(ErrorDataSource::Line(line)))?;
+                    value = value
+                        .checked_add(digit)
+                        .ok_or(DecoderError::Overflow(ErrorDataSource::Line(line)))?;
+                }
+                _ => return Err(DecoderError::InvalidDigit(ErrorDataSource::Line(line)).into()),
             }
         }
 
+        let end = self.read_pam_intraline_whitespace()?;
+        if end != b'\n' {
+            // In this case, have whitespace inside the decimal
+            return Err(DecoderError::InvalidDigit(ErrorDataSource::Line(line)).into());
+        }
+        *line_val = Some(value);
+        Ok(())
+    }
+
+    /// Read until the end of the line, storing the tupltype in the provided buffer,
+    /// and reading following whitespace characters up to and including the trailing \n.
+    fn read_pam_tupltype_value(&mut self, tupltype: &mut [u8]) -> ImageResult<usize> {
+        let first_char = self.read_pam_intraline_whitespace()?;
+        if first_char == b'\n' {
+            return Err(DecoderError::TupleTypeEmpty.into());
+        }
+
+        tupltype[0] = first_char;
+        // The token can include whitespace inside it, but excludes the whitespace
+        // at the end of the line. `len_all` counts all bytes recorded; `len_token`
+        // just counts the number of bytes until the last whitespace run.
+        let mut len_all = 1;
+        let mut len_token = len_all;
+
+        // Scan forward: include tupltype, but exclude trailing whitespace.
+        loop {
+            match self.read_ascii_char()? {
+                b'\n' => {
+                    return Ok(len_token);
+                }
+                b @ (b'\t' | b'\x0b' | b'\x0c' | b'\r' | b' ') => {
+                    if len_all >= tupltype.len() {
+                        // Now trying to parse trailing whitespace
+                        break;
+                    }
+                    tupltype[len_all] = b;
+                    len_all += 1;
+                }
+                b => {
+                    if len_all >= tupltype.len() {
+                        return Err(DecoderError::TupleTypeTooLong.into());
+                    }
+                    tupltype[len_all] = b;
+                    len_all += 1;
+                    len_token = len_all;
+                }
+            }
+        }
+
+        let end = self.read_pam_intraline_whitespace()?;
+        if end != b'\n' {
+            // In this case, have a too long stretch of whitespace inside the name
+            return Err(DecoderError::TupleTypeTooLong.into());
+        }
+        Ok(len_token)
+    }
+
+    /// Decode the Portable Arbitrary Map header, starting from just after the P7 magic
+    /// constant bytes and reading up to and including the \n at the header end.
+    fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
         #[allow(clippy::unbuffered_bytes)]
         match self.bytes().next() {
             None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
@@ -509,47 +673,57 @@ trait HeaderReader: Read {
             Some(Ok(c)) => return Err(DecoderError::NotNewlineAfterP7Magic(c).into()),
         }
 
-        let mut line;
         let mut height: Option<u32> = None;
         let mut width: Option<u32> = None;
         let mut depth: Option<u32> = None;
         let mut maxval: Option<u32> = None;
-        let mut tupltype: Option<String> = None;
+        let mut tuple_type_buf = [0u8; MAX_TUPLE_TYPE_LENGTH];
+        let mut tuple_type_len: usize = 0;
+
         loop {
-            line = self.read_next_line()?;
-            if line.is_empty() {
-                return Err(DecoderError::UnexpectedPnmHeaderEnd.into());
+            // The longest header line token is TUPLTYPE, 8 bytes
+            let mut identifier_buf = [0u8; 16];
+
+            let (identifier_len, eol) = self.read_next_pam_identifier(&mut identifier_buf)?;
+            let identifier = &identifier_buf[..identifier_len];
+            if eol && identifier != b"ENDHDR" {
+                return Err(DecoderError::HeaderLineMissingValue.into());
             }
-            if line.as_bytes()[0] == b'#' {
-                continue;
-            }
-            if !line.is_ascii() {
-                return Err(DecoderError::NonAsciiLineInPamHeader.into());
-            }
-            #[allow(deprecated)]
-            let (identifier, rest) = line
-                .trim_left()
-                .split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
+
             match identifier {
-                "ENDHDR" => break,
-                "HEIGHT" => parse_single_value_line(&mut height, rest, PnmHeaderLine::Height)?,
-                "WIDTH" => parse_single_value_line(&mut width, rest, PnmHeaderLine::Width)?,
-                "DEPTH" => parse_single_value_line(&mut depth, rest, PnmHeaderLine::Depth)?,
-                "MAXVAL" => parse_single_value_line(&mut maxval, rest, PnmHeaderLine::Maxval)?,
-                "TUPLTYPE" => {
-                    let identifier = rest.trim();
-                    if tupltype.is_some() {
-                        let appended = tupltype.take().map(|mut v| {
-                            v.push(' ');
-                            v.push_str(identifier);
-                            v
-                        });
-                        tupltype = appended;
-                    } else {
-                        tupltype = Some(identifier.to_string());
+                b"ENDHDR" => {
+                    if !eol {
+                        let b = self.read_pam_intraline_whitespace()?;
+                        if b != b'\n' {
+                            return Err(DecoderError::InvalidEndHeader.into());
+                        }
                     }
+                    break;
                 }
-                _ => return Err(DecoderError::HeaderLineUnknown(identifier.to_string()).into()),
+                b"HEIGHT" => self.read_pam_decimal_value(&mut height, PnmHeaderLine::Height)?,
+                b"WIDTH" => self.read_pam_decimal_value(&mut width, PnmHeaderLine::Width)?,
+                b"DEPTH" => self.read_pam_decimal_value(&mut depth, PnmHeaderLine::Depth)?,
+                b"MAXVAL" => self.read_pam_decimal_value(&mut maxval, PnmHeaderLine::Maxval)?,
+                b"TUPLTYPE" => {
+                    if tuple_type_len >= tuple_type_buf.len() - 1 {
+                        return Err(DecoderError::TupleTypeTooLong.into());
+                    }
+                    // Concatenate together multiple TUPLTYPE fields.
+                    if tuple_type_len > 0 {
+                        tuple_type_buf[tuple_type_len] = b' ';
+                        tuple_type_len += 1;
+                    }
+                    let added_len =
+                        self.read_pam_tupltype_value(&mut tuple_type_buf[tuple_type_len..])?;
+                    tuple_type_len += added_len;
+                }
+                other => {
+                    return Err(DecoderError::HeaderLineUnknown {
+                        token: str::from_utf8(other).expect("expected ascii").into(),
+                        too_long: false,
+                    }
+                    .into())
+                }
             }
         }
 
@@ -563,17 +737,20 @@ trait HeaderReader: Read {
             .into());
         };
 
-        let tupltype = match tupltype {
-            None => None,
-            Some(ref t) if t == "BLACKANDWHITE" => Some(ArbitraryTuplType::BlackAndWhite),
-            Some(ref t) if t == "BLACKANDWHITE_ALPHA" => {
-                Some(ArbitraryTuplType::BlackAndWhiteAlpha)
-            }
-            Some(ref t) if t == "GRAYSCALE" => Some(ArbitraryTuplType::Grayscale),
-            Some(ref t) if t == "GRAYSCALE_ALPHA" => Some(ArbitraryTuplType::GrayscaleAlpha),
-            Some(ref t) if t == "RGB" => Some(ArbitraryTuplType::RGB),
-            Some(ref t) if t == "RGB_ALPHA" => Some(ArbitraryTuplType::RGBAlpha),
-            Some(other) => Some(ArbitraryTuplType::Custom(other)),
+        let tupltype = match &tuple_type_buf[..tuple_type_len] {
+            b"BLACKANDWHITE" => Some(ArbitraryTuplType::BlackAndWhite),
+            b"BLACKANDWHITE_ALPHA" => Some(ArbitraryTuplType::BlackAndWhiteAlpha),
+            b"GRAYSCALE" => Some(ArbitraryTuplType::Grayscale),
+            b"GRAYSCALE_ALPHA" => Some(ArbitraryTuplType::GrayscaleAlpha),
+            b"RGB" => Some(ArbitraryTuplType::RGB),
+            b"RGB_ALPHA" => Some(ArbitraryTuplType::RGBAlpha),
+            // Note: per the PAM spec, if there are no TUPLTYPE lines, then the
+            // tuple type is the empty string, which is encoded here as None
+            // to preserve existing behavior.
+            b"" => None,
+            other => Some(ArbitraryTuplType::Custom(
+                str::from_utf8(other).expect("expected ascii").into(),
+            )),
         };
 
         Ok(ArbitraryHeader {
@@ -1502,5 +1679,255 @@ ENDHDR
         let data = b"P4 1 01234567890\n";
         let decoder = PnmDecoder::new(&data[..]).unwrap();
         assert!(decoder.dimensions() == (1, 1234567890));
+    }
+
+    #[test]
+    fn pam_header_whitespace_variants() {
+        let pam_header = concat!(
+            /*P7*/ "\n",
+            "\tWIDTH 2\n",
+            "HEIGHT\r\r3\r\r\n",
+            "\n",
+            " \tTUPLTYPE  \t  CYAN\n",
+            "  \n",
+            "DEPTH 1\n",
+            "\rMAXVAL  00100\n",
+            "TUPLTYPE MAGENTA \n",
+            "# \tComment\x0b\x0c\r line\n",
+            "\rTUPLTYPE  \t  YELLOW\t KHAKI\n",
+            "##\\\n",
+            "\x0b\x0cENDHDR \t\n",
+        );
+        let mut reader: &[u8] = pam_header.as_bytes();
+        let header = reader.read_arbitrary_header().unwrap();
+        assert!(reader.is_empty());
+        match header {
+            ArbitraryHeader {
+                width: 2,
+                height: 3,
+                maxval: 100,
+                depth: 1,
+                tupltype: Some(ArbitraryTuplType::Custom(x)),
+            } if x == "CYAN MAGENTA YELLOW\t KHAKI" => (),
+            _ => panic!("header misparse: {:?}", header),
+        }
+    }
+
+    #[test]
+    fn pam_header_no_tupltype_line() {
+        let pam_header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 1
+HEIGHT 2
+ENDHDR
+";
+        let mut reader: &[u8] = pam_header.as_slice();
+        let header = reader.read_arbitrary_header().unwrap();
+        assert!(reader.is_empty());
+        match header {
+            ArbitraryHeader {
+                width: 1,
+                height: 2,
+                maxval: 255,
+                depth: 3,
+                tupltype: None,
+            } => (),
+            _ => panic!("header misparse: {:?}", header),
+        }
+    }
+
+    #[test]
+    fn pam_header_long_whitespace() {
+        let template = "
+MAXVAL 1\t
+DEPTH\t1
+WIDTH 1
+HEIGHT 1
+TUPLTYPE\tGRAYSCALE\t
+ENDHDR
+";
+        let pam_header = template.replace('\t', &" ".repeat(256));
+
+        let mut reader: &[u8] = pam_header.as_bytes();
+        let header = reader.read_arbitrary_header().unwrap();
+        assert!(reader.is_empty());
+        match header {
+            ArbitraryHeader {
+                width: 1,
+                height: 1,
+                maxval: 1,
+                depth: 1,
+                tupltype: Some(ArbitraryTuplType::Grayscale),
+            } => (),
+            _ => panic!("header misparse: {:?}", header),
+        }
+    }
+
+    /// Get the DecoderError produced on the input PAM header, or panic
+    fn pam_header_decode_error(header: &[u8]) -> DecoderError {
+        use std::error::Error;
+
+        let mut reader = header;
+        let error = reader.read_arbitrary_header().unwrap_err();
+        let ImageError::Decoding(x) = error else {
+            panic!("unexpected error type");
+        };
+        x.source()
+            .expect("should have error source")
+            .downcast_ref::<DecoderError>()
+            .expect("expected DecoderError source")
+            .clone()
+    }
+
+    #[test]
+    fn pam_header_empty_tupltype() {
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 1
+HEIGHT 2
+TUPLTYPE\t
+ENDHDR
+";
+        assert!(matches!(
+            pam_header_decode_error(header),
+            DecoderError::TupleTypeEmpty
+        ));
+    }
+
+    #[test]
+    fn pam_header_integer_overflow() {
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 1000000000000000
+HEIGHT 1
+TUPLTYPE RGB
+ENDHDR
+";
+        assert!(matches!(
+            pam_header_decode_error(header),
+            DecoderError::Overflow(_)
+        ));
+    }
+
+    #[test]
+    fn pam_header_missing_value() {
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH
+HEIGHT 1
+TUPLTYPE RGB
+ENDHDR
+";
+        assert!(matches!(
+            pam_header_decode_error(header),
+            DecoderError::HeaderLineMissingValue
+        ));
+    }
+
+    #[test]
+    fn pam_header_bad_integer() {
+        // "3 3" is not a valid integer
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 3 3
+HEIGHT 1
+TUPLTYPE RGB
+ENDHDR
+";
+        assert!(matches!(
+            pam_header_decode_error(header),
+            DecoderError::InvalidDigit(_)
+        ));
+    }
+
+    #[test]
+    fn pam_header_long_tupltype_1() {
+        let template = "
+MAXVAL 255
+DEPTH 3
+WIDTH 3
+HEIGHT 1
+TUPLTYPE LONG
+ENDHDR
+";
+        let header = template.replace("LONG", &"LONG".repeat(256));
+        assert!(matches!(
+            pam_header_decode_error(header.as_bytes()),
+            DecoderError::TupleTypeTooLong
+        ));
+    }
+
+    #[test]
+    fn pam_header_long_tupltype_2() {
+        let template = "
+MAXVAL 255
+DEPTH 3
+WIDTH 3
+HEIGHT 1
+TUPLTYPE LONG
+ENDHDR
+";
+        let header = template.replace("TUPLTYPE LONG\n", &"TUPLTYPE LONG\n".repeat(256));
+        assert!(matches!(
+            pam_header_decode_error(header.as_bytes()),
+            DecoderError::TupleTypeTooLong
+        ));
+    }
+
+    #[test]
+    fn pam_header_unknown() {
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 3
+HEIGHT 1
+tupltype RGB
+ENDHDR
+";
+        let DecoderError::HeaderLineUnknown { token, too_long } = pam_header_decode_error(header)
+        else {
+            panic!("unexpected error");
+        };
+        assert!(token == "tupltype" && !too_long);
+    }
+
+    #[test]
+    fn pam_header_long_identifier() {
+        let template = "
+MAXVAL 255
+DEPTH 3
+WIDTH 3
+HEIGHT 1
+LONG RGB
+ENDHDR
+";
+        let header = template.replace("LONG", &"LONG".repeat(256));
+        let DecoderError::HeaderLineUnknown { token: _, too_long } =
+            pam_header_decode_error(header.as_bytes())
+        else {
+            panic!("unexpected error");
+        };
+        assert!(too_long);
+    }
+
+    #[test]
+    fn pam_header_bad_end() {
+        let header = b"
+MAXVAL 255
+DEPTH 3
+WIDTH 3
+HEIGHT 1
+TUPLTYPE RGB
+ENDHDR OOPS
+";
+        assert!(matches!(
+            pam_header_decode_error(header),
+            DecoderError::InvalidEndHeader
+        ));
     }
 }

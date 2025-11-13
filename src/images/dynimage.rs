@@ -864,22 +864,15 @@ impl DynamicImage {
         dynamic_map!(*self, ref mut p, imageops::invert(p));
     }
 
-    /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. The image's aspect ratio is preserved.
-    /// The image is scaled to the maximum possible size that fits
-    /// within the bounds specified by `nwidth` and `nheight`.
+    /// Resize the image keeping its aspect ratio.
     ///
-    /// This method operates on pixel channel values directly without taking into account color
-    /// space data.
-    #[must_use]
+    /// *NOTE:* The behavior of [`imageops::resize`] actually matches
+    /// [`resize_exact`](DynamicImage::resize_exact) rather than this method.
+    /// Use one of those if you want the returned image to have precisely the
+    /// requested dimensions.
+    #[deprecated = "This method is equivelent to `resize_to_fit`. Use that instead."]
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
-        if (nwidth, nheight) == self.dimensions() {
-            return self.clone();
-        }
-        let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
-
-        self.resize_exact(width2, height2, filter)
+        self.resize_to_fit(nwidth, nheight, filter)
     }
 
     /// Resize this image using the specified filter algorithm.
@@ -896,6 +889,60 @@ impl DynamicImage {
         filter: imageops::FilterType,
     ) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
+    }
+
+    /// Resize this image using the specified filter algorithm.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the bounds specified by `nwidth` and `nheight`.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
+    #[must_use]
+    pub fn resize_to_fit(
+        &self,
+        nwidth: u32,
+        nheight: u32,
+        filter: imageops::FilterType,
+    ) -> DynamicImage {
+        if (nwidth, nheight) == self.dimensions() {
+            return self.clone();
+        }
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+
+        self.resize_exact(width2, height2, filter)
+    }
+
+    /// Resize this image using the specified filter algorithm.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the larger (relative to aspect ratio) of the bounds
+    /// specified by `nwidth` and `nheight`, then cropped to
+    /// fit within the other bound.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
+    #[must_use]
+    pub fn resize_to_fill(
+        &self,
+        nwidth: u32,
+        nheight: u32,
+        filter: imageops::FilterType,
+    ) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
+
+        let mut intermediate = self.resize_exact(width2, height2, filter);
+        let (iwidth, iheight) = intermediate.dimensions();
+        let ratio = u64::from(iwidth) * u64::from(nheight);
+        let nratio = u64::from(nwidth) * u64::from(iheight);
+
+        if nratio > ratio {
+            intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
+        } else {
+            intermediate.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
+        }
     }
 
     /// Scale this image down to fit within a specific size.
@@ -928,37 +975,6 @@ impl DynamicImage {
     #[must_use]
     pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
-    }
-
-    /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. The image's aspect ratio is preserved.
-    /// The image is scaled to the maximum possible size that fits
-    /// within the larger (relative to aspect ratio) of the bounds
-    /// specified by `nwidth` and `nheight`, then cropped to
-    /// fit within the other bound.
-    ///
-    /// This method operates on pixel channel values directly without taking into account color
-    /// space data.
-    #[must_use]
-    pub fn resize_to_fill(
-        &self,
-        nwidth: u32,
-        nheight: u32,
-        filter: imageops::FilterType,
-    ) -> DynamicImage {
-        let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
-
-        let mut intermediate = self.resize_exact(width2, height2, filter);
-        let (iwidth, iheight) = intermediate.dimensions();
-        let ratio = u64::from(iwidth) * u64::from(nheight);
-        let nratio = u64::from(nwidth) * u64::from(iheight);
-
-        if nratio > ratio {
-            intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
-        } else {
-            intermediate.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
-        }
     }
 
     /// Performs a Gaussian blur on this image.
@@ -2214,7 +2230,7 @@ mod test {
         clone.set_color_space(Cicp::DISPLAY_P3).unwrap();
 
         const IMAGEOPS: &[&dyn Fn(&super::DynamicImage) -> super::DynamicImage] = &[
-            &|img| img.resize(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| img.resize_to_fit(32, 32, crate::imageops::FilterType::Lanczos3),
             &|img| img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3),
             &|img| img.thumbnail(8, 8),
             &|img| img.thumbnail_exact(8, 8),

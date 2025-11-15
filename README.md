@@ -57,7 +57,7 @@ implement it.
 | `avif-native`     | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
 | `serde`           | Enables `serde` integration for various structs and options
 
-Note: When using this library in a library you intend to publish, it is recommended to set `default-features = false`. This library enables multithreading by default, which may cause issues when compiling for `no_std`, `Wasm`, or similar environments.
+Note: When using `image` in a library you intend to publish, it is recommended to set `default-features = false` and then explicitly enable format features that are absolutely necessary. This ensures a smaller dependency tree and faster iteration time. The default feature configuration would also enable multithreading which may cause unexpected behavior when running for inherently single-threaded environments such as `wasm` targets.
 
 ## Image Types
 

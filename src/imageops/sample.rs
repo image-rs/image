@@ -1633,8 +1633,9 @@ mod tests {
     fn test_resize_same_size() {
         use std::path::Path;
         let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
-        let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
-        assert!(img.pixels().eq(resize.pixels()));
+        let mut resized = img.clone();
+        resized.resize(img.width(), img.height(), FilterType::Triangle);
+        assert!(img.pixels().eq(resized.pixels()));
     }
 
     #[test]

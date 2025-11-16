@@ -50,12 +50,14 @@ implement it.
 
 | Feature           | Description
 | ----------------- | -----------
-| `default-formats` | Format support for common image formats: AVIF, BMP, DDS, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
-| `rayon`           | Enables multi-threading with rayon context in some dependencies
+| `default-formats` | **Default**<br>Format support for common image formats: AVIF, BMP, DDS, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
+| `rayon`           | **Default**<br>Enables multi-threading with rayon context in some dependencies
 | `nasm`            | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
 | `color_quant`     | Includes `color_quant` as an implementation of `imageops::ColorMap`
 | `avif-native`     | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)
 | `serde`           | Enables `serde` integration for various structs and options
+
+Note: When using `image` in a library you intend to publish, it is recommended to set `default-features = false` and then explicitly enable format features that are absolutely necessary. This ensures a smaller dependency tree and faster iteration time. The default feature configuration would also enable multithreading which may cause unexpected behavior when running for inherently single-threaded environments such as `wasm` targets.
 
 ## Image Types
 

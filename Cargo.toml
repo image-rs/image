@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.25.8"
+version = "0.25.9"
 edition = "2021"
 resolver = "2"
 
@@ -43,8 +43,8 @@ num-traits = { version = "0.2.0" }
 # Optional dependencies
 color_quant = { version = "1.1", optional = true }
 dav1d = { version = "0.10.3", optional = true }
-exr = { version = "1.5.0", optional = true }
-gif = { version = "0.13.1", optional = true }
+exr = { version = "1.74.0", default-features = false, optional = true }
+gif = { version = "0.14.0", optional = true }
 image-webp = { version = "0.2.0", optional = true }
 mp4parse = { version = "0.17.0", optional = true }
 png = { version = "0.18.0", optional = true }
@@ -89,7 +89,7 @@ webp = ["dep:image-webp"]
 # Other features
 # TODO: add pic-scale-safe rayon in the next breaking release,
 # see https://github.com/image-rs/image/pull/2639#discussion_r2508356543
-rayon = ["dep:rayon", "ravif?/threading"] # Enables multi-threading
+rayon = ["dep:rayon", "ravif?/threading", "exr?/rayon"] # Enables multi-threading
 nasm = ["ravif?/asm"] # Enables use of nasm by rav1e (requires nasm to be installed)
 color_quant = ["dep:color_quant"] # Enables color quantization
 avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d

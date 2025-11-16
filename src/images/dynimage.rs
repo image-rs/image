@@ -1661,8 +1661,8 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// TGA is not supported by this function.
 ///
 /// Try [`ImageReader`] for more advanced uses.
-pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
-    let format = free_functions::guess_format(buffer.as_ref())?;
+pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
+    let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
 }
 
@@ -1675,14 +1675,14 @@ pub fn load_from_memory(buffer: impl AsRef<[u8]>) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]
-pub fn load_from_memory_with_format(
-    buf: impl AsRef<[u8]>,
-    format: ImageFormat,
-) -> ImageResult<DynamicImage> {
-    // Note: this function (and `load_from_memory`) are generic over `AsRef<[u8]>` so that we do not
-    // monomorphize copies of all our decoders unless some downsteam crate actually calls one of
-    // these functions. See https://github.com/image-rs/image/pull/2470.
-    let b = io::Cursor::new(buf.as_ref());
+pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
+    // Note: this function (and `load_from_memory`) were supposed to be generic over `AsRef<[u8]>`
+    // so that we do not monomorphize copies of all our decoders unless some downsteam crate
+    // actually calls one of these functions. See https://github.com/image-rs/image/pull/2470.
+    //
+    // However the type inference break of this is apparently quite large in the ecosystem so for
+    // now they are unfortunately not. See https://github.com/image-rs/image/issues/2585.
+    let b = io::Cursor::new(buf);
     free_functions::load(b, format)
 }
 

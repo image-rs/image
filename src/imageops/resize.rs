@@ -195,3 +195,16 @@ fn has_constant_alpha_f32(img: &ImageBuffer<crate::Rgba<f32>, Vec<f32>>) -> bool
         .map(|pixel| pixel.channels().last().unwrap())
         .all(|alpha| *alpha == first_pixel_alpha)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{imageops::resize::resize_impl, DynamicImage};
+
+    #[test]
+    fn smoke_test() {
+        let mut image = DynamicImage::new(10, 10, crate::ColorType::Rgba8);
+        resize_impl(&mut image, 5, 5, crate::imageops::FilterType::Lanczos3).unwrap();
+        assert_eq!(image.height(), 5);
+        assert_eq!(image.width(), 5);
+    }
+}

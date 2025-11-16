@@ -5,22 +5,19 @@
 //! Everything that references pic-scale-safe crate is contained to this file
 //! so that it could easily be made an optional dependency in the future.
 
-use std::{
-    borrow::Cow,
-    ops::{AddAssign, BitXor},
-};
+use std::ops::{AddAssign, BitXor};
 
 use crate::{imageops::FilterType, DynamicImage, ImageBuffer, Pixel};
 use pic_scale_safe::ResamplingFunction;
 
 pub(crate) fn resize_impl(
-    image: &DynamicImage,
+    image: &mut DynamicImage,
     dst_width: u32,
     dst_height: u32,
     algorithm: FilterType,
-) -> Result<DynamicImage, String> {
+) -> Result<(), String> {
     if image.width() == dst_width && image.height() == dst_height {
-        return Ok(image.clone());
+        return Ok(());
     }
     let algorithm = convert_filter_type(algorithm);
     let alg = algorithm; // otherwise rustfmt breaks up too-long-lines and the formatting is a mess
@@ -30,22 +27,15 @@ pub(crate) fn resize_impl(
     // Premultiply the image by alpha channel to avoid color bleed from fully transparent pixels.
     let mut premultiplied_by_alpha = false;
     // There is no need to premultiply for nearest-neighbor resampling because it does not perform any blending.
-    // This is actually a valuable optimization because -thumbnail uses nearest-neighbor for a part of the process.
-    let mut image = Cow::Borrowed(image);
-    if algorithm != ResamplingFunction::Nearest && !has_constant_alpha(image.as_ref()) {
-        // TODO: once we can make a semver-breaking change,
-        // change function signature to modify the original or take ownership of it to reduce peak memory use,
-        // because the .into_owned() below is unnecessary:
-        // https://github.com/Shnatsel/wondermagick/blob/4a19503136b0812d6d5d44ba49a60792f6690313/src/operations/resize.rs#L64-L83
-        let mut premult_image = image.into_owned();
-        premultiply_alpha(&mut premult_image);
-        image = Cow::Owned(premult_image);
+    // This is actually a valuable optimization because thumbnailing uses nearest-neighbor for a part of the process.
+    if algorithm != ResamplingFunction::Nearest && !has_constant_alpha(image) {
+        premultiply_alpha(image);
         premultiplied_by_alpha = true;
     }
 
     use pic_scale_safe::*;
     use DynamicImage::*;
-    let mut resized = match image.as_ref() {
+    let mut resized = match image {
         ImageLuma8(src) => {
             let resized = resize_plane8(src.as_raw(), src_size, dst_size, alg)?;
             ImageLuma8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
@@ -90,7 +80,8 @@ pub(crate) fn resize_impl(
     if premultiplied_by_alpha {
         unpremultiply_alpha(&mut resized);
     }
-    Ok(resized)
+    *image = resized;
+    Ok(())
 }
 
 fn convert_filter_type(filter: FilterType) -> ResamplingFunction {

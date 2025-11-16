@@ -1756,7 +1756,11 @@ mod tests {
         );
         let image = crate::open(path).unwrap();
         b.iter(|| {
-            test::black_box(image.clone().resize(image.width(), image.height(), FilterType::CatmullRom));
+            test::black_box(image.clone().resize(
+                image.width(),
+                image.height(),
+                FilterType::CatmullRom,
+            ));
         });
         b.bytes = u64::from(image.width() * image.height() * 3);
     }

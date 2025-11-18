@@ -3,6 +3,9 @@ name = "image"
 version = "0.26.0-alpha.1"
 edition = "2021"
 resolver = "2"
+# guard against accidentally publushing alpha releases:
+# https://github.com/image-rs/image/pull/2648#discussion_r2539464776
+publish = false
 
 # note: when changed, also update test runner in `.github/workflows/rust.yml`
 rust-version = "1.85.0"

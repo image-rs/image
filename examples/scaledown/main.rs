@@ -25,7 +25,7 @@ impl fmt::Display for Elapsed {
 }
 
 fn main() {
-    let img = image::open("examples/scaledown/test.jpg").unwrap();
+    let mut img = image::open("examples/scaledown/test.jpg").unwrap();
     for &(name, filter) in &[
         ("near", FilterType::Nearest),
         ("tri", FilterType::Triangle),
@@ -34,10 +34,10 @@ fn main() {
         ("lcz2", FilterType::Lanczos3),
     ] {
         let timer = Instant::now();
-        let scaled = img.resize(400, 400, filter);
+        img.resize(400, 400, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(format!("test-{name}.png")).unwrap();
-        scaled.write_to(&mut output, ImageFormat::Png).unwrap();
+        img.write_to(&mut output, ImageFormat::Png).unwrap();
     }
 
     for size in &[20_u32, 40, 100, 200, 400] {

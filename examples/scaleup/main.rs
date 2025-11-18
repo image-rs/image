@@ -25,7 +25,7 @@ impl fmt::Display for Elapsed {
 }
 
 fn main() {
-    let tiny = image::open("examples/scaleup/tinycross.png").unwrap();
+    let mut tiny = image::open("examples/scaleup/tinycross.png").unwrap();
     for &(name, filter) in &[
         ("near", FilterType::Nearest),
         ("tri", FilterType::Triangle),
@@ -33,16 +33,17 @@ fn main() {
         ("ygauss", FilterType::Gaussian),
         ("zlcz2", FilterType::Lanczos3),
     ] {
+        let mut tiny1 = tiny.clone();
         let timer = Instant::now();
-        let scaled = tiny.resize(32, 32, filter);
+        tiny1.resize(32, 32, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(format!("up2-{name}.png")).unwrap();
-        scaled.write_to(&mut output, ImageFormat::Png).unwrap();
+        tiny1.write_to(&mut output, ImageFormat::Png).unwrap();
 
         let timer = Instant::now();
-        let scaled = tiny.resize(48, 48, filter);
+        tiny.resize(48, 48, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(format!("up3-{name}.png")).unwrap();
-        scaled.write_to(&mut output, ImageFormat::Png).unwrap();
+        tiny.write_to(&mut output, ImageFormat::Png).unwrap();
     }
 }

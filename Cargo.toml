@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.26.0-alpha.1"
+version = "1.0.0-alpha.1"
 edition = "2021"
 resolver = "2"
 # guard against accidentally publushing alpha releases:

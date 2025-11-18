@@ -864,58 +864,35 @@ impl DynamicImage {
         dynamic_map!(*self, ref mut p, imageops::invert(p));
     }
 
-    /// Resize the image keeping its aspect ratio.
-    ///
-    /// *NOTE:* The behavior of [`imageops::resize`] actually matches
-    /// [`resize_exact`](DynamicImage::resize_exact) rather than this method.
-    /// Use one of those if you want the returned image to have precisely the
-    /// requested dimensions.
-    #[deprecated = "This method is equivelent to `resize_to_fit`. Use that instead."]
-    pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
-        self.resize_to_fit(nwidth, nheight, filter)
-    }
-
     /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. Does not preserve aspect ratio.
+    /// Does not preserve aspect ratio.
     /// `nwidth` and `nheight` are the new image's dimensions
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
-    #[must_use]
-    pub fn resize_exact(
-        &self,
-        nwidth: u32,
-        nheight: u32,
-        filter: imageops::FilterType,
-    ) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
+    pub fn resize_exact(&mut self, nwidth: u32, nheight: u32, filter: imageops::FilterType) {
+        imageops::resize::resize_impl(self, nwidth, nheight, filter).unwrap()
     }
 
     /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
-    #[must_use]
-    pub fn resize_to_fit(
-        &self,
-        nwidth: u32,
-        nheight: u32,
-        filter: imageops::FilterType,
-    ) -> DynamicImage {
+    pub fn resize_to_fit(&mut self, nwidth: u32, nheight: u32, filter: imageops::FilterType) {
         if (nwidth, nheight) == self.dimensions() {
-            return self.clone();
+            return;
         }
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
         self.resize_exact(width2, height2, filter)
-    }
-
+    }  
+  
     /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the larger (relative to aspect ratio) of the bounds
     /// specified by `nwidth` and `nheight`, then cropped to
@@ -923,26 +900,21 @@ impl DynamicImage {
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
-    #[must_use]
-    pub fn resize_to_fill(
-        &self,
-        nwidth: u32,
-        nheight: u32,
-        filter: imageops::FilterType,
-    ) -> DynamicImage {
+    pub fn resize_to_fill(&mut self, nwidth: u32, nheight: u32, filter: imageops::FilterType) {
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
+        self.resize_exact(width2, height2, filter);
 
-        let mut intermediate = self.resize_exact(width2, height2, filter);
-        let (iwidth, iheight) = intermediate.dimensions();
+        let (iwidth, iheight) = self.dimensions();
         let ratio = u64::from(iwidth) * u64::from(nheight);
         let nratio = u64::from(nwidth) * u64::from(iheight);
 
-        if nratio > ratio {
-            intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
+        let cropped = if nratio > ratio {
+            self.crop(0, (iheight - nheight) / 2, nwidth, nheight)
         } else {
-            intermediate.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
-        }
+            self.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
+        };
+        *self = cropped;
     }
 
     /// Scale this image down to fit within a specific size.
@@ -2230,11 +2202,23 @@ mod test {
         clone.set_color_space(Cicp::DISPLAY_P3).unwrap();
 
         const IMAGEOPS: &[&dyn Fn(&super::DynamicImage) -> super::DynamicImage] = &[
-            &|img| img.resize_to_fit(32, 32, crate::imageops::FilterType::Lanczos3),
-            &|img| img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| {
+                let mut img = img.clone();
+                img.resize_to_fit(32, 32, crate::imageops::FilterType::Lanczos3);
+                img
+            },
+            &|img| {
+                let mut img = img.clone();
+                img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3);
+                img
+            },
             &|img| img.thumbnail(8, 8),
             &|img| img.thumbnail_exact(8, 8),
-            &|img| img.resize_to_fill(32, 32, crate::imageops::FilterType::Lanczos3),
+            &|img| {
+                let mut img = img.clone();
+                img.resize_to_fill(32, 32, crate::imageops::FilterType::Lanczos3);
+                img
+            },
             &|img| img.blur(1.0),
             &|img| {
                 img.blur_advanced(

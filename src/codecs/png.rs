@@ -558,15 +558,15 @@ pub struct PngEncoder<W: Write> {
 #[non_exhaustive]
 #[derive(Default)]
 pub enum CompressionType {
-    /// Default compression level
-    Default,
+    /// No compression whatsoever
+    Uncompressed,
     /// Fast, minimal compression
     #[default]
     Fast,
+    /// Balance between speed and compression level
+    Balanced,
     /// High compression level
     Best,
-    /// No compression whatsoever
-    Uncompressed,
     /// Detailed compression level between 1 and 9
     Level(u8),
 }
@@ -660,7 +660,7 @@ impl<W: Write> PngEncoder<W> {
         };
 
         let comp = match self.compression {
-            CompressionType::Default => png::Compression::Balanced,
+            CompressionType::Balanced => png::Compression::Balanced,
             CompressionType::Best => png::Compression::High,
             CompressionType::Fast => png::Compression::Fast,
             CompressionType::Uncompressed => png::Compression::NoCompression,

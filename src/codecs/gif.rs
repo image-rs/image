@@ -528,6 +528,13 @@ impl<W: Write> GifEncoder<W> {
                 &mut data.to_owned(),
                 self.speed,
             )),
+            ExtendedColorType::L8 => {
+                let palette: Vec<u8> = (0..=255).flat_map(|i| [i, i, i]).collect();
+
+                self.encode_gif(Frame::from_palette_pixels(
+                    width, height, data, palette, None,
+                ))
+            }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Gif.into(),

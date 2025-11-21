@@ -1,5 +1,7 @@
 [package]
 name = "image"
+# we are already working on 1.0.0 in git, but we're keeping the old version here
+# to make it easier to depend on git for testing
 version = "0.25.9"
 edition = "2021"
 resolver = "2"

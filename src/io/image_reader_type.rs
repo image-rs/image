@@ -147,11 +147,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// For all formats except PNG, the limits are ignored and can be set with
     /// `ImageDecoder::set_limits` after calling this function. PNG is handled specially because that
     /// decoder has a different API which does not allow setting limits after construction.
-    fn make_decoder(
-        format: Format,
-        reader: R,
-        limits_for_png: Limits,
-    ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
+    fn make_decoder(format: Format, reader: R) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         #[allow(unused)]
         use crate::codecs::*;
 
@@ -174,7 +170,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "avif-native")]
             ImageFormat::Avif => Box::new(avif::AvifDecoder::new(reader)?),
             #[cfg(feature = "png")]
-            ImageFormat::Png => Box::new(png::PngDecoder::with_limits(reader, limits_for_png)?),
+            ImageFormat::Png => Box::new(png::PngDecoder::new(reader)),
             #[cfg(feature = "gif")]
             ImageFormat::Gif => Box::new(gif::GifDecoder::new(reader)?),
             #[cfg(feature = "jpeg")]
@@ -209,11 +205,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         })
     }
 
-    /// Convert the reader into a decoder.
+    /// Convert the reader into a decoder ready to read an image.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
-        let mut decoder =
-            Self::make_decoder(self.require_format()?, self.inner, self.limits.clone())?;
+        let mut decoder = Self::make_decoder(self.require_format()?, self.inner)?;
         decoder.set_limits(self.limits)?;
+        decoder.init()?;
         Ok(decoder)
     }
 
@@ -294,12 +290,17 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = self.require_format()?;
 
         let mut limits = self.limits;
-        let mut decoder = Self::make_decoder(format, self.inner, limits.clone())?;
 
+        let mut decoder = Self::make_decoder(format, self.inner)?;
+        decoder.set_limits(limits.clone())?;
+        decoder.init()?;
+
+        // This is technically redundant but it's also cheap.
+        let (width, height) = decoder.dimensions();
+        limits.check_dimensions(width, height)?;
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         limits.reserve(decoder.total_bytes())?;
-        decoder.set_limits(limits)?;
 
         DynamicImage::from_decoder(decoder)
     }

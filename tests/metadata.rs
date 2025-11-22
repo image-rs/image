@@ -25,7 +25,8 @@ fn test_read_xmp_png() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(XMP_PNG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data));
+    png_decoder.init()?;
     let metadata = png_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
@@ -108,7 +109,8 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(IPTC_PNG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data));
+    png_decoder.init()?;
     let metadata = png_decoder.iptc_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, metadata.unwrap());

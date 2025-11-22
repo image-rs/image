@@ -302,7 +302,7 @@ where
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<T>(decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
+pub(crate) fn decoder_to_vec<T>(mut decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
@@ -338,11 +338,8 @@ mod tests {
             fn color_type(&self) -> ColorType {
                 ColorType::L8
             }
-            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()
-            }
-            fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-                (*self).read_image(buf)
             }
         }
 
@@ -463,11 +460,8 @@ mod tests {
             fn color_type(&self) -> ColorType {
                 ColorType::L8
             }
-            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<()> {
                 unimplemented!()
-            }
-            fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-                (*self).read_image(buf)
             }
         }
 

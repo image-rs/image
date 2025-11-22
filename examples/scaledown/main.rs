@@ -34,7 +34,7 @@ fn main() {
         ("lcz2", FilterType::Lanczos3),
     ] {
         let timer = Instant::now();
-        img.resize(400, 400, filter);
+        img.resize_to_fit(400, 400, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(format!("test-{name}.png")).unwrap();
         img.write_to(&mut output, ImageFormat::Png).unwrap();

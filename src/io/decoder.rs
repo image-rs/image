@@ -5,6 +5,16 @@ use crate::metadata::{LoopCount, Orientation};
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
+    /// Consume the header of the image.
+    ///
+    /// This should be implemented by a decoder that is performing actual IO. It should be called
+    /// before a call to [`Self::read_image`] to ensure that the initial metadata has been read.
+    /// Crucially, in contrast to a constructor it can be called after configuring limits and
+    /// context which avoids resource issues for formats that buffer metadata.
+    fn init(&mut self) -> ImageResult<()> {
+        Ok(())
+    }
+
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&self) -> (u32, u32);
 
@@ -88,15 +98,13 @@ pub trait ImageDecoder {
     ///
     /// ```
     /// # use image::ImageDecoder;
-    /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<u16> {
+    /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
     ///     let mut buf: Vec<u16> = vec![0; (decoder.total_bytes() / 2) as usize];
     ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf));
     ///     buf
     /// }
     /// ```
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()>
-    where
-        Self: Sized;
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()>;
 
     /// Set the decoder to have the specified limits. See [`Limits`] for the different kinds of
     /// limits that is possible to set.
@@ -118,22 +126,13 @@ pub trait ImageDecoder {
         limits.check_dimensions(width, height)?;
         Ok(())
     }
-
-    /// Use `read_image` instead; this method is an implementation detail needed so the trait can
-    /// be object safe.
-    ///
-    /// Note to implementors: This method should be implemented by calling `read_image` on
-    /// the boxed decoder...
-    /// ```ignore
-    /// fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-    ///     (*self).read_image(buf)
-    /// }
-    /// ```
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()>;
 }
 
 #[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
+    fn init(&mut self) -> ImageResult<()> {
+        (**self).init()
+    }
     fn dimensions(&self) -> (u32, u32) {
         (**self).dimensions()
     }
@@ -161,14 +160,8 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn total_bytes(&self) -> u64 {
         (**self).total_bytes()
     }
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()>
-    where
-        Self: Sized,
-    {
-        T::read_image_boxed(self, buf)
-    }
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        T::read_image_boxed(*self, buf)
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        (**self).read_image(buf)
     }
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         (**self).set_limits(limits)
@@ -197,11 +190,8 @@ mod tests {
             fn dimensions(&self) -> (u32, u32) {
                 (0xffff_ffff, 0xffff_ffff)
             }
-            fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
-                unimplemented!()
-            }
-            fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-                (*self).read_image(buf)
+            fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<()> {
+                unreachable!("Must not be called in this test")
             }
         }
         assert_eq!(D.total_bytes(), u64::MAX);

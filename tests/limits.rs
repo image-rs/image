@@ -111,16 +111,9 @@ fn png() {
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
 
     // PngDecoder
-    let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
-    // Unlike many others, the `png` crate does natively support memory limits for auxiliary buffers,
-    // but they are not passed down from `set_limits` - only from the `with_limits` constructor.
-    // The proper fix is known to require an API break: https://github.com/image-rs/image/issues/2084
-
-    // Custom constructor on PngDecoder
-    assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
+    let mut decoder = PngDecoder::new(Cursor::new(&image));
+    decoder.set_limits(width_height_limits()).unwrap();
+    assert!(decoder.init().is_err());
 }
 
 #[test]

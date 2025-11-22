@@ -198,12 +198,9 @@ mod tests {
         fn color_type(&self) -> ColorType {
             ColorType::Rgb8
         }
-        fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
             buf[..MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
             Ok(())
-        }
-        fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-            (*self).read_image(buf)
         }
     }
     fn is_mock_decoder_output(image: DynamicImage) -> bool {

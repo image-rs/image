@@ -11,8 +11,8 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crc32fast::Hasher as Crc32;
-use image::ColorType;
-use image::{DynamicImage, ImageFormat};
+use image::{ColorType, DynamicImage, ImageFormat};
+
 use libtest_mimic::{Arguments, Failed, Trial};
 use walkdir::WalkDir;
 
@@ -116,7 +116,7 @@ fn main() {
                             // Interpret the input file as an animation file
                             use image::AnimationDecoder;
                             let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                            let decoder = image::codecs::png::PngDecoder::new(stream)?.apng()?;
+                            let decoder = image::codecs::png::PngDecoder::new(stream).apng()?;
                             let mut frames = decoder.into_frames().collect_frames()?;
 
                             // Select a single frame

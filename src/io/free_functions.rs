@@ -166,7 +166,7 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<T>(decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
+pub(crate) fn decoder_to_vec<T>(mut decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {

@@ -130,4 +130,4 @@ harness = false
 enum_discriminants_undefined_non_unit_variant = { level = "warn" }
 
 [patch.crates-io]
-gif = {git = "https://github.com/Shnatsel/image-gif", branch = "encode-la8"}
+gif = {git = "https://github.com/image-rs/image-gif.git"}

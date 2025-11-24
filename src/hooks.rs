@@ -143,18 +143,23 @@ pub fn register_format_detection_hook(
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use crate::{ColorType, ImageReader};
     use super::*;
-
+    use crate::{ColorType, ImageReader};
+    use std::io::Cursor;
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
 
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
-        fn dimensions(&self) -> (u32, u32) { (1, 1) }
-        fn color_type(&self) -> ColorType {ColorType::Rgb8}
-        fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {panic!("MOCK decoder called")}
+        fn dimensions(&self) -> (u32, u32) {
+            (1, 1)
+        }
+        fn color_type(&self) -> ColorType {
+            ColorType::Rgb8
+        }
+        fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
+            panic!("MOCK decoder called")
+        }
         fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
             (*self).read_image(buf)
         }
@@ -163,26 +168,32 @@ mod tests {
     #[test]
     #[should_panic(expected = "MOCK decoder called")]
     fn decoding_hook() {
-        register_decoding_hook(MOCK_HOOK_EXTENSION.into(),
-                               Box::new(|_| Ok(Box::new(MockDecoder{}))));
+        register_decoding_hook(
+            MOCK_HOOK_EXTENSION.into(),
+            Box::new(|_| Ok(Box::new(MockDecoder {}))),
+        );
 
-        ImageReader::open("tests/images/hook/extension.MoCkHoOk").unwrap().decode().unwrap();
+        ImageReader::open("tests/images/hook/extension.MoCkHoOk")
+            .unwrap()
+            .decode()
+            .unwrap();
     }
 
     #[test]
     #[should_panic(expected = "MOCK decoder called")]
     fn detection_hook() {
         const TEST_IMAGE: [u8; 16] = [
-            b'H', b'E', b'A', b'D',
-            b'J', b'U', b'N', b'K',
-            b'M', b'O', b'C', b'K',
-            b'm', b'o', b'r', b'e'
+            b'H', b'E', b'A', b'D', b'J', b'U', b'N', b'K', b'M', b'O', b'C', b'K', b'm', b'o',
+            b'r', b'e',
         ];
-        register_decoding_hook(MOCK_HOOK_EXTENSION.into(),
-                               Box::new(|_| Ok(Box::new(MockDecoder {}))));
-        register_format_detection_hook(MOCK_HOOK_EXTENSION.into(),
-                                       &[b'H', b'E', b'A', b'D', 0, 0, 0, 0, b'M', b'O', b'C', b'K'],
-                                       Some(&[0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff]),
+        register_decoding_hook(
+            MOCK_HOOK_EXTENSION.into(),
+            Box::new(|_| Ok(Box::new(MockDecoder {}))),
+        );
+        register_format_detection_hook(
+            MOCK_HOOK_EXTENSION.into(),
+            &[b'H', b'E', b'A', b'D', 0, 0, 0, 0, b'M', b'O', b'C', b'K'],
+            Some(&[0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff]),
         );
 
         let reader = Cursor::new(TEST_IMAGE);

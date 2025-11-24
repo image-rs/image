@@ -5,14 +5,23 @@ use crate::metadata::Orientation;
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
-    /// Consume the header of the image.
+    /// Consume the header of the image, determining the image's layout.
     ///
     /// This should be implemented by a decoder that is performing actual IO. It should be called
     /// before a call to [`Self::read_image`] to ensure that the initial metadata has been read.
     /// Crucially, in contrast to a constructor it can be called after configuring limits and
     /// context which avoids resource issues for formats that buffer metadata.
-    fn init(&mut self) -> ImageResult<()> {
-        Ok(())
+    ///
+    /// The layout returned by an implementation of [`ImageDecoder::next_layout`] must match the
+    /// buffer expected in [`ImageDecoder::read_image`].
+    fn next_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let (width, height) = self.dimensions();
+
+        Ok(crate::ImageLayout {
+            color: self.color_type(),
+            width,
+            height,
+        })
     }
 
     /// Returns a tuple containing the width and height of the image
@@ -67,19 +76,6 @@ pub trait ImageDecoder {
             .unwrap_or(Orientation::NoTransforms))
     }
 
-    /// Returns the total number of bytes in the decoded image.
-    ///
-    /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
-    /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
-    fn total_bytes(&self) -> u64 {
-        let dimensions = self.dimensions();
-        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
-        let bytes_per_pixel = u64::from(self.color_type().bytes_per_pixel());
-        total_pixels.saturating_mul(bytes_per_pixel)
-    }
-
     /// Returns all the bytes in the image.
     ///
     /// This function takes a slice of bytes and writes the pixel data of the image into it.
@@ -99,8 +95,9 @@ pub trait ImageDecoder {
     /// ```
     /// # use image::ImageDecoder;
     /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
-    ///     let mut buf: Vec<u16> = vec![0; (decoder.total_bytes() / 2) as usize];
-    ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf));
+    ///     let layout = decoder.next_layout().unwrap();
+    ///     let mut buf: Vec<u16> = vec![0; (layout.total_bytes() / 2) as usize];
+    ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf)).unwrap();
     ///     buf
     /// }
     /// ```
@@ -130,8 +127,8 @@ pub trait ImageDecoder {
 
 #[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
-    fn init(&mut self) -> ImageResult<()> {
-        (**self).init()
+    fn next_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        (**self).next_layout()
     }
     fn dimensions(&self) -> (u32, u32) {
         (**self).dimensions()
@@ -156,9 +153,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn orientation(&mut self) -> ImageResult<Orientation> {
         (**self).orientation()
-    }
-    fn total_bytes(&self) -> u64 {
-        (**self).total_bytes()
     }
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         (**self).read_image(buf)
@@ -201,6 +195,7 @@ mod tests {
     #[test]
     fn total_bytes_overflow() {
         struct D;
+
         impl ImageDecoder for D {
             fn color_type(&self) -> ColorType {
                 ColorType::Rgb8
@@ -212,9 +207,9 @@ mod tests {
                 unreachable!("Must not be called in this test")
             }
         }
-        assert_eq!(D.total_bytes(), u64::MAX);
 
-        let v: ImageResult<Vec<u8>> = crate::io::free_functions::decoder_to_vec(D);
+        assert_eq!(D.next_layout().unwrap().total_bytes(), u64::MAX);
+        let v: ImageResult<Vec<u8>> = crate::io::free_functions::decoder_to_vec(&mut D);
         assert!(v.is_err());
     }
 }

@@ -352,7 +352,7 @@ impl ImageReader<BufReader<File>> {
         let format = path
             .extension()
             .filter(|ext| !ext.is_empty())
-            .map(|ext| Format::Extension(ext.to_owned()));
+            .map(|ext| Format::Extension(ext.to_ascii_lowercase()));
 
         Ok(ImageReader {
             inner: BufReader::new(File::open(path)?),

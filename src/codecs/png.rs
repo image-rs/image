@@ -208,9 +208,15 @@ fn reader_finished_already() -> ImageError {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
-    fn init(&mut self) -> ImageResult<()> {
-        let _ = self.ensure_reader_and_header()?;
-        Ok(())
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let reader = self.ensure_reader_and_header()?;
+        let (width, height) = reader.info().size();
+
+        Ok(crate::ImageLayout {
+            width,
+            height,
+            color: self.color_type,
+        })
     }
 
     fn dimensions(&self) -> (u32, u32) {
@@ -286,8 +292,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
-        let _ = self.ensure_reader_and_header()?;
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let reader = self.ensure_reader_and_header()?;
         reader.next_frame(buf).map_err(ImageError::from_png)?;
@@ -295,7 +301,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         // the buffer may need to be reordered to native endianness per the
         // contract of `read_image`.
         // TODO: assumes equal channel bit depth.
-        let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
+        let bpc = layout.color.bytes_per_pixel() / layout.color.channel_count();
 
         match bpc {
             1 => (), // No reodering necessary for u8
@@ -883,7 +889,7 @@ mod tests {
                 .unwrap(),
         ));
 
-        dec.init()
+        dec.peek_layout()
             .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
@@ -894,7 +900,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
-        let correct_bytes = decoder_to_vec(dec)
+        let correct_bytes = decoder_to_vec(&mut dec)
             .expect("Unable to read file")
             .bytes()
             .map(|x| x.expect("Unable to read byte"))
@@ -913,7 +919,7 @@ mod tests {
         not_png[0] = 0;
 
         let mut decoder = PngDecoder::new(Cursor::new(&not_png));
-        let error = decoder.init().err().unwrap();
+        let error = decoder.peek_layout().err().unwrap();
 
         let _ = error
             .source()

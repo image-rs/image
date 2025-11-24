@@ -43,3 +43,42 @@ impl<R: io::Read> ReadExt for R {
         }
     }
 }
+
+/// Communicate the layout of an image.
+///
+/// Describes a packed rectangular layout with given bit-depth in [`ImageDecoder::init`]. Layouts
+/// from `image` are row-major with no padding between rows and pixels packed by consecutive
+/// channels.
+#[non_exhaustive]
+pub struct ImageLayout {
+    /// The color model of each pixel.
+    pub color: crate::ColorType,
+    /// The number of pixels in the horizontal direction.
+    pub width: u32,
+    /// The number of pixels in the vertical direction.
+    pub height: u32,
+}
+
+impl ImageLayout {
+    /// A layout with no pixels, of the given [`ColorType`][`crate::ColorType`].
+    pub fn empty(color: crate::ColorType) -> Self {
+        ImageLayout {
+            color,
+            width: 0,
+            height: 0,
+        }
+    }
+
+    /// Returns the total number of bytes in the decoded image.
+    ///
+    /// This is the size of the buffer that must be passed to `read_image` or
+    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
+    /// which case it isn't actually possible to construct a buffer to decode all the image data
+    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
+    pub fn total_bytes(&self) -> u64 {
+        let ImageLayout { width, height, .. } = *self;
+        let total_pixels = u64::from(width) * u64::from(height);
+        let bytes_per_pixel = u64::from(self.color.bytes_per_pixel());
+        total_pixels.saturating_mul(bytes_per_pixel)
+    }
+}

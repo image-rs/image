@@ -34,13 +34,9 @@ impl<R: Read> ImageDecoder for QoiDecoder<R> {
         }
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         self.decoder.decode_to_buf(buf).map_err(decoding_error)?;
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

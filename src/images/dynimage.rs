@@ -240,8 +240,16 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder(decoder: impl ImageDecoder) -> ImageResult<Self> {
-        decoder_to_image(decoder)
+    pub fn from_decoder(mut decoder: impl ImageDecoder) -> ImageResult<Self> {
+        let layout = decoder.peek_layout()?;
+        decoder_to_image(&mut decoder, layout)
+    }
+
+    pub(crate) fn decoder_to_image(
+        mut decoder: impl ImageDecoder,
+        layout: crate::ImageLayout,
+    ) -> ImageResult<Self> {
+        decoder_to_image(&mut decoder, layout)
     }
 
     /// Encodes a dynamic image into a buffer.
@@ -1550,9 +1558,15 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
-    let (w, h) = decoder.dimensions();
-    let color_type = decoder.color_type();
+pub(crate) fn decoder_to_image(
+    decoder: &mut dyn ImageDecoder,
+    layout: crate::ImageLayout,
+) -> ImageResult<DynamicImage> {
+    let crate::ImageLayout {
+        width: w,
+        height: h,
+        color: color_type,
+    } = layout;
 
     let mut image = match color_type {
         color::ColorType::Rgb8 => {

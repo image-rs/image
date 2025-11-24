@@ -113,7 +113,7 @@ fn png() {
     // PngDecoder
     let mut decoder = PngDecoder::new(Cursor::new(&image));
     decoder.set_limits(width_height_limits()).unwrap();
-    assert!(decoder.init().is_err());
+    assert!(decoder.peek_layout().is_err());
 }
 
 #[test]

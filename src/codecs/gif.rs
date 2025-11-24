@@ -48,20 +48,56 @@ use crate::{
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
-    reader: gif::Decoder<R>,
+    options: gif::DecodeOptions,
+    reader: Option<R>,
+    decoder: Option<gif::Decoder<R>>,
     limits: Limits,
 }
 
 impl<R: Read> GifDecoder<R> {
     /// Creates a new decoder that decodes the input steam `r`
     pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = gif::DecodeOptions::new();
-        decoder.set_color_output(ColorOutput::RGBA);
+        let mut options = gif::DecodeOptions::new();
+        options.set_color_output(ColorOutput::RGBA);
 
         Ok(GifDecoder {
-            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
+            options,
+            reader: Some(r),
+            decoder: None,
             limits: Limits::no_limits(),
         })
+    }
+
+    // We're manipulating the lifetime. The early return must not borrow from `self.decoder` for
+    // the whole scope of the function thus this check does not work with if-let patterns until at
+    // least the next generation borrow checker (as of 1.89).
+    #[allow(clippy::unnecessary_unwrap)]
+    fn ensure_decoder(&mut self) -> ImageResult<&mut gif::Decoder<R>> {
+        if self.decoder.is_some() {
+            return Ok(self.decoder.as_mut().unwrap());
+        }
+
+        let Some(reader) = self.reader.take() else {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        let decoder = self
+            .options
+            .clone()
+            .read_info(reader)
+            .map_err(ImageError::from_decoding)?;
+
+        Ok(self.decoder.insert(decoder))
+    }
+
+    fn layout_from_decoder(decoder: &gif::Decoder<R>) -> crate::ImageLayout {
+        crate::ImageLayout {
+            width: u32::from(decoder.width()),
+            height: u32::from(decoder.height()),
+            color: ColorType::Rgba8,
+        }
     }
 }
 
@@ -86,11 +122,17 @@ impl<R> Read for GifReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let decoder = self.ensure_decoder()?;
+        Ok(Self::layout_from_decoder(decoder))
+    }
+
     fn dimensions(&self) -> (u32, u32) {
-        (
-            u32::from(self.reader.width()),
-            u32::from(self.reader.height()),
-        )
+        if let Some(ref decoder) = self.decoder {
+            (u32::from(decoder.width()), u32::from(decoder.height()))
+        } else {
+            (0, 0)
+        }
     }
 
     fn color_type(&self) -> ColorType {
@@ -108,11 +150,13 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let decoder = self.ensure_decoder()?;
+        let layout @ crate::ImageLayout { width, height, .. } = Self::layout_from_decoder(decoder);
 
-        let frame = match self
-            .reader
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+
+        let frame = match decoder
             .next_frame_info()
             .map_err(ImageError::from_decoding)?
         {
@@ -124,8 +168,6 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         };
 
-        let (width, height) = self.dimensions();
-
         if frame.left == 0
             && frame.width == width
             && (u64::from(frame.top) + u64::from(frame.height) <= u64::from(height))
@@ -135,7 +177,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             // we can directly write it into the buffer without causing line wraparound.
             let line_length = usize::try_from(width)
                 .unwrap()
-                .checked_mul(self.color_type().bytes_per_pixel() as usize)
+                .checked_mul(ColorType::Rgba8.bytes_per_pixel() as usize)
                 .unwrap();
 
             // isolate the portion of the buffer to read the frame data into.
@@ -145,14 +187,15 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             let (buf, blank_bottom) =
                 rest.split_at_mut(line_length.checked_mul(frame.height as usize).unwrap());
 
-            debug_assert_eq!(buf.len(), self.reader.buffer_size());
+            debug_assert_eq!(buf.len(), decoder.buffer_size());
 
             // this is only necessary in case the buffer is not zeroed
             for b in blank_top {
                 *b = 0;
             }
+
             // fill the middle section with the frame data
-            self.reader
+            decoder
                 .read_into_buffer(buf)
                 .map_err(ImageError::from_decoding)?;
             // this is only necessary in case the buffer is not zeroed
@@ -173,7 +216,9 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             let mut frame_buffer = vec![0; buffer_size];
             self.limits.free_usize(buffer_size);
 
-            self.reader
+            let decoder = self.ensure_decoder()?;
+
+            decoder
                 .read_into_buffer(&mut frame_buffer[..])
                 .map_err(ImageError::from_decoding)?;
 
@@ -215,22 +260,20 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decoder = self.ensure_decoder()?;
         // Similar to XMP metadata
-        Ok(self.reader.icc_profile().map(Vec::from))
+        Ok(decoder.icc_profile().map(Vec::from))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decoder = self.ensure_decoder()?;
         // XMP metadata must be part of the header which is read with `read_info`.
-        Ok(self.reader.xmp_metadata().map(Vec::from))
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(decoder.xmp_metadata().map(Vec::from))
     }
 }
 
 struct GifFrameIterator<R: Read> {
-    reader: gif::Decoder<R>,
+    decoder: Option<gif::Decoder<R>>,
 
     width: u32,
     height: u32,
@@ -250,7 +293,7 @@ impl<R: BufRead + Seek> GifFrameIterator<R> {
         // intentionally ignore the background color for web compatibility
 
         GifFrameIterator {
-            reader: decoder.reader,
+            decoder: decoder.decoder,
             width,
             height,
             non_disposed_frame: None,
@@ -291,8 +334,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         let non_disposed_frame = self.non_disposed_frame.as_mut().unwrap();
 
         // begin looping over each frame
+        let decoder = self.decoder.as_mut()?;
 
-        let frame = match self.reader.next_frame_info() {
+        let frame = match decoder.next_frame_info() {
             Ok(frame_info) => {
                 if let Some(frame) = frame_info {
                     FrameInfo::new_from_frame(frame)
@@ -326,8 +370,8 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             return Some(Err(e));
         }
         // Allocate the buffer now that the limits allowed it
-        let mut vec = vec![0; self.reader.buffer_size()];
-        if let Err(err) = self.reader.read_into_buffer(&mut vec) {
+        let mut vec = vec![0; decoder.buffer_size()];
+        if let Err(err) = decoder.read_into_buffer(&mut vec) {
             return Some(Err(ImageError::from_decoding(err)));
         }
 
@@ -684,9 +728,10 @@ mod test {
             0x77, 0xF5, 0x6D, 0x14, 0x00, 0x3B,
         ];
 
-        let decoder = GifDecoder::new(Cursor::new(data)).unwrap();
-        let mut buf = vec![0u8; decoder.total_bytes() as usize];
+        let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
+        let layout = decoder.peek_layout().unwrap();
 
+        let mut buf = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buf).is_ok());
     }
 }

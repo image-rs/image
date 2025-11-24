@@ -252,7 +252,7 @@ impl DirEntry {
         self.seek_to_start(&mut r)?;
 
         if is_png {
-            Ok(Png(Box::new(PngDecoder::new(r)?)))
+            Ok(Png(Box::new(PngDecoder::new(r))))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
@@ -260,6 +260,13 @@ impl DirEntry {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
+    fn init(&mut self) -> ImageResult<()> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.init(),
+            Png(decoder) => decoder.init(),
+        }
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             Bmp(ref decoder) => decoder.dimensions(),
@@ -274,9 +281,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner_decoder {
+        match &mut self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(DecoderError::PngShorterThanHeader.into());
@@ -304,7 +311,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 decoder.read_image(buf)
             }
-            Bmp(mut decoder) => {
+            Bmp(decoder) => {
                 let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
@@ -375,10 +382,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
             }
         }
     }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
-    }
 }
 
 #[cfg(test)]
@@ -439,7 +442,7 @@ mod test {
             0x50, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc7, 0x37, 0x61,
         ];
 
-        let decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
         let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }

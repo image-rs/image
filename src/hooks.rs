@@ -134,6 +134,7 @@ pub fn register_format_detection_hook(
     signature: &'static [u8],
     mask: Option<&'static [u8]>,
 ) {
+    let extension = extension.to_ascii_lowercase();
     GUESS_FORMAT_HOOKS
         .write()
         .unwrap()
@@ -147,7 +148,7 @@ mod tests {
     use super::*;
 
 
-    const MOCK_HOOK_EXTENSION: &str = "mockhook";
+    const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
 
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
@@ -162,7 +163,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "MOCK decoder called")]
     fn decoding_hook() {
-        register_decoding_hook(MOCK_HOOK_EXTENSION.to_ascii_uppercase().into(),
+        register_decoding_hook(MOCK_HOOK_EXTENSION.into(),
                                Box::new(|_| Ok(Box::new(MockDecoder{}))));
 
         ImageReader::open("tests/images/hook/extension.MoCkHoOk").unwrap().decode().unwrap();
@@ -177,7 +178,7 @@ mod tests {
             b'M', b'O', b'C', b'K',
             b'm', b'o', b'r', b'e'
         ];
-        register_decoding_hook(MOCK_HOOK_EXTENSION.to_ascii_uppercase().into(),
+        register_decoding_hook(MOCK_HOOK_EXTENSION.into(),
                                Box::new(|_| Ok(Box::new(MockDecoder {}))));
         register_format_detection_hook(MOCK_HOOK_EXTENSION.into(),
                                        &[b'H', b'E', b'A', b'D', 0, 0, 0, 0, b'M', b'O', b'C', b'K'],

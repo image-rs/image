@@ -75,6 +75,14 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: u32::from(self.width),
+            height: u32::from(self.height),
+            color: ColorType::from_jpeg(self.orig_color_space),
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.width), u32::from(self.height))
     }
@@ -145,8 +153,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(self.orientation.unwrap())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        let advertised_len = self.total_bytes();
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let layout = self.peek_layout()?;
+
+        let advertised_len = layout.total_bytes();
         let actual_len = buf.len() as u64;
 
         if actual_len != advertised_len {
@@ -160,7 +170,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, &self.limits);
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
         Ok(())
     }
@@ -171,10 +181,6 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         limits.check_dimensions(width, height)?;
         self.limits = limits;
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 
@@ -204,11 +210,11 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     }
 }
 
-fn new_zune_decoder(
-    input: &[u8],
+fn new_zune_decoder<'input>(
+    input: &'input [u8],
     orig_color_space: ZuneColorSpace,
-    limits: Limits,
-) -> zune_jpeg::JpegDecoder<ZCursor<&[u8]>> {
+    limits: &Limits,
+) -> zune_jpeg::JpegDecoder<ZCursor<&'input [u8]>> {
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options = zune_core::options::DecoderOptions::default()
         .jpeg_set_out_colorspace(target_color_space)

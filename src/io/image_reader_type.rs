@@ -209,7 +209,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
         let mut decoder = Self::make_decoder(self.require_format()?, self.inner)?;
         decoder.set_limits(self.limits)?;
-        decoder.init()?;
+        decoder.peek_layout()?;
         Ok(decoder)
     }
 
@@ -293,16 +293,14 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
         let mut decoder = Self::make_decoder(format, self.inner)?;
         decoder.set_limits(limits.clone())?;
-        decoder.init()?;
+        let layout = decoder.peek_layout()?;
 
         // This is technically redundant but it's also cheap.
-        let (width, height) = decoder.dimensions();
-        limits.check_dimensions(width, height)?;
+        limits.check_dimensions(layout.width, layout.height)?;
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
-        limits.reserve(decoder.total_bytes())?;
-
-        DynamicImage::from_decoder(decoder)
+        limits.reserve(layout.total_bytes())?;
+        DynamicImage::decoder_to_image(decoder, layout)
     }
 
     fn require_format(&mut self) -> ImageResult<Format> {

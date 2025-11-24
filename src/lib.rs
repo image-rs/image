@@ -159,6 +159,7 @@ pub use crate::images::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open,
     write_buffer_with_format,
 };
+
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
@@ -167,6 +168,7 @@ pub use crate::io::{
     format::ImageFormat,
     image_reader_type::ImageReader,
     limits::{LimitSupport, Limits},
+    ImageLayout,
 };
 
 pub use crate::images::dynimage::DynamicImage;

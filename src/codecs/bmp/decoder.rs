@@ -2150,6 +2150,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: self.width as u32,
+            height: self.height as u32,
+            color: self.color_type(),
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -2168,13 +2176,10 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.read_image_data(buf)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 
@@ -2222,8 +2227,9 @@ mod test {
             0x4d, 0x00, 0x2a, 0x00,
         ];
 
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let layout = decoder.peek_layout().unwrap();
+        let mut buf = vec![0; usize::try_from(layout.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }
 
@@ -2496,7 +2502,7 @@ mod test {
 
             // Get reference result from normal decoding
             let mut ref_decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
-            let expected_bytes = ref_decoder.total_bytes() as usize;
+            let expected_bytes = ref_decoder.peek_layout().unwrap().total_bytes() as usize;
             let mut ref_buf = vec![0u8; expected_bytes];
             let ref_icc_len = ref_decoder.icc_profile().unwrap().map(|p| p.len());
             ref_decoder.read_image(&mut ref_buf).unwrap();
@@ -2563,7 +2569,7 @@ mod test {
             let (width, height) = decoder.dimensions();
             assert!(width > 0 && height > 0, "{path}: invalid dimensions");
             assert_eq!(
-                decoder.total_bytes() as usize,
+                decoder.peek_layout().unwrap().total_bytes() as usize,
                 expected_bytes,
                 "{path}: total_bytes mismatch"
             );
@@ -2701,10 +2707,13 @@ mod test {
                 .unwrap_or_else(|e| panic!("{description}: failed to read {path}: {e}"));
 
             // Default (lenient) mode: these files should be accepted
-            let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap_or_else(|e| {
+            let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap_or_else(|e| {
                 panic!("{description}: decoding failed: {e:?}");
             });
-            let mut buf = vec![0u8; decoder.total_bytes() as usize];
+            let layout = decoder.peek_layout().unwrap_or_else(|e| {
+                panic!("{description}: peek_layout failed: {e:?}");
+            });
+            let mut buf = vec![0u8; layout.total_bytes() as usize];
             decoder.read_image(buf.as_mut_slice()).unwrap_or_else(|e| {
                 panic!("{description}: read_image failed: {e:?}");
             });

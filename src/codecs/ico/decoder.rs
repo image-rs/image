@@ -255,7 +255,7 @@ impl DirEntry {
                 max_image_height: Some(self.real_height().into()),
                 max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
             };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits)?)))
+            Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
@@ -265,6 +265,13 @@ impl DirEntry {
 // We forward everything to png or bmp decoder.
 #[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.peek_layout(),
+            Png(decoder) => decoder.peek_layout(),
+        }
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             Bmp(ref decoder) => decoder.dimensions(),
@@ -279,9 +286,8 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner_decoder {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        match &mut self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(DecoderError::PngShorterThanHeader.into());
@@ -309,7 +315,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 decoder.read_image(buf)
             }
-            Bmp(mut decoder) => {
+            Bmp(decoder) => {
                 let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
@@ -423,22 +429,11 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn total_bytes(&self) -> u64 {
-        match &self.inner_decoder {
-            Bmp(decoder) => decoder.total_bytes(),
-            Png(decoder) => decoder.total_bytes(),
-        }
-    }
-
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.set_limits(limits),
             Png(decoder) => decoder.set_limits(limits),
         }
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 
@@ -500,8 +495,9 @@ mod test {
             0x50, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc7, 0x37, 0x61,
         ];
 
-        let decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let bytes = decoder.peek_layout().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }
 }

@@ -3,16 +3,57 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
 use crate::metadata::{LoopCount, Orientation};
 
-/// The trait that all decoders implement
+/// The interface for `image` to utilize in reading image files.
+///
+/// This should be thought of as one side of protocol between `image` and a specific file format.
+/// In the general case, the calls are expected to be made in the following order:
+///
+/// ```text,bnf
+/// set_limits*
+/// > (peek_layout+ > read_image)*
+/// > finish
+/// ```
+///
+/// Metadata (`icc_profile`, `exif_metadata`, etc.)is handled different for different image
+/// containers. The should apply to the previous image.
 pub trait ImageDecoder {
-    /// Consume the header of the image.
+    /// Set the decoder to have the specified limits. See [`Limits`] for the different kinds of
+    /// limits that is possible to set.
     ///
-    /// This should be implemented by a decoder that is performing actual IO. It should be called
-    /// before a call to [`Self::read_image`] to ensure that the initial metadata has been read.
-    /// Crucially, in contrast to a constructor it can be called after configuring limits and
-    /// context which avoids resource issues for formats that buffer metadata.
-    fn init(&mut self) -> ImageResult<()> {
+    /// Note to implementors: make sure you call [`Limits::check_support`] so that
+    /// decoding fails if any unsupported strict limits are set. Also make sure
+    /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
+    /// `max_image_height` limits.
+    ///
+    /// **Note**: By default, _no_ limits are defined. This may be changed in future major version
+    /// increases.
+    ///
+    /// [`Limits`]: ./io/struct.Limits.html
+    /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
+    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
+    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
         Ok(())
+    }
+
+    /// Consume the header of the image, determining the image's layout.
+    ///
+    /// This must be called before a call to [`Self::read_image`] to ensure that the initial
+    /// metadata has been read. In contrast to a constructor it can be called after configuring
+    /// limits and context which avoids resource issues for formats that buffer metadata.
+    ///
+    /// The layout returned by an implementation of [`ImageDecoder::peek_layout`] must match the
+    /// buffer expected in [`ImageDecoder::read_image`].
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let (width, height) = self.dimensions();
+
+        Ok(crate::ImageLayout {
+            color: self.color_type(),
+            width,
+            height,
+        })
     }
 
     /// Returns a tuple containing the width and height of the image
@@ -25,6 +66,33 @@ pub trait ImageDecoder {
     fn original_color_type(&self) -> ExtendedColorType {
         self.color_type().into()
     }
+
+    /// Read all the bytes in the image into a buffer.
+    ///
+    /// This function takes a slice of bytes and writes the pixel data of the image into it.
+    /// `buf` must not be assumed to be aligned to any byte boundaries. However,
+    /// alignment to 2 or 4 byte boundaries may result in small performance
+    /// improvements for certain decoder implementations.
+    ///
+    /// The returned pixel data will always be in native endian. This allows
+    /// `[u16]` and `[f32]` slices to be cast to `[u8]` and used for this method.
+    ///
+    /// # Panics
+    ///
+    /// This function should panic if `buf.len() != self.peek_layout().total_bytes()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use image::ImageDecoder;
+    /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
+    ///     let layout = decoder.next_layout().unwrap();
+    ///     let mut buf: Vec<u16> = vec![0; (layout.total_bytes() / 2) as usize];
+    ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf)).unwrap();
+    ///     buf
+    /// }
+    /// ```
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()>;
 
     /// Returns the ICC color profile embedded in the image, or `Ok(None)` if the image does not have one.
     ///
@@ -66,72 +134,12 @@ pub trait ImageDecoder {
             .and_then(|chunk| Orientation::from_exif_chunk(&chunk))
             .unwrap_or(Orientation::NoTransforms))
     }
-
-    /// Returns the total number of bytes in the decoded image.
-    ///
-    /// This is the size of the buffer that must be passed to `read_image`. The returned value may
-    /// exceed `usize::MAX`, in which case it isn't actually possible to construct a buffer to
-    /// decode all the image data into. If, however, the size does not fit in a u64 then `u64::MAX`
-    /// is returned.
-    fn total_bytes(&self) -> u64 {
-        let dimensions = self.dimensions();
-        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
-        let bytes_per_pixel = u64::from(self.color_type().bytes_per_pixel());
-        total_pixels.saturating_mul(bytes_per_pixel)
-    }
-
-    /// Returns all the bytes in the image.
-    ///
-    /// This function takes a slice of bytes and writes the pixel data of the image into it.
-    /// `buf` does not need to be aligned to any byte boundaries. However,
-    /// alignment to 2 or 4 byte boundaries may result in small performance
-    /// improvements for certain decoder implementations.
-    ///
-    /// The returned pixel data will always be in native endian. This allows
-    /// `[u16]` and `[f32]` slices to be cast to `[u8]` and used for this method.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if `buf.len() != self.total_bytes()`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use image::ImageDecoder;
-    /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
-    ///     let mut buf: Vec<u16> = vec![0; (decoder.total_bytes() / 2) as usize];
-    ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf));
-    ///     buf
-    /// }
-    /// ```
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()>;
-
-    /// Set the decoder to have the specified limits. See [`Limits`] for the different kinds of
-    /// limits that is possible to set.
-    ///
-    /// Note to implementors: make sure you call [`Limits::check_support`] so that
-    /// decoding fails if any unsupported strict limits are set. Also make sure
-    /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
-    /// `max_image_height` limits.
-    ///
-    /// **Note**: By default, _no_ limits are defined. This may be changed in future major version
-    /// increases.
-    ///
-    /// [`Limits`]: ./io/struct.Limits.html
-    /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
-    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
-    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
-        Ok(())
-    }
 }
 
 #[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
-    fn init(&mut self) -> ImageResult<()> {
-        (**self).init()
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        (**self).peek_layout()
     }
     fn dimensions(&self) -> (u32, u32) {
         (**self).dimensions()
@@ -157,9 +165,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn orientation(&mut self) -> ImageResult<Orientation> {
         (**self).orientation()
     }
-    fn total_bytes(&self) -> u64 {
-        (**self).total_bytes()
-    }
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         (**self).read_image(buf)
     }
@@ -183,6 +188,7 @@ mod tests {
     #[test]
     fn total_bytes_overflow() {
         struct D;
+
         impl ImageDecoder for D {
             fn color_type(&self) -> ColorType {
                 ColorType::Rgb8
@@ -194,9 +200,9 @@ mod tests {
                 unreachable!("Must not be called in this test")
             }
         }
-        assert_eq!(D.total_bytes(), u64::MAX);
 
-        let v: ImageResult<Vec<u8>> = crate::io::free_functions::decoder_to_vec(D);
+        assert_eq!(D.peek_layout().unwrap().total_bytes(), u64::MAX);
+        let v: ImageResult<Vec<u8>> = crate::io::free_functions::decoder_to_vec(&mut D);
         assert!(v.is_err());
     }
 }

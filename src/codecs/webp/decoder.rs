@@ -54,16 +54,13 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         }
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         self.inner
             .read_image(buf)
             .map_err(ImageError::from_webp_decode)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

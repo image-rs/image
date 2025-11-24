@@ -296,6 +296,20 @@ impl<R> Read for TiffReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        if self.inner.is_none() {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        Ok(crate::ImageLayout {
+            width: self.dimensions.0,
+            height: self.dimensions.1,
+            color: self.color_type,
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions
     }
@@ -366,13 +380,17 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
-        let layout = self
-            .inner
-            .as_mut()
-            .unwrap()
+        let Some(reader) = &mut self.inner else {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        let layout = reader
             .read_image_to_buffer(&mut self.buffer)
             .map_err(ImageError::from_tiff_decode)?;
 
@@ -389,7 +407,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             return self.interleave_planes(layout, buf);
         }
 
-        match self.buffer {
+        match &self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.as_chunks::<4>().0 {
@@ -414,43 +432,39 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 }
             }
             DecodingResult::U8(v) => {
-                buf.copy_from_slice(&v);
+                buf.copy_from_slice(v);
             }
             DecodingResult::U16(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::U32(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::U64(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::I8(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::I16(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::I32(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::I64(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::F32(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::F64(v) => {
-                buf.copy_from_slice(bytemuck::cast_slice(&v));
+                buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::F16(_) => unreachable!(),
         }
 
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

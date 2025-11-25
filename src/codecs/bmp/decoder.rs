@@ -796,7 +796,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         // Seek to bV5ProfileData at offset 112
         self.reader.seek(SeekFrom::Start(bmp_header_offset + 112))?;
-        
+
         let profile_offset = self.reader.read_u32::<LittleEndian>()?;
         let profile_size = self.reader.read_u32::<LittleEndian>()?;
 
@@ -805,10 +805,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         // Profile offset is from the beginning of the file
-        self.reader.seek(SeekFrom::Start(u64::from(profile_offset)))?;
+        self.reader
+            .seek(SeekFrom::Start(u64::from(profile_offset)))?;
         let mut profile_data = vec![0u8; profile_size as usize];
         self.reader.read_exact(&mut profile_data)?;
-        
+
         self.icc_profile = Some(profile_data);
 
         Ok(())
@@ -1526,25 +1527,22 @@ mod test {
     #[test]
     fn test_icc_profile() {
         // V5 header file without embedded ICC profile
-        let f = BufReader::new(
-            std::fs::File::open("tests/images/bmp/images/V5_24_Bit.bmp").unwrap(),
-        );
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/V5_24_Bit.bmp").unwrap());
         let mut decoder = BmpDecoder::new(f).unwrap();
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_none());
-        
+
         // Test files with embedded ICC profiles
-        let f = BufReader::new(
-            std::fs::File::open("tests/images/bmp/images/rgb24prof.bmp").unwrap(),
-        );
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof.bmp").unwrap());
         let mut decoder = BmpDecoder::new(f).unwrap();
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_some());
         assert_eq!(profile.unwrap().len(), 3048);
-        
-        let f = BufReader::new(
-            std::fs::File::open("tests/images/bmp/images/rgb24prof2.bmp").unwrap(),
-        );
+
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof2.bmp").unwrap());
         let mut decoder = BmpDecoder::new(f).unwrap();
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_some());

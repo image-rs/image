@@ -146,10 +146,13 @@ mod tests {
     use super::*;
     use crate::{ColorType, ImageReader};
     use std::io::Cursor;
+    use std::sync::{Arc, Once};
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
 
-    struct MockDecoder {}
+    struct MockDecoder {
+        done: Arc<Once>,
+    }
     impl ImageDecoder for MockDecoder {
         fn dimensions(&self) -> (u32, u32) {
             (1, 1)
@@ -158,38 +161,52 @@ mod tests {
             ColorType::Rgb8
         }
         fn read_image(self, _buf: &mut [u8]) -> ImageResult<()> {
-            panic!("MOCK decoder called")
+            self.done.call_once(|| {});
+            Ok(())
         }
         fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
             (*self).read_image(buf)
         }
     }
+    fn register_verifier(extension: &str) -> Arc<Once> {
+        let hook_verifier = Arc::new(Once::new());
+
+        register_decoding_hook(
+            extension.into(),
+            Box::new({
+                let hook_verifier = hook_verifier.clone();
+                move |_| {
+                    let decoder = MockDecoder {
+                        done: hook_verifier.clone(),
+                    };
+                    Ok(Box::new(decoder))
+                }
+            }),
+        );
+
+        hook_verifier
+    }
 
     #[test]
-    #[should_panic(expected = "MOCK decoder called")]
     fn decoding_hook() {
-        register_decoding_hook(
-            MOCK_HOOK_EXTENSION.into(),
-            Box::new(|_| Ok(Box::new(MockDecoder {}))),
-        );
+        let hook_verifier = register_verifier(MOCK_HOOK_EXTENSION);
 
         ImageReader::open("tests/images/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
             .unwrap();
+
+        assert!(hook_verifier.is_completed());
     }
 
     #[test]
-    #[should_panic(expected = "MOCK decoder called")]
     fn detection_hook() {
         const TEST_IMAGE: [u8; 16] = [
             b'H', b'E', b'A', b'D', b'J', b'U', b'N', b'K', b'M', b'O', b'C', b'K', b'm', b'o',
             b'r', b'e',
         ];
-        register_decoding_hook(
-            MOCK_HOOK_EXTENSION.into(),
-            Box::new(|_| Ok(Box::new(MockDecoder {}))),
-        );
+        let hook_verifier = register_verifier(MOCK_HOOK_EXTENSION);
+
         register_format_detection_hook(
             MOCK_HOOK_EXTENSION.into(),
             &[b'H', b'E', b'A', b'D', 0, 0, 0, 0, b'M', b'O', b'C', b'K'],
@@ -197,8 +214,10 @@ mod tests {
         );
 
         let reader = Cursor::new(TEST_IMAGE);
-        let image = ImageReader::new(reader).with_guessed_format().unwrap();
+        let guessed_image = ImageReader::new(reader).with_guessed_format().unwrap();
 
-        image.decode().unwrap();
+        guessed_image.decode().unwrap();
+
+        assert!(hook_verifier.is_completed());
     }
 }

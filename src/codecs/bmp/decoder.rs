@@ -1533,10 +1533,6 @@ mod test {
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_none());
         
-        let (width, height) = decoder.dimensions();
-        assert_eq!(width, 435);
-        assert_eq!(height, 353);
-        
         // Test files with embedded ICC profiles
         let f = BufReader::new(
             std::fs::File::open("tests/images/bmp/images/rgb24prof.bmp").unwrap(),

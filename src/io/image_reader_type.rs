@@ -269,6 +269,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             &mut Cursor::new(&mut start[..]),
         )?;
         self.inner.seek(SeekFrom::Start(cur))?;
+        let start = &start[..len as usize];
 
         let hooks = GUESS_FORMAT_HOOKS.read().unwrap();
         for &(signature, mask, ref extension) in &*hooks {
@@ -287,7 +288,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             }
         }
 
-        if let Some(format) = free_functions::guess_format_impl(&start[..len as usize]) {
+        if let Some(format) = free_functions::guess_format_impl(start) {
             return Ok(Some(Format::BuiltIn(format)));
         }
 

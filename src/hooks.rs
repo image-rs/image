@@ -149,23 +149,17 @@ mod tests {
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
 
-
-
-    const MOCK_IMAGE_OUTPUT: [u8; 9] = [
-        255, 0, 0,
-        0, 255, 0,
-        0, 0, 255,
-    ];
+    const MOCK_IMAGE_OUTPUT: [u8; 9] = [255, 0, 0, 0, 255, 0, 0, 0, 255];
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
         fn dimensions(&self) -> (u32, u32) {
-            ((&MOCK_IMAGE_OUTPUT.len()/3) as u32, 1)
+            ((&MOCK_IMAGE_OUTPUT.len() / 3) as u32, 1)
         }
         fn color_type(&self) -> ColorType {
             ColorType::Rgb8
         }
         fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-            buf[.. MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
+            buf[..MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
             Ok(())
         }
         fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
@@ -209,8 +203,10 @@ mod tests {
             b'r', b'e',
         ];
         let image = ImageReader::new(Cursor::new(TEST_INPUT_IMAGE))
-            .with_guessed_format().unwrap()
-            .decode().unwrap();
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
 
         assert!(is_mock_decoder_output(image));
     }

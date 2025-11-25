@@ -14,6 +14,7 @@ use super::free_functions;
 #[derive(Clone)]
 enum Format {
     BuiltIn(ImageFormat),
+    /// A format based on file extension.  Contents should be normalized to ascii lowercase.
     Extension(OsString),
 }
 

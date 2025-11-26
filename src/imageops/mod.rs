@@ -363,6 +363,7 @@ mod tests {
     use crate::GrayAlphaImage;
     use crate::GrayImage;
     use crate::ImageBuffer;
+    use crate::Rgb32FImage;
     use crate::RgbImage;
     use crate::RgbaImage;
 
@@ -569,5 +570,22 @@ mod tests {
             .sum::<f32>()
             / (image_blurred_gauss_bytes.len() as f32);
         assert!(error < 0.05);
+    }
+
+    /// Test that thumbnails are created without with correct color rounding.
+    #[test]
+    fn test_image_thumbnail() {
+        let all_black_u8 = GrayImage::new(16, 16);
+        assert_eq!(thumbnail(&all_black_u8, 1, 1).get_pixel(0, 0).0, [0_u8]);
+
+        let all_black_f32 = Rgb32FImage::new(16, 16);
+        assert_eq!(
+            thumbnail(&all_black_f32, 1, 1).get_pixel(0, 0).0,
+            [0.0_f32, 0.0_f32, 0.0_f32]
+        );
+
+        // this has an average of 0.5 which should round up to 1
+        let checker = GrayImage::from_vec(2, 2, vec![0, 1, 0, 1]).unwrap();
+        assert_eq!(thumbnail(&checker, 1, 1).get_pixel(0, 0).0, [1_u8]);
     }
 }

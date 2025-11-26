@@ -33,7 +33,7 @@ fn encode_all(c: &mut Criterion) {
             with: &Jpeg,
             name: "jpeg",
             sizes: &[64u32, 128, 256],
-            colors: &[ColorType::L8, ColorType::Rgb8, ColorType::Rgba8],
+            colors: &[ColorType::L8, ColorType::Rgb8],
         },
     ];
 

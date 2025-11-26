@@ -15,7 +15,7 @@ use crate::imageops::filter_1d::{
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::clamp;
+use crate::utils::{clamp, is_integer};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -719,8 +719,7 @@ where
 
     // For integer types division truncates, so we need to add n/2 to round to
     // the nearest integer. Floating point types do not need this.
-    let is_integer = <S::Larger as NumCast>::from(0.25).unwrap().is_zero();
-    let round = if is_integer {
+    let round = if is_integer::<S::Larger>() {
         <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap()
     } else {
         S::Larger::zero()

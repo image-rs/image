@@ -440,6 +440,19 @@ mod tests {
     }
 
     #[test]
+    /// Test that overlaying a transparent image doesn't change the bottom image
+    /// (issue #2533)
+    fn test_image_overlay_transparent() {
+        let color = crate::Rgba([45, 57, 82, 200]);
+        let mut target = RgbaImage::from_pixel(3, 3, color);
+        let source = RgbaImage::new(3, 3);
+        overlay(&mut target, &source, 0, 0);
+        let color = *target.get_pixel(0, 0);
+
+        assert_eq!(*target.get_pixel(0, 0), color);
+    }
+
+    #[test]
     /// Test that images written to coordinates with overflow works
     fn test_image_coordinate_overflow() {
         let mut target = ImageBuffer::new(16, 16);

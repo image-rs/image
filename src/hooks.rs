@@ -13,6 +13,7 @@ use crate::{ImageDecoder, ImageResult};
 pub(crate) trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
+/// Stores ascii lowercase extension to hook mapping
 pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> =
     RwLock::new(None);
 

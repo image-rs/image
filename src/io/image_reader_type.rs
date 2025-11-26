@@ -14,7 +14,6 @@ use super::free_functions;
 #[derive(Clone)]
 enum Format {
     BuiltIn(ImageFormat),
-    /// A format based on file extension.  Contents should be normalized to ascii lowercase.
     Extension(OsString),
 }
 
@@ -163,7 +162,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
                 {
                     let hooks = DECODING_HOOKS.read().unwrap();
                     if let Some(hooks) = hooks.as_ref() {
-                        if let Some(hook) = hooks.get(&ext) {
+                        if let Some(hook) = hooks.get(&ext.to_ascii_lowercase()) {
                             return hook(GenericReader(BufReader::new(Box::new(reader))));
                         }
                     }
@@ -353,7 +352,7 @@ impl ImageReader<BufReader<File>> {
         let format = path
             .extension()
             .filter(|ext| !ext.is_empty())
-            .map(|ext| Format::Extension(ext.to_ascii_lowercase()));
+            .map(|ext| Format::Extension(ext.to_owned()));
 
         Ok(ImageReader {
             inner: BufReader::new(File::open(path)?),

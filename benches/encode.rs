@@ -76,7 +76,7 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: E
         BenchmarkId::new(format!("zero-{color:?}-file"), size),
         &im,
         |b, image| {
-            const TEMP_DIR: &'static str = "tmp";
+            const TEMP_DIR: &str = "tmp";
             let tempdir = std::env::current_dir().unwrap().join(TEMP_DIR);
             std::fs::create_dir_all(&tempdir).unwrap();
             let tempath = tempdir.join("temp.bmp");

@@ -5,6 +5,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::{
     error::TryFromExtendedColorError,
     traits::{Enlargeable, Pixel, Primitive},
+    utils::is_integer,
 };
 
 /// An enumeration over supported color types and bit depths
@@ -821,6 +822,17 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
+/// Converts a f32 to a primitive type T with rounding when T is an integer.
+///
+/// E.g. 3.6 -> 4 for u8, but 3.6 -> 3.6 for f32.
+#[inline]
+fn from_f32_rounded<T: Primitive>(x: f32) -> T {
+    // We assume that integers perform truncation when casting from float.
+    // With this assumption, rounding can done simply adding 0.5 before the cast.
+    // Of course, adding 0.5 must ONLY be done for integer types.
+    NumCast::from(if is_integer::<T>() { x + 0.5 } else { x }).unwrap()
+}
+
 impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t = T::DEFAULT_MAX_VALUE;
@@ -848,8 +860,8 @@ impl<T: Primitive> Blend for LumaA<T> {
         let out_luma = out_luma_a / alpha_final;
 
         *self = LumaA([
-            NumCast::from(max_t * out_luma).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            from_f32_rounded(max_t * out_luma),
+            from_f32_rounded(max_t * alpha_final),
         ]);
     }
 }
@@ -916,10 +928,10 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Cast back to our initial type on return
         *self = Rgba([
-            NumCast::from(max_t * out_r).unwrap(),
-            NumCast::from(max_t * out_g).unwrap(),
-            NumCast::from(max_t * out_b).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            from_f32_rounded(max_t * out_r),
+            from_f32_rounded(max_t * out_g),
+            from_f32_rounded(max_t * out_b),
+            from_f32_rounded(max_t * alpha_final),
         ]);
     }
 }

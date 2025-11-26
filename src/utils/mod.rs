@@ -103,18 +103,10 @@ pub(crate) fn vec_try_with_capacity<T>(capacity: usize) -> Result<Vec<T>, TryRes
 /// Returns whether `T` can only represent integer values.
 #[inline]
 pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
-    // This uses a cast of 0.25 to T, because:
-    // 1) integer types cannot represent fractional values, so they have to
-    //    round.
-    // 2) NumCast::from does not mandate a rounding mode. All common integer
-    //    types round towards zero (truncation), but there may be exotic types
-    //    that round to nearest. 0.25 is rounded to 0 for all common rounding
-    //    modes, except round towards infinity (ceil).
-    // 3) we don't want to rely on floating-point-specific properties (e.g. NaN)
-    //    to support non-float types that can represent fractional values.
-    // 4) most types that can represent fractional values can represent 0.25
-    //    exactly.
-    <T as num_traits::NumCast>::from(0.25).unwrap().is_zero()
+    // This uses a cast of 0.5 to T, because integers will truncate to zero
+    // while types that can represent fractional values will return something
+    // other than zero.
+    <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
 }
 
 #[cfg(test)]

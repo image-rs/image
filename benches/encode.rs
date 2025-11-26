@@ -6,6 +6,7 @@ use image::{ExtendedColorType, ImageEncoder};
 
 use std::fs::File;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
+use std::path::PathBuf;
 
 trait Encoder {
     fn encode_raw(&self, into: &mut Vec<u8>, im: &[u8], dims: u32, color: ExtendedColorType);
@@ -76,7 +77,9 @@ fn encode_zeroed(group: &mut BenchGroup, with: &dyn Encoder, size: u32, color: E
         BenchmarkId::new(format!("zero-{color:?}-file"), size),
         &im,
         |b, image| {
-            let file = File::create("temp.bmp").unwrap();
+            const TEMP_DIR: &str = env!("CARGO_TARGET_TMPDIR");
+            let tempath = PathBuf::from(TEMP_DIR).join("temp.bmp");
+            let file = File::create(tempath).unwrap();
             b.iter(|| with.encode_file(&file, image, size, color));
         },
     );

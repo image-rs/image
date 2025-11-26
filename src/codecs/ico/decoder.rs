@@ -262,6 +262,8 @@ impl DirEntry {
     }
 }
 
+// We forward everything to png or bmp decoder.
+#[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
@@ -376,6 +378,62 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     Err(DecoderError::InvalidDataSize.into())
                 }
             }
+        }
+    }
+
+    fn original_color_type(&self) -> crate::ExtendedColorType {
+        match &self.inner_decoder {
+            Bmp(decoder) => decoder.original_color_type(),
+            Png(decoder) => decoder.original_color_type(),
+        }
+    }
+
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.icc_profile(),
+            Png(decoder) => decoder.icc_profile(),
+        }
+    }
+
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.exif_metadata(),
+            Png(decoder) => decoder.exif_metadata(),
+        }
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.xmp_metadata(),
+            Png(decoder) => decoder.xmp_metadata(),
+        }
+    }
+
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.iptc_metadata(),
+            Png(decoder) => decoder.iptc_metadata(),
+        }
+    }
+
+    fn orientation(&mut self) -> ImageResult<crate::metadata::Orientation> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.orientation(),
+            Png(decoder) => decoder.orientation(),
+        }
+    }
+
+    fn total_bytes(&self) -> u64 {
+        match &self.inner_decoder {
+            Bmp(decoder) => decoder.total_bytes(),
+            Png(decoder) => decoder.total_bytes(),
+        }
+    }
+
+    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.set_limits(limits),
+            Png(decoder) => decoder.set_limits(limits),
         }
     }
 

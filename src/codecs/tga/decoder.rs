@@ -317,6 +317,11 @@ impl<R: Read> TgaDecoder<R> {
 
     /// Change image orientation depending on the flags set
     fn fixup_orientation(&mut self, pixels: &mut [u8]) {
+        // The below code assumes that the image is non-empty and will crash
+        // otherwise. The constructor *currently* disallows empty images, so
+        // this is method does not panic.
+        debug_assert!(self.width > 0 && self.height > 0);
+
         let orientation = TgaOrientation::from_image_desc_byte(self.header.image_desc);
 
         // Flip image if bottom->top direction

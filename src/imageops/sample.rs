@@ -716,7 +716,16 @@ where
     }
 
     let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
-    let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
+
+    // For integer types division truncates, so we need to add n/2 to round to
+    // the nearest integer. Floating point types do not need this.
+    let is_integer = <S::Larger as NumCast>::from(0.25).unwrap().is_zero();
+    let round = if is_integer {
+        <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap()
+    } else {
+        S::Larger::zero()
+    };
+
     (
         S::clamp_from((sum.0 + round) / n),
         S::clamp_from((sum.1 + round) / n),

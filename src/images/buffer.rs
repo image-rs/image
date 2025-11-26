@@ -657,7 +657,7 @@ where
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
@@ -1220,6 +1220,23 @@ where
         self.width = source.width;
         self.height = source.height;
         self.color = source.color;
+    }
+}
+
+impl<P, Container> fmt::Debug for ImageBuffer<P, Container>
+where
+    P: Pixel + fmt::Debug,
+    Container: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { width, height, .. } = self;
+
+        let mut pixel = std::any::type_name::<P>();
+        pixel = pixel.strip_prefix("image::color::").unwrap_or(pixel);
+
+        let color = self.color.known_name().unwrap_or("<custom color space>");
+
+        write!(f, "ImageBuffer<{pixel}>({width}x{height}, {color})")
     }
 }
 
@@ -2130,6 +2147,70 @@ mod test {
 
         let result = target.copy_from_color_space(&source, options);
         assert!(matches!(result, Err(crate::ImageError::Parameter(_))));
+    }
+
+    #[test]
+    fn pleasant_debug() {
+        use super::*;
+
+        assert_eq!(
+            format!("{:?}", GrayImage::new(100, 100)),
+            "ImageBuffer<Luma<u8>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlphaImage::new(100, 100)),
+            "ImageBuffer<LumaA<u8>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", RgbImage::new(100, 100)),
+            "ImageBuffer<Rgb<u8>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", RgbaImage::new(100, 100)),
+            "ImageBuffer<Rgba<u8>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", Gray16Image::new(100, 100)),
+            "ImageBuffer<Luma<u16>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlpha16Image::new(100, 100)),
+            "ImageBuffer<LumaA<u16>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb16Image::new(100, 100)),
+            "ImageBuffer<Rgb<u16>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba16Image::new(100, 100)),
+            "ImageBuffer<Rgba<u16>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb32FImage::new(100, 100)),
+            "ImageBuffer<Rgb<f32>>(100x100, sRGB)"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba32FImage::new(100, 100)),
+            "ImageBuffer<Rgba<f32>>(100x100, sRGB)"
+        );
+
+        let gray8 = ImageBuffer::from_pixel(16, 16, Luma([255u8]));
+        assert_eq!(format!("{:?}", gray8), "ImageBuffer<Luma<u8>>(16x16, sRGB)");
+        assert_eq!(
+            format!("{:#?}", gray8),
+            "ImageBuffer<Luma<u8>>(16x16, sRGB)"
+        );
+
+        let mut rgba32f = ImageBuffer::from_pixel(16, 16, Rgba([0.0_f32; 4]));
+        rgba32f.set_color_space(Cicp::DISPLAY_P3).unwrap();
+        assert_eq!(
+            format!("{:?}", rgba32f),
+            "ImageBuffer<Rgba<f32>>(16x16, Display P3)"
+        );
+        assert_eq!(
+            format!("{:#?}", rgba32f),
+            "ImageBuffer<Rgba<f32>>(16x16, Display P3)"
+        );
     }
 }
 

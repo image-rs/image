@@ -830,8 +830,7 @@ fn from_f32_rounded<T: Primitive>(x: f32) -> T {
     // We assume that integers perform truncation when casting from float.
     // With this assumption, rounding can done simply adding 0.5 before the cast.
     // Of course, adding 0.5 must ONLY be done for integer types.
-    let round = if is_integer::<T>() { 0.5 } else { 0.0 };
-    NumCast::from(x + round).unwrap()
+    NumCast::from(if is_integer::<T>() { x + 0.5 } else { x }).unwrap()
 }
 
 impl<T: Primitive> Blend for LumaA<T> {

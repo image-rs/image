@@ -1642,7 +1642,7 @@ mod tests {
         use std::path::Path;
         let img = crate::open(Path::new("./examples/fractal.png")).unwrap();
         let mut resized = img.clone();
-        resized.resize(img.width(), img.height(), FilterType::Triangle);
+        resized.resize_to_fit(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resized.pixels()));
     }
 
@@ -1764,7 +1764,7 @@ mod tests {
         );
         let image = crate::open(path).unwrap();
         b.iter(|| {
-            test::black_box(image.clone()).resize(
+            test::black_box(image.clone()).resize_to_fit(
                 image.width(),
                 image.height(),
                 FilterType::CatmullRom,

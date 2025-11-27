@@ -383,7 +383,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         //
         // We currently assume that the indices take less space than the
         // pixels they encode, so it is safe to read the raw data into `buf`.
-        if self.raw_bytes_per_pixel > self.color_type.bytes_per_pixel() as usize {
+        if self.raw_bytes_per_pixel > self.color_type.bytes_per_pixel().into() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tga.into(),

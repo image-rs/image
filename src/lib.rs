@@ -99,7 +99,9 @@
 //! # use image::codecs::png::PngDecoder;
 //! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
-//! let decoder = PngDecoder::new(&mut reader)?;
+//! let mut decoder = PngDecoder::new(&mut reader);
+//! decoder.init()?;
+//!
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;
 //! # Ok(())

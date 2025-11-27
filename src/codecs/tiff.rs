@@ -319,15 +319,16 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        match self
-            .inner
-            .unwrap()
-            .read_image()
-            .map_err(ImageError::from_tiff_decode)?
-        {
+        let Some(reader) = &mut self.inner else {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        match reader.read_image().map_err(ImageError::from_tiff_decode)? {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
@@ -384,10 +385,6 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             DecodingResult::F16(_) => unreachable!(),
         }
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

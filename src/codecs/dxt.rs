@@ -137,7 +137,7 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
         self.variant.color_type()
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         #[allow(deprecated)]
@@ -145,10 +145,6 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
             self.read_scanline(chunk)?;
         }
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

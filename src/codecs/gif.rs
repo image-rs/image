@@ -108,7 +108,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         let frame = match self
@@ -222,10 +222,6 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         // XMP metadata must be part of the header which is read with `read_info`.
         Ok(self.reader.xmp_metadata().map(Vec::from))
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 
@@ -681,7 +677,7 @@ mod test {
             0x77, 0xF5, 0x6D, 0x14, 0x00, 0x3B,
         ];
 
-        let decoder = GifDecoder::new(Cursor::new(data)).unwrap();
+        let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
         let mut buf = vec![0u8; decoder.total_bytes() as usize];
 
         assert!(decoder.read_image(&mut buf).is_ok());

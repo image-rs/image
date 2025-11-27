@@ -36,7 +36,7 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
+            let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
             decoder
@@ -69,7 +69,7 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
+            let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
             decoder
@@ -97,7 +97,7 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
+            let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
             decoder

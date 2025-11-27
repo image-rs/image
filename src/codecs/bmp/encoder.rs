@@ -376,7 +376,7 @@ mod tests {
                 .expect("could not encode image");
         }
 
-        let decoder = BmpDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+        let mut decoder = BmpDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
 
         let mut buf = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut buf).expect("failed to decode");

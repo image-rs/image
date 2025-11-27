@@ -887,8 +887,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 _ => {}
             }
 
-            // Read ICC profile if present (only for V5 headers)
-            if self.bmp_header_type == BMPHeaderType::V5 {
+            // Read ICC profile if present (V5 header or later)
+            if bmp_header_size >= BITMAPV5HEADER_SIZE {
                 self.read_icc_profile(bmp_header_offset)?;
             }
 

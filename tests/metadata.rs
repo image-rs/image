@@ -34,6 +34,40 @@ fn test_read_xmp_png() -> Result<(), image::ImageError> {
 }
 
 #[test]
+#[cfg(feature = "png")]
+fn test_read_xmp_image_magick_png() -> Result<(), image::ImageError> {
+    const XMP_PNG_PATH: &str = "tests/images/png/xmp_image_magick.png";
+    const EXPECTED_PNG_METADATA: &str = r#"<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?> <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="XMP Core 5.1.2"> <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"> <rdf:Description rdf:about=""/> </rdf:RDF> </x:xmpmeta>   <?xpacket end="w"?>"#;
+
+    let img_path = PathBuf::from_str(XMP_PNG_PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = png_decoder.xmp_metadata()?;
+    assert!(metadata.is_some());
+    assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "png")]
+fn test_read_iptc_image_magick_png() -> Result<(), image::ImageError> {
+    const XMP_PNG_PATH: &str = "tests/images/png/iptc_image_magick.png";
+    const EXPECTED_PNG_METADATA: &[u8] = include_bytes!("images/png/iptc_image_magick.bin");
+
+    let img_path = PathBuf::from_str(XMP_PNG_PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = png_decoder.iptc_metadata()?;
+    assert!(metadata.is_some());
+    assert_eq!(EXPECTED_PNG_METADATA, metadata.unwrap());
+
+    Ok(())
+}
+
+#[test]
 #[cfg(feature = "webp")]
 fn test_read_xmp_webp() -> Result<(), image::ImageError> {
     const XMP_WEBP_PATH: &str = "tests/images/webp/lossless_images/simple_xmp.webp";
@@ -67,43 +101,15 @@ fn test_read_xmp_tiff() -> Result<(), image::ImageError> {
 }
 
 #[test]
-#[cfg(feature = "jpeg")]
-fn test_read_iptc_jpeg() -> Result<(), image::ImageError> {
-    const IPTC_JPG_PATH: &str = "tests/images/jpg/iptc.jpg";
-    const EXPECTED_METADATA: &[u8] = &[
-        0, 56, 66, 73, 77, 4, 4, 0, 0, 0, 0, 0, 99, 28, 2, 90, 0, 8, 66, 117, 100, 97, 112, 101,
-        115, 116, 28, 2, 101, 0, 7, 72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 3, 72, 118, 75,
-        28, 2, 25, 0, 4, 50, 48, 48, 54, 28, 2, 25, 0, 6, 115, 117, 109, 109, 101, 114, 28, 2, 25,
-        0, 4, 74, 117, 108, 121, 28, 2, 25, 0, 7, 104, 111, 108, 105, 100, 97, 121, 28, 2, 25, 0,
-        7, 72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 8, 66, 117, 100, 97, 112, 101, 115, 116,
-        0,
-    ];
-    let img_path = PathBuf::from_str(IPTC_JPG_PATH).unwrap();
-
-    let data = fs::read(img_path)?;
-    let mut jpeg_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
-    let metadata = jpeg_decoder.iptc_metadata()?;
-    assert!(metadata.is_some());
-    assert_eq!(EXPECTED_METADATA, metadata.unwrap());
-
-    Ok(())
-}
-
-#[test]
 #[cfg(feature = "png")]
 fn test_read_iptc_png() -> Result<(), image::ImageError> {
     const IPTC_PNG_PATH: &str = "tests/images/png/iptc.png";
     const EXPECTED_METADATA: &[u8] = &[
-        10, 73, 80, 84, 67, 32, 112, 114, 111, 102, 105, 108, 101, 10, 32, 32, 32, 32, 32, 32, 57,
-        48, 10, 51, 56, 52, 50, 52, 57, 52, 100, 48, 52, 48, 52, 48, 48, 48, 48, 48, 48, 48, 48,
-        48, 48, 51, 49, 49, 99, 48, 50, 54, 101, 48, 48, 49, 56, 52, 49, 52, 57, 50, 100, 52, 55,
-        54, 53, 54, 101, 54, 53, 55, 50, 54, 49, 55, 52, 54, 53, 54, 52, 50, 48, 55, 55, 54, 57,
-        55, 52, 54, 56, 50, 48, 52, 55, 10, 54, 102, 54, 102, 54, 55, 54, 99, 54, 53, 49, 99, 48,
-        50, 53, 97, 48, 48, 48, 56, 52, 98, 54, 57, 54, 101, 54, 55, 55, 51, 55, 52, 54, 102, 54,
-        101, 49, 99, 48, 50, 48, 48, 48, 48, 48, 50, 48, 48, 48, 52, 48, 48, 51, 56, 52, 50, 52,
-        57, 52, 100, 48, 52, 50, 53, 48, 48, 48, 48, 48, 48, 48, 48, 10, 48, 48, 49, 48, 52, 51,
-        53, 57, 99, 52, 52, 54, 99, 101, 101, 97, 49, 48, 48, 52, 51, 50, 53, 57, 101, 54, 55, 100,
-        57, 51, 98, 102, 101, 54, 53, 49, 10,
+        56, 66, 73, 77, 4, 4, 0, 0, 0, 0, 0, 49, 28, 2, 110, 0, 24, 65, 73, 45, 71, 101, 110, 101,
+        114, 97, 116, 101, 100, 32, 119, 105, 116, 104, 32, 71, 111, 111, 103, 108, 101, 28, 2, 90,
+        0, 8, 75, 105, 110, 103, 115, 116, 111, 110, 28, 2, 0, 0, 2, 0, 4, 0, 56, 66, 73, 77, 4,
+        37, 0, 0, 0, 0, 0, 16, 67, 89, 196, 70, 206, 234, 16, 4, 50, 89, 230, 125, 147, 191, 230,
+        81,
     ];
 
     let img_path = PathBuf::from_str(IPTC_PNG_PATH).unwrap();

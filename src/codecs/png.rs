@@ -25,8 +25,10 @@ use crate::{
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
-const XMP_KEY: &str = "XML:com.adobe.xmp";
+const XMP_KEYS: &[&str] = &["XML:com.adobe.xmp", "Raw profile type xmp"];
 const IPTC_KEYS: &[&str] = &["Raw profile type iptc", "Raw profile type 8bim"];
+const EXIF_KEYS: &[&str] = &["Raw profile type APP1", "Raw profile type exif"];
+const EXIF_HEADER: &str = "Exif\x00\x00";
 
 /// PNG decoder
 pub struct PngDecoder<R: BufRead + Seek> {
@@ -158,6 +160,62 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     pub fn is_apng(&self) -> ImageResult<bool> {
         Ok(self.reader.info().animation_control.is_some())
     }
+
+    /// Look through all metadata chunks to retrieve the metadata bytes identified by any of the `keys`.
+    /// This function supports reading metadata according to all ImageMagick's encoding standards, specifically
+    /// hex strings for Exif and IPTC chunks in zTXt.
+    fn metadata_from_all_chunks(
+        &self,
+        keys: &[&str],
+        header: Option<&str>,
+    ) -> ImageResult<Option<Vec<u8>>> {
+        // Check the iTXt chunk.
+        if let Some(mut itx_chunk) = self
+            .reader
+            .info()
+            .utf8_text
+            .iter()
+            .find(|chunk| keys.iter().any(|key| chunk.keyword.contains(key)))
+            .cloned()
+        {
+            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
+            return itx_chunk
+                .get_text()
+                .map(|text| Some(text.into_bytes()))
+                .map_err(ImageError::from_png);
+        }
+
+        // Check the zTXt chunk. This chunk is special as the metadata stored in it for all common forms is
+        // expected to be stored as a hex string, which we decode manually here.
+        if let Some(mut text_chunk) = self
+            .reader
+            .info()
+            .compressed_latin1_text
+            .iter()
+            .find(|chunk| keys.iter().any(|key| chunk.keyword.contains(key)))
+            .cloned()
+        {
+            text_chunk.decompress_text().map_err(ImageError::from_png)?;
+            return text_chunk
+                .get_text()
+                .map(|text| Some(parse_raw_profile(text.as_ref(), header)))
+                .map_err(ImageError::from_png);
+        }
+
+        // Check the TEXt chunk.
+        if let Some(text_chunk) = self
+            .reader
+            .info()
+            .uncompressed_latin1_text
+            .iter()
+            .find(|chunk| keys.iter().any(|key| chunk.keyword.contains(key)))
+            .cloned()
+        {
+            return Ok(Some(text_chunk.text.as_bytes().to_vec()));
+        }
+
+        Ok(None)
+    }
 }
 
 fn unsupported_color(ect: ExtendedColorType) -> ImageError {
@@ -165,6 +223,64 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
         ImageFormat::Png.into(),
         UnsupportedErrorKind::Color(ect),
     ))
+}
+
+/// Decodes a hex-encoded string with skipped headers and interspersed newlines.
+/// This is how ImageMagick stores metadata in zTXt chunks. By default, metadata
+/// there looks like the following:
+///
+/// "Raw profile type exif\nOptional\n264223\nExif\x00\x004578..."
+///  ^^^^^^^^^^^^^^^^^^^^   ^^^^^^^   ^^^^^^  ^^^^^^^^^^^ ^^^^
+///      Metadata key    Optional info  Size  (opt.) header  payload (hex encoded)
+///
+/// This method parses such data and returns the decoded payload.
+/// If the structure doesn't match, we return and empty `Vec<u8>`.
+fn parse_raw_profile(buffer: &str, header: Option<&str>) -> Vec<u8> {
+    // Wrap logic in a closure to allow `?` for easy error propagation.
+    let parse = || {
+        let mut parts = buffer.splitn(4, '\n');
+
+        // Skip the first two parts, grab the size (3rd part), then the body.
+        let size_str = parts.nth(2)?;
+        let body = parts.next()?;
+
+        // Parse size and validate a 4MB limit.
+        let size: usize = size_str.trim().parse().ok()?;
+        if size > (1 << 22) {
+            return None;
+        }
+
+        let header_bytes = header.map(|h| h.as_bytes());
+        let mut payload = Vec::new();
+
+        // Create an iterator that ignores newlines immediately.
+        let mut hex_stream = body.bytes().filter(|&b| b != b'\n');
+
+        // Iterate 2 bytes at a time.
+        while let (Some(high), Some(low)) = (hex_stream.next(), hex_stream.next()) {
+            // Helper to decode a single hex nibble.
+            let decode = |b: u8| (b as char).to_digit(16).map(|d| d as u8);
+
+            let byte = (decode(high)? << 4) | decode(low)?;
+            payload.push(byte);
+
+            // If the payload accumulated so far matches the header, reset.
+            if let Some(h) = header_bytes {
+                if payload == h {
+                    payload.clear();
+                }
+            }
+        }
+
+        // Ensure we didn't end on an odd number of hex characters.
+        if hex_stream.next().is_some() {
+            return None;
+        }
+
+        Some(payload)
+    };
+
+    parse().unwrap_or_default()
 }
 
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
@@ -181,59 +297,27 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        Ok(self
+        // First, return what we found in the EXIF chunk.
+        if let Some(metadata) = self
             .reader
             .info()
             .exif_metadata
             .as_ref()
-            .map(|x| x.to_vec()))
+            .map(|x| x.to_vec())
+        {
+            return Ok(Some(metadata));
+        }
+
+        // If there is no metadata in the EXIF chunk, check the legacy way in other chunks.
+        self.metadata_from_all_chunks(EXIF_KEYS, Some(EXIF_HEADER))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        if let Some(mut itx_chunk) = self
-            .reader
-            .info()
-            .utf8_text
-            .iter()
-            .find(|chunk| chunk.keyword.contains(XMP_KEY))
-            .cloned()
-        {
-            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
-            return itx_chunk
-                .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
-                .map_err(ImageError::from_png);
-        }
-        Ok(None)
+        self.metadata_from_all_chunks(XMP_KEYS, None)
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        if let Some(mut text_chunk) = self
-            .reader
-            .info()
-            .compressed_latin1_text
-            .iter()
-            .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
-            .cloned()
-        {
-            text_chunk.decompress_text().map_err(ImageError::from_png)?;
-            return text_chunk
-                .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
-                .map_err(ImageError::from_png);
-        }
-
-        if let Some(text_chunk) = self
-            .reader
-            .info()
-            .uncompressed_latin1_text
-            .iter()
-            .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
-            .cloned()
-        {
-            return Ok(Some(text_chunk.text.into_bytes()));
-        }
-        Ok(None)
+        self.metadata_from_all_chunks(IPTC_KEYS, None)
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

@@ -381,9 +381,22 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         // Decode the raw data
         //
-        // We have already checked in `TgaDecoder::new` that the indices take less space than the
+        // We currently assume that the indices take less space than the
         // pixels they encode, so it is safe to read the raw data into `buf`.
+        if self.raw_bytes_per_pixel > self.color_type.bytes_per_pixel() as usize {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tga.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Color-mapped images with indices wider than color are not supported"
+                            .into(),
+                    ),
+                ),
+            ));
+        }
         let num_raw_bytes = self.width * self.height * self.raw_bytes_per_pixel;
+        debug_assert!(num_raw_bytes <= buf.len());
+
         if self.image_type.is_encoded() {
             self.read_encoded_data(&mut buf[..num_raw_bytes])?;
         } else {

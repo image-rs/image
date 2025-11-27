@@ -879,17 +879,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
             };
 
+            // Read ICC profile if present (V5 header or later)
+            if bmp_header_size >= BITMAPV5HEADER_SIZE {
+                self.read_icc_profile(bmp_header_offset)?;
+            }
+
             self.reader
                 .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
 
             match self.image_type {
                 ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
                 _ => {}
-            }
-
-            // Read ICC profile if present (V5 header or later)
-            if bmp_header_size >= BITMAPV5HEADER_SIZE {
-                self.read_icc_profile(bmp_header_offset)?;
             }
 
             if self.no_file_header {

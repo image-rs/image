@@ -307,7 +307,7 @@ impl<R: Read> TgaDecoder<R> {
         // We only need to reverse the encoding of color images
         match self.color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_mut(self.color_type.bytes_per_pixel().into()) {
+                for chunk in pixels.chunks_exact_mut(self.color_type.bytes_per_pixel().into()) {
                     chunk.swap(0, 2);
                 }
             }

@@ -5,23 +5,28 @@ use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
     io::{BufRead, BufReader, Read, Seek},
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
 
 use crate::{ImageDecoder, ImageResult};
 
-pub(crate) trait ReadSeek: Read + Seek {}
+trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
 /// Stores ascii lowercase extension to hook mapping
-pub(crate) static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> =
-    RwLock::new(None);
+static DECODING_HOOKS: RwLock<Option<HashMap<OsString, Arc<DecodingHookFn>>>> = RwLock::new(None);
 
-pub(crate) type DetectionHook = (&'static [u8], &'static [u8], OsString);
-pub(crate) static GUESS_FORMAT_HOOKS: RwLock<Vec<DetectionHook>> = RwLock::new(Vec::new());
+type DetectionHook = (&'static [u8], &'static [u8], OsString);
+static GUESS_FORMAT_HOOKS: RwLock<Vec<DetectionHook>> = RwLock::new(Vec::new());
 
 /// A wrapper around a type-erased trait object that implements `Read` and `Seek`.
-pub struct GenericReader<'a>(pub(crate) BufReader<Box<dyn ReadSeek + 'a>>);
+pub struct GenericReader<'a>(BufReader<Box<dyn ReadSeek + 'a>>);
+impl<'a> GenericReader<'a> {
+    /// Creates a new `GenericReader` with a given underlying reader.
+    pub(crate) fn new<R: Read + Seek + 'a>(reader: R) -> Self {
+        Self(BufReader::new(Box::new(reader)))
+    }
+}
 impl Read for GenericReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.0.read(buf)
@@ -67,20 +72,21 @@ impl Seek for GenericReader<'_> {
     // TODO: Add `seek_relative` once MSRV is at least 1.80.0
 }
 
-/// A function to produce an `ImageDecoder` for a given image format.
-pub type DecodingHook =
-    Box<dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync>;
+/// A function to produce an [`ImageDecoder`] for a given image format.
+pub type DecodingHook = Box<DecodingHookFn>;
+pub(crate) type DecodingHookFn =
+    dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync;
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
-pub fn register_decoding_hook(extension: OsString, hook: DecodingHook) -> bool {
-    let extension = extension.to_ascii_lowercase();
+pub fn register_decoding_hook(mut extension: OsString, hook: DecodingHook) -> bool {
+    extension.make_ascii_lowercase();
     let mut hooks = DECODING_HOOKS.write().unwrap();
     if hooks.is_none() {
         *hooks = Some(HashMap::new());
     }
     match hooks.as_mut().unwrap().entry(extension) {
         std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(hook);
+            entry.insert(Arc::new(hook));
             true
         }
         std::collections::hash_map::Entry::Occupied(_) => false,
@@ -96,6 +102,18 @@ pub fn decoding_hook_registered(extension: &OsStr) -> bool {
         .as_ref()
         .map(|hooks| hooks.contains_key(&extension))
         .unwrap_or(false)
+}
+
+/// Returns the decoding hook for the given format, if one exists.
+pub(crate) fn get_decoding_hook(extension: &OsStr) -> Option<Arc<DecodingHookFn>> {
+    let extension = extension.to_ascii_lowercase();
+    let hooks = DECODING_HOOKS.read().unwrap();
+    if let Some(hooks) = hooks.as_ref() {
+        if let Some(hook) = hooks.get(&extension) {
+            return Some(hook.clone());
+        }
+    }
+    None
 }
 
 /// Registers a format detection hook.
@@ -131,15 +149,36 @@ pub fn decoding_hook_registered(extension: &OsStr) -> bool {
 /// ```
 ///
 pub fn register_format_detection_hook(
-    extension: OsString,
+    mut extension: OsString,
     signature: &'static [u8],
     mask: Option<&'static [u8]>,
 ) {
-    let extension = extension.to_ascii_lowercase();
+    extension.make_ascii_lowercase();
     GUESS_FORMAT_HOOKS
         .write()
         .unwrap()
         .push((signature, mask.unwrap_or(&[]), extension));
+}
+
+/// Guesses the format extension from the start of the file using the registered detection hooks.
+pub(crate) fn guess_format_extension(start: &[u8]) -> Option<OsString> {
+    let hooks = GUESS_FORMAT_HOOKS.read().unwrap();
+    for &(signature, mask, ref extension) in &*hooks {
+        if mask.is_empty() {
+            if start.starts_with(signature) {
+                return Some(extension.clone());
+            }
+        } else if start.len() >= signature.len()
+            && start
+                .iter()
+                .zip(signature.iter())
+                .zip(mask.iter().chain(std::iter::repeat(&0xFF)))
+                .all(|((&byte, &sig), &mask)| byte & mask == sig)
+        {
+            return Some(extension.clone());
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -178,6 +217,9 @@ mod tests {
             Box::new(|_| Ok(Box::new(MockDecoder {}))),
         );
 
+        assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
+        assert!(get_decoding_hook(OsStr::new(MOCK_HOOK_EXTENSION)).is_some());
+
         let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
@@ -203,6 +245,11 @@ mod tests {
             b'H', b'E', b'A', b'D', b'J', b'U', b'N', b'K', b'M', b'O', b'C', b'K', b'm', b'o',
             b'r', b'e',
         ];
+        assert_eq!(
+            guess_format_extension(&TEST_INPUT_IMAGE),
+            Some(OsStr::new(MOCK_HOOK_EXTENSION).to_ascii_lowercase())
+        );
+
         let image = ImageReader::new(Cursor::new(TEST_INPUT_IMAGE))
             .with_guessed_format()
             .unwrap()

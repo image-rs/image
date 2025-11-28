@@ -191,25 +191,22 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 }
 
 /// Find the entry with the highest (color depth, size).
-fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
-    let mut best = entries.pop().ok_or(DecoderError::NoEntries)?;
-
-    let mut best_score = (
-        best.bits_per_pixel,
-        u32::from(best.real_width()) * u32::from(best.real_height()),
-    );
-
-    for entry in entries {
-        let score = (
-            entry.bits_per_pixel,
-            u32::from(entry.real_width()) * u32::from(entry.real_height()),
-        );
-        if score > best_score {
-            best = entry;
-            best_score = score;
-        }
-    }
-    Ok(best)
+///
+/// If two entries have the same color depth and size, pick the first one.
+/// While ICO files with multiple identical size and bpp entries are rare, they
+/// do exist. Since we can't make an educated guess which one is best, picking
+/// the first one is a reasonable default.
+fn best_entry(entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
+    entries
+        .into_iter()
+        .rev() // ties should pick the first entry, not the last
+        .max_by_key(|entry| {
+            (
+                entry.bits_per_pixel,
+                u32::from(entry.real_width()) * u32::from(entry.real_height()),
+            )
+        })
+        .ok_or(DecoderError::NoEntries.into())
 }
 
 impl DirEntry {

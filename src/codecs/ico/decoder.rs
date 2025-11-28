@@ -197,20 +197,16 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 /// do exist. Since we can't make an educated guess which one is best, picking
 /// the first one is a reasonable default.
 fn best_entry(entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
-    let mut best = *entries.first().ok_or(DecoderError::NoEntries)?;
-    let mut best_score = (0, 0);
-
-    for entry in entries {
-        let score = (
-            entry.bits_per_pixel,
-            u32::from(entry.real_width()) * u32::from(entry.real_height()),
-        );
-        if score > best_score {
-            best = entry;
-            best_score = score;
-        }
-    }
-    Ok(best)
+    entries
+        .into_iter()
+        .rev() // ties should pick the first entry, not the last
+        .max_by_key(|entry| {
+            (
+                entry.bits_per_pixel,
+                u32::from(entry.real_width()) * u32::from(entry.real_height()),
+            )
+        })
+        .ok_or(DecoderError::NoEntries.into())
 }
 
 impl DirEntry {

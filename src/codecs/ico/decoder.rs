@@ -262,7 +262,7 @@ impl DirEntry {
 // We forward everything to png or bmp decoder.
 #[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
-    fn init(&mut self) -> ImageResult<()> {
+    fn init(&mut self) -> ImageResult<crate::ImageLayout> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.init(),
             Png(decoder) => decoder.init(),
@@ -284,7 +284,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match &mut self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
@@ -427,13 +426,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn total_bytes(&self) -> u64 {
-        match &self.inner_decoder {
-            Bmp(decoder) => decoder.total_bytes(),
-            Png(decoder) => decoder.total_bytes(),
-        }
-    }
-
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.set_limits(limits),
@@ -501,7 +493,8 @@ mod test {
         ];
 
         let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let bytes = decoder.init().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }
 }

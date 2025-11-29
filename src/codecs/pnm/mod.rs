@@ -38,7 +38,8 @@ mod tests {
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
-            let mut image = vec![0; decoder.total_bytes() as usize];
+            let layout = decoder.init().unwrap();
+            let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");
@@ -71,7 +72,8 @@ mod tests {
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
-            let mut image = vec![0; decoder.total_bytes() as usize];
+            let layout = decoder.init().unwrap();
+            let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");
@@ -99,7 +101,8 @@ mod tests {
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
-            let mut image = vec![0; decoder.total_bytes() as usize];
+            let layout = decoder.init().unwrap();
+            let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");

@@ -368,8 +368,10 @@ mod tests {
                     .expect("could not encode image");
             }
 
-            let mut decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
-            let mut buf = vec![0; decoder.total_bytes() as usize];
+            let mut decoder =
+                TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+            let layout = decoder.init().unwrap();
+            let mut buf = vec![0; layout.total_bytes() as usize];
             decoder.read_image(&mut buf).expect("failed to decode");
             buf
         }
@@ -479,9 +481,10 @@ mod tests {
                     .expect("could not encode image");
             }
 
-            let mut decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
-
-            let mut buf = vec![0; decoder.total_bytes() as usize];
+            let mut decoder =
+                TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+            let layout = decoder.init().unwrap();
+            let mut buf = vec![0; layout.total_bytes() as usize];
             decoder.read_image(&mut buf).expect("failed to decode");
             buf
         }

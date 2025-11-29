@@ -1345,6 +1345,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
+    fn init(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: self.width as u32,
+            height: self.height as u32,
+            color: self.color_type(),
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -1360,7 +1368,8 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.init()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.read_image_data(buf)
     }
 }
@@ -1375,6 +1384,7 @@ impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
         buf: &mut [u8],
         row_pitch: usize,
     ) -> ImageResult<()> {
+        let layout = self.init()?;
         let start = self.reader.stream_position()?;
         load_rect(
             x,
@@ -1384,7 +1394,7 @@ impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
             buf,
             row_pitch,
             self,
-            self.total_bytes() as usize,
+            layout.total_bytes() as usize,
             |_, _| Ok(()),
             |s, buf| s.read_image_data(buf),
         )?;
@@ -1448,7 +1458,8 @@ mod test {
         ];
 
         let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let layout = decoder.init().unwrap();
+        let mut buf = vec![0; usize::try_from(layout.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }
 

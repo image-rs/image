@@ -628,7 +628,8 @@ impl<R: Read> ImageDecoder for PnmDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.init()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         match self.tuple {
             TupleType::PbmBit => self.read_samples::<PbmBit>(1, buf),
             TupleType::BWBit => self.read_samples::<BWBit>(1, buf),
@@ -974,7 +975,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
@@ -1020,7 +1022,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, vec![0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF,]);
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
@@ -1059,7 +1062,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
@@ -1105,7 +1109,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (2, 1));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
@@ -1153,7 +1158,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
@@ -1196,7 +1202,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (1, 3));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, b"\x00\x11\x22\x33\xaa\xbb\xcc\xdd\x55\x66\x77\x88",);
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
@@ -1231,7 +1238,9 @@ ENDHDR
             decoder.subtype(),
             PnmSubtype::Bitmap(SampleEncoding::Binary)
         );
-        let mut image = vec![0; decoder.total_bytes() as usize];
+
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
@@ -1272,7 +1281,8 @@ ENDHDR
         let pbmbinary = BufReader::new(FailRead(Cursor::new(b"P1 1 1\n")));
 
         let mut decoder = PnmDecoder::new(pbmbinary).unwrap();
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder
             .read_image(&mut image)
             .expect_err("Image is malformed");
@@ -1290,7 +1300,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
@@ -1322,7 +1333,8 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
@@ -1355,7 +1367,9 @@ ENDHDR
             decoder.subtype(),
             PnmSubtype::Graymap(SampleEncoding::Binary)
         );
-        let mut image = vec![0; decoder.total_bytes() as usize];
+
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, elements);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
@@ -1388,7 +1402,9 @@ ENDHDR
             decoder.subtype(),
             PnmSubtype::Graymap(SampleEncoding::Ascii)
         );
-        let mut image = vec![0; decoder.total_bytes() as usize];
+
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, (0..16).collect::<Vec<_>>());
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
@@ -1413,7 +1429,8 @@ ENDHDR
     fn ppm_ascii() {
         let ascii = b"P3 1 1 2000\n0 1000 2000";
         let mut decoder = PnmDecoder::new(&ascii[..]).unwrap();
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
@@ -1456,7 +1473,8 @@ ENDHDR
         // Validate: we have a header. Note: we might already calculate that this will fail but
         // then we could not return information about the header to the caller.
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         let _ = decoder.read_image(&mut image);
     }
 
@@ -1464,7 +1482,8 @@ ENDHDR
     fn data_too_short() {
         let data = b"P3 16 16 1\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
 
         let _ = decoder.read_image(&mut image).unwrap_err();
     }
@@ -1485,7 +1504,8 @@ ENDHDR
     fn leading_zeros() {
         let data = b"P2 03 00000000000002 00100\n011 22 033\n44 055 66\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let mut image = vec![0; decoder.total_bytes() as usize];
+        let layout = decoder.init().unwrap();
+        let mut image = vec![0; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut image).is_ok());
     }
 

@@ -303,7 +303,8 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.init()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
         self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;

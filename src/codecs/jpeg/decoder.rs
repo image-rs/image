@@ -75,6 +75,14 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
+    fn init(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: u32::from(self.width),
+            height: u32::from(self.height),
+            color: ColorType::from_jpeg(self.orig_color_space),
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.width), u32::from(self.height))
     }
@@ -146,7 +154,9 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        let advertised_len = self.total_bytes();
+        let layout = self.init()?;
+
+        let advertised_len = layout.total_bytes();
         let actual_len = buf.len() as u64;
 
         if actual_len != advertised_len {

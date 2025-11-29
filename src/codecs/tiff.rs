@@ -249,6 +249,20 @@ impl<R> Read for TiffReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
+    fn init(&mut self) -> ImageResult<crate::ImageLayout> {
+        if self.inner.is_none() {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        Ok(crate::ImageLayout {
+            width: self.dimensions.0,
+            height: self.dimensions.1,
+            color: self.color_type,
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions
     }
@@ -320,7 +334,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.init()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let Some(reader) = &mut self.inner else {
             return Err(ImageError::Parameter(ParameterError::from_kind(

@@ -52,7 +52,8 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let layout = self.init()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         self.inner
             .read_image(buf)

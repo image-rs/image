@@ -193,10 +193,11 @@ where
         u64::from(width),
         u64::from(height),
     );
-    let dimensions = decoder.dimensions();
-    let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
-    let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
-    let total_bytes = width * height * bytes_per_pixel;
+
+    let layout = decoder.init()?;
+    let bytes_per_pixel = u64::from(layout.color.bytes_per_pixel());
+    let row_bytes = bytes_per_pixel * width;
+    let total_bytes = row_bytes * height;
 
     assert!(
         buf.len() >= usize::try_from(total_bytes).unwrap_or(usize::MAX),
@@ -266,8 +267,8 @@ where
                 Ok(())
             };
 
-        if x + width > u64::from(dimensions.0)
-            || y + height > u64::from(dimensions.1)
+        if x + width > u64::from(layout.width)
+            || y + height > u64::from(layout.height)
             || width == 0
             || height == 0
         {
@@ -281,7 +282,7 @@ where
             )));
         }
 
-        if x == 0 && width == u64::from(dimensions.0) && row_pitch == row_bytes {
+        if x == 0 && width == u64::from(layout.width) && row_pitch == row_bytes {
             let start = x * bytes_per_pixel + y * row_bytes;
             let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
             read_image_range(start, end, buf)?;
@@ -302,11 +303,11 @@ where
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<T>(mut decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
+pub(crate) fn decoder_to_vec<T>(decoder: &mut (impl ImageDecoder + ?Sized)) -> ImageResult<Vec<T>>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let total_bytes = usize::try_from(decoder.total_bytes());
+    let total_bytes = usize::try_from(decoder.init()?.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::MAX as usize {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::InsufficientMemory,

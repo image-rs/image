@@ -4,9 +4,9 @@ use std::io;
 use std::path::PathBuf;
 
 use crc32fast::Hasher as Crc32;
-use image::{DynamicImage, ImageReader};
 #[cfg(feature = "png")]
-use image::{ImageDecoder as _};
+use image::ImageDecoder as _;
+use image::{DynamicImage, ImageReader};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -229,7 +229,7 @@ fn check_references() {
 
                     let mut decoder = image::codecs::png::PngDecoder::new(stream);
                     let decoder = match decoder.init() {
-                        Ok(()) => decoder.apng().unwrap(),
+                        Ok(_layout) => decoder.apng().unwrap(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
                             panic!("decoding of {img_path:?} failed with: {err}")

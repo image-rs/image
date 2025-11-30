@@ -15,9 +15,7 @@
 
 use std::io::Cursor;
 
-use image::{
-    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReader, Limits, RgbImage,
-};
+use image::{load_from_memory_with_format, ImageDecoder, ImageFile, ImageFormat, Limits, RgbImage};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
@@ -60,7 +58,7 @@ fn load_through_reader(
     format: ImageFormat,
     limits: Limits,
 ) -> Result<image::DynamicImage, image::ImageError> {
-    let mut reader = ImageReader::new(Cursor::new(input));
+    let mut reader = ImageFile::new(Cursor::new(input));
     reader.set_format(format);
     reader.limits(limits);
     reader.decode()

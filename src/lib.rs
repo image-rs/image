@@ -88,7 +88,7 @@
 //! # }
 //! # #[cfg(not(feature = "jpeg"))] fn main() {}
 //! ```
-//! While [`ImageDecoder`] and [`ImageDecoderRect`] give access to more advanced decoding options:
+//! While [`ImageDecoder`] give access to more advanced decoding options:
 //!
 //! ```rust,no_run
 //! # use std::io::{BufReader, Cursor};
@@ -108,7 +108,6 @@
 //! ```
 //!
 //! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
-//! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
 #![warn(missing_docs)]
@@ -161,7 +160,7 @@ pub use crate::images::dynimage::{
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder, ImageDecoderRect},
+    decoder::{AnimationDecoder, ImageDecoder},
     encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::ImageReader,

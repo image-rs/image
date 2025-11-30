@@ -11,9 +11,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::free_functions::load_rect;
 use crate::io::ReadExt;
-use crate::{ImageDecoder, ImageDecoderRect, ImageFormat};
+use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -1415,34 +1414,6 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     }
 }
 
-impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
-    fn read_rect(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        buf: &mut [u8],
-        row_pitch: usize,
-    ) -> ImageResult<()> {
-        let start = self.reader.stream_position()?;
-        load_rect(
-            x,
-            y,
-            width,
-            height,
-            buf,
-            row_pitch,
-            self,
-            self.total_bytes() as usize,
-            |_, _| Ok(()),
-            |s, buf| s.read_image_data(buf),
-        )?;
-        self.reader.seek(SeekFrom::Start(start))?;
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::io::{BufReader, Cursor};
@@ -1462,16 +1433,6 @@ mod test {
                 assert_eq!(read, calc);
             }
         }
-    }
-
-    #[test]
-    fn read_rect() {
-        let f =
-            BufReader::new(std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap());
-        let mut decoder = BmpDecoder::new(f).unwrap();
-
-        let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
-        decoder.read_rect(0, 0, 8, 8, &mut buf, 8 * 3).unwrap();
     }
 
     #[test]

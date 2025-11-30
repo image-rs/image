@@ -28,9 +28,9 @@ enum Format {
 ///
 /// ```no_run
 /// # use image::ImageError;
-/// # use image::ImageReader;
+/// # use image::ImageFile;
 /// # fn main() -> Result<(), ImageError> {
-/// let image = ImageReader::open("path/to/image.png")?
+/// let image = ImageFile::open("path/to/image.png")?
 ///     .decode()?;
 /// # Ok(()) }
 /// ```
@@ -41,7 +41,7 @@ enum Format {
 ///
 /// ```
 /// # use image::ImageError;
-/// # use image::ImageReader;
+/// # use image::ImageFile;
 /// # fn main() -> Result<(), ImageError> {
 /// use std::io::Cursor;
 /// use image::ImageFormat;
@@ -50,7 +50,7 @@ enum Format {
 ///     0 1\n\
 ///     1 0\n";
 ///
-/// let mut reader = ImageReader::new(Cursor::new(raw_data))
+/// let mut reader = ImageFile::new(Cursor::new(raw_data))
 ///     .with_guessed_format()
 ///     .expect("Cursor io never fails");
 /// assert_eq!(reader.format(), Some(ImageFormat::Pnm));
@@ -65,7 +65,7 @@ enum Format {
 ///
 /// [`set_format`]: #method.set_format
 /// [`ImageDecoder`]: ../trait.ImageDecoder.html
-pub struct ImageReader<R: Read + Seek> {
+pub struct ImageFile<R: Read + Seek> {
     /// The reader. Should be buffered.
     inner: R,
     /// The format, if one has been set or deduced.
@@ -74,7 +74,12 @@ pub struct ImageReader<R: Read + Seek> {
     limits: Limits,
 }
 
-impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
+pub struct ImageReader<'lt> {
+    /// The reader. Should be buffered.
+    inner: Box<dyn ImageDecoder + 'lt>,
+}
+
+impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
@@ -86,7 +91,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// [`with_guessed_format`]: #method.with_guessed_format
     /// [`set_format`]: method.set_format
     pub fn new(buffered_reader: R) -> Self {
-        ImageReader {
+        ImageFile {
             inner: buffered_reader,
             format: None,
             limits: Limits::default(),
@@ -98,7 +103,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     /// Assumes the reader is already buffered. For optimal performance,
     /// consider wrapping the reader with a `BufReader::new()`.
     pub fn with_format(buffered_reader: R, format: ImageFormat) -> Self {
-        ImageReader {
+        ImageFile {
             inner: buffered_reader,
             format: Some(Format::BuiltIn(format)),
             limits: Limits::default(),
@@ -205,12 +210,22 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         })
     }
 
-    /// Convert the reader into a decoder ready to read an image.
+    /// Convert the file into a decoder ready to read an image.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
         let mut decoder = Self::make_decoder(self.require_format()?, self.inner)?;
         decoder.set_limits(self.limits)?;
         decoder.peek_layout()?;
         Ok(decoder)
+    }
+
+    /// Convert the file into a reader object.
+    pub fn into_reader(mut self) -> ImageResult<ImageReader<'a>> {
+        let format = self.require_format()?;
+
+        let mut decoder = Self::make_decoder(format, self.inner)?;
+        decoder.set_limits(self.limits.clone())?;
+
+        Ok(ImageReader { inner: decoder })
     }
 
     /// Make a format guess based on the content, replacing it on success.
@@ -228,15 +243,15 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     ///
     /// ## Usage
     ///
-    /// This supplements the path based type deduction from [`ImageReader::open()`] with content based deduction.
+    /// This supplements the path based type deduction from [`ImageFile::open()`] with content based deduction.
     /// This is more common in Linux and UNIX operating systems and also helpful if the path can
     /// not be directly controlled.
     ///
     /// ```no_run
     /// # use image::ImageError;
-    /// # use image::ImageReader;
+    /// # use image::ImageFile;
     /// # fn main() -> Result<(), ImageError> {
-    /// let image = ImageReader::open("image.unknown")?
+    /// let image = ImageFile::open("image.unknown")?
     ///     .with_guessed_format()?
     ///     .decode()?;
     /// # Ok(()) }
@@ -278,7 +293,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     ///
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn into_dimensions(self) -> ImageResult<(u32, u32)> {
-        self.into_decoder().map(|d| d.dimensions())
+        let mut decoder = self.into_decoder()?;
+        let layout = decoder.peek_layout()?;
+        Ok((layout.width, layout.height))
     }
 
     /// Read the image (replaces `load`).
@@ -300,7 +317,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         limits.reserve(layout.total_bytes())?;
-        DynamicImage::decoder_to_image(decoder, layout)
+
+        DynamicImage::decoder_to_image(decoder.as_mut(), layout)
     }
 
     fn require_format(&mut self) -> ImageResult<Format> {
@@ -313,7 +331,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     }
 }
 
-impl ImageReader<BufReader<File>> {
+impl ImageFile<BufReader<File>> {
     /// Open a file to read, format will be guessed from path.
     ///
     /// This will not attempt any io operation on the opened file.
@@ -335,10 +353,34 @@ impl ImageReader<BufReader<File>> {
             .filter(|ext| !ext.is_empty())
             .map(|ext| Format::Extension(ext.to_owned()));
 
-        Ok(ImageReader {
+        Ok(ImageFile {
             inner: BufReader::new(File::open(path)?),
             format,
             limits: Limits::default(),
         })
+    }
+}
+
+impl ImageReader<'_> {
+    /// Decode the next image into a `DynamicImage`.
+    pub fn decode(&mut self) -> ImageResult<DynamicImage> {
+        let layout = self.inner.peek_layout()?;
+        DynamicImage::decoder_to_image(self.inner.as_mut(), layout)
+    }
+
+    pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.exif_metadata()
+    }
+
+    pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.icc_profile()
+    }
+
+    pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.xmp_metadata()
+    }
+
+    pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.iptc_metadata()
     }
 }

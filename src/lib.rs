@@ -13,16 +13,16 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`](crate::ImageReader):
+//! Load images using [`ImageFile`](crate::ImageFile):
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
-//! use image::ImageReader;
+//! use image::ImageFile;
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let bytes = vec![0u8];
 //!
-//! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img = ImageFile::open("myimage.png")?.decode()?;
+//! let img2 = ImageFile::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -49,7 +49,6 @@
 //!
 //! [`save`]: enum.DynamicImage.html#method.save
 //! [`write_to`]: enum.DynamicImage.html#method.write_to
-//! [`ImageReader`]: struct.Reader.html
 //!
 //! # Image buffers
 //!
@@ -167,7 +166,7 @@ pub use crate::io::{
     decoder::{AnimationDecoder, ImageDecoder, ImageDecoderRect},
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::ImageReader,
+    image_reader_type::{ImageFile, ImageReader},
     limits::{LimitSupport, Limits},
     ImageLayout,
 };

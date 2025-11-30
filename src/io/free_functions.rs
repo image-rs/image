@@ -4,7 +4,7 @@ use std::path::Path;
 use std::{iter, mem::size_of};
 
 use crate::io::encoder::ImageEncoderBoxed;
-use crate::{codecs::*, ExtendedColorType, ImageReader};
+use crate::{codecs::*, ExtendedColorType, ImageFile};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
@@ -19,7 +19,7 @@ use crate::{DynamicImage, ImageDecoder, ImageFormat};
 ///
 /// Try [`ImageReader`] for more advanced uses.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    let mut reader = ImageReader::new(r);
+    let mut reader = ImageFile::new(r);
     reader.set_format(format);
     reader.decode()
 }

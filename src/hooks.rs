@@ -184,7 +184,7 @@ pub(crate) fn guess_format_extension(start: &[u8]) -> Option<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ColorType, DynamicImage, ImageReader};
+    use crate::{ColorType, DynamicImage, ImageFile};
     use std::io::Cursor;
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
@@ -217,7 +217,7 @@ mod tests {
         assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
         assert!(get_decoding_hook(OsStr::new(MOCK_HOOK_EXTENSION)).is_some());
 
-        let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
+        let image = ImageFile::open("tests/images/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
             .unwrap();
@@ -247,7 +247,7 @@ mod tests {
             Some(OsStr::new(MOCK_HOOK_EXTENSION).to_ascii_lowercase())
         );
 
-        let image = ImageReader::new(Cursor::new(TEST_INPUT_IMAGE))
+        let image = ImageFile::new(Cursor::new(TEST_INPUT_IMAGE))
             .with_guessed_format()
             .unwrap()
             .decode()

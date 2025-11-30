@@ -19,7 +19,7 @@ use crate::{
     imageops,
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
     ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
-    ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
+    ImageEncoder, ImageFile, ImageFormat, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -246,10 +246,10 @@ impl DynamicImage {
     }
 
     pub(crate) fn decoder_to_image(
-        mut decoder: impl ImageDecoder,
+        decoder: &mut dyn ImageDecoder,
         layout: crate::ImageLayout,
     ) -> ImageResult<Self> {
-        decoder_to_image(&mut decoder, layout)
+        decoder_to_image(decoder, layout)
     }
 
     /// Encodes a dynamic image into a buffer.
@@ -1643,7 +1643,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    ImageReader::open(path)?.decode()
+    ImageFile::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1655,7 +1655,7 @@ pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    ImageReader::open(path)?.into_dimensions()
+    ImageFile::open(path)?.into_dimensions()
 }
 
 /// Writes the supplied buffer to a writer in the specified format.

@@ -134,6 +134,18 @@ pub trait ImageDecoder {
             .and_then(|chunk| Orientation::from_exif_chunk(&chunk))
             .unwrap_or(Orientation::NoTransforms))
     }
+
+    /// Request the decoder to only decode the specified viewbox.
+    ///
+    /// This should only be implemented by decoders that support it without a significant amount of
+    /// extra buffering. A good default is to check that only a constant allocation overhead may be
+    /// spent on it.
+    ///
+    /// It is up to the [`ImageReader`](crate::ImageReader) to adapt the returned image to an
+    /// unsupported viewbox pivot.
+    fn set_viewbox(&mut self, _: crate::math::Rect) -> bool {
+        false
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -167,6 +179,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         (**self).read_image(buf)
+    }
+    fn set_viewbox(&mut self, vb: crate::math::Rect) -> bool {
+        (**self).set_viewbox(vb)
     }
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         (**self).set_limits(limits)

@@ -186,14 +186,14 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
-                let format = ImageReader::open(&img_path)
+                let reader = ImageReader::open(&img_path)
                     .unwrap()
                     .with_guessed_format()
-                    .unwrap()
-                    .format();
+                    .unwrap();
+                let format = reader.format().unwrap();
 
                 #[cfg(feature = "gif")]
-                if format == Some(image::ImageFormat::Gif) {
+                if format == "gif" {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
@@ -221,7 +221,7 @@ fn check_references() {
                 }
 
                 #[cfg(feature = "png")]
-                if format == Some(image::ImageFormat::Png) {
+                if format == "png" {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());

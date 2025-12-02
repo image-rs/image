@@ -157,11 +157,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             ))
         })?;
 
-        if let Some(hook) = hooks::get_decoding_hook(&ext) {
+        if let Some(hook) = hooks::get_decoding_hook(ext) {
             return hook(hooks::GenericReader::new(reader));
         }
 
-        let format = ImageFormat::from_extension(&ext).ok_or(ImageError::Unsupported(
+        let format = ImageFormat::from_extension(ext).ok_or(ImageError::Unsupported(
             ImageFormatHint::PathExtension(ext.into()).into(),
         ))?;
 

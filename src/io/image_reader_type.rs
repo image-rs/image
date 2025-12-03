@@ -18,8 +18,9 @@ enum Format {
 
 /// A multi-format image reader.
 ///
-/// Wraps an input reader to facilitate automatic detection of an image's format, appropriate
-/// decoding method, and dispatches into the set of supported [`ImageDecoder`] implementations.
+/// Wraps an input stream to facilitate automatic detection of an image's format, appropriate
+/// decoding method, and turn it into an [`ImageDecoder`] implementation. For convenience, it also
+/// allows directly decoding into a [`DynamicImage`].
 ///
 /// ## Usage
 ///
@@ -74,9 +75,21 @@ pub struct ImageFile<R: Read + Seek> {
     limits: Limits,
 }
 
+/// An abstracted image reader.
+///
+/// Wraps an input reader after its format was determined. It provides more detailed decoding
+/// methods than [`ImageFile`] and under the hood dispatches into the set of supported
+/// [`ImageDecoder`] implementations. For decoder interface that are provided for efficiency it
+/// negotiates support with the underlying decoder and then emulates them if necessary.
 pub struct ImageReader<'lt> {
     /// The reader. Should be buffered.
     inner: Box<dyn ImageDecoder + 'lt>,
+    /// An additional viewbox to apply after decoding.
+    ///
+    /// This is only used if the inner decoder does not support viewboxes directly.
+    viewbox: Option<crate::math::Rect>,
+    /// Remaining limits for allocations by the reader.
+    limits: Limits,
 }
 
 impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
@@ -225,7 +238,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
         let mut decoder = Self::make_decoder(format, self.inner)?;
         decoder.set_limits(self.limits.clone())?;
 
-        Ok(ImageReader { inner: decoder })
+        Ok(ImageReader {
+            inner: decoder,
+            viewbox: None,
+            limits: self.limits,
+        })
     }
 
     /// Make a format guess based on the content, replacing it on success.
@@ -303,22 +320,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     /// Uses the current format to construct the correct reader for the format.
     ///
     /// If no format was determined, returns an `ImageError::Unsupported`.
-    pub fn decode(mut self) -> ImageResult<DynamicImage> {
-        let format = self.require_format()?;
-
-        let mut limits = self.limits;
-
-        let mut decoder = Self::make_decoder(format, self.inner)?;
-        decoder.set_limits(limits.clone())?;
-        let layout = decoder.peek_layout()?;
-
-        // This is technically redundant but it's also cheap.
-        limits.check_dimensions(layout.width, layout.height)?;
-        // Check that we do not allocate a bigger buffer than we are allowed to
-        // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
-        limits.reserve(layout.total_bytes())?;
-
-        DynamicImage::decoder_to_image(decoder.as_mut(), layout)
+    pub fn decode(self) -> ImageResult<DynamicImage> {
+        let mut reader = self.into_reader()?;
+        reader.decode()
     }
 
     fn require_format(&mut self) -> ImageResult<Format> {
@@ -364,22 +368,73 @@ impl ImageFile<BufReader<File>> {
 impl ImageReader<'_> {
     /// Decode the next image into a `DynamicImage`.
     pub fn decode(&mut self) -> ImageResult<DynamicImage> {
+        // Try to resolve the viewbox via the decoder, fallback to `crop` if that is not possible.
+        let residual_vb = self.viewbox.and_then(|vb| self.inner.viewbox(vb).err());
+
         let layout = self.inner.peek_layout()?;
-        DynamicImage::decoder_to_image(self.inner.as_mut(), layout)
+        // This is technically redundant but it's also cheap.
+        self.limits.check_dimensions(layout.width, layout.height)?;
+        // Check that we do not allocate a bigger buffer than we are allowed to
+        // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+        self.limits.reserve(layout.total_bytes())?;
+
+        let mut image = DynamicImage::decoder_to_image(self.inner.as_mut(), layout)?;
+
+        // Apply the profile. If the profile itself is not valid or not present you get the default
+        // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
+        // RGB we'll treat it as unspecified so that downstream will know that our handling of this
+        // _existing_ profile was not / could not be done with full fidelity.
+        if let Some(icc) = self.inner.icc_profile()? {
+            if let Some(cicp) = crate::metadata::cms_provider().parse_icc(&icc) {
+                // We largely ignore the error itself here, you just get the image with no color
+                // space attached to it.
+                if let Ok(rgb) = cicp.try_into_rgb() {
+                    image.set_rgb_primaries(rgb.primaries);
+                    image.set_transfer_function(rgb.transfer);
+                } else {
+                    image.set_rgb_primaries(crate::metadata::CicpColorPrimaries::Unspecified);
+                    image.set_transfer_function(
+                        crate::metadata::CicpTransferCharacteristics::Unspecified,
+                    );
+                }
+            }
+        }
+
+        Ok(if let Some(vb) = residual_vb {
+            // Crop the image. This re-allocates a completely new buffer. For other types it may be
+            // possible to do so with less work but not the normalized `ImageBuffer`.
+            image.crop(vb)
+        } else {
+            image
+        })
     }
 
+    /// Query the layout that the image will have.
+    pub fn layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        self.inner.peek_layout()
+    }
+
+    /// Set the viewbox to apply when decoding images.
+    pub fn set_viewbox(&mut self, viewbox: crate::math::Rect) {
+        self.viewbox = Some(viewbox);
+    }
+
+    /// Get the previously decoded EXIF metadata if any.
     pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.exif_metadata()
     }
 
+    /// Get the previously decoded ICC profile if any.
     pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.icc_profile()
     }
 
+    /// Get the previously decoded XMP metadata if any.
     pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.xmp_metadata()
     }
 
+    /// Get the previously decoded IPTC metadata if any.
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.iptc_metadata()
     }

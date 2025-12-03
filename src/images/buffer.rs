@@ -657,7 +657,7 @@ where
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
@@ -1223,6 +1223,29 @@ where
     }
 }
 
+impl<P, Container> fmt::Debug for ImageBuffer<P, Container>
+where
+    P: Pixel + fmt::Debug,
+    Container: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut pixel = std::any::type_name::<P>();
+        pixel = pixel.strip_prefix("image::color::").unwrap_or(pixel);
+
+        let mut debug_struct = f.debug_struct(&format!("ImageBuffer::<{pixel}, _>"));
+        debug_struct.field("width", &self.width);
+        debug_struct.field("height", &self.height);
+
+        if let Some(color_name) = self.color.known_name() {
+            debug_struct.field("color", &color_name);
+        } else {
+            debug_struct.field("color", &self.color);
+        }
+
+        debug_struct.finish()
+    }
+}
+
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1768,7 +1791,9 @@ mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::metadata::Cicp;
+    use crate::metadata::CicpMatrixCoefficients;
     use crate::metadata::CicpTransform;
+    use crate::metadata::CicpVideoFullRangeFlag;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
@@ -2130,6 +2155,83 @@ mod test {
 
         let result = target.copy_from_color_space(&source, options);
         assert!(matches!(result, Err(crate::ImageError::Parameter(_))));
+    }
+
+    #[test]
+    fn pleasant_debug() {
+        use super::*;
+
+        assert_eq!(
+            format!("{:?}", GrayImage::new(100, 100)),
+            "ImageBuffer::<Luma<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlphaImage::new(100, 100)),
+            "ImageBuffer::<LumaA<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", RgbImage::new(100, 100)),
+            "ImageBuffer::<Rgb<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", RgbaImage::new(100, 100)),
+            "ImageBuffer::<Rgba<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Gray16Image::new(100, 100)),
+            "ImageBuffer::<Luma<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlpha16Image::new(100, 100)),
+            "ImageBuffer::<LumaA<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb16Image::new(100, 100)),
+            "ImageBuffer::<Rgb<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba16Image::new(100, 100)),
+            "ImageBuffer::<Rgba<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb32FImage::new(100, 100)),
+            "ImageBuffer::<Rgb<f32>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba32FImage::new(100, 100)),
+            "ImageBuffer::<Rgba<f32>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+
+        let gray8 = ImageBuffer::from_pixel(16, 16, Luma([255u8]));
+        assert_eq!(
+            format!("{:?}", gray8),
+            "ImageBuffer::<Luma<u8>, _> { width: 16, height: 16, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:#?}", gray8),
+           "ImageBuffer::<Luma<u8>, _> {\n    width: 16,\n    height: 16,\n    color: \"sRGB\",\n}"
+        );
+
+        let mut rgba32f = ImageBuffer::from_pixel(16, 16, Rgba([0.0_f32; 4]));
+        rgba32f.set_color_space(Cicp::DISPLAY_P3).unwrap();
+        assert_eq!(
+            format!("{:?}", rgba32f),
+            "ImageBuffer::<Rgba<f32>, _> { width: 16, height: 16, color: \"Display P3\" }"
+        );
+
+        let mut custom_color_space = ImageBuffer::from_pixel(16, 16, Rgba([0.0_f32; 4]));
+        custom_color_space
+            .set_color_space(Cicp {
+                primaries: CicpColorPrimaries::Rgb240m,
+                transfer: CicpTransferCharacteristics::LogSqrt,
+                matrix: CicpMatrixCoefficients::Identity,
+                full_range: CicpVideoFullRangeFlag::FullRange,
+            })
+            .unwrap();
+        assert_eq!(
+            format!("{:?}", custom_color_space),
+            "ImageBuffer::<Rgba<f32>, _> { width: 16, height: 16, color: CicpRgb { primaries: Rgb240m, transfer: LogSqrt, luminance: NonConstant } }"
+        );
     }
 }
 

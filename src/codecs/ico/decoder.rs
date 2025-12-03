@@ -429,17 +429,17 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn set_viewbox(&mut self, vb: crate::math::Rect) -> bool {
-        match &mut self.inner_decoder {
-            Bmp(decoder) => decoder.set_viewbox(vb),
-            Png(decoder) => decoder.set_viewbox(vb),
-        }
-    }
-
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.set_limits(limits),
             Png(decoder) => decoder.set_limits(limits),
+        }
+    }
+
+    fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.viewbox(rect),
+            Png(decoder) => decoder.viewbox(rect),
         }
     }
 }

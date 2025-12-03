@@ -434,6 +434,13 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
             Png(decoder) => decoder.set_limits(limits),
         }
     }
+
+    fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.viewbox(rect),
+            Png(decoder) => decoder.viewbox(rect),
+        }
+    }
 }
 
 #[cfg(test)]

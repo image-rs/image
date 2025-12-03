@@ -158,7 +158,7 @@ fn resizing_with_alpha() {
 
     let base: PathBuf = BASE_PATH.iter().collect();
     let image =
-        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
+        image::ImageFile::open(base.join("regression/image/resize-with-alpha-original.png"))
             .unwrap()
             .decode()
             .unwrap();
@@ -191,12 +191,12 @@ fn resizing_with_catmul() {
 
     let base: PathBuf = BASE_PATH.iter().collect();
     let image =
-        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
+        image::ImageFile::open(base.join("regression/image/resize-with-alpha-original.png"))
             .unwrap()
             .decode()
             .unwrap();
 
-    let expected = image::ImageReader::open(
+    let expected = image::ImageFile::open(
         base.join("regression/image/resize-with-alpha-original-half-size.png"),
     )
     .unwrap()

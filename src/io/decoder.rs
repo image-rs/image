@@ -135,16 +135,27 @@ pub trait ImageDecoder {
             .unwrap_or(Orientation::NoTransforms))
     }
 
-    /// Request the decoder to only decode the specified viewbox.
+    /// Request the decoder to only decode the specified viewbox for the _next_ image.
+    ///
+    /// The decoder should attempt to restrict the amount of decoder image data to the indicated
+    /// box. It should return `Ok` if it supports the viewbox directly, or `Err` if it does not
+    /// support that exact viewbox. In the either case the decoder must indicate the new image
+    /// dimensions in subsequent calls to [`Self::init`].
+    ///
+    /// In the error case the value contains another viewbox. The decoder should try to
+    /// overestimate the requested viewbox as little as possible and return the relative viewbox
+    /// according to that best effort restriction. In particular, if it does not support any
+    /// viewboxing it should not change how it decodes its image and return the original request as
+    /// an error. The default implementation always returns an error this way.
     ///
     /// This should only be implemented by decoders that support it without a significant amount of
     /// extra buffering. A good default is to check that only a constant allocation overhead may be
     /// spent on it.
     ///
-    /// It is up to the [`ImageReader`](crate::ImageReader) to adapt the returned image to an
-    /// unsupported viewbox pivot.
-    fn set_viewbox(&mut self, _: crate::math::Rect) -> bool {
-        false
+    /// It is up to the caller, the [`ImageReader`](crate::ImageReader), to adapt to an unsupported
+    /// viewbox.
+    fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
+        Err(rect)
     }
 }
 
@@ -180,11 +191,11 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         (**self).read_image(buf)
     }
-    fn set_viewbox(&mut self, vb: crate::math::Rect) -> bool {
-        (**self).set_viewbox(vb)
-    }
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         (**self).set_limits(limits)
+    }
+    fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
+        (**self).viewbox(rect)
     }
 }
 

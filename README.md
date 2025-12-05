@@ -85,12 +85,10 @@ The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
 
-## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
+## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) Trait
 
 All image format decoders implement the `ImageDecoder` trait which provide
-basic methods for getting image metadata and decoding images. Some formats
-additionally provide `ImageDecoderRect` implementations which allow for
-decoding only part of an image at once.
+basic methods for getting image metadata and decoding images.
 
 The most important methods for decoders are...
 + **dimensions**: Return a tuple containing the width and height of the image.

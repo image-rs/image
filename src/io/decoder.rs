@@ -59,10 +59,10 @@ pub trait ImageDecoder {
 
     /// Returns the total number of bytes in the decoded image.
     ///
-    /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
-    /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
+    /// This is the size of the buffer that must be passed to `read_image`. The returned value may
+    /// exceed `usize::MAX`, in which case it isn't actually possible to construct a buffer to
+    /// decode all the image data into. If, however, the size does not fit in a u64 then `u64::MAX`
+    /// is returned.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
         let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);

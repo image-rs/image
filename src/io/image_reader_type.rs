@@ -409,6 +409,42 @@ impl ImageReader<'_> {
         })
     }
 
+    /// Skip the next image, discard its image data.
+    ///
+    /// This will attempt to read the image data with as little allocation as possible while still
+    /// running the usual verification routines. It will inform the underlying decoder that it is
+    /// uninterested in all of the image data, then run its decoding routine.
+    pub fn skip(&mut self) -> ImageResult<()> {
+        const EMPTY: crate::math::Rect = crate::math::Rect {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+
+        // This is just an information..
+        let _ = self.inner.viewbox(EMPTY);
+
+        // Some decoders may still want a buffer, so we can't fully ignore it.
+        let layout = self.inner.peek_layout()?;
+        // This is technically redundant but it's also cheap.
+        self.limits.check_dimensions(layout.width, layout.height)?;
+        let bytes = layout.total_bytes();
+
+        if bytes < 512 {
+            let mut stack = [0u8; 512];
+            self.inner.read_image(&mut stack[..bytes as usize])?;
+        } else {
+            // Check that we do not allocate a bigger buffer than we are allowed to
+            // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+            self.limits.reserve(bytes)?;
+            DynamicImage::decoder_to_image(self.inner.as_mut(), layout)?;
+            self.limits.free(bytes);
+        }
+
+        Ok(())
+    }
+
     /// Query the layout that the image will have.
     pub fn layout(&mut self) -> ImageResult<crate::ImageLayout> {
         self.inner.peek_layout()

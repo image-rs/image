@@ -1453,6 +1453,16 @@ impl Cicp {
 }
 
 impl CicpRgb {
+    /// If this CICP corresponds to a well-known named color space, return its name.
+    pub(crate) fn known_name(&self) -> Option<&'static str> {
+        match Cicp::from(*self) {
+            Cicp::SRGB => Some("sRGB"),
+            Cicp::SRGB_LINEAR => Some("sRGB Linear"),
+            Cicp::DISPLAY_P3 => Some("Display P3"),
+            _ => None,
+        }
+    }
+
     /// Calculate the luminance cofactors according to Rec H.273 (39) and (40).
     ///
     /// Returns cofactors for red, green, and blue in that order.

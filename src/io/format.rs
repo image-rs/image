@@ -1,66 +1,64 @@
-use std::ffi::OsStr;
+use std::fmt::{self};
+use std::io::{Seek, Write};
 use std::path::Path;
+use std::{ffi::OsStr, io::BufRead};
 
-use crate::error::{ImageError, ImageFormatHint, ImageResult};
+use crate::error::{UnsupportedError, UnsupportedErrorKind};
+use crate::hooks::GenericReader;
+use crate::io::encoder::ImageEncoderBoxed;
+use crate::ImageDecoder;
+use crate::{
+    error::{ImageError, ImageFormatHint, ImageResult},
+    io::registry::{self, read_registry, RegistryId},
+};
 
-/// An enumeration of supported image formats.
+/// A supported image format.
+///
 /// Not all formats support both encoding and decoding.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[non_exhaustive]
-pub enum ImageFormat {
-    /// An Image in PNG Format
-    Png,
+// TODO: serde Serialize/Deserialize
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct ImageFormat(RegistryId);
 
-    /// An Image in JPEG Format
-    Jpeg,
-
-    /// An Image in GIF Format
-    Gif,
-
-    /// An Image in WEBP Format
-    WebP,
-
-    /// An Image in general PNM Format
-    Pnm,
-
-    /// An Image in TIFF Format
-    Tiff,
-
-    /// An Image in TGA Format
-    Tga,
-
-    /// An Image in DDS Format
-    Dds,
-
-    /// An Image in BMP Format
-    Bmp,
-
-    /// An Image in ICO Format
-    Ico,
-
-    /// An Image in Radiance HDR Format
-    Hdr,
-
-    /// An Image in OpenEXR Format
-    OpenExr,
-
-    /// An Image in farbfeld Format
-    Farbfeld,
-
-    /// An Image in AVIF Format
-    Avif,
-
-    /// An Image in QOI Format
-    Qoi,
-
-    /// An Image in PCX Format
-    #[cfg_attr(not(feature = "serde"), deprecated)]
-    #[doc(hidden)]
-    Pcx,
-}
-
+#[allow(non_upper_case_globals)]
 impl ImageFormat {
+    /// An Image in PNG Format
+    pub const Png: Self = Self(registry::PNG_ID);
+    /// An Image in JPEG Format
+    pub const Jpeg: Self = Self(registry::JPEG_ID);
+    /// An Image in GIF Format
+    pub const Gif: Self = Self(registry::GIF_ID);
+    /// An Image in WEBP Format
+    pub const WebP: Self = Self(registry::WEBP_ID);
+    /// An Image in PNM Format
+    pub const Pnm: Self = Self(registry::PNM_ID);
+    /// An Image in TIFF Format
+    pub const Tiff: Self = Self(registry::TIFF_ID);
+    /// An Image in TGA Format
+    pub const Tga: Self = Self(registry::TGA_ID);
+    /// An Image in DDS Format
+    pub const Dds: Self = Self(registry::DDS_ID);
+    /// An Image in BMP Format
+    pub const Bmp: Self = Self(registry::BMP_ID);
+    /// An Image in ICO Format
+    pub const Ico: Self = Self(registry::ICO_ID);
+    /// An Image in HDR Format
+    pub const Hdr: Self = Self(registry::HDR_ID);
+    /// An Image in EXR Format
+    pub const OpenExr: Self = Self(registry::EXR_ID);
+    /// An Image in Farbfeld Format
+    pub const Farbfeld: Self = Self(registry::FARBFELD_ID);
+    /// An Image in AVIF Format
+    pub const Avif: Self = Self(registry::AVIF_ID);
+    /// An Image in QOI Format
+    pub const Qoi: Self = Self(registry::QOI_ID);
+
+    pub(crate) fn from_id(id: RegistryId) -> Self {
+        Self(id)
+    }
+    pub(crate) fn id(&self) -> RegistryId {
+        self.0
+    }
+
     /// Return the image format specified by a path's file extension.
     ///
     /// # Example
@@ -78,26 +76,9 @@ impl ImageFormat {
     {
         // thin wrapper function to strip generics
         fn inner(ext: &OsStr) -> Option<ImageFormat> {
-            let ext = ext.to_str()?.to_ascii_lowercase();
-            // NOTE: when updating this, also update extensions_str()
-            Some(match ext.as_str() {
-                "avif" => ImageFormat::Avif,
-                "jpg" | "jpeg" | "jfif" => ImageFormat::Jpeg,
-                "png" | "apng" => ImageFormat::Png,
-                "gif" => ImageFormat::Gif,
-                "webp" => ImageFormat::WebP,
-                "tif" | "tiff" => ImageFormat::Tiff,
-                "tga" => ImageFormat::Tga,
-                "dds" => ImageFormat::Dds,
-                "bmp" => ImageFormat::Bmp,
-                "ico" => ImageFormat::Ico,
-                "hdr" => ImageFormat::Hdr,
-                "exr" => ImageFormat::OpenExr,
-                "pbm" | "pam" | "ppm" | "pgm" | "pnm" => ImageFormat::Pnm,
-                "ff" => ImageFormat::Farbfeld,
-                "qoi" => ImageFormat::Qoi,
-                _ => return None,
-            })
+            let ext = ext.to_str()?;
+            let id = read_registry(|reg| reg.get_by_extension(ext))?;
+            Some(ImageFormat(id))
         }
 
         inner(ext.as_ref())
@@ -151,28 +132,13 @@ impl ImageFormat {
     where
         M: AsRef<str>,
     {
-        match mime_type.as_ref() {
-            "image/avif" => Some(ImageFormat::Avif),
-            "image/jpeg" => Some(ImageFormat::Jpeg),
-            "image/png" => Some(ImageFormat::Png),
-            "image/gif" => Some(ImageFormat::Gif),
-            "image/webp" => Some(ImageFormat::WebP),
-            "image/tiff" => Some(ImageFormat::Tiff),
-            "image/x-targa" | "image/x-tga" => Some(ImageFormat::Tga),
-            "image/vnd-ms.dds" => Some(ImageFormat::Dds),
-            "image/bmp" => Some(ImageFormat::Bmp),
-            "image/x-icon" | "image/vnd.microsoft.icon" => Some(ImageFormat::Ico),
-            "image/vnd.radiance" => Some(ImageFormat::Hdr),
-            "image/x-exr" => Some(ImageFormat::OpenExr),
-            "image/x-portable-bitmap"
-            | "image/x-portable-graymap"
-            | "image/x-portable-pixmap"
-            | "image/x-portable-anymap" => Some(ImageFormat::Pnm),
-            // Qoi's MIME type is being worked on.
-            // See: https://github.com/phoboslab/qoi/issues/167
-            "image/x-qoi" => Some(ImageFormat::Qoi),
-            _ => None,
+        // thin wrapper function to strip generics
+        fn inner(mime_type: &str) -> Option<ImageFormat> {
+            let id = read_registry(|reg| reg.get_by_mime_type(mime_type))?;
+            Some(ImageFormat(id))
         }
+
+        inner(mime_type.as_ref())
     }
 
     /// Return the MIME type for this image format or "application/octet-stream" if no MIME type
@@ -197,82 +163,23 @@ impl ImageFormat {
     /// ```
     #[must_use]
     pub fn to_mime_type(&self) -> &'static str {
-        match self {
-            ImageFormat::Avif => "image/avif",
-            ImageFormat::Jpeg => "image/jpeg",
-            ImageFormat::Png => "image/png",
-            ImageFormat::Gif => "image/gif",
-            ImageFormat::WebP => "image/webp",
-            ImageFormat::Tiff => "image/tiff",
-            // the targa MIME type has two options, but this one seems to be used more
-            ImageFormat::Tga => "image/x-targa",
-            ImageFormat::Dds => "image/vnd-ms.dds",
-            ImageFormat::Bmp => "image/bmp",
-            ImageFormat::Ico => "image/x-icon",
-            ImageFormat::Hdr => "image/vnd.radiance",
-            ImageFormat::OpenExr => "image/x-exr",
-            // return the most general MIME type
-            ImageFormat::Pnm => "image/x-portable-anymap",
-            // Qoi's MIME type is being worked on.
-            // See: https://github.com/phoboslab/qoi/issues/167
-            ImageFormat::Qoi => "image/x-qoi",
-            // farbfeld's MIME type taken from https://www.wikidata.org/wiki/Q28206109
-            ImageFormat::Farbfeld => "application/octet-stream",
-            #[allow(deprecated)]
-            ImageFormat::Pcx => "image/vnd.zbrush.pcx",
-        }
+        read_registry(|reg| reg.get(self.0).main_mime_type()).unwrap_or("application/octet-stream")
     }
 
     /// Return if the `ImageFormat` can be decoded by the lib.
-    #[inline]
+    // TODO: rethink this API
     #[must_use]
     pub fn can_read(&self) -> bool {
         // Needs to be updated once a new variant's decoder is added to free_functions.rs::load
-        match self {
-            ImageFormat::Png => true,
-            ImageFormat::Gif => true,
-            ImageFormat::Jpeg => true,
-            ImageFormat::WebP => true,
-            ImageFormat::Tiff => true,
-            ImageFormat::Tga => true,
-            ImageFormat::Dds => false,
-            ImageFormat::Bmp => true,
-            ImageFormat::Ico => true,
-            ImageFormat::Hdr => true,
-            ImageFormat::OpenExr => true,
-            ImageFormat::Pnm => true,
-            ImageFormat::Farbfeld => true,
-            ImageFormat::Avif => true,
-            ImageFormat::Qoi => true,
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
-        }
+        read_registry(|reg| reg.get(self.0).can_read)
     }
 
     /// Return if the `ImageFormat` can be encoded by the lib.
-    #[inline]
+    // TODO: rethink this API
     #[must_use]
     pub fn can_write(&self) -> bool {
         // Needs to be updated once a new variant's encoder is added to free_functions.rs::save_buffer_with_format_impl
-        match self {
-            ImageFormat::Gif => true,
-            ImageFormat::Ico => true,
-            ImageFormat::Jpeg => true,
-            ImageFormat::Png => true,
-            ImageFormat::Bmp => true,
-            ImageFormat::Tiff => true,
-            ImageFormat::Tga => true,
-            ImageFormat::Pnm => true,
-            ImageFormat::Farbfeld => true,
-            ImageFormat::Avif => true,
-            ImageFormat::WebP => true,
-            ImageFormat::Hdr => true,
-            ImageFormat::OpenExr => true,
-            ImageFormat::Dds => false,
-            ImageFormat::Qoi => true,
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
-        }
+        read_registry(|reg| reg.get(self.0).can_write)
     }
 
     /// Return a list of applicable extensions for this format.
@@ -286,102 +193,166 @@ impl ImageFormat {
     /// that yields a slice of `OsStr` which is blocked by several features of const evaluation.
     #[must_use]
     pub fn extensions_str(self) -> &'static [&'static str] {
-        // NOTE: when updating this, also update from_extension()
-        match self {
-            ImageFormat::Png => &["png"],
-            ImageFormat::Jpeg => &["jpg", "jpeg"],
-            ImageFormat::Gif => &["gif"],
-            ImageFormat::WebP => &["webp"],
-            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm", "pnm"],
-            ImageFormat::Tiff => &["tiff", "tif"],
-            ImageFormat::Tga => &["tga"],
-            ImageFormat::Dds => &["dds"],
-            ImageFormat::Bmp => &["bmp"],
-            ImageFormat::Ico => &["ico"],
-            ImageFormat::Hdr => &["hdr"],
-            ImageFormat::OpenExr => &["exr"],
-            ImageFormat::Farbfeld => &["ff"],
-            // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
-            ImageFormat::Avif => &["avif"],
-            ImageFormat::Qoi => &["qoi"],
-            #[allow(deprecated)]
-            ImageFormat::Pcx => &["pcx"],
-        }
+        read_registry(|reg| reg.get(self.0).all_extensions())
     }
 
     /// Return the `ImageFormat`s which are enabled for reading.
-    #[inline]
+    // TODO: rethink this API
     #[must_use]
     pub fn reading_enabled(&self) -> bool {
-        match self {
-            ImageFormat::Png => cfg!(feature = "png"),
-            ImageFormat::Gif => cfg!(feature = "gif"),
-            ImageFormat::Jpeg => cfg!(feature = "jpeg"),
-            ImageFormat::WebP => cfg!(feature = "webp"),
-            ImageFormat::Tiff => cfg!(feature = "tiff"),
-            ImageFormat::Tga => cfg!(feature = "tga"),
-            ImageFormat::Bmp => cfg!(feature = "bmp"),
-            ImageFormat::Ico => cfg!(feature = "ico"),
-            ImageFormat::Hdr => cfg!(feature = "hdr"),
-            ImageFormat::OpenExr => cfg!(feature = "exr"),
-            ImageFormat::Pnm => cfg!(feature = "pnm"),
-            ImageFormat::Farbfeld => cfg!(feature = "ff"),
-            ImageFormat::Avif => cfg!(feature = "avif"),
-            ImageFormat::Qoi => cfg!(feature = "qoi"),
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
-            ImageFormat::Dds => false,
-        }
+        read_registry(|reg| reg.get(self.0).feature_enabled)
     }
 
     /// Return the `ImageFormat`s which are enabled for writing.
-    #[inline]
+    // TODO: rethink this API
     #[must_use]
     pub fn writing_enabled(&self) -> bool {
-        match self {
-            ImageFormat::Gif => cfg!(feature = "gif"),
-            ImageFormat::Ico => cfg!(feature = "ico"),
-            ImageFormat::Jpeg => cfg!(feature = "jpeg"),
-            ImageFormat::Png => cfg!(feature = "png"),
-            ImageFormat::Bmp => cfg!(feature = "bmp"),
-            ImageFormat::Tiff => cfg!(feature = "tiff"),
-            ImageFormat::Tga => cfg!(feature = "tga"),
-            ImageFormat::Pnm => cfg!(feature = "pnm"),
-            ImageFormat::Farbfeld => cfg!(feature = "ff"),
-            ImageFormat::Avif => cfg!(feature = "avif"),
-            ImageFormat::WebP => cfg!(feature = "webp"),
-            ImageFormat::OpenExr => cfg!(feature = "exr"),
-            ImageFormat::Qoi => cfg!(feature = "qoi"),
-            ImageFormat::Hdr => cfg!(feature = "hdr"),
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
-            ImageFormat::Dds => false,
-        }
+        read_registry(|reg| reg.get(self.0).feature_enabled)
     }
 
-    /// Return all `ImageFormat`s
-    pub fn all() -> impl Iterator<Item = ImageFormat> {
-        [
-            ImageFormat::Gif,
-            ImageFormat::Ico,
-            ImageFormat::Jpeg,
-            ImageFormat::Png,
-            ImageFormat::Bmp,
-            ImageFormat::Tiff,
-            ImageFormat::Tga,
-            ImageFormat::Pnm,
-            ImageFormat::Farbfeld,
-            ImageFormat::Avif,
-            ImageFormat::WebP,
-            ImageFormat::OpenExr,
-            ImageFormat::Qoi,
-            ImageFormat::Dds,
-            ImageFormat::Hdr,
-            #[allow(deprecated)]
-            ImageFormat::Pcx,
-        ]
-        .iter()
-        .copied()
+    /// Return all `ImageFormat`s.
+    ///
+    /// Format hooks added after calling this function will not be included in the returned
+    /// iterator.
+    pub fn all() -> impl Iterator<Item = Self> {
+        read_registry(|reg| reg.all()).map(ImageFormat)
+    }
+
+    pub(crate) fn create_decoder<'a>(
+        self,
+        reader: impl BufRead + Seek + 'a,
+        mut limits: Option<crate::Limits>,
+    ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
+        use crate::codecs::*;
+
+        fn inner<'a>(
+            format: ImageFormat,
+            reader: GenericReader<'a>,
+        ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
+            if let Some(decoding_fn) = read_registry(|reg| reg.get(format.0).decoding_fn.clone()) {
+                (decoding_fn)(reader)
+            } else {
+                Err(ImageError::Unsupported(
+                    ImageFormatHint::Exact(format).into(),
+                ))
+            }
+        }
+
+        // use static dispatch for builtin-formats to avoid any overhead added by GenericReader
+        let mut decoder: Box<dyn ImageDecoder + 'a> = match self {
+            #[cfg(feature = "avif-native")]
+            Self::Avif => Box::new(avif::AvifDecoder::new(reader)?),
+            #[cfg(feature = "png")]
+            Self::Png => Box::new(png::PngDecoder::with_limits(
+                reader,
+                limits.take().unwrap_or_default(),
+            )?),
+            #[cfg(feature = "gif")]
+            Self::Gif => Box::new(gif::GifDecoder::new(reader)?),
+            #[cfg(feature = "jpeg")]
+            Self::Jpeg => Box::new(jpeg::JpegDecoder::new(reader)?),
+            #[cfg(feature = "webp")]
+            Self::WebP => Box::new(webp::WebPDecoder::new(reader)?),
+            #[cfg(feature = "tiff")]
+            Self::Tiff => Box::new(tiff::TiffDecoder::new(reader)?),
+            #[cfg(feature = "tga")]
+            Self::Tga => Box::new(tga::TgaDecoder::new(reader)?),
+            #[cfg(feature = "dds")]
+            Self::Dds => Box::new(dds::DdsDecoder::new(reader)?),
+            #[cfg(feature = "bmp")]
+            Self::Bmp => Box::new(bmp::BmpDecoder::new(reader)?),
+            #[cfg(feature = "ico")]
+            Self::Ico => Box::new(ico::IcoDecoder::new(reader)?),
+            #[cfg(feature = "hdr")]
+            Self::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
+            #[cfg(feature = "exr")]
+            Self::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
+            #[cfg(feature = "pnm")]
+            Self::Pnm => Box::new(pnm::PnmDecoder::new(reader)?),
+            #[cfg(feature = "ff")]
+            Self::Farbfeld => Box::new(farbfeld::FarbfeldDecoder::new(reader)?),
+            #[cfg(feature = "qoi")]
+            Self::Qoi => Box::new(qoi::QoiDecoder::new(reader)?),
+            _ => inner(self, GenericReader::new(reader))?,
+        };
+
+        // set limits (if any (left))
+        if let Some(limits) = limits {
+            decoder.set_limits(limits)?;
+        }
+
+        Ok(decoder)
+    }
+    pub(crate) fn create_encoder<'a, W: Write + Seek>(
+        self,
+        buffered_write: &'a mut W,
+    ) -> ImageResult<Box<dyn ImageEncoderBoxed + 'a>> {
+        use crate::codecs::*;
+
+        Ok(match self {
+            #[cfg(feature = "png")]
+            Self::Png => Box::new(png::PngEncoder::new(buffered_write)),
+            #[cfg(feature = "jpeg")]
+            Self::Jpeg => Box::new(jpeg::JpegEncoder::new(buffered_write)),
+            #[cfg(feature = "pnm")]
+            Self::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
+            #[cfg(feature = "gif")]
+            Self::Gif => Box::new(gif::GifEncoder::new(buffered_write)),
+            #[cfg(feature = "ico")]
+            Self::Ico => Box::new(ico::IcoEncoder::new(buffered_write)),
+            #[cfg(feature = "bmp")]
+            Self::Bmp => Box::new(bmp::BmpEncoder::new(buffered_write)),
+            #[cfg(feature = "ff")]
+            Self::Farbfeld => Box::new(farbfeld::FarbfeldEncoder::new(buffered_write)),
+            #[cfg(feature = "tga")]
+            Self::Tga => Box::new(tga::TgaEncoder::new(buffered_write)),
+            #[cfg(feature = "exr")]
+            Self::OpenExr => Box::new(openexr::OpenExrEncoder::new(buffered_write)),
+            #[cfg(feature = "tiff")]
+            Self::Tiff => Box::new(tiff::TiffEncoder::new(buffered_write)),
+            #[cfg(feature = "avif")]
+            Self::Avif => Box::new(avif::AvifEncoder::new(buffered_write)),
+            #[cfg(feature = "qoi")]
+            Self::Qoi => Box::new(qoi::QoiEncoder::new(buffered_write)),
+            #[cfg(feature = "webp")]
+            Self::WebP => Box::new(webp::WebPEncoder::new_lossless(buffered_write)),
+            #[cfg(feature = "hdr")]
+            Self::Hdr => Box::new(hdr::HdrEncoder::new(buffered_write)),
+            _ => {
+                return Err(ImageError::Unsupported(
+                    // TODO: probably change that to be consistent with create_decoder
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormatHint::Unknown,
+                        UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{self:?}"))),
+                    ),
+                ));
+            }
+        })
+    }
+}
+impl fmt::Debug for ImageFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            registry::PNG_ID => f.write_str("PNG"),
+            registry::JPEG_ID => f.write_str("JPEG"),
+            registry::GIF_ID => f.write_str("GIF"),
+            registry::WEBP_ID => f.write_str("WEBP"),
+            registry::PNM_ID => f.write_str("PNM"),
+            registry::TIFF_ID => f.write_str("TIFF"),
+            registry::TGA_ID => f.write_str("TGA"),
+            registry::DDS_ID => f.write_str("DDS"),
+            registry::BMP_ID => f.write_str("BMP"),
+            registry::ICO_ID => f.write_str("ICO"),
+            registry::HDR_ID => f.write_str("HDR"),
+            registry::EXR_ID => f.write_str("EXR"),
+            registry::FARBFELD_ID => f.write_str("Farbfeld"),
+            registry::AVIF_ID => f.write_str("AVIF"),
+            registry::QOI_ID => f.write_str("QOI"),
+            _ => {
+                let ext = read_registry(|reg| reg.get(self.0).main_extension());
+                f.write_str(&ext.to_ascii_uppercase())
+            }
+        }
     }
 }
 
@@ -422,11 +393,7 @@ mod tests {
 
     #[test]
     fn image_formats_are_recognized() {
-        use ImageFormat::*;
-        const ALL_FORMATS: &[ImageFormat] = &[
-            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
-        ];
-        for &format in ALL_FORMATS {
+        for format in ImageFormat::all() {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {
                 assert!(file.set_extension(ext));

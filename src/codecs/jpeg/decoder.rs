@@ -16,6 +16,7 @@ type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 pub struct JpegDecoder<R> {
     input: Vec<u8>,
     orig_color_space: ZuneColorSpace,
+    strict_mode: bool,
     width: u16,
     height: u16,
     limits: Limits,
@@ -65,12 +66,20 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         Ok(JpegDecoder {
             input,
             orig_color_space,
+            strict_mode: false,
             width,
             height,
             limits,
             orientation: None,
             phantom: PhantomData,
         })
+    }
+
+    /// Set whether the decoder should be in standards conforming/strict mode.
+    /// Off by default to ensure maximum compatibility. For details, see
+    /// [zune_core::options::DecoderOptions::set_strict_mode].
+    pub fn set_strict_mode(&mut self, strict_mode: bool) {
+        self.strict_mode = strict_mode;
     }
 }
 
@@ -85,7 +94,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
+            .set_strict_mode(self.strict_mode)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder =
@@ -96,7 +105,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
+            .set_strict_mode(self.strict_mode)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder =
@@ -115,7 +124,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
+            .set_strict_mode(self.strict_mode)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder =
@@ -127,7 +136,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
+            .set_strict_mode(self.strict_mode)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
         let mut decoder =
@@ -160,7 +169,12 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
+        let mut decoder = new_zune_decoder(
+            &self.input,
+            self.orig_color_space,
+            self.strict_mode,
+            self.limits,
+        );
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
         Ok(())
     }
@@ -207,12 +221,13 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
 fn new_zune_decoder(
     input: &[u8],
     orig_color_space: ZuneColorSpace,
+    strict_mode: bool,
     limits: Limits,
 ) -> zune_jpeg::JpegDecoder<ZCursor<&[u8]>> {
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options = zune_core::options::DecoderOptions::default()
         .jpeg_set_out_colorspace(target_color_space)
-        .set_strict_mode(false);
+        .set_strict_mode(strict_mode);
     options = options.set_max_width(match limits.max_image_width {
         Some(max_width) => max_width as usize, // u32 to usize never truncates
         None => usize::MAX,

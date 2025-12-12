@@ -10,7 +10,7 @@ pub(crate) mod encoder;
 
 pub(crate) mod format;
 pub(crate) mod free_functions;
-pub(crate) mod generic_read_write;
+pub(crate) mod generic;
 pub(crate) mod image_reader_type;
 pub(crate) mod limits;
 pub(crate) mod registry;

@@ -1,10 +1,7 @@
-use std::io::{BufRead, BufReader, BufWriter, Read, Seek, Write};
+use std::io::{BufRead, BufReader, Read, Seek};
 
 trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
-
-trait WriteSeek: Write + Seek {}
-impl<T: Write + Seek> WriteSeek for T {}
 
 /// A wrapper around a type-erased trait object that implements [`Read`] and [`Seek`].
 pub struct GenericReader<'a>(BufReader<Box<dyn ReadSeek + 'a>>);
@@ -46,45 +43,6 @@ impl BufRead for GenericReader<'_> {
     }
 }
 impl Seek for GenericReader<'_> {
-    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        self.0.seek(pos)
-    }
-    fn rewind(&mut self) -> std::io::Result<()> {
-        self.0.rewind()
-    }
-    fn stream_position(&mut self) -> std::io::Result<u64> {
-        self.0.stream_position()
-    }
-
-    // TODO: Add `seek_relative` once MSRV is at least 1.80.0
-}
-
-/// A wrapper around a type-erased trait object that implements [`Write`] and [`Seek`].
-pub struct GenericWriter<'a>(BufWriter<Box<dyn WriteSeek + 'a>>);
-impl<'a> GenericWriter<'a> {
-    /// Creates a new `GenericReader` with a given underlying reader.
-    pub(crate) fn new<W: Write + Seek + 'a>(writer: W) -> Self {
-        Self(BufWriter::new(Box::new(writer)))
-    }
-}
-impl Write for GenericWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.write(buf)
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
-    }
-    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
-        self.0.write_vectored(bufs)
-    }
-    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
-        self.0.write_all(buf)
-    }
-    fn write_fmt(&mut self, args: std::fmt::Arguments<'_>) -> std::io::Result<()> {
-        self.0.write_fmt(args)
-    }
-}
-impl Seek for GenericWriter<'_> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         self.0.seek(pos)
     }

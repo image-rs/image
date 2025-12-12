@@ -8,7 +8,7 @@ use crate::{
     ImageFormat,
 };
 
-pub use crate::io::generic_read_write::{GenericReader, GenericWriter};
+pub use crate::io::generic::GenericReader;
 
 /// A function to produce an [`ImageDecoder`] for a given image format.
 pub type DecodingHook = Box<registry::DecodingFn>;

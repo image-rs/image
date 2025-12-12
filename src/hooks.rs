@@ -18,6 +18,7 @@ pub type DecodingHook = Box<registry::DecodingFn>;
 /// TODO: Talk about how this interacts with builtin formats.
 pub fn register_decoding_hook(extension: &str, hook: DecodingHook) -> Option<ImageFormat> {
     let extension = extension.to_ascii_lowercase();
+    // TODO: This currently also resolves aliases. Should it?
     let format = ImageFormat::from_extension(&extension);
     let hook = Arc::from(hook);
 
@@ -42,6 +43,7 @@ pub fn register_decoding_hook(extension: &str, hook: DecodingHook) -> Option<Ima
 
 /// Returns whether a decoding hook has been registered for the given format.
 pub fn decoding_hook_registered(extension: &OsStr) -> bool {
+    // TODO: Same as in register_decoding_hook. This currently also resolves aliases. Should it?
     let Some(format) = ImageFormat::from_extension(extension) else {
         return false;
     };
@@ -50,10 +52,10 @@ pub fn decoding_hook_registered(extension: &OsStr) -> bool {
 
 /// Adds the given extensions as extension aliases to the given format.
 ///
-/// If an extension is already registered for the format, it will not be added to the extension list
-/// of the format, but it will overwrite any existing mapping for format detection.
+/// If an extension is already registered for the format, no duplicate entries in the extension list
+/// of the format will be created, but it will overwrite any existing mapping for format detection.
 ///
-/// Extension aliases are not allowed to contain ASCII uppercase characters.
+/// Extension aliases are not allowed to be empty or contain ASCII uppercase characters.
 ///
 /// ## Examples
 ///
@@ -78,9 +80,25 @@ pub fn register_format_extensions(format: ImageFormat, extensions: &[&'static st
 
 /// Adds the given MIME types to the list associated with the given format extension.
 ///
-/// The first registered MIME type will be considered the main MIME type for the format. All others
-/// will be considered aliases and will be used to identify the format during MIME type based
+/// The first registered MIME type is considered the main MIME type of the format and will be
+/// returned by [ImageFormat::to_mime_type]. All others are considered aliases and will be used to
+/// identify the format during MIME type based detection.
+///
+/// If an MIME types is already registered for the format, no duplicate entries in the MIME type
+/// list of the format will be created, but it will overwrite any existing mapping for format
 /// detection.
+///
+/// MIME types are not allowed to be empty or contain ASCII uppercase characters. Further,
+/// registering `application/octet-stream` not recommended.
+///
+/// ## Examples
+///
+/// ```no_run
+/// # use image::{ImageFormat, hooks::register_format_mime_types};
+/// let example = ImageFormat::from_extension("example").unwrap();
+/// register_format_mime_types(example, &["image/example", "image/x-example"]);
+/// assert_eq!(example.to_mime_type(), "image/example");
+/// ```
 pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static str]) {
     registry::write_registry(|reg| {
         reg.add_mime_types(format.id(), mime_types);

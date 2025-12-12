@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{hooks::GenericReader, ImageDecoder, ImageResult};
+use crate::{hooks::GenericReader, utils::to_ascii_lower_case, ImageDecoder, ImageResult};
 
 static REGISTRY: RwLock<Option<FormatRegistry>> = RwLock::new(None);
 
@@ -41,14 +41,6 @@ pub(crate) struct RegistryId {
     index: u8,
 }
 pub(crate) const MAX_REGISTRY_LEN: u16 = 256;
-
-fn as_ascii_lower_case<'a>(s: &'a str) -> Cow<'a, str> {
-    if s.bytes().all(|b| !b.is_ascii_uppercase()) {
-        Cow::Borrowed(s)
-    } else {
-        Cow::Owned(s.to_ascii_lowercase())
-    }
-}
 
 #[derive(Debug)]
 pub(crate) enum RegistryError {
@@ -117,7 +109,7 @@ impl FormatRegistry {
 
         // TODO: Avoid memory leaking by either:
         // 1. Changing the API of `ImageFormat::extensions_str` to no longer require `'static` lifetime. Would like need to be Arc.
-        // 2. Reserve space for K extension up front and refuse to support more than K extensions.
+        // 2. Reserve space for K extension up front and refuse to support more than K extensions. Will likely require unsafe.
         spec.extensions = Box::leak(new_extensions.into_boxed_slice());
     }
     pub(crate) fn add_mime_types(&mut self, id: RegistryId, mime_types: &[&'static str]) {
@@ -145,11 +137,11 @@ impl FormatRegistry {
         &mut self.formats[id.index as usize]
     }
     pub(crate) fn get_by_extension(&self, ext: &str) -> Option<RegistryId> {
-        self.by_extension.get(&*as_ascii_lower_case(ext)).copied()
+        self.by_extension.get(&*to_ascii_lower_case(ext)).copied()
     }
     pub(crate) fn get_by_mime_type(&self, mime_type: &str) -> Option<RegistryId> {
         self.by_mime_type
-            .get(&*as_ascii_lower_case(mime_type))
+            .get(&*to_ascii_lower_case(mime_type))
             .copied()
     }
 

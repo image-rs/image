@@ -1,5 +1,6 @@
 //!  Utilities
 
+use std::borrow::Cow;
 use std::collections::TryReserveError;
 use std::iter::repeat;
 
@@ -107,6 +108,16 @@ pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
     // while types that can represent fractional values will return something
     // other than zero.
     <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
+}
+
+/// Converts a string to ASCII lower case, returning a `Cow` to avoid allocation
+/// when the string is already in lower case.
+pub(crate) fn to_ascii_lower_case<'a>(s: &'a str) -> Cow<'a, str> {
+    if s.bytes().all(|b| !b.is_ascii_uppercase()) {
+        Cow::Borrowed(s)
+    } else {
+        Cow::Owned(s.to_ascii_lowercase())
+    }
 }
 
 #[cfg(test)]

@@ -1431,9 +1431,8 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
 
 impl<S, Container> ImageBuffer<Rgb<S>, Container>
 where
-    S: crate::Primitive + crate::traits::Enlargeable,
-    Rgb<S>: Pixel,
-    Container: DerefMut<Target = [<Rgb<S> as Pixel>::Subpixel]>,
+    Rgb<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
@@ -1458,9 +1457,8 @@ where
 
 impl<S, Container> ImageBuffer<Rgba<S>, Container>
 where
-    S: crate::Primitive + crate::traits::Enlargeable,
-    Rgb<S>: Pixel,
-    Container: DerefMut<Target = [<Rgba<S> as Pixel>::Subpixel]>,
+    Rgba<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {

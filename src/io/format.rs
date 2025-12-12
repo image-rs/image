@@ -225,55 +225,50 @@ impl ImageFormat {
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         use crate::codecs::*;
 
-        fn inner<'a>(
-            format: ImageFormat,
-            reader: GenericReader<'a>,
-        ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
-            if let Some(decoding_fn) = read_registry(|reg| reg.get(format.0).decoding_fn.clone()) {
-                (decoding_fn)(reader)
-            } else {
-                Err(ImageError::Unsupported(
-                    ImageFormatHint::Exact(format).into(),
-                ))
-            }
-        }
+        // Since hooks can add decoding functions for builtin formats, we always need to check the
+        // registry to implement the override behavior hooks guarantee.
+        let decoding_fn = read_registry(|reg| reg.get(self.id()).decoding_fn.clone());
 
         // use static dispatch for builtin-formats to avoid any overhead added by GenericReader
-        let mut decoder: Box<dyn ImageDecoder + 'a> = match self {
-            #[cfg(feature = "avif-native")]
-            Self::Avif => Box::new(avif::AvifDecoder::new(reader)?),
-            #[cfg(feature = "png")]
-            Self::Png => Box::new(png::PngDecoder::with_limits(
-                reader,
-                limits.take().unwrap_or_default(),
-            )?),
-            #[cfg(feature = "gif")]
-            Self::Gif => Box::new(gif::GifDecoder::new(reader)?),
-            #[cfg(feature = "jpeg")]
-            Self::Jpeg => Box::new(jpeg::JpegDecoder::new(reader)?),
-            #[cfg(feature = "webp")]
-            Self::WebP => Box::new(webp::WebPDecoder::new(reader)?),
-            #[cfg(feature = "tiff")]
-            Self::Tiff => Box::new(tiff::TiffDecoder::new(reader)?),
-            #[cfg(feature = "tga")]
-            Self::Tga => Box::new(tga::TgaDecoder::new(reader)?),
-            #[cfg(feature = "dds")]
-            Self::Dds => Box::new(dds::DdsDecoder::new(reader)?),
-            #[cfg(feature = "bmp")]
-            Self::Bmp => Box::new(bmp::BmpDecoder::new(reader)?),
-            #[cfg(feature = "ico")]
-            Self::Ico => Box::new(ico::IcoDecoder::new(reader)?),
-            #[cfg(feature = "hdr")]
-            Self::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
-            #[cfg(feature = "exr")]
-            Self::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
-            #[cfg(feature = "pnm")]
-            Self::Pnm => Box::new(pnm::PnmDecoder::new(reader)?),
-            #[cfg(feature = "ff")]
-            Self::Farbfeld => Box::new(farbfeld::FarbfeldDecoder::new(reader)?),
-            #[cfg(feature = "qoi")]
-            Self::Qoi => Box::new(qoi::QoiDecoder::new(reader)?),
-            _ => inner(self, GenericReader::new(reader))?,
+        let mut decoder: Box<dyn ImageDecoder + 'a> = if let Some(decoding_fn) = decoding_fn {
+            (decoding_fn)(GenericReader::new(reader))?
+        } else {
+            match self {
+                #[cfg(feature = "avif-native")]
+                Self::Avif => Box::new(avif::AvifDecoder::new(reader)?),
+                #[cfg(feature = "png")]
+                Self::Png => Box::new(png::PngDecoder::with_limits(
+                    reader,
+                    limits.take().unwrap_or_default(),
+                )?),
+                #[cfg(feature = "gif")]
+                Self::Gif => Box::new(gif::GifDecoder::new(reader)?),
+                #[cfg(feature = "jpeg")]
+                Self::Jpeg => Box::new(jpeg::JpegDecoder::new(reader)?),
+                #[cfg(feature = "webp")]
+                Self::WebP => Box::new(webp::WebPDecoder::new(reader)?),
+                #[cfg(feature = "tiff")]
+                Self::Tiff => Box::new(tiff::TiffDecoder::new(reader)?),
+                #[cfg(feature = "tga")]
+                Self::Tga => Box::new(tga::TgaDecoder::new(reader)?),
+                #[cfg(feature = "dds")]
+                Self::Dds => Box::new(dds::DdsDecoder::new(reader)?),
+                #[cfg(feature = "bmp")]
+                Self::Bmp => Box::new(bmp::BmpDecoder::new(reader)?),
+                #[cfg(feature = "ico")]
+                Self::Ico => Box::new(ico::IcoDecoder::new(reader)?),
+                #[cfg(feature = "hdr")]
+                Self::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
+                #[cfg(feature = "exr")]
+                Self::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
+                #[cfg(feature = "pnm")]
+                Self::Pnm => Box::new(pnm::PnmDecoder::new(reader)?),
+                #[cfg(feature = "ff")]
+                Self::Farbfeld => Box::new(farbfeld::FarbfeldDecoder::new(reader)?),
+                #[cfg(feature = "qoi")]
+                Self::Qoi => Box::new(qoi::QoiDecoder::new(reader)?),
+                _ => return Err(ImageError::Unsupported(ImageFormatHint::Exact(self).into())),
+            }
         };
 
         // set limits (if any (left))
@@ -320,7 +315,7 @@ impl ImageFormat {
             Self::Hdr => Box::new(hdr::HdrEncoder::new(buffered_write)),
             _ => {
                 return Err(ImageError::Unsupported(
-                    // TODO: probably change that to be consistent with create_decoder
+                    // TODO: probably change this error to be consistent with create_decoder
                     UnsupportedError::from_format_and_kind(
                         ImageFormatHint::Unknown,
                         UnsupportedErrorKind::Format(ImageFormatHint::Name(format!("{self:?}"))),

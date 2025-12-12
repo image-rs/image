@@ -19,23 +19,25 @@ pub type DecodingHook = Box<registry::DecodingFn>;
 pub fn register_decoding_hook(extension: &str, hook: DecodingHook) -> Option<ImageFormat> {
     let extension = extension.to_ascii_lowercase();
     let format = ImageFormat::from_extension(&extension);
-    let hook = Arc::new(hook);
+    let hook = Arc::from(hook);
 
-    registry::write_registry(move |reg| {
+    registry::write_registry(move |reg| -> Result<_, registry::RegistryError> {
         if let Some(format) = format {
             let spec = reg.get_mut(format.id());
             if spec.decoding_fn.is_some() {
-                return None;
+                return Ok(None);
             }
             spec.decoding_fn = Some(hook);
-            Some(format)
+            spec.can_read = true;
+            Ok(Some(format))
         } else {
             // Once registered, the extension string will live for the remainder of the program's
             // life, so leaking it here is fine.
-            let id = reg.add_format(registry::FormatSpec::new_hook(extension.leak(), hook));
-            Some(ImageFormat::from_id(id))
+            let id = reg.add_format(registry::FormatSpec::new_hook(extension.leak(), hook)?)?;
+            Ok(Some(ImageFormat::from_id(id)))
         }
     })
+    .expect("Cannot register new decoding hook")
 }
 
 /// Returns whether a decoding hook has been registered for the given format.

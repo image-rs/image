@@ -196,6 +196,8 @@ mod tests {
 
         assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
         assert_eq!(ImageFormat::from_extension(MOCK_HOOK_EXTENSION), Some(mock));
+        assert!(ImageFormat::all().any(|f| f == mock));
+        assert!(mock.can_read());
 
         let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
             .unwrap()

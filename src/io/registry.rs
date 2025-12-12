@@ -65,7 +65,7 @@ impl FormatRegistry {
         }
     }
 
-    /// Add the given format and returns the assigned `RegistryId`, or `None` if the registry is full.
+    /// Add the given format and returns the assigned `RegistryId`, or `Err` if the registry is full.
     pub(crate) fn add_format(&mut self, spec: FormatSpec) -> Result<RegistryId, RegistryError> {
         if self.formats.len() >= usize::from(MAX_REGISTRY_LEN) {
             return Err(RegistryError::AlreadyFull {
@@ -163,7 +163,8 @@ pub(crate) struct FormatSpec {
     extensions: &'static [&'static str],
     mime_types: Cow<'static, [&'static str]>,
 
-    pub(crate) feature_enabled: bool,
+    pub(crate) feature_enabled_read: bool,
+    pub(crate) feature_enabled_write: bool,
     pub(crate) can_read: bool,
     pub(crate) can_write: bool,
 
@@ -173,14 +174,15 @@ impl FormatSpec {
     const fn builtin(
         extensions: &'static [&'static str],
         mime_types: &'static [&'static str],
-        feature: bool,
+        feature: [bool; 2],
         ability: u8,
     ) -> Self {
         Self {
             extensions,
             mime_types: Cow::Borrowed(mime_types),
 
-            feature_enabled: feature,
+            feature_enabled_read: feature[0],
+            feature_enabled_write: feature[1],
             can_read: ability & CAN_READ != 0,
             can_write: ability & CAN_WRITE != 0,
 
@@ -203,7 +205,8 @@ impl FormatSpec {
             extensions,
             mime_types: Cow::Borrowed(&[]),
 
-            feature_enabled: true,
+            feature_enabled_read: true,
+            feature_enabled_write: true,
             can_read: true,
             can_write: false,
 
@@ -233,25 +236,25 @@ const BUILTIN_FORMATS: &[FormatSpec] = &[
             // TODO: Add missing MIME type for APNG
             // "image/apng"
         ],
-        cfg!(feature = "png"),
+        [cfg!(feature = "png"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["jpeg", "jpg", "jfif"],
         &["image/jpeg"],
-        cfg!(feature = "jpeg"),
+        [cfg!(feature = "jpeg"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["gif"],
         &["image/gif"],
-        cfg!(feature = "gif"),
+        [cfg!(feature = "gif"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["webp"],
         &["image/webp"],
-        cfg!(feature = "webp"),
+        [cfg!(feature = "webp"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
@@ -262,7 +265,7 @@ const BUILTIN_FORMATS: &[FormatSpec] = &[
             "image/x-portable-graymap",
             "image/x-portable-pixmap",
         ],
-        cfg!(feature = "pnm"),
+        [cfg!(feature = "pnm"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
@@ -272,43 +275,43 @@ const BUILTIN_FORMATS: &[FormatSpec] = &[
             // TODO: Wikipedia says image/tiff-fx works too
             // "tiff-fx",
         ],
-        cfg!(feature = "tiff"),
+        [cfg!(feature = "tiff"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["tga"],
         &["image/x-targa", "image/x-tga"],
-        cfg!(feature = "tga"),
+        [cfg!(feature = "tga"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["dds"],
         &["image/vnd-ms.dds"],
-        false,
+        [false; 2],
         CANNOT_READ_NOR_WRITE,
     ),
     FormatSpec::builtin(
         &["bmp"],
         &["image/bmp"],
-        cfg!(feature = "bmp"),
+        [cfg!(feature = "bmp"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["ico"],
         &["image/x-icon", "image/vnd.microsoft.icon"],
-        cfg!(feature = "ico"),
+        [cfg!(feature = "ico"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["hdr"],
         &["image/vnd.radiance"],
-        cfg!(feature = "hdr"),
+        [cfg!(feature = "hdr"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["exr"],
         &["image/x-exr"],
-        cfg!(feature = "exr"),
+        [cfg!(feature = "exr"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
@@ -316,13 +319,13 @@ const BUILTIN_FORMATS: &[FormatSpec] = &[
         // TODO: This used to be application/octet-stream. Think about that.
         // Source: https://mime-type.com/file-extension/ff/
         &["image/x-farbfeld"],
-        cfg!(feature = "ff"),
+        [cfg!(feature = "ff"); 2],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
         &["avif"],
         &["image/avif"],
-        cfg!(feature = "avif"),
+        [cfg!(feature = "avif-native"), cfg!(feature = "avif")],
         CAN_READ_WRITE,
     ),
     FormatSpec::builtin(
@@ -330,23 +333,23 @@ const BUILTIN_FORMATS: &[FormatSpec] = &[
         // Qoi's MIME type is being worked on.
         // See: https://github.com/phoboslab/qoi/issues/167
         &["image/x-qoi"],
-        cfg!(feature = "qoi"),
+        [cfg!(feature = "qoi"); 2],
         CAN_READ_WRITE,
     ),
 ];
 
-pub(crate) const PNG_ID: RegistryId = RegistryId { index: 0 };
-pub(crate) const JPEG_ID: RegistryId = RegistryId { index: 1 };
-pub(crate) const GIF_ID: RegistryId = RegistryId { index: 2 };
-pub(crate) const WEBP_ID: RegistryId = RegistryId { index: 3 };
-pub(crate) const PNM_ID: RegistryId = RegistryId { index: 4 };
-pub(crate) const TIFF_ID: RegistryId = RegistryId { index: 5 };
-pub(crate) const TGA_ID: RegistryId = RegistryId { index: 6 };
-pub(crate) const DDS_ID: RegistryId = RegistryId { index: 7 };
-pub(crate) const BMP_ID: RegistryId = RegistryId { index: 8 };
-pub(crate) const ICO_ID: RegistryId = RegistryId { index: 9 };
-pub(crate) const HDR_ID: RegistryId = RegistryId { index: 10 };
-pub(crate) const EXR_ID: RegistryId = RegistryId { index: 11 };
-pub(crate) const FARBFELD_ID: RegistryId = RegistryId { index: 12 };
-pub(crate) const AVIF_ID: RegistryId = RegistryId { index: 13 };
-pub(crate) const QOI_ID: RegistryId = RegistryId { index: 14 };
+pub(crate) const PNG: RegistryId = RegistryId { index: 0 };
+pub(crate) const JPEG: RegistryId = RegistryId { index: 1 };
+pub(crate) const GIF: RegistryId = RegistryId { index: 2 };
+pub(crate) const WEBP: RegistryId = RegistryId { index: 3 };
+pub(crate) const PNM: RegistryId = RegistryId { index: 4 };
+pub(crate) const TIFF: RegistryId = RegistryId { index: 5 };
+pub(crate) const TGA: RegistryId = RegistryId { index: 6 };
+pub(crate) const DDS: RegistryId = RegistryId { index: 7 };
+pub(crate) const BMP: RegistryId = RegistryId { index: 8 };
+pub(crate) const ICO: RegistryId = RegistryId { index: 9 };
+pub(crate) const HDR: RegistryId = RegistryId { index: 10 };
+pub(crate) const EXR: RegistryId = RegistryId { index: 11 };
+pub(crate) const FARBFELD: RegistryId = RegistryId { index: 12 };
+pub(crate) const AVIF: RegistryId = RegistryId { index: 13 };
+pub(crate) const QOI: RegistryId = RegistryId { index: 14 };

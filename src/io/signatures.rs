@@ -2,43 +2,7 @@ use std::sync::RwLock;
 
 use crate::ImageFormat;
 
-#[derive(Copy, Clone)]
-pub(crate) struct Sig {
-    format: ImageFormat,
-    signature: &'static [u8],
-    mask: &'static [u8],
-}
-impl Sig {
-    const fn new(format: ImageFormat, signature: &'static [u8]) -> Self {
-        Self::masked(format, signature, &[])
-    }
-    pub(crate) const fn masked(
-        format: ImageFormat,
-        signature: &'static [u8],
-        mask: &'static [u8],
-    ) -> Self {
-        assert!(!signature.is_empty(), "Signature cannot be empty");
-
-        Self {
-            format,
-            signature,
-            mask,
-        }
-    }
-
-    fn matches(&self, buffer: &[u8]) -> bool {
-        if self.mask.is_empty() {
-            buffer.starts_with(self.signature)
-        } else {
-            buffer.len() >= self.signature.len()
-                && buffer
-                    .iter()
-                    .zip(self.signature.iter())
-                    .zip(self.mask.iter().chain(std::iter::repeat(&0xFF)))
-                    .all(|((&byte, &sig), &mask)| byte & mask == sig)
-        }
-    }
-}
+type Sig = (ImageFormat, &'static [u8], &'static [u8]);
 
 static SIGNATURES: RwLock<Vec<Sig>> = RwLock::new(Vec::new());
 
@@ -61,45 +25,53 @@ fn read_signatures<R>(f: impl FnOnce(&[Sig]) -> R) -> R {
 }
 
 const BUILTIN_MAGIC_BYTES: &[Sig] = &[
-    Sig::new(ImageFormat::Png, b"\x89PNG\r\n\x1a\n"),
-    Sig::new(ImageFormat::Jpeg, &[0xff, 0xd8, 0xff]),
-    Sig::new(ImageFormat::Gif, b"GIF89a"),
-    Sig::new(ImageFormat::Gif, b"GIF87a"),
-    Sig::masked(
+    (ImageFormat::Png, b"\x89PNG\r\n\x1a\n", b""),
+    (ImageFormat::Jpeg, &[0xff, 0xd8, 0xff], b""),
+    (ImageFormat::Gif, b"GIF89a", b""),
+    (ImageFormat::Gif, b"GIF87a", b""),
+    (
         ImageFormat::WebP,
         b"RIFF\0\0\0\0WEBP",
         b"\xFF\xFF\xFF\xFF\0\0\0\0",
     ),
-    Sig::new(ImageFormat::Tiff, b"MM\x00*"),
-    Sig::new(ImageFormat::Tiff, b"II*\x00"),
-    Sig::new(ImageFormat::Dds, b"DDS "),
-    Sig::new(ImageFormat::Bmp, b"BM"),
-    Sig::new(ImageFormat::Ico, &[0, 0, 1, 0]),
-    Sig::new(ImageFormat::Hdr, b"#?RADIANCE"),
-    Sig::masked(ImageFormat::Avif, b"\0\0\0\0ftypavif", b"\xFF\xFF\0\0"),
-    Sig::new(ImageFormat::OpenExr, &[0x76, 0x2f, 0x31, 0x01]), // = &exr::meta::magic_number::BYTES
-    Sig::new(ImageFormat::Qoi, b"qoif"),
-    Sig::new(ImageFormat::Pnm, b"P1"),
-    Sig::new(ImageFormat::Pnm, b"P2"),
-    Sig::new(ImageFormat::Pnm, b"P3"),
-    Sig::new(ImageFormat::Pnm, b"P4"),
-    Sig::new(ImageFormat::Pnm, b"P5"),
-    Sig::new(ImageFormat::Pnm, b"P6"),
-    Sig::new(ImageFormat::Pnm, b"P7"),
-    Sig::new(ImageFormat::Farbfeld, b"farbfeld"),
+    (ImageFormat::Tiff, b"MM\x00*", b""),
+    (ImageFormat::Tiff, b"II*\x00", b""),
+    (ImageFormat::Dds, b"DDS ", b""),
+    (ImageFormat::Bmp, b"BM", b""),
+    (ImageFormat::Ico, &[0, 0, 1, 0], b""),
+    (ImageFormat::Hdr, b"#?RADIANCE", b""),
+    (ImageFormat::Avif, b"\0\0\0\0ftypavif", b"\xFF\xFF\0\0"),
+    (ImageFormat::OpenExr, &[0x76, 0x2f, 0x31, 0x01], b""), // = &exr::meta::magic_number::BYTES
+    (ImageFormat::Qoi, b"qoif", b""),
+    (ImageFormat::Pnm, b"P1", b""),
+    (ImageFormat::Pnm, b"P2", b""),
+    (ImageFormat::Pnm, b"P3", b""),
+    (ImageFormat::Pnm, b"P4", b""),
+    (ImageFormat::Pnm, b"P5", b""),
+    (ImageFormat::Pnm, b"P6", b""),
+    (ImageFormat::Pnm, b"P7", b""),
+    (ImageFormat::Farbfeld, b"farbfeld", b""),
 ];
 
 pub(crate) fn register_signature(sig: Sig) {
-    write_signatures(move |signatures| {
-        signatures.push(sig);
-    });
+    write_signatures(move |signatures| signatures.push(sig));
 }
 
 pub(crate) fn guess_format_from_signature(buffer: &[u8]) -> Option<ImageFormat> {
     read_signatures(|signatures| {
-        for sig in signatures {
-            if sig.matches(buffer) {
-                return Some(sig.format);
+        for (format, signature, mask) in signatures.iter().copied() {
+            if mask.is_empty() {
+                if buffer.starts_with(signature) {
+                    return Some(format);
+                }
+            } else if buffer.len() >= signature.len()
+                && buffer
+                    .iter()
+                    .zip(signature.iter())
+                    .zip(mask.iter().chain(std::iter::repeat(&0xFF)))
+                    .all(|((&byte, &sig), &mask)| byte & mask == sig)
+            {
+                return Some(format);
             }
         }
 

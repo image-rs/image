@@ -143,11 +143,7 @@ pub fn register_format_detection_hook(
     signature: &'static [u8],
     mask: Option<&'static [u8]>,
 ) {
-    signatures::register_signature(signatures::Sig::masked(
-        format,
-        signature,
-        mask.unwrap_or(&[]),
-    ));
+    signatures::register_signature((format, signature, mask.unwrap_or(&[])));
 }
 
 #[cfg(test)]

@@ -137,11 +137,13 @@ impl FormatRegistry {
         &mut self.formats[id.index as usize]
     }
     pub(crate) fn get_by_extension(&self, ext: &str) -> Option<RegistryId> {
-        self.by_extension.get(&*to_ascii_lower_case(ext)).copied()
+        self.by_extension
+            .get(ext.to_ascii_lowercase().as_str())
+            .copied()
     }
     pub(crate) fn get_by_mime_type(&self, mime_type: &str) -> Option<RegistryId> {
         self.by_mime_type
-            .get(&*to_ascii_lower_case(mime_type))
+            .get(mime_type.to_ascii_lowercase().as_str())
             .copied()
     }
 

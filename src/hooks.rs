@@ -1,14 +1,45 @@
 //! This module provides a way to register decoding hooks for image formats not directly supported
 //! by this crate.
 
-use std::{ffi::OsStr, sync::Arc};
+use std::sync::Arc;
 
-use crate::{
-    io::{registry, signatures},
-    ImageFormat,
-};
+use crate::{io::registry, io::signatures, ImageFormat};
 
 pub use crate::io::generic::GenericReader;
+
+/// Given the main extension of a format, creates a new format or returns the existing one.
+///
+/// The main extension is the first extension in the list returned by [`ImageFormat::extensions_str`]
+/// and will be treated as a stable identifier for the format.
+///
+/// Unlike [`ImageFormat::from_extension`] and similar, this method will ignore extension aliases.
+///
+/// # Examples
+///
+/// Simple usage to register plugin formats:
+///
+/// ```
+/// # use image::hooks::*;
+/// let abc = create_or_get_format("abc");
+/// register_decoding_hook(abc, Box::new(|_| unimplemented!()));
+/// ```
+// TODO: I hate this name, but couldn't think of a better one right now.
+pub fn create_or_get_format(main_extension: &str) -> ImageFormat {
+    // main extension must be lower case
+    let main_extension = main_extension.to_ascii_lowercase();
+
+    registry::write_registry(move |reg| {
+        let id = reg
+            .get_by_main_extension(&main_extension)
+            .unwrap_or_else(|| {
+                // The main extension string will live for the remainder of the program's life,
+                // so leaking it here is fine.
+                let main_ext = main_extension.leak();
+                reg.add_format(registry::FormatSpec::empty(main_ext))
+            });
+        ImageFormat::from_id(id)
+    })
+}
 
 /// A function to produce an [`ImageDecoder`] for a given image format.
 pub type DecodingHook = Box<registry::DecodingFn>;
@@ -16,36 +47,20 @@ pub type DecodingHook = Box<registry::DecodingFn>;
 /// Register a new decoding hook or returns false if one already exists for the given format.
 ///
 /// TODO: Talk about how this interacts with builtin formats.
-pub fn register_decoding_hook(extension: &str, hook: DecodingHook) -> Option<ImageFormat> {
-    let extension = extension.to_ascii_lowercase();
-    // TODO: This currently also resolves aliases. Should it?
-    let format = ImageFormat::from_extension(&extension);
-    let hook = Arc::from(hook);
-
+pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
     registry::write_registry(move |reg| {
-        if let Some(format) = format {
-            let spec = reg.get_mut(format.id());
-            if spec.decoding_fn.is_some() {
-                return None;
-            }
-            spec.decoding_fn = Some(hook);
-            spec.can_read = true;
-            Some(format)
-        } else {
-            // Once registered, the extension string will live for the remainder of the program's
-            // life, so leaking it here is fine.
-            let id = reg.add_format(registry::FormatSpec::new_hook(extension.leak(), hook));
-            Some(ImageFormat::from_id(id))
+        let spec = reg.get_mut(format.id());
+        if spec.decoding_fn.is_some() {
+            return false;
         }
+        spec.decoding_fn = Some(Arc::from(hook));
+        spec.can_read = true;
+        true
     })
 }
 
 /// Returns whether a decoding hook has been registered for the given format.
-pub fn decoding_hook_registered(extension: &OsStr) -> bool {
-    // TODO: Same as in register_decoding_hook. This currently also resolves aliases. Should it?
-    let Some(format) = ImageFormat::from_extension(extension) else {
-        return false;
-    };
+pub fn decoding_hook_registered(format: ImageFormat) -> bool {
     registry::read_registry(|reg| reg.get(format.id()).decoding_fn.is_some())
 }
 
@@ -71,6 +86,7 @@ pub fn decoding_hook_registered(extension: &OsStr) -> bool {
 /// ```
 ///
 /// Since "bar" was registered last with the "baz" extension, it takes precedence in format detection.
+// TODO: Are extension aliases allowed to overshadow the main extension of another format?
 pub fn register_format_extensions(format: ImageFormat, extensions: &[&'static str]) {
     registry::write_registry(|reg| {
         reg.add_extension_aliases(format.id(), extensions);
@@ -175,20 +191,13 @@ mod tests {
     fn is_mock_decoder_output(image: DynamicImage) -> bool {
         image.as_rgb8().unwrap().as_raw() == &MOCK_IMAGE_OUTPUT
     }
-    fn register_mock_decoder() -> ImageFormat {
-        register_decoding_hook(
-            MOCK_HOOK_EXTENSION,
-            Box::new(|_| Ok(Box::new(MockDecoder {}))),
-        )
-        .or(ImageFormat::from_extension(MOCK_HOOK_EXTENSION))
-        .unwrap()
-    }
 
     #[test]
     fn decoding_hook() {
-        let mock = register_mock_decoder();
+        let mock = create_or_get_format(MOCK_HOOK_EXTENSION);
+        register_decoding_hook(mock, Box::new(|_| Ok(Box::new(MockDecoder {}))));
 
-        assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
+        assert!(decoding_hook_registered(mock));
         assert_eq!(ImageFormat::from_extension(MOCK_HOOK_EXTENSION), Some(mock));
         assert!(ImageFormat::all().any(|f| f == mock));
         assert!(mock.can_read());
@@ -203,7 +212,8 @@ mod tests {
 
     #[test]
     fn detection_hook() {
-        let mock = register_mock_decoder();
+        let mock = create_or_get_format(MOCK_HOOK_EXTENSION);
+        register_decoding_hook(mock, Box::new(|_| Ok(Box::new(MockDecoder {}))));
 
         register_format_detection_hook(
             mock,

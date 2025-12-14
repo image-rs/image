@@ -43,6 +43,7 @@ pub(crate) struct FormatRegistry {
     formats: Vec<FormatSpec>,
     by_extension: HashMap<&'static str, RegistryId>,
     by_mime_type: HashMap<&'static str, RegistryId>,
+    by_main_extension: HashMap<&'static str, RegistryId>,
 }
 impl FormatRegistry {
     fn empty() -> Self {
@@ -50,6 +51,7 @@ impl FormatRegistry {
             formats: Vec::new(),
             by_extension: HashMap::new(),
             by_mime_type: HashMap::new(),
+            by_main_extension: HashMap::new(),
         }
     }
 
@@ -65,6 +67,17 @@ impl FormatRegistry {
         for &mime in spec.all_mime_type() {
             self.by_mime_type.insert(mime, id);
         }
+
+        let dup = self
+            .by_main_extension
+            .insert(spec.main_extension(), id)
+            .is_some();
+        assert!(
+            !dup,
+            "Main extension has to be unique, but '{}' was already registered",
+            spec.main_extension()
+        );
+
         self.formats.push(spec);
 
         id
@@ -129,6 +142,9 @@ impl FormatRegistry {
             .get(mime_type.to_ascii_lowercase().as_str())
             .copied()
     }
+    pub(crate) fn get_by_main_extension(&self, main_extension: &str) -> Option<RegistryId> {
+        self.by_main_extension.get(main_extension).copied()
+    }
 
     pub(crate) fn all(&self) -> impl Iterator<Item = RegistryId> {
         (0..self.formats.len()).map(|index| RegistryId {
@@ -176,10 +192,9 @@ impl FormatSpec {
             decoding_fn: None,
         }
     }
-
-    pub(crate) fn new_hook(extension: &'static str, hook: Arc<DecodingFn>) -> Self {
+    pub(crate) fn empty(main_extension: &'static str) -> Self {
         // TODO: Avoid leaking memory. See TODO in `add_extension_aliases`.
-        let extensions = Box::leak(Box::new([extension]));
+        let extensions = Box::leak(Box::new([main_extension]));
 
         Self {
             extensions,
@@ -187,10 +202,10 @@ impl FormatSpec {
 
             feature_enabled_read: true,
             feature_enabled_write: true,
-            can_read: true,
+            can_read: false,
             can_write: false,
 
-            decoding_fn: Some(hook),
+            decoding_fn: None,
         }
     }
 

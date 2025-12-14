@@ -181,9 +181,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             &mut Cursor::new(&mut start[..]),
         )?;
         self.inner.seek(SeekFrom::Start(cur))?;
-        let start = &start[..len as usize];
 
-        Ok(guess_format_from_signature(start))
+        Ok(guess_format_from_signature(&start[..len as usize]))
     }
 
     /// Read the image dimensions.

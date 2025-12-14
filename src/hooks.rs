@@ -22,23 +22,22 @@ pub fn register_decoding_hook(extension: &str, hook: DecodingHook) -> Option<Ima
     let format = ImageFormat::from_extension(&extension);
     let hook = Arc::from(hook);
 
-    registry::write_registry(move |reg| -> Result<_, registry::RegistryError> {
+    registry::write_registry(move |reg| {
         if let Some(format) = format {
             let spec = reg.get_mut(format.id());
             if spec.decoding_fn.is_some() {
-                return Ok(None);
+                return None;
             }
             spec.decoding_fn = Some(hook);
             spec.can_read = true;
-            Ok(Some(format))
+            Some(format)
         } else {
             // Once registered, the extension string will live for the remainder of the program's
             // life, so leaking it here is fine.
-            let id = reg.add_format(registry::FormatSpec::new_hook(extension.leak(), hook)?)?;
-            Ok(Some(ImageFormat::from_id(id)))
+            let id = reg.add_format(registry::FormatSpec::new_hook(extension.leak(), hook));
+            Some(ImageFormat::from_id(id))
         }
     })
-    .expect("Cannot register new decoding hook")
 }
 
 /// Returns whether a decoding hook has been registered for the given format.
@@ -88,8 +87,7 @@ pub fn register_format_extensions(format: ImageFormat, extensions: &[&'static st
 /// list of the format will be created, but it will overwrite any existing mapping for format
 /// detection.
 ///
-/// MIME types are not allowed to be empty or contain ASCII uppercase characters. Further,
-/// registering `application/octet-stream` not recommended.
+/// Registering `application/octet-stream` is **not** recommended.
 ///
 /// ## Examples
 ///

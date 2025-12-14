@@ -26,9 +26,7 @@ pub(crate) fn read_registry<R>(f: impl FnOnce(&FormatRegistry) -> R) -> R {
 fn create_initial_registry() -> FormatRegistry {
     let mut registry = FormatRegistry::empty();
     for spec in BUILTIN_FORMATS {
-        registry
-            .add_format(spec.clone())
-            .expect("Cannot register builtin format");
+        registry.add_format(spec.clone());
     }
     registry
 }
@@ -38,17 +36,7 @@ fn create_initial_registry() -> FormatRegistry {
 /// Note that valid indices always remain valid even after new formats are added.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RegistryId {
-    index: u8,
-}
-pub(crate) const MAX_REGISTRY_LEN: u16 = 256;
-
-#[derive(Debug)]
-pub(crate) enum RegistryError {
-    AlreadyFull {
-        #[allow(unused)] // used in error message
-        max_capacity: u16,
-    },
-    EmptyExtensionNotAllowed,
+    index: u32,
 }
 
 pub(crate) struct FormatRegistry {
@@ -66,14 +54,9 @@ impl FormatRegistry {
     }
 
     /// Add the given format and returns the assigned `RegistryId`, or `Err` if the registry is full.
-    pub(crate) fn add_format(&mut self, spec: FormatSpec) -> Result<RegistryId, RegistryError> {
-        if self.formats.len() >= usize::from(MAX_REGISTRY_LEN) {
-            return Err(RegistryError::AlreadyFull {
-                max_capacity: MAX_REGISTRY_LEN,
-            });
-        }
+    pub(crate) fn add_format(&mut self, spec: FormatSpec) -> RegistryId {
         let id = RegistryId {
-            index: self.formats.len() as u8,
+            index: u32::try_from(self.formats.len()).expect("Too many formats"),
         };
 
         for &ext in spec.all_extensions() {
@@ -84,7 +67,7 @@ impl FormatRegistry {
         }
         self.formats.push(spec);
 
-        Ok(id)
+        id
     }
     pub(crate) fn add_extension_aliases(&mut self, id: RegistryId, aliases: &[&'static str]) {
         // always update mapping even if aliases already exist
@@ -148,7 +131,9 @@ impl FormatRegistry {
     }
 
     pub(crate) fn all(&self) -> impl Iterator<Item = RegistryId> {
-        (0..self.formats.len()).map(|index| RegistryId { index: index as u8 })
+        (0..self.formats.len()).map(|index| RegistryId {
+            index: index as u32,
+        })
     }
 }
 
@@ -192,18 +177,11 @@ impl FormatSpec {
         }
     }
 
-    pub(crate) fn new_hook(
-        extension: &'static str,
-        hook: Arc<DecodingFn>,
-    ) -> Result<Self, RegistryError> {
-        if extension.is_empty() {
-            return Err(RegistryError::EmptyExtensionNotAllowed);
-        }
-
+    pub(crate) fn new_hook(extension: &'static str, hook: Arc<DecodingFn>) -> Self {
         // TODO: Avoid leaking memory. See TODO in `add_extension_aliases`.
         let extensions = Box::leak(Box::new([extension]));
 
-        Ok(Self {
+        Self {
             extensions,
             mime_types: Cow::Borrowed(&[]),
 
@@ -213,7 +191,7 @@ impl FormatSpec {
             can_write: false,
 
             decoding_fn: Some(hook),
-        })
+        }
     }
 
     pub(crate) fn main_extension(&self) -> &'static str {

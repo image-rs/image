@@ -535,6 +535,9 @@ impl<W: Write> GifEncoder<W> {
                     width, height, data, palette, None,
                 ))
             }
+            ExtendedColorType::La8 => {
+                self.encode_gif(Frame::from_grayscale_with_alpha(width, height, data))
+            }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Gif.into(),

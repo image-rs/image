@@ -34,7 +34,7 @@ fn create_initial_registry() -> FormatRegistry {
 /// A valid index for the format registry.
 ///
 /// Note that valid indices always remain valid even after new formats are added.
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) struct RegistryId {
     index: u32,
 }

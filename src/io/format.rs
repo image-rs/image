@@ -327,27 +327,8 @@ impl ImageFormat {
 }
 impl fmt::Debug for ImageFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.id() {
-            registry::PNG => f.write_str("PNG"),
-            registry::JPEG => f.write_str("JPEG"),
-            registry::GIF => f.write_str("GIF"),
-            registry::WEBP => f.write_str("WEBP"),
-            registry::PNM => f.write_str("PNM"),
-            registry::TIFF => f.write_str("TIFF"),
-            registry::TGA => f.write_str("TGA"),
-            registry::DDS => f.write_str("DDS"),
-            registry::BMP => f.write_str("BMP"),
-            registry::ICO => f.write_str("ICO"),
-            registry::HDR => f.write_str("HDR"),
-            registry::EXR => f.write_str("EXR"),
-            registry::FARBFELD => f.write_str("Farbfeld"),
-            registry::AVIF => f.write_str("AVIF"),
-            registry::QOI => f.write_str("QOI"),
-            _ => {
-                let ext = read_registry(|reg| reg.get(self.id()).main_extension());
-                f.write_str(&ext.to_ascii_uppercase())
-            }
-        }
+        let ext = read_registry(|reg| reg.get(self.id()).main_extension());
+        write!(f, "ImageFormat({ext})")
     }
 }
 
@@ -384,6 +365,11 @@ mod tests {
         assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
+    }
+
+    #[test]
+    fn debug_formatting() {
+        assert_eq!(format!("{:?}", ImageFormat::Jpeg), "ImageFormat(jpeg)")
     }
 
     #[test]

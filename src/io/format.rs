@@ -215,12 +215,15 @@ impl ImageFormat {
         read_registry(|reg| reg.all()).map(ImageFormat)
     }
 
+    /// Create a decoder for this format from the given reader with the given limits.
     pub(crate) fn create_decoder<'a>(
         self,
         reader: impl BufRead + Seek + 'a,
-        mut limits: Option<crate::Limits>,
+        limits: crate::Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         use crate::codecs::*;
+
+        let mut limits = Some(limits);
 
         // Since hooks can add decoding functions for builtin formats, we always need to check the
         // registry to implement the override behavior hooks guarantee.

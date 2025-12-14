@@ -129,22 +129,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         self.inner
     }
 
-    /// Makes a decoder.
-    ///
-    /// For all formats except PNG, the limits are ignored and can be set with
-    /// `ImageDecoder::set_limits` after calling this function. PNG is handled specially because that
-    /// decoder has a different API which does not allow setting limits after construction.
-    fn make_decoder(
-        format: ImageFormat,
-        reader: R,
-        limits_for_png: Limits,
-    ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
-        format.create_decoder(reader, Some(limits_for_png))
-    }
-
     /// Convert the reader into a decoder.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
-        Self::make_decoder(self.require_format()?, self.inner, self.limits)
+        self.require_format()?
+            .create_decoder(self.inner, self.limits)
     }
 
     /// Make a format guess based on the content, replacing it on success.
@@ -216,7 +204,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = self.require_format()?;
 
         let mut limits = self.limits;
-        let mut decoder = Self::make_decoder(format, self.inner, limits.clone())?;
+        let mut decoder = format.create_decoder(self.inner, limits.clone())?;
 
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?

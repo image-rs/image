@@ -15,8 +15,7 @@ use crate::{
 /// A supported image format.
 ///
 /// Not all formats support both encoding and decoding.
-// TODO: serde Serialize/Deserialize
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ImageFormat(RegistryId);
 
 #[allow(non_upper_case_globals)]
@@ -324,11 +323,51 @@ impl ImageFormat {
             }
         })
     }
+
+    /// Return the main/primary extension for this format.
+    ///
+    /// This can be used as a stable identifier for the format. Unlike the internal registry ID,
+    /// which can easily change for plugin if they are registered in a different order, the main
+    /// extension remains the same across versions and a variety of runtime conditions.
+    #[must_use]
+    fn main_extension(&self) -> &'static str {
+        read_registry(|reg| reg.get(self.id()).main_extension())
+    }
 }
 impl fmt::Debug for ImageFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ext = read_registry(|reg| reg.get(self.id()).main_extension());
-        write!(f, "ImageFormat({ext})")
+        write!(f, "ImageFormat({})", self.main_extension())
+    }
+}
+impl std::hash::Hash for ImageFormat {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.main_extension().hash(state);
+    }
+}
+// TODO: Test serde serialization/deserialization
+#[cfg(feature = "serde")]
+impl serde::Serialize for ImageFormat {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.main_extension())
+    }
+}
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for ImageFormat {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ImageFormatVisitor;
+        impl<'de> serde::de::Visitor<'de> for ImageFormatVisitor {
+            type Value = ImageFormat;
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a valid image format extension string")
+            }
+            fn visit_borrowed_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                ImageFormat::from_extension(v).ok_or_else(|| {
+                    E::custom(format!("unknown image format extension string: {}", v))
+                })
+            }
+        }
+
+        deserializer.deserialize_str(ImageFormatVisitor)
     }
 }
 

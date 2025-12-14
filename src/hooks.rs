@@ -19,9 +19,9 @@ pub use crate::io::generic::GenericReader;
 /// Simple usage to register plugin formats:
 ///
 /// ```
-/// # use image::hooks::*;
-/// let abc = create_or_get_format("abc");
-/// register_decoding_hook(abc, Box::new(|_| unimplemented!()));
+/// # use image::hooks;
+/// let abc = hooks::create_or_get_format("abc");
+/// hooks::register_decoding_hook(abc, Box::new(|_| unimplemented!()));
 /// ```
 // TODO: I hate this name, but couldn't think of a better one right now.
 pub fn create_or_get_format(main_extension: &str) -> ImageFormat {
@@ -69,25 +69,23 @@ pub fn decoding_hook_registered(format: ImageFormat) -> bool {
 /// If an extension is already registered for the format, no duplicate entries in the extension list
 /// of the format will be created, but it will overwrite any existing mapping for format detection.
 ///
-/// Extension aliases are not allowed to be empty or contain ASCII uppercase characters.
-///
 /// ## Examples
 ///
 /// Suppose two formats "foo" and "bar" are registered with extensions "foo" and "bar" respectively.
 /// Additionally, both formats support the extension "baz".
 ///
 /// ```no_run
-/// # use image::{ImageFormat, hooks::register_format_extensions};
-/// let foo = ImageFormat::from_extension("foo").unwrap();
-/// let bar = ImageFormat::from_extension("bar").unwrap();
-/// register_format_extensions(foo, &["baz"]);
-/// register_format_extensions(bar, &["baz"]);
+/// # use image::{hooks, ImageFormat};
+/// let foo = hooks::create_or_get_format("foo");
+/// let bar = hooks::create_or_get_format("bar");
+/// hooks::register_format_extensions(foo, &["baz"]);
+/// hooks::register_format_extensions(bar, &["baz"]);
 /// assert_eq!(ImageFormat::from_extension("baz"), Some(bar));
 /// ```
 ///
 /// Since "bar" was registered last with the "baz" extension, it takes precedence in format detection.
 // TODO: Are extension aliases allowed to overshadow the main extension of another format?
-pub fn register_format_extensions(format: ImageFormat, extensions: &[&'static str]) {
+pub fn register_format_extensions(format: ImageFormat, extensions: &[&str]) {
     registry::write_registry(|reg| {
         reg.add_extension_aliases(format.id(), extensions);
     });
@@ -108,9 +106,9 @@ pub fn register_format_extensions(format: ImageFormat, extensions: &[&'static st
 /// ## Examples
 ///
 /// ```no_run
-/// # use image::{ImageFormat, hooks::register_format_mime_types};
-/// let example = ImageFormat::from_extension("example").unwrap();
-/// register_format_mime_types(example, &["image/example", "image/x-example"]);
+/// # use image::hooks;
+/// let example = hooks::create_or_get_format("example");
+/// hooks::register_format_mime_types(example, &["image/example", "image/x-example"]);
 /// assert_eq!(example.to_mime_type(), "image/example");
 /// ```
 pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static str]) {
@@ -142,10 +140,10 @@ pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static st
 /// ## Multiple signatures
 ///
 /// ```no_run
-/// # use image::{ImageFormat, hooks::register_format_detection_hook};
+/// # use image::{ImageFormat, hooks, hooks::register_format_detection_hook};
 /// // JPEG XL has two different signatures: https://en.wikipedia.org/wiki/JPEG_XL
 /// // This function should be called twice to register them both.
-/// let jxl = ImageFormat::from_extension("jxl").unwrap();
+/// let jxl = hooks::create_or_get_format("jxl");
 /// register_format_detection_hook(jxl, &[0xff, 0x0a], None);
 /// register_format_detection_hook(jxl,
 ///      &[0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a], None,

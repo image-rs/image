@@ -41,8 +41,8 @@ pub(crate) struct RegistryId {
 
 pub(crate) struct FormatRegistry {
     formats: Vec<FormatSpec>,
-    by_extension: HashMap<&'static str, RegistryId>,
-    by_mime_type: HashMap<&'static str, RegistryId>,
+    by_extension: HashMap<String, RegistryId>,
+    by_mime_type: HashMap<String, RegistryId>,
     by_main_extension: HashMap<&'static str, RegistryId>,
 }
 impl FormatRegistry {
@@ -61,67 +61,55 @@ impl FormatRegistry {
             index: u32::try_from(self.formats.len()).expect("Too many formats"),
         };
 
-        for &ext in spec.all_extensions() {
-            self.by_extension.insert(ext, id);
-        }
-        for &mime in spec.all_mime_type() {
-            self.by_mime_type.insert(mime, id);
-        }
+        let prev = self.by_main_extension.insert(spec.main_extension(), id);
+        debug_assert!(prev.is_none(), "Main extensions must be unique");
 
-        let dup = self
-            .by_main_extension
-            .insert(spec.main_extension(), id)
-            .is_some();
-        assert!(
-            !dup,
-            "Main extension has to be unique, but '{}' was already registered",
-            spec.main_extension()
-        );
+        for &ext in spec.all_extensions() {
+            self.by_extension.insert(ext.to_ascii_lowercase(), id);
+        }
+        for &mime in spec.all_mime_types() {
+            // TODO: Lowercase this too?
+            self.by_mime_type.insert(mime.to_owned(), id);
+        }
 
         self.formats.push(spec);
 
         id
     }
-    pub(crate) fn add_extension_aliases(&mut self, id: RegistryId, aliases: &[&'static str]) {
-        // always update mapping even if aliases already exist
-        for &ext in aliases {
-            self.by_extension.insert(ext, id);
-        }
-
+    pub(crate) fn add_extension_aliases(&mut self, id: RegistryId, extension_aliases: &[&str]) {
         // Add new extensions to the format spec, so users can query them
         let spec = &mut self.formats[id.index as usize];
 
-        let mut new_extensions = spec.extensions.to_vec();
-        for alias in aliases {
+        let mut extension_list = spec.extensions.to_vec();
+        for ext in extension_aliases {
+            let ext = ext.to_lowercase();
+
+            // always update mapping even if aliases already exist
+            let prev = self.by_mime_type.insert(ext.clone(), id);
+
             // avoid duplicates
-            if !new_extensions.contains(alias) {
-                new_extensions.push(alias);
+            if prev.is_none() || prev != Some(id) && !extension_list.contains(&ext.as_str()) {
+                // The extension string will live for the remainder of the program's life,
+                // so leaking it here is fine.
+                extension_list.push(ext.leak());
             }
-        }
-        if new_extensions.len() == spec.extensions.len() {
-            // no need to change anything
-            return;
         }
 
         // TODO: Avoid memory leaking by either:
         // 1. Changing the API of `ImageFormat::extensions_str` to no longer require `'static` lifetime. Would like need to be Arc.
         // 2. Reserve space for K extension up front and refuse to support more than K extensions. Will likely require unsafe.
-        spec.extensions = Box::leak(new_extensions.into_boxed_slice());
+        spec.extensions = Box::leak(extension_list.into_boxed_slice());
     }
     pub(crate) fn add_mime_types(&mut self, id: RegistryId, mime_types: &[&'static str]) {
-        // always update mapping even if aliases already exist
-        for &mime in mime_types {
-            self.by_mime_type.insert(mime, id);
-        }
+        let mime_list = self.formats[id.index as usize].mime_types.to_mut();
 
-        // Add new extensions to the format spec, so users can query them
-        let spec = &mut self.formats[id.index as usize];
-
-        let format_mime_types = spec.mime_types.to_mut();
         for mime in mime_types {
+            // always update mapping even if aliases already exist
+            let prev = self.by_mime_type.insert(mime.to_string(), id);
+
             // avoid duplicates
-            if !format_mime_types.contains(mime) {
-                format_mime_types.push(mime);
+            if prev.is_none() || prev != Some(id) && !mime_list.contains(mime) {
+                mime_list.push(mime);
             }
         }
     }
@@ -133,17 +121,20 @@ impl FormatRegistry {
         &mut self.formats[id.index as usize]
     }
     pub(crate) fn get_by_extension(&self, ext: &str) -> Option<RegistryId> {
-        self.by_extension
-            .get(ext.to_ascii_lowercase().as_str())
+        let ext = ext.to_ascii_lowercase();
+        // main extensions take precedence
+        self.by_main_extension
+            .get(ext.as_str())
+            .or_else(|| self.by_extension.get(ext.as_str()))
             .copied()
+    }
+    pub(crate) fn get_by_main_extension(&self, main_extension: &str) -> Option<RegistryId> {
+        self.by_main_extension.get(main_extension).copied()
     }
     pub(crate) fn get_by_mime_type(&self, mime_type: &str) -> Option<RegistryId> {
         self.by_mime_type
             .get(mime_type.to_ascii_lowercase().as_str())
             .copied()
-    }
-    pub(crate) fn get_by_main_extension(&self, main_extension: &str) -> Option<RegistryId> {
-        self.by_main_extension.get(main_extension).copied()
     }
 
     pub(crate) fn all(&self) -> impl Iterator<Item = RegistryId> {
@@ -218,7 +209,7 @@ impl FormatSpec {
     pub(crate) fn main_mime_type(&self) -> Option<&'static str> {
         self.mime_types.first().copied()
     }
-    pub(crate) fn all_mime_type(&self) -> &[&'static str] {
+    pub(crate) fn all_mime_types(&self) -> &[&'static str] {
         &self.mime_types
     }
 }

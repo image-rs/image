@@ -78,3 +78,45 @@ pub(crate) fn guess_format_from_signature(buffer: &[u8]) -> Option<ImageFormat> 
         None
     })
 }
+
+#[test]
+fn test_guess_format_agrees_with_extension() {
+    use std::collections::HashSet;
+
+    // all formats which support signature-based detection
+    let mut supported_formats: HashSet<ImageFormat> =
+        read_signatures(|signatures| signatures.iter().map(|sig| sig.0).collect());
+
+    let detected_formats: HashSet<ImageFormat> = glob::glob("tests/images/**/*.*")
+        .unwrap()
+        .filter_map(|path| test_file(&path.unwrap(), &supported_formats))
+        .collect();
+
+    let ignore = [ImageFormat::Avif, ImageFormat::Dds];
+    supported_formats.retain(|f| !ignore.contains(f) && !detected_formats.contains(f));
+    let missing = supported_formats;
+
+    assert!(
+        missing.is_empty(),
+        "Formats missing test images with recognizable signatures: {missing:?}",
+    );
+
+    fn test_file(
+        path: &std::path::Path,
+        supported_formats: &HashSet<ImageFormat>,
+    ) -> Option<ImageFormat> {
+        let display_path = path.display();
+        match ImageFormat::from_path(path) {
+            Ok(fmt) if supported_formats.contains(&fmt) => {
+                let buf = std::fs::read(path).unwrap();
+                let got = guess_format_from_signature(&buf);
+                assert_eq!(Some(fmt), got, "{display_path}");
+                return Some(fmt);
+            }
+            Ok(fmt) => eprintln!("{display_path}: unguessable format {fmt:?}, ignoring"),
+            Err(_) => eprintln!("{display_path}: unrecognised extension, ignoring"),
+        }
+
+        None
+    }
+}

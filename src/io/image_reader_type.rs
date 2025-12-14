@@ -1,11 +1,10 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
-use std::iter;
 use std::path::Path;
 
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::hooks::{GenericReader, DECODING_HOOKS, GUESS_FORMAT_HOOKS};
+use crate::hooks;
 use crate::io::limits::Limits;
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
@@ -159,13 +158,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = match format {
             Format::BuiltIn(format) => format,
             Format::Extension(ext) => {
-                {
-                    let hooks = DECODING_HOOKS.read().unwrap();
-                    if let Some(hooks) = hooks.as_ref() {
-                        if let Some(hook) = hooks.get(&ext) {
-                            return hook(GenericReader(BufReader::new(Box::new(reader))));
-                        }
-                    }
+                if let Some(hook) = hooks::get_decoding_hook(&ext) {
+                    return hook(hooks::GenericReader::new(reader));
                 }
 
                 ImageFormat::from_extension(&ext).ok_or(ImageError::Unsupported(
@@ -269,25 +263,13 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             &mut Cursor::new(&mut start[..]),
         )?;
         self.inner.seek(SeekFrom::Start(cur))?;
+        let start = &start[..len as usize];
 
-        let hooks = GUESS_FORMAT_HOOKS.read().unwrap();
-        for &(signature, mask, ref extension) in &*hooks {
-            if mask.is_empty() {
-                if start.starts_with(signature) {
-                    return Ok(Some(Format::Extension(extension.clone())));
-                }
-            } else if start.len() >= signature.len()
-                && start
-                    .iter()
-                    .zip(signature.iter())
-                    .zip(mask.iter().chain(iter::repeat(&0xFF)))
-                    .all(|((&byte, &sig), &mask)| byte & mask == sig)
-            {
-                return Ok(Some(Format::Extension(extension.clone())));
-            }
+        if let Some(extension) = hooks::guess_format_extension(start) {
+            return Ok(Some(Format::Extension(extension)));
         }
 
-        if let Some(format) = free_functions::guess_format_impl(&start[..len as usize]) {
+        if let Some(format) = free_functions::guess_format_impl(start) {
             return Ok(Some(Format::BuiltIn(format)));
         }
 

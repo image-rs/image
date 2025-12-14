@@ -59,10 +59,10 @@ pub trait ImageDecoder {
 
     /// Returns the total number of bytes in the decoded image.
     ///
-    /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
-    /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
+    /// This is the size of the buffer that must be passed to `read_image`. The returned value may
+    /// exceed `usize::MAX`, in which case it isn't actually possible to construct a buffer to
+    /// decode all the image data into. If, however, the size does not fit in a u64 then `u64::MAX`
+    /// is returned.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
         let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
@@ -173,26 +173,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         (**self).set_limits(limits)
     }
-}
-
-/// Specialized image decoding not be supported by all formats
-pub trait ImageDecoderRect: ImageDecoder {
-    /// Decode a rectangular section of the image.
-    ///
-    /// This function takes a slice of bytes and writes the pixel data of the image into it.
-    /// The rectangle is specified by the x and y coordinates of the top left corner, the width
-    /// and height of the rectangle, and the row pitch of the buffer. The row pitch is the number
-    /// of bytes between the start of one row and the start of the next row. The row pitch must be
-    /// at least as large as the width of the rectangle in bytes.
-    fn read_rect(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        buf: &mut [u8],
-        row_pitch: usize,
-    ) -> ImageResult<()>;
 }
 
 /// `AnimationDecoder` trait

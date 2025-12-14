@@ -1027,15 +1027,13 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `kernel` - slice contains filter. Only slice len is 9 length is accepted.
+    /// * `kernel` - array contains filter.
     ///
     /// This method typically assumes that the input is scene-linear light. It operates on pixel
     /// channel values directly without taking into account color space data. If it is not, color
     /// distortion may occur.
     #[must_use]
-    pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
-        assert_eq!(9, kernel.len(), "filter must be 3 x 3");
-
+    pub fn filter3x3(&self, kernel: &[f32; 9]) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::filter3x3(p, kernel))
     }
 

@@ -339,18 +339,18 @@ mod tests {
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
+        assert_eq!(*target.get_pixel(0, 0), Rgba([255, 0, 0, 255]));
         target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
+        assert_eq!(*target.get_pixel(0, 0), Rgba([0, 255, 0, 255]));
 
         // Blending an alpha channel onto a solid background
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
+        assert_eq!(*target.get_pixel(0, 0), Rgba([127, 128, 0, 255]));
 
         // Blending two alpha channels
         target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+        assert_eq!(*target.get_pixel(0, 0), Rgba([170, 85, 0, 191]));
     }
 
     #[test]

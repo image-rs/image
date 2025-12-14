@@ -15,7 +15,7 @@ use crate::imageops::filter_1d::{
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::clamp;
+use crate::utils::{clamp, is_integer};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -716,7 +716,15 @@ where
     }
 
     let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
-    let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
+
+    // For integer types division truncates, so we need to add n/2 to round to
+    // the nearest integer. Floating point types do not need this.
+    let round = if is_integer::<S::Larger>() {
+        <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap()
+    } else {
+        S::Larger::zero()
+    };
+
     (
         S::clamp_from((sum.0 + round) / n),
         S::clamp_from((sum.1 + round) / n),
@@ -868,7 +876,7 @@ where
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
-pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
+pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32; 9]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,

@@ -100,6 +100,15 @@ pub(crate) fn vec_try_with_capacity<T>(capacity: usize) -> Result<Vec<T>, TryRes
     Ok(vec)
 }
 
+/// Returns whether `T` can only represent integer values.
+#[inline]
+pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
+    // This uses a cast of 0.5 to T, because integers will truncate to zero
+    // while types that can represent fractional values will return something
+    // other than zero.
+    <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
+}
+
 #[cfg(test)]
 mod test {
     #[test]

@@ -477,9 +477,9 @@ pub struct GifEncoder<W: Write> {
 }
 
 impl<W: Write> GifEncoder<W> {
-    /// Creates a new GIF encoder with a speed of 1. This prioritizes quality over performance at any cost.
+    /// Creates a new GIF encoder with a speed of 10. This provides a good balance between quality and encoding speed.
     pub fn new(w: W) -> GifEncoder<W> {
-        Self::new_with_speed(w, 1)
+        Self::new_with_speed(w, 10)
     }
 
     /// Create a new GIF encoder, and has the speed parameter `speed`. See

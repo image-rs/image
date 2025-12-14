@@ -1,6 +1,8 @@
 [package]
 name = "image"
-version = "1.0.0-alpha.1"
+# we are already working on 1.0.0 in git, but we're keeping the old version here
+# to make it easier to depend on git for testing
+version = "0.25.9"
 edition = "2021"
 resolver = "2"
 # guard against accidentally publushing alpha releases:
@@ -45,7 +47,7 @@ num-traits = { version = "0.2.0" }
 
 # Optional dependencies
 color_quant = { version = "1.1", optional = true }
-dav1d = { version = "0.10.3", optional = true }
+dav1d = { version = "0.11", optional = true }
 exr = { version = "1.74.0", default-features = false, optional = true }
 gif = { version = "0.14.1", optional = true }
 image-webp = { version = "0.2.0", optional = true }

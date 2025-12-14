@@ -223,3 +223,4 @@ jobs:
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           feature-group: default-features
+          release-type: major # silenced until the release of 1.0

@@ -5,6 +5,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::{
     error::TryFromExtendedColorError,
     traits::{Enlargeable, Pixel, Primitive},
+    utils::is_integer,
 };
 
 /// An enumeration over supported color types and bit depths
@@ -125,6 +126,8 @@ pub enum ExtendedColorType {
     Rgb4,
     /// Pixel is 4-bit RGB with an alpha channel
     Rgba4,
+    /// Pixel contains 5-bit R, G and B channels packed into 2 bytes
+    Rgb5x1,
     /// Pixel is 8-bit luminance
     L8,
     /// Pixel is 8-bit luminance with an alpha channel
@@ -186,6 +189,7 @@ impl ExtendedColorType {
             ExtendedColorType::Rgb1
             | ExtendedColorType::Rgb2
             | ExtendedColorType::Rgb4
+            | ExtendedColorType::Rgb5x1
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgb32F
@@ -219,6 +223,7 @@ impl ExtendedColorType {
             ExtendedColorType::La4 => 8,
             ExtendedColorType::Rgb4 => 12,
             ExtendedColorType::Rgba4 => 16,
+            ExtendedColorType::Rgb5x1 => 16,
             ExtendedColorType::L8 => 8,
             ExtendedColorType::La8 => 16,
             ExtendedColorType::Rgb8 => 24,
@@ -821,6 +826,17 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
+/// Converts a f32 to a primitive type T with rounding when T is an integer.
+///
+/// E.g. 3.6 -> 4 for u8, but 3.6 -> 3.6 for f32.
+#[inline]
+fn from_f32_rounded<T: Primitive>(x: f32) -> T {
+    // We assume that integers perform truncation when casting from float.
+    // With this assumption, rounding can done simply adding 0.5 before the cast.
+    // Of course, adding 0.5 must ONLY be done for integer types.
+    NumCast::from(if is_integer::<T>() { x + 0.5 } else { x }).unwrap()
+}
+
 impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t = T::DEFAULT_MAX_VALUE;
@@ -848,8 +864,8 @@ impl<T: Primitive> Blend for LumaA<T> {
         let out_luma = out_luma_a / alpha_final;
 
         *self = LumaA([
-            NumCast::from(max_t * out_luma).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            from_f32_rounded(max_t * out_luma),
+            from_f32_rounded(max_t * alpha_final),
         ]);
     }
 }
@@ -916,10 +932,10 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Cast back to our initial type on return
         *self = Rgba([
-            NumCast::from(max_t * out_r).unwrap(),
-            NumCast::from(max_t * out_g).unwrap(),
-            NumCast::from(max_t * out_b).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            from_f32_rounded(max_t * out_r),
+            from_f32_rounded(max_t * out_g),
+            from_f32_rounded(max_t * out_b),
+            from_f32_rounded(max_t * alpha_final),
         ]);
     }
 }

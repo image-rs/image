@@ -11,9 +11,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::free_functions::load_rect;
 use crate::io::ReadExt;
-use crate::{ImageDecoder, ImageDecoderRect, ImageFormat};
+use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -63,6 +62,9 @@ const RLE_ESCAPE_DELTA: u8 = 2;
 
 /// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
+
+/// The value of the V5 header field indicating an embedded ICC profile ("MBED").
+const PROFILE_EMBEDDED: u32 = 0x4D424544;
 
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
@@ -490,6 +492,7 @@ pub struct BmpDecoder<R> {
     colors_used: u32,
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
+    icc_profile: Option<Vec<u8>>,
 }
 
 enum RLEInsn {
@@ -521,6 +524,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             colors_used: 0,
             palette: None,
             bitfields: None,
+            icc_profile: None,
         }
     }
 
@@ -778,6 +782,38 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Read ICC profile data from BITMAPV5HEADER if present.
+    fn read_icc_profile(&mut self, bmp_header_offset: u64) -> ImageResult<()> {
+        // Seek to bV5CSType field (56 bytes from header start)
+        self.reader.seek(SeekFrom::Start(bmp_header_offset + 56))?;
+        let cs_type = self.reader.read_u32::<LittleEndian>()?;
+
+        // Only embedded profiles are supported (not linked profiles)
+        if cs_type != PROFILE_EMBEDDED {
+            return Ok(());
+        }
+
+        // Seek to bV5ProfileData at offset 112
+        self.reader.seek(SeekFrom::Start(bmp_header_offset + 112))?;
+
+        let profile_offset = self.reader.read_u32::<LittleEndian>()?;
+        let profile_size = self.reader.read_u32::<LittleEndian>()?;
+
+        if profile_size == 0 || profile_offset == 0 {
+            return Ok(());
+        }
+
+        // Profile offset is from the beginning of the file
+        self.reader
+            .seek(SeekFrom::Start(u64::from(profile_offset)))?;
+        let mut profile_data = vec![0u8; profile_size as usize];
+        self.reader.read_exact(&mut profile_data)?;
+
+        self.icc_profile = Some(profile_data);
+
+        Ok(())
+    }
+
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.has_loaded_metadata {
             self.read_file_header()?;
@@ -841,6 +877,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     bitmask_bytes_offset = 12;
                 }
             };
+
+            // Read ICC profile if present (V5 header or later)
+            if bmp_header_size >= BITMAPV5HEADER_SIZE {
+                self.read_icc_profile(bmp_header_offset)?;
+            }
 
             self.reader
                 .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
@@ -1359,6 +1400,10 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         }
     }
 
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.icc_profile.clone())
+    }
+
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.read_image_data(buf)
@@ -1366,34 +1411,6 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
-    }
-}
-
-impl<R: BufRead + Seek> ImageDecoderRect for BmpDecoder<R> {
-    fn read_rect(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        buf: &mut [u8],
-        row_pitch: usize,
-    ) -> ImageResult<()> {
-        let start = self.reader.stream_position()?;
-        load_rect(
-            x,
-            y,
-            width,
-            height,
-            buf,
-            row_pitch,
-            self,
-            self.total_bytes() as usize,
-            |_, _| Ok(()),
-            |s, buf| s.read_image_data(buf),
-        )?;
-        self.reader.seek(SeekFrom::Start(start))?;
-        Ok(())
     }
 }
 
@@ -1416,16 +1433,6 @@ mod test {
                 assert_eq!(read, calc);
             }
         }
-    }
-
-    #[test]
-    fn read_rect() {
-        let f =
-            BufReader::new(std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap());
-        let mut decoder = BmpDecoder::new(f).unwrap();
-
-        let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
-        decoder.read_rect(0, 0, 8, 8, &mut buf, 8 * 3).unwrap();
     }
 
     #[test]
@@ -1476,5 +1483,30 @@ mod test {
             let no_hdr_img = crate::DynamicImage::from_decoder(decoder).unwrap();
             assert_eq!(ref_img, no_hdr_img);
         }
+    }
+
+    #[test]
+    fn test_icc_profile() {
+        // V5 header file without embedded ICC profile
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/V5_24_Bit.bmp").unwrap());
+        let mut decoder = BmpDecoder::new(f).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(profile.is_none());
+
+        // Test files with embedded ICC profiles
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof.bmp").unwrap());
+        let mut decoder = BmpDecoder::new(f).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(profile.is_some());
+        assert_eq!(profile.unwrap().len(), 3048);
+
+        let f =
+            BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof2.bmp").unwrap());
+        let mut decoder = BmpDecoder::new(f).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(profile.is_some());
+        assert_eq!(profile.unwrap().len(), 540);
     }
 }

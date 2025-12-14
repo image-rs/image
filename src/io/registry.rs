@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{hooks::GenericReader, utils::to_ascii_lower_case, ImageDecoder, ImageResult};
+use crate::{hooks::GenericReader, ImageDecoder, ImageResult};
 
 static REGISTRY: RwLock<Option<FormatRegistry>> = RwLock::new(None);
 

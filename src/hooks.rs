@@ -7,12 +7,17 @@ use crate::{io::registry, io::signatures, ImageFormat};
 
 pub use crate::io::generic::GenericReader;
 
-/// Given the main extension of a format, creates a new format or returns the existing one.
+/// Creates a new format or returns the existing one if one with this main extension already exists.
 ///
-/// The main extension is the first extension in the list returned by [`ImageFormat::extensions_str`]
-/// and will be treated as a stable identifier for the format.
+/// The main extension is used as a stable identifier for image formats and is expected to be unique
+/// and remain unchanged over time. The first extension in the list returned by
+/// [`ImageFormat::extensions_str`] is always the main extension.
 ///
-/// Unlike [`ImageFormat::from_extension`] and similar, this method will ignore extension aliases.
+/// Unlike [`ImageFormat::from_extension`] and similar, this method will ignore extension aliases
+/// when searching for existing formats.
+///
+/// The main extension, like all other extensions, is case-insensitive and will internally be stored
+/// in ASCII lower case.
 ///
 /// # Examples
 ///
@@ -41,12 +46,30 @@ pub fn create_or_get_format(main_extension: &str) -> ImageFormat {
     })
 }
 
-/// A function to produce an [`ImageDecoder`] for a given image format.
+/// A function to produce an [`ImageDecoder`](crate::ImageDecoder) for a given image format.
+///
+/// See [`register_decoding_hook`] for details on registering decoding hooks.
 pub type DecodingHook = Box<registry::DecodingFn>;
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
 ///
-/// TODO: Talk about how this interacts with builtin formats.
+/// The decoding hook of any format can be registered only once. Use [`decoding_hook_registered`] to
+/// check whether a decoding hook has already been registered for a given format.
+///
+/// # Examples
+///
+/// ```
+/// # use image::hooks;
+/// # struct ExampleDecoder;
+/// # impl ExampleDecoder {
+/// #     fn new<R>(_reader: R) -> image::ImageResult<Box<dyn image::ImageDecoder>> { unimplemented!() }
+/// # }
+/// let example = hooks::create_or_get_format("example");
+/// hooks::register_decoding_hook(
+///     example,
+///     Box::new(|reader| Ok(Box::new(ExampleDecoder::new(reader)?))),
+/// );
+/// ```
 pub fn register_decoding_hook(format: ImageFormat, hook: DecodingHook) -> bool {
     registry::write_registry(move |reg| {
         let spec = reg.get_mut(format.id());
@@ -67,25 +90,34 @@ pub fn decoding_hook_registered(format: ImageFormat) -> bool {
 /// Adds the given extensions as extension aliases to the given format.
 ///
 /// If an extension is already registered for the format, no duplicate entries in the extension list
-/// of the format will be created, but it will overwrite any existing mapping for format detection.
+/// of the format will be created, but it will overwrite any existing extension alias mapping for
+/// format detection.
+///
+/// Note that extension aliases *never* overwrite the main extension of other formats for format
+/// detection. The main extension of a format always takes precedence over extension aliases of
+/// other formats.
 ///
 /// ## Examples
 ///
 /// Suppose two formats "foo" and "bar" are registered with extensions "foo" and "bar" respectively.
 /// Additionally, both formats support the extension "baz".
 ///
-/// ```no_run
+/// ```
 /// # use image::{hooks, ImageFormat};
 /// let foo = hooks::create_or_get_format("foo");
 /// let bar = hooks::create_or_get_format("bar");
-/// hooks::register_format_extensions(foo, &["baz"]);
-/// hooks::register_format_extensions(bar, &["baz"]);
-/// assert_eq!(ImageFormat::from_extension("baz"), Some(bar));
-/// ```
+/// hooks::register_extension_aliases(foo, &["baz"]);
+/// hooks::register_extension_aliases(bar, &["baz", "foo"]);
 ///
-/// Since "bar" was registered last with the "baz" extension, it takes precedence in format detection.
-// TODO: Are extension aliases allowed to overshadow the main extension of another format?
-pub fn register_format_extensions(format: ImageFormat, extensions: &[&str]) {
+/// assert_eq!(foo.extensions_str(), &["foo", "baz"]);
+/// assert_eq!(bar.extensions_str(), &["bar", "baz", "foo"]);
+///
+/// // bar registered "baz" last, so it takes precedence in format detection.
+/// assert_eq!(ImageFormat::from_extension("baz"), Some(bar));
+/// // "foo" is the main extension of format foo, so it takes precedence over the alias from bar.
+/// assert_eq!(ImageFormat::from_extension("foo"), Some(foo));
+/// ```
+pub fn register_extension_aliases(format: ImageFormat, extensions: &[&str]) {
     registry::write_registry(|reg| {
         reg.add_extension_aliases(format.id(), extensions);
     });
@@ -105,13 +137,13 @@ pub fn register_format_extensions(format: ImageFormat, extensions: &[&str]) {
 ///
 /// ## Examples
 ///
-/// ```no_run
+/// ```
 /// # use image::hooks;
 /// let example = hooks::create_or_get_format("example");
-/// hooks::register_format_mime_types(example, &["image/example", "image/x-example"]);
+/// hooks::register_mime_types(example, &["image/example", "image/x-example"]);
 /// assert_eq!(example.to_mime_type(), "image/example");
 /// ```
-pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static str]) {
+pub fn register_mime_types(format: ImageFormat, mime_types: &[&'static str]) {
     registry::write_registry(|reg| {
         reg.add_mime_types(format.id(), mime_types);
     });
@@ -139,7 +171,7 @@ pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static st
 ///
 /// ## Multiple signatures
 ///
-/// ```no_run
+/// ```
 /// # use image::{ImageFormat, hooks, hooks::register_format_detection_hook};
 /// // JPEG XL has two different signatures: https://en.wikipedia.org/wiki/JPEG_XL
 /// // This function should be called twice to register them both.
@@ -149,7 +181,6 @@ pub fn register_format_mime_types(format: ImageFormat, mime_types: &[&'static st
 ///      &[0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a], None,
 /// );
 /// ```
-///
 pub fn register_format_detection_hook(
     format: ImageFormat,
     signature: &'static [u8],

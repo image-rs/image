@@ -85,7 +85,7 @@ impl FormatRegistry {
             let ext = ext.to_lowercase();
 
             // always update mapping even if aliases already exist
-            let prev = self.by_mime_type.insert(ext.clone(), id);
+            let prev = self.by_extension.insert(ext.clone(), id);
 
             // avoid duplicates
             if prev.is_none() || prev != Some(id) && !extension_list.contains(&ext.as_str()) {

@@ -49,14 +49,14 @@ type DerefSubpixel<I> = <DerefPixel<I> as Pixel>::Subpixel;
 impl<I> SubImage<I> {
     /// Construct a new subimage
     /// The coordinates set the position of the top left corner of the `SubImage`.
-    pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
+    pub fn new(image: I, rect: Rect) -> SubImage<I> {
         SubImage {
             inner: SubImageInner {
                 image,
-                xoffset: x,
-                yoffset: y,
-                xstride: width,
-                ystride: height,
+                xoffset: rect.x,
+                yoffset: rect.y,
+                xstride: rect.width,
+                ystride: rect.height,
             },
         }
     }
@@ -120,20 +120,11 @@ where
     /// // Less efficient and NOT &RgbImage
     /// let _: SubImage<&_> = GenericImageView::view(&*subimage, selection);
     /// ```
-    pub fn view(&self, rect: Rect) -> SubImage<&I::Target> {
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = rect;
-
-        use crate::GenericImageView as _;
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
-        let x = self.inner.xoffset.saturating_add(x);
-        let y = self.inner.yoffset.saturating_add(y);
-        SubImage::new(&*self.inner.image, x, y, width, height)
+    pub fn view(&self, mut rect: Rect) -> SubImage<&I::Target> {
+        rect.assert_in_bounds_of(&self.inner);
+        rect.x = self.inner.xoffset.saturating_add(rect.x);
+        rect.y = self.inner.yoffset.saturating_add(rect.y);
+        SubImage::new(&*self.inner.image, rect)
     }
 
     /// Get a reference to the underlying image.
@@ -150,19 +141,11 @@ where
     /// Create a mutable sub-view of the image.
     ///
     /// The coordinates given are relative to the current view on the underlying image.
-    pub fn sub_image(&mut self, rect: Rect) -> SubImage<&mut I::Target> {
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = rect;
-
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
-        let x = self.inner.xoffset.saturating_add(x);
-        let y = self.inner.yoffset.saturating_add(y);
-        SubImage::new(&mut *self.inner.image, x, y, width, height)
+    pub fn sub_image(&mut self, mut rect: Rect) -> SubImage<&mut I::Target> {
+        rect.assert_in_bounds_of(&self.inner);
+        rect.x = self.inner.xoffset.saturating_add(rect.x);
+        rect.y = self.inner.yoffset.saturating_add(rect.y);
+        SubImage::new(&mut *self.inner.image, rect)
     }
 
     /// Get a mutable reference to the underlying image.

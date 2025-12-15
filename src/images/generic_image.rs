@@ -84,16 +84,8 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = rect;
-
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
-        SubImage::new(self, x, y, width, height)
+        rect.assert_in_bounds_of(self);
+        SubImage::new(self, rect)
     }
 
     /// Returns a subimage that is an immutable view into this image so long as
@@ -102,21 +94,12 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = rect;
-
-        if u64::from(x) + u64::from(width) > u64::from(self.width())
-            || u64::from(y) + u64::from(height) > u64::from(self.height())
-        {
+        if !rect.test_in_bounds(self) {
             Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )))
         } else {
-            Ok(SubImage::new(self, x, y, width, height))
+            Ok(SubImage::new(self, rect))
         }
     }
 
@@ -327,16 +310,8 @@ pub trait GenericImage: GenericImageView {
     where
         Self: Sized,
     {
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = rect;
-
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
-        SubImage::new(self, x, y, width, height)
+        rect.assert_in_bounds_of(self);
+        SubImage::new(self, rect)
     }
 }
 

@@ -1,4 +1,7 @@
+use core::cmp;
 use core::ops::Range;
+
+use crate::GenericImageView;
 
 /// A Rectangle defined by its top left corner, width and height.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -32,4 +35,52 @@ impl Rect {
             height: y.end.saturating_sub(y.start),
         }
     }
+
+    pub(crate) fn test_in_bounds(&self, image: &impl GenericImageView) -> bool {
+        image.width().checked_sub(self.width) >= Some(self.x)
+            && image.height().checked_sub(self.height) >= Some(self.y)
+    }
+
+    /// Check that the rectangle is contained in the image, panic otherwise.
+    ///
+    /// If exposed outside the library, add `#[inline]`.
+    #[track_caller]
+    pub(crate) fn assert_in_bounds_of(&self, image: &impl GenericImageView) {
+        let (width, height) = image.dimensions();
+
+        // Lots of ways to write this comparison..
+        if u64::from(self.x) + u64::from(self.width) <= u64::from(width)
+            && u64::from(self.y) + u64::from(self.height) <= u64::from(height)
+        {
+            return;
+        }
+
+        panic_out_of_bounds(self, (width, height));
+    }
+
+    /// Return the part of the rectangle that is in-bounds of the image.
+    pub(crate) fn crop_dimms(&self, image: &impl GenericImageView) -> Rect {
+        let (width, height) = image.dimensions();
+
+        let x = cmp::min(self.x, width);
+        let y = cmp::min(self.y, height);
+
+        let width = cmp::min(self.width, width - x);
+        let height = cmp::min(self.height, height - y);
+
+        Rect {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+#[cold]
+fn panic_out_of_bounds(rect: &Rect, dims: (u32, u32)) -> ! {
+    panic!(
+        "The rectangle {:?} is out of bounds for the image with dimensions {}×{}",
+        rect, dims.0, dims.1
+    );
 }

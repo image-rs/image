@@ -1,6 +1,4 @@
 //! Image Processing Functions
-use std::cmp;
-
 use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
@@ -42,46 +40,14 @@ pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
-pub fn crop<I: GenericImageView>(
-    image: &mut I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-) -> SubImage<&mut I> {
-    let (x, y, width, height) = crop_dimms(image, x, y, width, height);
-    SubImage::new(image, x, y, width, height)
+pub fn crop<I: GenericImageView>(image: &mut I, rect: Rect) -> SubImage<&mut I> {
+    SubImage::new(image, rect.crop_dimms(image))
 }
 
 /// Return an immutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
 pub fn crop_imm<I: GenericImageView>(image: &I, rect: Rect) -> SubImage<&I> {
-    let Rect {
-        x,
-        y,
-        width,
-        height,
-    } = rect;
-    let (x, y, width, height) = crop_dimms(image, x, y, width, height);
-    SubImage::new(image, x, y, width, height)
-}
-
-fn crop_dimms<I: GenericImageView>(
-    image: &I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-) -> (u32, u32, u32, u32) {
-    let (iwidth, iheight) = image.dimensions();
-
-    let x = cmp::min(x, iwidth);
-    let y = cmp::min(y, iheight);
-
-    let height = cmp::min(height, iheight - y);
-    let width = cmp::min(width, iwidth - x);
-
-    (x, y, width, height)
+    SubImage::new(image, rect.crop_dimms(image))
 }
 
 /// Calculate the region that can be copied from top to bottom.

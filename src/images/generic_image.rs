@@ -80,10 +80,17 @@ pub trait GenericImageView {
     ///  # Panics
     ///
     /// Panics if the dimensions provided fall out of bounds.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
+    fn view(&self, rect: Rect) -> SubImage<&Self>
     where
         Self: Sized,
     {
+        let Rect {
+            x,
+            y,
+            width,
+            height,
+        } = rect;
+
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
@@ -91,16 +98,17 @@ pub trait GenericImageView {
 
     /// Returns a subimage that is an immutable view into this image so long as
     /// the provided coordinates and dimensions are within the bounds of this Image.
-    fn try_view(
-        &self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-    ) -> Result<SubImage<&Self>, ImageError>
+    fn try_view(&self, rect: Rect) -> Result<SubImage<&Self>, ImageError>
     where
         Self: Sized,
     {
+        let Rect {
+            x,
+            y,
+            width,
+            height,
+        } = rect;
+
         if u64::from(x) + u64::from(width) > u64::from(self.width())
             || u64::from(y) + u64::from(height) > u64::from(self.height())
         {
@@ -315,10 +323,17 @@ pub trait GenericImage: GenericImageView {
     /// Returns a mutable subimage that is a view into this image.
     /// If you want an immutable subimage instead, use [`GenericImageView::view`]
     /// The coordinates set the position of the top left corner of the `SubImage`.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self>
+    fn sub_image(&mut self, rect: Rect) -> SubImage<&mut Self>
     where
         Self: Sized,
     {
+        let Rect {
+            x,
+            y,
+            width,
+            height,
+        } = rect;
+
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
         SubImage::new(self, x, y, width, height)
@@ -377,7 +392,7 @@ mod tests {
         let source = source.clone();
 
         // Clone a view into non-mutable to a separate buffer
-        let cloned = source.view(1, 1, 1, 1).to_image();
+        let cloned = source.view(Rect::from_xy_ranges(1..2, 1..2)).to_image();
 
         assert!(cloned.get_pixel(0, 0) == source.get_pixel(1, 1));
     }
@@ -387,17 +402,17 @@ mod tests {
         let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
 
         {
-            let mut sub1 = source.sub_image(0, 0, 2, 2);
-            let mut sub2 = sub1.sub_image(1, 1, 1, 1);
+            let mut sub1 = source.sub_image(Rect::from_xy_ranges(0..2, 0..2));
+            let mut sub2 = sub1.sub_image(Rect::from_xy_ranges(1..2, 1..2));
             sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
         }
 
         assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
 
-        let view1 = source.view(0, 0, 2, 2);
+        let view1 = source.view(Rect::from_xy_ranges(0..2, 0..2));
         assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
 
-        let view2 = view1.view(1, 1, 1, 1);
+        let view2 = view1.view(Rect::from_xy_ranges(1..2, 1..2));
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
     }
 
@@ -405,56 +420,56 @@ mod tests {
     #[should_panic]
     fn test_view_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 3, 3);
+        source.view(Rect::from_xy_ranges(1..4, 1..4));
     }
 
     #[test]
     #[should_panic]
     fn test_view_coordinates_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(3, 3, 3, 3);
+        source.view(Rect::from_xy_ranges(3..6, 3..6));
     }
 
     #[test]
     #[should_panic]
     fn test_view_width_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 3, 2);
+        source.view(Rect::from_xy_ranges(1..4, 1..3));
     }
 
     #[test]
     #[should_panic]
     fn test_view_height_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 2, 3);
+        source.view(Rect::from_xy_ranges(1..3, 1..4));
     }
 
     #[test]
     #[should_panic]
     fn test_view_x_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(3, 1, 3, 3);
+        source.view(Rect::from_xy_ranges(3..6, 1..3));
     }
 
     #[test]
     #[should_panic]
     fn test_view_y_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 3, 3, 3);
+        source.view(Rect::from_xy_ranges(1..3, 3..6));
     }
 
     #[test]
     fn test_view_in_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(0, 0, 3, 3);
-        source.view(1, 1, 2, 2);
-        source.view(2, 2, 0, 0);
+        source.view(Rect::from_xy_ranges(0..3, 0..3));
+        source.view(Rect::from_xy_ranges(1..3, 1..3));
+        source.view(Rect::from_xy_ranges(2..2, 2..2));
     }
 
     #[test]
     fn test_copy_sub_image() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        let view = source.view(0, 0, 3, 3);
+        let view = source.view(Rect::from_xy_ranges(0..3, 0..3));
         let _view2 = view;
         view.to_image();
     }
@@ -462,76 +477,27 @@ mod tests {
     #[test]
     fn test_generic_image_copy_within_oob() {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 5,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 5
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            1,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 1,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            0,
-            1
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 1,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..5, 0..4), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..5), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..5, 0..4), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..4), 1, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 1..5), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..4), 0, 1));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..5, 0..4), 0, 0));
     }
 
     #[test]
@@ -539,16 +505,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 4, 0, 1, 2, 8, 4, 5, 6, 12, 8, 9, 10];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 3,
-                height: 3
-            },
-            1,
-            1
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..3, 0..3), 1, 1));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -557,16 +516,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 1, 2, 3, 7, 5, 6, 7, 11, 9, 10, 11, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 0,
-                width: 3,
-                height: 3
-            },
-            0,
-            1
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..4, 0..3), 0, 1));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -575,16 +527,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 4, 5, 6, 4, 8, 9, 10, 8, 12, 13, 14, 12, 13, 14, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 1,
-                width: 3,
-                height: 3
-            },
-            1,
-            0
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..3, 1..4), 1, 0));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -593,16 +538,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [5, 6, 7, 3, 9, 10, 11, 7, 13, 14, 15, 11, 12, 13, 14, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 1,
-                width: 3,
-                height: 3
-            },
-            0,
-            0
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..4, 1..4), 0, 0));
         assert_eq!(&image.into_raw(), &expected);
     }
 }

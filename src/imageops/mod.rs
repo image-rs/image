@@ -1,6 +1,7 @@
 //! Image Processing Functions
 use std::cmp;
 
+use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
 
@@ -54,13 +55,13 @@ pub fn crop<I: GenericImageView>(
 
 /// Return an immutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
-pub fn crop_imm<I: GenericImageView>(
-    image: &I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-) -> SubImage<&I> {
+pub fn crop_imm<I: GenericImageView>(image: &I, rect: Rect) -> SubImage<&I> {
+    let Rect {
+        x,
+        y,
+        width,
+        height,
+    } = rect;
     let (x, y, width, height) = crop_dimms(image, x, y, width, height);
     SubImage::new(image, x, y, width, height)
 }

@@ -1,4 +1,4 @@
-use crate::{GenericImage, GenericImageView, ImageBuffer, Pixel};
+use crate::{math::Rect, GenericImage, GenericImageView, ImageBuffer, Pixel};
 use std::ops::{Deref, DerefMut};
 
 /// A View into another image
@@ -118,7 +118,14 @@ where
     /// // Less efficient and NOT &RgbImage
     /// let _: SubImage<&_> = GenericImageView::view(&*subimage, 0, 0, 10, 10);
     /// ```
-    pub fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&I::Target> {
+    pub fn view(&self, rect: Rect) -> SubImage<&I::Target> {
+        let Rect {
+            x,
+            y,
+            width,
+            height,
+        } = rect;
+
         use crate::GenericImageView as _;
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
@@ -141,13 +148,14 @@ where
     /// Create a mutable sub-view of the image.
     ///
     /// The coordinates given are relative to the current view on the underlying image.
-    pub fn sub_image(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-    ) -> SubImage<&mut I::Target> {
+    pub fn sub_image(&mut self, rect: Rect) -> SubImage<&mut I::Target> {
+        let Rect {
+            x,
+            y,
+            width,
+            height,
+        } = rect;
+
         assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
         assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
         let x = self.inner.xoffset.saturating_add(x);
@@ -234,7 +242,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{metadata::Cicp, GenericImageView, RgbaImage};
+    use crate::{math::Rect, metadata::Cicp, GenericImageView, RgbaImage};
 
     #[test]
     fn preserves_color_space() {
@@ -242,7 +250,7 @@ mod tests {
         buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
         buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
 
-        let view = buffer.view(0, 0, 16, 16);
+        let view = buffer.view(Rect::from_xy_ranges(0..16, 0..16));
         let result = view.buffer_like();
 
         assert_eq!(buffer.color_space(), result.color_space());
@@ -254,8 +262,8 @@ mod tests {
         buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
         buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
 
-        let view = buffer.view(0, 0, 16, 16);
-        let view = view.view(0, 0, 16, 16);
+        let view = buffer.view(Rect::from_xy_ranges(0..16, 0..16));
+        let view = view.view(Rect::from_xy_ranges(0..16, 0..16));
         let result = view.buffer_like();
 
         assert_eq!(buffer.color_space(), result.color_space());

@@ -1826,11 +1826,13 @@ mod tests {
     fn resize_transparent_image() {
         use super::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
         use crate::imageops::crop_imm;
+        use crate::math::Rect;
         use crate::RgbaImage;
 
         fn assert_resize(image: &RgbaImage, filter: FilterType) {
             let resized = resize(image, 16, 16, filter);
-            let cropped = crop_imm(&resized, 5, 5, 6, 6).to_image();
+            let select = Rect::from_xy_ranges(5..11, 5..11);
+            let cropped = crop_imm(&resized, select).to_image();
             for pixel in cropped.pixels() {
                 let alpha = pixel.0[3];
                 assert!(

@@ -18,7 +18,7 @@ impl Rect {
     /// Construct a rectangle from the pixel range it covers.
     ///
     /// ```
-    /// use image::rect::Rect;
+    /// use image::math::Rect;
     ///
     /// let rect = Rect::from_xy_ranges(10..20, 30..50);
     /// assert_eq!(rect.width, 10);

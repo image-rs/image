@@ -110,13 +110,15 @@ where
     ///
     /// ```
     /// use image::{GenericImageView, RgbImage, SubImage};
+    /// use image::math::Rect;
     /// let buffer = RgbImage::new(10, 10);
     ///
-    /// let subimage: SubImage<&RgbImage> = buffer.view(0, 0, 10, 10);
-    /// let subview: SubImage<&RgbImage> = subimage.view(0, 0, 10, 10);
+    /// let selection = Rect::from_xy_ranges(0..10, 0..10);
+    /// let subimage: SubImage<&RgbImage> = buffer.view(selection);
+    /// let subview: SubImage<&RgbImage> = subimage.view(selection);
     ///
     /// // Less efficient and NOT &RgbImage
-    /// let _: SubImage<&_> = GenericImageView::view(&*subimage, 0, 0, 10, 10);
+    /// let _: SubImage<&_> = GenericImageView::view(&*subimage, selection);
     /// ```
     pub fn view(&self, rect: Rect) -> SubImage<&I::Target> {
         let Rect {

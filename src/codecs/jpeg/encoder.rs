@@ -5,7 +5,8 @@ use std::{error, fmt};
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
+
+use crate::{ColorType, DynamicImage, ImageEncoder, ImageFormat, ImageLayout};
 
 use jpeg_encoder::Encoder;
 
@@ -188,20 +189,19 @@ impl<W: Write> JpegEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != image.len()`.
     #[track_caller]
-    fn encode(
-        self,
-        image: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ExtendedColorType,
-    ) -> ImageResult<()> {
-        let expected_buffer_len = color_type.buffer_size(width, height);
+    fn encode(self, image: &[u8], layout: ImageLayout) -> ImageResult<()> {
+        let expected_buffer_len = layout.color_type.buffer_size(layout.width, layout.height);
+
         assert_eq!(
             expected_buffer_len,
             image.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {}x{} image",
             image.len(),
+            layout.width,
+            layout.height,
         );
+
+        let ImageLayout { width, height, .. } = layout;
 
         let (width, height) = match (u16::try_from(width), u16::try_from(height)) {
             (Ok(w @ 1..), Ok(h @ 1..)) => (w, h),
@@ -219,19 +219,19 @@ impl<W: Write> JpegEncoder<W> {
                 })
         };
 
-        match color_type {
-            ExtendedColorType::L8 => {
+        match layout.color_type {
+            ColorType::L8 => {
                 let color = jpeg_encoder::ColorType::Luma;
                 encode_jpeg(color)
             }
-            ExtendedColorType::Rgb8 => {
+            ColorType::Rgb8 => {
                 let color = jpeg_encoder::ColorType::Rgb;
                 encode_jpeg(color)
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Jpeg.into(),
-                    UnsupportedErrorKind::Color(color_type),
+                    UnsupportedErrorKind::Color(layout.color_type),
                 ),
             )),
         }
@@ -245,14 +245,8 @@ const APP1: u8 = 1;
 
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
     #[track_caller]
-    fn write_image(
-        self,
-        buf: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ExtendedColorType,
-    ) -> ImageResult<()> {
-        self.encode(buf, width, height, color_type)
+    fn write_image(&mut self, buf: &[u8], layout: ImageLayout) -> ImageResult<()> {
+        self.encode(buf, layout)
     }
 
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {

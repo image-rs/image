@@ -1,5 +1,6 @@
+use crate::codecs::png::CompressionType;
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, DynamicImage, ExtendedColorType};
+use crate::{ColorType, DynamicImage};
 
 /// Nominally public but DO NOT expose this type.
 ///
@@ -21,8 +22,72 @@ use crate::{ColorType, DynamicImage, ExtendedColorType};
 #[derive(Clone, Copy)]
 pub struct MethodSealedToImage;
 
+/// Encoder options that *must* be supported if set.
+///
+/// Each encoder is supports a specific option level, it is advisable that it is the newest
+/// available one in the version of `image` it is written for. The options is non-exhaustive and
+/// later versions may introduce new options. Since support must comprehensively check these
+/// mandatory settings, [`EncodeOptions::check_support_level`] may be used to check that no options
+/// beyond the supported level are active, so that only a well-defined list of attributes needs to
+/// be considered. There's a clear in-active state for each option.
+#[non_exhaustive]
+pub struct EncodeOptions {
+    /// If set, the encoder must refuse to encode the image if it can not guarantee a roundtrip.
+    ///
+    /// Part of [`EncodeOptionsLevel::V1_0`].
+    pub lossless_image_data: bool,
+}
+
+pub enum EncodeOptionsLevel {
+    None = 0,
+    V1_0 = 1,
+}
+
+impl EncodeOptions {
+    /// Check that no options beyond the indicate support level are used.
+    pub fn check_support_level(&self, level: EncodeOptionsLevel) -> ImageResult<()> {
+        match level {
+            EncodeOptionsLevel::None => Ok(()),
+            EncodeOptionsLevel::V1_0 => self.lossless_image_data.then_some(()).or_else(|| {
+                Err(ImageResult::Err(UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::GenericFeature(
+                        "lossless_image_data option is not supported".into(),
+                    ),
+                )))
+            }),
+        }
+    }
+}
+
+impl Default for EncodeOptions {
+    fn default() -> Self {
+        EncodeOptions {
+            lossless_image_data: false,
+        }
+    }
+}
+
+#[non_exhaustive]
+pub struct EncodeHints {
+    /// The requested level of compression, i.e. how much compute to spend on smaller files.
+    pub compression: CompressionType,
+}
+
 /// The trait all encoders implement
 pub trait ImageEncoder {
+    /// Configure the encoder before writing any image data.
+    fn configure(&mut self, options: &EncodeOptions) -> ImageResult<()> {
+        options.check_support_level(EncodeOptionsLevel::None)
+    }
+
+    /// Configure the encoder with non-binding hints about the encoding.
+    ///
+    /// By hints we mean all options that do not affect the interface contract of the encoder such
+    /// as the compression strength. A counter example would be sample encodings, which would
+    /// affect buffer size.
+    fn configure_hints(&mut self, format_options: &EncodeHints) {}
+
     /// Writes all the bytes in an image to the encoder.
     ///
     /// This function takes a slice of bytes of the pixel data of the image
@@ -33,13 +98,7 @@ pub trait ImageEncoder {
     /// # Panics
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != buf.len()`.
-    fn write_image(
-        self,
-        buf: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ExtendedColorType,
-    ) -> ImageResult<()>;
+    fn write_image(&mut self, buf: &[u8], layout: crate::ImageLayout) -> ImageResult<()>;
 
     /// Set the ICC profile to use for the image.
     ///
@@ -92,27 +151,6 @@ pub trait ImageEncoder {
         _input: &DynamicImage,
     ) -> Option<DynamicImage> {
         None
-    }
-}
-
-pub(crate) trait ImageEncoderBoxed: ImageEncoder {
-    fn write_image(
-        self: Box<Self>,
-        buf: &'_ [u8],
-        width: u32,
-        height: u32,
-        color: ExtendedColorType,
-    ) -> ImageResult<()>;
-}
-impl<T: ImageEncoder> ImageEncoderBoxed for T {
-    fn write_image(
-        self: Box<Self>,
-        buf: &'_ [u8],
-        width: u32,
-        height: u32,
-        color: ExtendedColorType,
-    ) -> ImageResult<()> {
-        (*self).write_image(buf, width, height, color)
     }
 }
 

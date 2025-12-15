@@ -19,7 +19,7 @@ use crate::error::{
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    ImageEncoder, ImageFormat, ImageLayout, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -636,11 +636,9 @@ impl<W: Write> PngEncoder<W> {
     fn encode_inner(
         self,
         data: &[u8],
-        width: u32,
-        height: u32,
-        color: ExtendedColorType,
+        layout: ImageLayout,
     ) -> ImageResult<()> {
-        let (ct, bits) = match color {
+        let (ct, bits) = match layout.color_type {
             ExtendedColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ExtendedColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
             ExtendedColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
@@ -653,7 +651,7 @@ impl<W: Write> PngEncoder<W> {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Png.into(),
-                        UnsupportedErrorKind::Color(color),
+                        UnsupportedErrorKind::Color(layout.color_type),
                     ),
                 ))
             }
@@ -684,7 +682,7 @@ impl<W: Write> PngEncoder<W> {
             FilterType::Adaptive => png::Filter::Adaptive,
         };
 
-        let mut info = png::Info::with_size(width, height);
+        let mut info = png::Info::with_size(layout.width, layout.height);
 
         if !self.icc_profile.is_empty() {
             info.icc_profile = Some(Cow::Borrowed(&self.icc_profile));
@@ -719,31 +717,18 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     /// native endian. `PngEncoder` will automatically convert to big endian as required by the
     /// underlying PNG format.
     #[track_caller]
-    fn write_image(
-        self,
-        buf: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ExtendedColorType,
-    ) -> ImageResult<()> {
+    fn write_image(&mut self, buf: &[u8], layout: ImageLayout) -> ImageResult<()> {
         use ExtendedColorType::*;
-
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
+        layout.assert_buffer_len(buf);
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
         // contract of `write_image`.
         // TODO: assumes equal channel bit depth.
-        match color_type {
+        match layout.color_type {
             L8 | La8 | Rgb8 | Rgba8 => {
                 // No reodering necessary for u8
-                self.encode_inner(buf, width, height, color_type)
+                self.encode_inner(buf, layout)
             }
             L16 | La16 | Rgb16 | Rgba16 => {
                 // Because the buffer is immutable and the PNG encoder does not
@@ -757,12 +742,12 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 } else {
                     buf
                 };
-                self.encode_inner(buf, width, height, color_type)
+                self.encode_inner(buf, layout)
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Png.into(),
-                    UnsupportedErrorKind::Color(color_type),
+                    UnsupportedErrorKind::Color(layout.color_type),
                 ),
             )),
         }

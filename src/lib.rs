@@ -195,6 +195,32 @@ pub mod imageops;
 // Buffer representations for ffi.
 pub use crate::images::flat;
 
+#[non_exhaustive]
+pub struct ImageLayout {
+    pub width: u32,
+    pub height: u32,
+    pub color_type: ExtendedColorType,
+}
+
+impl ImageLayout {
+    pub fn buffer_size(&self) -> u64 {
+        self.color_type.buffer_size(self.width, self.height)
+    }
+
+    pub(crate) fn assert_buffer_len(&self, buf: &[u8]) {
+        let expected_buffer_len = self.buffer_size();
+
+        assert_eq!(
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            buf.len(),
+            width = self.width,
+            height = self.height,
+        );
+    }
+}
+
 /// Encoding and decoding for various image file formats.
 ///
 /// # Supported formats

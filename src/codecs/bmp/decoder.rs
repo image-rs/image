@@ -9,7 +9,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::image_reader_type::SpecCompliance;
+use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
 use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -2177,10 +2177,11 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
-        self.read_image_data(buf)
+        self.read_image_data(buf)?;
+        Ok(DecodedImageAttributes::default())
     }
 }
 

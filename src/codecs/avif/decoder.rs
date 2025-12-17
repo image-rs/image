@@ -3,6 +3,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
@@ -389,7 +390,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         Ok(self.orientation)
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -486,7 +487,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
 
             // Squashing alpha plane into a picture
-            if let Some(picture) = self.alpha_picture {
+            if let Some(picture) = &self.alpha_picture {
                 if picture.pixel_layout() != PixelLayout::I400 {
                     return Err(ImageError::Decoding(DecodingError::new(
                         ImageFormat::Avif.into(),
@@ -522,7 +523,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
         }
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }
 

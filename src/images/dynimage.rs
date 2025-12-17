@@ -732,6 +732,17 @@ impl DynamicImage {
         )
     }
 
+    /// Return this image's pixels as a native endian byte slice.
+    #[must_use]
+    pub(crate) fn as_mut_bytes(&mut self) -> &mut [u8] {
+        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        dynamic_map!(
+            *self,
+            ref mut image_buffer,
+            bytemuck::cast_slice_mut(image_buffer.inner_pixels_mut())
+        )
+    }
+
     /// Shrink the capacity of the underlying [`Vec`] buffer to fit its length.
     ///
     /// The data may have excess capacity or padding for a number of reasons, depending on how it

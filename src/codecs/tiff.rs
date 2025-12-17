@@ -17,6 +17,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -380,7 +381,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -404,7 +405,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         if layout.planes > 1 {
             // Note that we do not support planar layouts if we have to do conversion. Yet. See a
             // more detailed comment in the implementation.
-            return self.interleave_planes(layout, buf);
+            self.interleave_planes(layout, buf)?;
+            return Ok(DecodedImageAttributes::default());
         }
 
         match &self.buffer {
@@ -464,7 +466,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             DecodingResult::F16(_) => unreachable!(),
         }
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }
 

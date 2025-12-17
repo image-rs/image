@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use crc32fast::Hasher as Crc32;
 #[cfg(feature = "png")]
 use image::ImageDecoder as _;
-use image::{ColorType, DynamicImage, ImageFile};
+use image::{ColorType, DynamicImage, ImageReaderOptions};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -201,7 +201,7 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
-                let format = ImageFile::open(&img_path)
+                let format = ImageReaderOptions::open(&img_path)
                     .unwrap()
                     .with_guessed_format()
                     .unwrap()

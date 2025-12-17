@@ -1028,7 +1028,9 @@ where
 ///
 /// # Arguments
 ///
-///  - `sigma` - gaussian bell flattening level.
+/// * `radius` - Blurring window radius. These parameter controls directly the window size.
+///   We choose visually optimal sigma for the given radius. To control sigma
+///   directly use [DynamicImage::blur_advanced] instead.
 ///
 /// Use [`crate::imageops::fast_blur()`] for a faster but less
 /// accurate version.
@@ -1037,15 +1039,12 @@ where
 /// If it is not, color distortion may occur.
 pub fn blur<I: GenericImageView>(
     image: &I,
-    sigma: f32,
+    radius: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
-    gaussian_blur_indirect(
-        image,
-        GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
-    )
+    gaussian_blur_indirect(image, GaussianBlurParameters::new_from_radius(radius))
 }
 
 /// Performs a Gaussian blur on the supplied image.
@@ -1095,10 +1094,24 @@ pub struct GaussianBlurParameters {
     /// X-axis kernel, must be odd
     x_axis_kernel_size: u32,
     /// X-axis sigma, must > 0, not subnormal, and not NaN
+    ///
+    /// Sigma controls how flat the sample is. A visually optimal sigma is around
+    /// `window_size / 6`.
+    /// When sigma is close to the window size, the sample becomes almost flat,
+    /// behaving like a windowed average or a box blur.
+    /// When sigma is close to 1, only center pixels are involved in windowing,
+    /// so a smaller window is preferred in this case.
     x_axis_sigma: f32,
     /// Y-axis kernel, must be odd
     y_axis_kernel_size: u32,
     /// Y-axis sigma, must > 0, not subnormal, and not NaN
+    ///
+    /// Sigma controls how flat the sample is. A visually optimal sigma is around
+    /// `window_size / 6`.
+    /// When sigma is close to the window size, the sample becomes almost flat,
+    /// behaving like a windowed average or a box blur.
+    /// When sigma is close to 1, only center pixels are involved in windowing,
+    /// so a smaller window is preferred in this case.
     y_axis_sigma: f32,
 }
 

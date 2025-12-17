@@ -947,7 +947,9 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `sigma` - gaussian bell flattening level.
+    /// * `radius` - Blurring window radius. These parameter controls directly the window size.
+    ///   We choose visually optimal sigma for the given radius. To control sigma
+    ///   directly use [DynamicImage::blur_advanced] instead.
     ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
@@ -959,11 +961,8 @@ impl DynamicImage {
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
     #[must_use]
-    pub fn blur(&self, sigma: f32) -> DynamicImage {
-        gaussian_blur_dyn_image(
-            self,
-            GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
-        )
+    pub fn blur(&self, radius: f32) -> DynamicImage {
+        gaussian_blur_dyn_image(self, GaussianBlurParameters::new_from_radius(radius))
     }
 
     /// Performs a Gaussian blur on this image.

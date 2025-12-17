@@ -86,7 +86,7 @@ pub trait ImageDecoder {
     /// ```
     /// # use image::ImageDecoder;
     /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
-    ///     let layout = decoder.next_layout().unwrap();
+    ///     let layout = decoder.peek_layout().unwrap();
     ///     let mut buf: Vec<u16> = vec![0; (layout.total_bytes() / 2) as usize];
     ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf)).unwrap();
     ///     buf

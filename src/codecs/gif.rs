@@ -369,6 +369,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         if let Err(e) = local_limits.reserve_buffer(frame.width, frame.height, COLOR_TYPE) {
             return Some(Err(e));
         }
+
         // Allocate the buffer now that the limits allowed it
         let mut vec = vec![0; decoder.buffer_size()];
         if let Err(err) = decoder.read_into_buffer(&mut vec) {

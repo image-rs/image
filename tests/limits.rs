@@ -15,7 +15,9 @@
 
 use std::io::Cursor;
 
-use image::{load_from_memory_with_format, ImageDecoder, ImageFile, ImageFormat, Limits, RgbImage};
+use image::{
+    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReaderOptions, Limits, RgbImage,
+};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
@@ -58,7 +60,7 @@ fn load_through_reader(
     format: ImageFormat,
     limits: Limits,
 ) -> Result<image::DynamicImage, image::ImageError> {
-    let mut reader = ImageFile::new(Cursor::new(input));
+    let mut reader = ImageReaderOptions::new(Cursor::new(input));
     reader.set_format(format);
     reader.limits(limits);
     reader.decode()
@@ -67,8 +69,6 @@ fn load_through_reader(
 #[test]
 #[cfg(feature = "gif")]
 fn gif() {
-    use image::codecs::gif::GifDecoder;
-
     let image = test_image(ImageFormat::Gif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());

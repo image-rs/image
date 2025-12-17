@@ -19,7 +19,7 @@ use crate::{
     imageops,
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
     ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
-    ImageEncoder, ImageFile, ImageFormat, Luma, LumaA,
+    ImageEncoder, ImageFormat, ImageReaderOptions, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -1140,19 +1140,17 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Rotates and/or flips the image as indicated by [Orientation].
+    /// Rotates and/or flips the image as indicated by [`Orientation`].
     ///
     /// This can be used to apply Exif orientation to an image,
     /// e.g. to correctly display a photo taken by a smartphone camera:
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// use image::{DynamicImage, ImageReader, ImageDecoder};
+    /// use image::{ImageReader, metadata::Orientation};
     ///
-    /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
-    /// let orientation = decoder.orientation()?;
-    /// let mut image = DynamicImage::from_decoder(decoder)?;
-    /// image.apply_orientation(orientation);
+    /// let mut image = ImageReader::open("file.jpg")?.decode()?;
+    /// image.apply_orientation(Orientation::Rotate90);
     /// # Ok(())
     /// # }
     /// ```
@@ -1643,7 +1641,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    ImageFile::open(path)?.decode()
+    ImageReaderOptions::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1655,7 +1653,7 @@ pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    ImageFile::open(path)?.into_dimensions()
+    ImageReaderOptions::open(path)?.into_dimensions()
 }
 
 /// Writes the supplied buffer to a writer in the specified format.

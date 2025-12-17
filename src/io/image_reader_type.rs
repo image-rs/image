@@ -3,9 +3,13 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::hooks;
+use crate::error::{
+    ImageFormatHint, ImageResult, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
 use crate::io::limits::Limits;
+use crate::io::DecodedImageAttributes;
+use crate::io::SequenceControl;
+use crate::{hooks, Delay, Frame, Frames};
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
 use super::free_functions;
@@ -211,14 +215,20 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// Convert the file into a reader object.
     pub fn into_reader(mut self) -> ImageResult<ImageReader<'a>> {
         let format = self.require_format()?;
-
         let mut decoder = Self::make_decoder(format, self.inner)?;
+
+        if let Some(max_alloc) = &mut self.limits.max_alloc {
+            // We'll take half for ourselves, half to the decoder.
+            *max_alloc /= 2;
+        }
+
         decoder.set_limits(self.limits.clone())?;
 
         Ok(ImageReader {
             inner: decoder,
             viewbox: None,
             limits: self.limits,
+            last_attributes: Default::default(),
         })
     }
 
@@ -327,6 +337,8 @@ pub struct ImageReader<'lt> {
     viewbox: Option<crate::math::Rect>,
     /// Remaining limits for allocations by the reader.
     limits: Limits,
+    /// A buffered cache of the last image attributes.
+    last_attributes: DecodedImageAttributes,
 }
 
 impl ImageReaderOptions<BufReader<File>> {
@@ -493,5 +505,78 @@ impl<'stream> ImageReader<'stream> {
     /// before use.
     pub fn open<P: AsRef<Path>>(path: P) -> ImageResult<Self> {
         ImageReaderOptions::open(path)?.into_reader()
+    }
+
+    /// Read images from a boxed decoder.
+    ///
+    /// This can be used to interact with decoder instances that have not been created by `image`
+    /// or registered hooks.
+    ///
+    /// The [`ImageReader`] abstracts interaction with the decoder as user facing methods to decode
+    /// any further images that the decoder can provide. The decoder is assumed to be already
+    /// configured with limits but the reader will make some additional allocations for which it
+    /// has its own set of default limits.
+    pub fn from_decoder(boxed: Box<dyn ImageDecoder + 'stream>) -> Self {
+        ImageReader {
+            inner: boxed,
+            viewbox: None,
+            limits: Limits::default(),
+            last_attributes: Default::default(),
+        }
+    }
+
+    /// Reconfigure the limits for decoding.
+    pub fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
+        if let Some(max_alloc) = &mut limits.max_alloc {
+            // We'll take half for ourselves, half to the decoder.
+            *max_alloc /= 2;
+        }
+
+        self.inner.set_limits(limits.clone())?;
+        self.limits = limits;
+        Ok(())
+    }
+
+    /// Consume the reader as a series of frames.
+    ///
+    /// The iterator will end (start returning `None`) when the decoder indicates that no more
+    /// images are present in the stream by setting [`ImageDecoder::more_images`] to
+    /// [`SequenceControl::None`]. Decoding can return [`ParameterError`] in
+    /// [`ImageDecoder::peek_layout`] or [`ImageDecoder::read_image`] with kind set to
+    /// [`None`](crate::io::SequenceControl::None), which is also treated as end of stream. This
+    /// may be used by decoders which can not determine the number of images in advance.
+    pub fn into_frames(mut self) -> Frames<'stream> {
+        fn is_end_reached(err: &ImageError) -> bool {
+            if let ImageError::Parameter(ref param_err) = err {
+                matches!(param_err.kind(), ParameterErrorKind::NoMoreData)
+            } else {
+                false
+            }
+        }
+
+        let iter = core::iter::from_fn(move || {
+            match self.inner.more_images() {
+                SequenceControl::MaybeMore => {}
+                SequenceControl::None => return None,
+            }
+
+            let no_delay = Delay::from_saturating_duration(Default::default());
+
+            let frame = match self.decode() {
+                Ok(frame) => frame,
+                Err(ref err) if is_end_reached(err) => return None,
+                Err(err) => return Some(Err(err)),
+            };
+
+            let x = self.last_attributes.x;
+            let y = self.last_attributes.y;
+            let delay = self.last_attributes.delay.unwrap_or(no_delay);
+            let frame = frame.into_rgba8();
+
+            let frame = Frame::from_parts(frame, x, y, delay);
+            Some(Ok(frame))
+        });
+
+        Frames::new(Box::new(iter))
     }
 }

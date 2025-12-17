@@ -20,6 +20,8 @@ pub type Limits = limits::Limits;
 /// Deprecated re-export of `LimitSupport`
 pub type LimitSupport = limits::LimitSupport;
 
+pub use decoder::{DecodedImageAttributes, SequenceControl};
+
 /// Adds `read_exact_vec`
 pub(crate) trait ReadExt {
     fn read_exact_vec(&mut self, vec: &mut Vec<u8>, len: usize) -> io::Result<()>;

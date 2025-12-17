@@ -1,6 +1,6 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
 use crate::error::DecodingError;
-use crate::io::ReadExt;
+use crate::io::{DecodedImageAttributes, ReadExt};
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -399,7 +399,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             .unwrap_or_else(|| self.color_type().into())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -453,6 +453,6 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         self.reverse_encoding_in_output(buf);
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }

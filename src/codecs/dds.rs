@@ -16,6 +16,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
@@ -334,7 +335,7 @@ impl<R: Read> ImageDecoder for DdsDecoder<R> {
         self.inner.color_type()
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.inner.read_image(buf)
     }
 }

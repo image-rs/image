@@ -11,7 +11,7 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::ReadExt;
+use crate::io::{DecodedImageAttributes, ReadExt};
 use crate::{utils, ImageDecoder, ImageFormat};
 
 /// All errors that can occur when attempting to parse a PNM
@@ -625,9 +625,10 @@ impl<R: Read> ImageDecoder for PnmDecoder<R> {
         }
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+
         match self.tuple {
             TupleType::PbmBit => self.read_samples::<PbmBit>(1, buf),
             TupleType::BWBit => self.read_samples::<BWBit>(1, buf),
@@ -640,7 +641,9 @@ impl<R: Read> ImageDecoder for PnmDecoder<R> {
             TupleType::GrayAlphaU8 => self.read_samples::<U8>(2, buf),
             TupleType::GrayU16 => self.read_samples::<U16>(1, buf),
             TupleType::GrayAlphaU16 => self.read_samples::<U16>(2, buf),
-        }
+        }?;
+
+        Ok(DecodedImageAttributes::default())
     }
 }
 

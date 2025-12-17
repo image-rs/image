@@ -157,11 +157,12 @@ fn resizing_with_alpha() {
     use image::GenericImageView as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
-    let image =
-        image::ImageFile::open(base.join("regression/image/resize-with-alpha-original.png"))
-            .unwrap()
-            .decode()
-            .unwrap();
+    let image = image::ImageReaderOptions::open(
+        base.join("regression/image/resize-with-alpha-original.png"),
+    )
+    .unwrap()
+    .decode()
+    .unwrap();
 
     let (w, h) = image.dimensions();
     let mut resizable = image.clone();
@@ -190,13 +191,14 @@ fn resizing_with_catmul() {
     use image::GenericImageView as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
-    let image =
-        image::ImageFile::open(base.join("regression/image/resize-with-alpha-original.png"))
-            .unwrap()
-            .decode()
-            .unwrap();
+    let image = image::ImageReaderOptions::open(
+        base.join("regression/image/resize-with-alpha-original.png"),
+    )
+    .unwrap()
+    .decode()
+    .unwrap();
 
-    let expected = image::ImageFile::open(
+    let expected = image::ImageReaderOptions::open(
         base.join("regression/image/resize-with-alpha-original-half-size.png"),
     )
     .unwrap()

@@ -16,6 +16,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
@@ -290,7 +291,7 @@ pub struct ApngDecoder<R: BufRead + Seek> {
     dispose: DisposeOp,
 
     /// The region to dispose of the previous frame.
-    dispose_region: Option<(u32, u32, u32, u32)>,
+    dispose_region: Option<Rect>,
     /// The number of image still expected to be able to load.
     remaining: u32,
     /// The next (first) image is the thumbnail.
@@ -385,8 +386,8 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             }
             DisposeOp::Background => {
                 previous.clone_from(current);
-                if let Some((px, py, width, height)) = self.dispose_region {
-                    let mut region_current = current.sub_image(px, py, width, height);
+                if let Some(rect) = self.dispose_region {
+                    let mut region_current = current.sub_image(rect);
 
                     // FIXME: This is a workaround for the fact that `pixels_mut` is not implemented
                     let pixels: Vec<_> = region_current.pixels().collect();
@@ -402,12 +403,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 }
             }
             DisposeOp::Previous => {
-                let (px, py, width, height) = self
+                let rect = self
                     .dispose_region
                     .expect("The first frame must not set dispose=Previous");
-                let region_previous = previous.sub_image(px, py, width, height);
+                let region_previous = previous.sub_image(rect);
                 current
-                    .copy_from(&region_previous.to_image(), px, py)
+                    .copy_from(&region_previous.to_image(), rect.x, rect.y)
                     .unwrap();
             }
         }
@@ -452,7 +453,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             }
         }
 
-        self.dispose_region = Some((px, py, width, height));
+        self.dispose_region = Some(Rect {
+            x: px,
+            y: py,
+            width,
+            height,
+        });
 
         // Turn the data into an rgba image proper.
         limits.reserve_buffer(width, height, COLOR_TYPE)?;

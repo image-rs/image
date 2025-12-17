@@ -12,7 +12,7 @@ use crate::images::buffer::{
 };
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
-use crate::math::resize_dimensions;
+use crate::math::{resize_dimensions, Rect};
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
@@ -495,18 +495,9 @@ impl DynamicImage {
     }
 
     /// Return a cut-out of this image delimited by the bounding rectangle.
-    ///
-    /// Note: this method does *not* modify the object,
-    /// and its signature will be replaced with `crop_imm()`'s in the 0.24 release
     #[must_use]
-    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
-        dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
-    }
-
-    /// Return a cut-out of this image delimited by the bounding rectangle.
-    #[must_use]
-    pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::crop_imm(p, x, y, width, height).to_image())
+    pub fn crop(&self, selection: Rect) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::crop_imm(p, selection).to_image())
     }
 
     /// Return a reference to an 8bit RGB image
@@ -941,12 +932,15 @@ impl DynamicImage {
         let ratio = u64::from(iwidth) * u64::from(nheight);
         let nratio = u64::from(nwidth) * u64::from(iheight);
 
-        let cropped = if nratio > ratio {
-            self.crop(0, (iheight - nheight) / 2, nwidth, nheight)
+        let select = if nratio > ratio {
+            let y = (iheight - nheight) / 2;
+            Rect::from_xy_ranges(0..nwidth, y..y + nheight)
         } else {
-            self.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
+            let x = (iwidth - nwidth) / 2;
+            Rect::from_xy_ranges(x..x + nwidth, 0..nheight)
         };
-        *self = cropped;
+
+        *self = self.crop(select);
     }
 
     /// Performs a Gaussian blur on this image.

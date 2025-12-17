@@ -41,6 +41,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
 use crate::{
@@ -152,7 +153,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let decoder = self.ensure_decoder()?;
         let layout @ crate::ImageLayout { width, height, .. } = Self::layout_from_decoder(decoder);
 
@@ -258,7 +259,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         }
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -470,7 +471,11 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn loop_count(&self) -> LoopCount {
-        match self.reader.repeat() {
+        match self
+            .decoder
+            .as_ref()
+            .map_or(gif::Repeat::Infinite, |r| r.repeat())
+        {
             gif::Repeat::Finite(n) => LoopCount::Finite(
                 NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
             ),

@@ -1,6 +1,7 @@
 //! Decoding and encoding of QOI images
 
 use crate::error::{DecodingError, EncodingError, UnsupportedError, UnsupportedErrorKind};
+use crate::io::DecodedImageAttributes;
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -34,9 +35,9 @@ impl<R: Read> ImageDecoder for QoiDecoder<R> {
         }
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.decoder.decode_to_buf(buf).map_err(decoding_error)?;
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }
 

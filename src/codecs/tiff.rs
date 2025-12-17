@@ -17,6 +17,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -333,7 +334,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -399,7 +400,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             }
             DecodingResult::F16(_) => unreachable!(),
         }
-        Ok(())
+
+        Ok(DecodedImageAttributes::default())
     }
 }
 

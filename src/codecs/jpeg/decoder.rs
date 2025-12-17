@@ -7,7 +7,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::image_reader_type::SpecCompliance;
+use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
 use crate::metadata::Orientation;
 use crate::{ImageDecoder, ImageFormat, Limits};
 
@@ -166,7 +166,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(self.orientation.unwrap())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
 
         let advertised_len = layout.total_bytes();
@@ -191,7 +191,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         );
 
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
-        Ok(())
+
+        Ok(DecodedImageAttributes::default())
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {

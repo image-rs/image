@@ -26,6 +26,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -133,7 +134,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image(&mut self, unaligned_bytes: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, unaligned_bytes: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let (width, height) = self.dimensions();
 
         let reader = self.exr_reader.take().ok_or_else(|| {
@@ -214,7 +215,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             result.layer_data.channel_data.pixels.as_slice(),
         ));
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }
 

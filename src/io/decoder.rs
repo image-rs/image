@@ -2,6 +2,7 @@ use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
 use crate::metadata::Orientation;
+use crate::Delay;
 
 /// The interface for `image` to utilize in reading image files.
 ///
@@ -92,7 +93,7 @@ pub trait ImageDecoder {
     ///     buf
     /// }
     /// ```
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()>;
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes>;
 
     /// Returns the ICC color profile embedded in the image, or `Ok(None)` if the image does not have one.
     ///
@@ -157,6 +158,51 @@ pub trait ImageDecoder {
     fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
         Err(rect)
     }
+
+    /// Called to determine if there may be more images to decode.
+    ///
+    /// This ends the decoding loop early when it indicates `None`. Otherwise, termination can only
+    /// be handled through errors. See also
+    /// [`ImageReader::into_frames`](crate::ImageReader::into_frames).
+    fn more_images(&self) -> SequenceControl {
+        SequenceControl::MaybeMore
+    }
+}
+
+/// Additional attributes of an image available after decoding.
+///
+/// The [`Default`] is implemented and returns a value suitable for very basic images from formats
+/// that contain only one raster graphic.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct DecodedImageAttributes {
+    /// The x-coordinate of the top-left rectangle of the image relative to canvas indicated by the
+    /// sequence of frames.
+    pub x: u32,
+    /// The y-coordinate of the top-left rectangle of the image relative to canvas indicated by the
+    /// sequence of frames.
+    pub y: u32,
+    /// A suggested presentation offset relative to the previous image.
+    pub delay: Option<Delay>,
+}
+
+/// Indicate if there may be more images to decode.
+///
+/// More concrete indications may be added in the future.
+#[non_exhaustive]
+#[derive(Default)]
+pub enum SequenceControl {
+    /// The format can not certainly say if there are more images. The caller should try to decode
+    /// more images until an error occurs (specifically
+    /// [`ParameterErrorKind::NoMoreData`](crate::error::ParameterErrorKind::NoMoreData)).
+    #[default]
+    MaybeMore,
+    /// The decoder is sure that no more images are present.
+    ///
+    /// Further attempts to decode images should not be made, but no strong guarantee is made about
+    /// returning an error in these cases. In particular, further attempts may further read the
+    /// image file and check for errors in trailing data.
+    None,
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -188,7 +234,7 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn orientation(&mut self) -> ImageResult<Orientation> {
         (**self).orientation()
     }
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         (**self).read_image(buf)
     }
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
@@ -196,6 +242,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
         (**self).viewbox(rect)
+    }
+    fn more_images(&self) -> SequenceControl {
+        (**self).more_images()
     }
 }
 
@@ -207,7 +256,7 @@ pub trait AnimationDecoder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColorType, ImageDecoder, ImageResult};
+    use super::{ColorType, DecodedImageAttributes, ImageDecoder, ImageResult};
 
     #[test]
     fn total_bytes_overflow() {
@@ -220,7 +269,7 @@ mod tests {
             fn dimensions(&self) -> (u32, u32) {
                 (0xffff_ffff, 0xffff_ffff)
             }
-            fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<()> {
+            fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
                 unreachable!("Must not be called in this test")
             }
         }

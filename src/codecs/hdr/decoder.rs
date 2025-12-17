@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -302,7 +303,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         ColorType::Rgb32F
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -313,7 +314,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
             buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
         }
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 }
 

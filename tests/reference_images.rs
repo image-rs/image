@@ -210,7 +210,6 @@ fn check_references() {
                 #[cfg(feature = "gif")]
                 if format == Some(image::ImageFormat::Gif) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
                     let decoder = match image::codecs::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
@@ -220,6 +219,7 @@ fn check_references() {
                         }
                     };
 
+                    let decoder = image::ImageReader::from_decoder(Box::new(decoder));
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
@@ -238,7 +238,6 @@ fn check_references() {
                 #[cfg(feature = "png")]
                 if format == Some(image::ImageFormat::Png) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
 
                     let mut decoder = image::codecs::png::PngDecoder::new(stream);
@@ -250,6 +249,7 @@ fn check_references() {
                         }
                     };
 
+                    let decoder = image::ImageReader::from_decoder(Box::new(decoder));
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,

@@ -40,6 +40,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
@@ -150,7 +151,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(())
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let decoder = self.ensure_decoder()?;
         let layout @ crate::ImageLayout { width, height, .. } = Self::layout_from_decoder(decoder);
 
@@ -256,7 +257,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         }
 
-        Ok(())
+        Ok(DecodedImageAttributes::default())
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

@@ -6,6 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -285,7 +286,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         match &mut self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
@@ -375,10 +376,10 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         }
                     }
 
-                    Ok(())
+                    Ok(DecodedImageAttributes::default())
                 } else if data_end == image_end {
                     // accept images with no mask data
-                    Ok(())
+                    Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
                 }
@@ -439,6 +440,15 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.viewbox(rect),
             Png(decoder) => decoder.viewbox(rect),
+        }
+    }
+
+    fn more_images(&self) -> crate::io::SequenceControl {
+        // ICO files only provide a single image for now. This may change in the future, we might
+        // want to yield the others as thumbnails.
+        match &self.inner_decoder {
+            Bmp(decoder) => decoder.more_images(),
+            Png(decoder) => decoder.more_images(),
         }
     }
 }

@@ -11,6 +11,7 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::io::DecodedImageAttributes;
 use crate::io::ReadExt;
 use crate::ImageDecoder;
 
@@ -137,7 +138,7 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
         self.variant.color_type()
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -145,7 +146,8 @@ impl<R: Read> ImageDecoder for DxtDecoder<R> {
         for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
             self.read_scanline(chunk)?;
         }
-        Ok(())
+
+        Ok(DecodedImageAttributes::default())
     }
 }
 

@@ -184,6 +184,7 @@ pub(crate) fn guess_format_extension(start: &[u8]) -> Option<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::DecodedImageAttributes;
     use crate::{ColorType, DynamicImage, ImageReaderOptions};
     use std::io::Cursor;
 
@@ -198,9 +199,9 @@ mod tests {
         fn color_type(&self) -> ColorType {
             ColorType::Rgb8
         }
-        fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
             buf[..MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
-            Ok(())
+            Ok(DecodedImageAttributes::default())
         }
     }
     fn is_mock_decoder_output(image: DynamicImage) -> bool {

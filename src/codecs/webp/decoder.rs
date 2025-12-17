@@ -2,6 +2,7 @@ use std::io::{BufRead, Read, Seek};
 
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{
     AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
@@ -51,13 +52,15 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         }
     }
 
-    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         self.inner
             .read_image(buf)
-            .map_err(ImageError::from_webp_decode)
+            .map_err(ImageError::from_webp_decode)?;
+
+        Ok(DecodedImageAttributes::default())
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

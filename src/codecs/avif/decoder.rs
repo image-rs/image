@@ -343,8 +343,9 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let bit_depth = self.picture.bit_depth();
 
@@ -477,10 +478,6 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         }
 
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

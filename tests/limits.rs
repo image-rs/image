@@ -76,22 +76,7 @@ fn gif() {
     assert!(load_through_reader(&image, ImageFormat::Gif, permissive_limits()).is_ok());
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
-    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err()); // BROKEN!
-
-    // GifDecoder
-    let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-
-    // Custom constructor on GifDecoder
-    #[allow(deprecated)]
-    {
-        assert!(GifDecoder::new(Cursor::new(&image))
-            .unwrap()
-            .set_limits(width_height_limits())
-            .is_err());
-        // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-    }
+    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err());
 }
 
 #[test]

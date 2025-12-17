@@ -17,12 +17,12 @@
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
-//! use image::ImageFile;
+//! use image::ImageReader;
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let bytes = vec![0u8];
 //!
-//! let img = ImageFile::open("myimage.png")?.decode()?;
-//! let img2 = ImageFile::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img = ImageReader::open("myimage.png")?.decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes))?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -99,7 +99,7 @@
 //! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
 //! let mut decoder = PngDecoder::new(&mut reader);
-//! decoder.init()?;
+//! let layout = decoder.peek_layout()?;
 //!
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;
@@ -165,7 +165,7 @@ pub use crate::io::{
     decoder::{AnimationDecoder, ImageDecoder},
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::{ImageFile, ImageReader},
+    image_reader_type::{ImageReader, ImageReaderOptions},
     limits::{LimitSupport, Limits},
     ImageLayout,
 };

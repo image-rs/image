@@ -16,11 +16,11 @@ enum Format {
     Extension(OsString),
 }
 
-/// A multi-format image reader.
+/// Determine the format for an image reader.
 ///
 /// Wraps an input stream to facilitate automatic detection of an image's format, appropriate
-/// decoding method, and turn it into an [`ImageDecoder`] implementation. For convenience, it also
-/// allows directly decoding into a [`DynamicImage`].
+/// decoding method, and turn it into an [`ImageReader`] or a boxed [`ImageDecoder`]
+/// implementation. For convenience, it also allows directly decoding into a [`DynamicImage`].
 ///
 /// ## Usage
 ///
@@ -29,9 +29,9 @@ enum Format {
 ///
 /// ```no_run
 /// # use image::ImageError;
-/// # use image::ImageFile;
+/// # use image::ImageReaderOptions;
 /// # fn main() -> Result<(), ImageError> {
-/// let image = ImageFile::open("path/to/image.png")?
+/// let image = ImageReaderOptions::open("path/to/image.png")?
 ///     .decode()?;
 /// # Ok(()) }
 /// ```
@@ -42,7 +42,7 @@ enum Format {
 ///
 /// ```
 /// # use image::ImageError;
-/// # use image::ImageFile;
+/// # use image::ImageReaderOptions;
 /// # fn main() -> Result<(), ImageError> {
 /// use std::io::Cursor;
 /// use image::ImageFormat;
@@ -51,7 +51,7 @@ enum Format {
 ///     0 1\n\
 ///     1 0\n";
 ///
-/// let mut reader = ImageFile::new(Cursor::new(raw_data))
+/// let mut reader = ImageReaderOptions::new(Cursor::new(raw_data))
 ///     .with_guessed_format()
 ///     .expect("Cursor io never fails");
 /// assert_eq!(reader.format(), Some(ImageFormat::Pnm));
@@ -65,8 +65,7 @@ enum Format {
 /// specification of the supposed image format with [`set_format`].
 ///
 /// [`set_format`]: #method.set_format
-/// [`ImageDecoder`]: ../trait.ImageDecoder.html
-pub struct ImageFile<R: Read + Seek> {
+pub struct ImageReaderOptions<R: Read + Seek> {
     /// The reader. Should be buffered.
     inner: R,
     /// The format, if one has been set or deduced.
@@ -75,24 +74,7 @@ pub struct ImageFile<R: Read + Seek> {
     limits: Limits,
 }
 
-/// An abstracted image reader.
-///
-/// Wraps an input reader after its format was determined. It provides more detailed decoding
-/// methods than [`ImageFile`] and under the hood dispatches into the set of supported
-/// [`ImageDecoder`] implementations. For decoder interface that are provided for efficiency it
-/// negotiates support with the underlying decoder and then emulates them if necessary.
-pub struct ImageReader<'lt> {
-    /// The reader. Should be buffered.
-    inner: Box<dyn ImageDecoder + 'lt>,
-    /// An additional viewbox to apply after decoding.
-    ///
-    /// This is only used if the inner decoder does not support viewboxes directly.
-    viewbox: Option<crate::math::Rect>,
-    /// Remaining limits for allocations by the reader.
-    limits: Limits,
-}
-
-impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
@@ -104,7 +86,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     /// [`with_guessed_format`]: #method.with_guessed_format
     /// [`set_format`]: method.set_format
     pub fn new(buffered_reader: R) -> Self {
-        ImageFile {
+        ImageReaderOptions {
             inner: buffered_reader,
             format: None,
             limits: Limits::default(),
@@ -116,7 +98,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     /// Assumes the reader is already buffered. For optimal performance,
     /// consider wrapping the reader with a `BufReader::new()`.
     pub fn with_format(buffered_reader: R, format: ImageFormat) -> Self {
-        ImageFile {
+        ImageReaderOptions {
             inner: buffered_reader,
             format: Some(Format::BuiltIn(format)),
             limits: Limits::default(),
@@ -160,11 +142,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
         self.inner
     }
 
-    /// Makes a decoder.
-    ///
-    /// For all formats except PNG, the limits are ignored and can be set with
-    /// `ImageDecoder::set_limits` after calling this function. PNG is handled specially because that
-    /// decoder has a different API which does not allow setting limits after construction.
+    /// Take the readable IO stream and construct a decoder around it.
     fn make_decoder(format: Format, reader: R) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         #[allow(unused)]
         use crate::codecs::*;
@@ -223,11 +201,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
         })
     }
 
-    /// Convert the file into a decoder ready to read an image.
+    /// Convert the file into its raw decoder ready to read an image.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
         let mut decoder = Self::make_decoder(self.require_format()?, self.inner)?;
         decoder.set_limits(self.limits)?;
-        decoder.peek_layout()?;
         Ok(decoder)
     }
 
@@ -260,15 +237,15 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     ///
     /// ## Usage
     ///
-    /// This supplements the path based type deduction from [`ImageFile::open()`] with content based deduction.
-    /// This is more common in Linux and UNIX operating systems and also helpful if the path can
-    /// not be directly controlled.
+    /// This supplements the path based type deduction from [`Self::open`] with content based
+    /// deduction. This is more common in Linux and UNIX operating systems and also helpful if the
+    /// path can not be directly controlled.
     ///
     /// ```no_run
     /// # use image::ImageError;
-    /// # use image::ImageFile;
+    /// # use image::ImageReaderOptions;
     /// # fn main() -> Result<(), ImageError> {
-    /// let image = ImageFile::open("image.unknown")?
+    /// let image = ImageReaderOptions::open("image.unknown")?
     ///     .with_guessed_format()?
     ///     .decode()?;
     /// # Ok(()) }
@@ -321,8 +298,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     ///
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn decode(self) -> ImageResult<DynamicImage> {
-        let mut reader = self.into_reader()?;
-        reader.decode()
+        self.into_reader()?.decode()
     }
 
     fn require_format(&mut self) -> ImageResult<Format> {
@@ -335,7 +311,25 @@ impl<'a, R: 'a + BufRead + Seek> ImageFile<R> {
     }
 }
 
-impl ImageFile<BufReader<File>> {
+/// An abstracted image reader.
+///
+/// Wraps an image decoder, which operates on a stream after its format was determined.
+/// [`ImageReaderOptions`] dispatches into the set of supported [`ImageDecoder`] implementations
+/// and can wrap them up as an [`ImageReader`]. For decoder interface that are provided for
+/// efficiency it negotiates support with the underlying decoder and then emulates them if
+/// necessary.
+pub struct ImageReader<'lt> {
+    /// The reader. Should be buffered.
+    inner: Box<dyn ImageDecoder + 'lt>,
+    /// An additional viewbox to apply after decoding.
+    ///
+    /// This is only used if the inner decoder does not support viewboxes directly.
+    viewbox: Option<crate::math::Rect>,
+    /// Remaining limits for allocations by the reader.
+    limits: Limits,
+}
+
+impl ImageReaderOptions<BufReader<File>> {
     /// Open a file to read, format will be guessed from path.
     ///
     /// This will not attempt any io operation on the opened file.
@@ -357,7 +351,7 @@ impl ImageFile<BufReader<File>> {
             .filter(|ext| !ext.is_empty())
             .map(|ext| Format::Extension(ext.to_owned()));
 
-        Ok(ImageFile {
+        Ok(ImageReaderOptions {
             inner: BufReader::new(File::open(path)?),
             format,
             limits: Limits::default(),
@@ -473,5 +467,31 @@ impl ImageReader<'_> {
     /// Get the previously decoded IPTC metadata if any.
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.iptc_metadata()
+    }
+}
+
+impl<'stream> ImageReader<'stream> {
+    /// Open the image in a readable stream.
+    ///
+    /// The format is guessed from a fixed array of bytes at stream's start. Hooks can be
+    /// configured to customize this behavior, see [`hooks`](crate::hooks) for details.
+    ///
+    /// The reader will use default limits. Use [`ImageReaderOptions`] to configure the reader
+    /// before use.
+    pub fn new<R: 'stream + BufRead + Seek>(reader: R) -> ImageResult<Self> {
+        ImageReaderOptions::new(reader)
+            .with_guessed_format()?
+            .into_reader()
+    }
+
+    /// Open the image located at the path specified.
+    ///
+    /// The image's format is determined from the path's file extension. Hooks can be configured to
+    /// customize this behavior, see [`hooks`](crate::hooks) for details.
+    ///
+    /// The reader will use default limits. Use [`ImageReaderOptions`] to configure the reader
+    /// before use.
+    pub fn open<P: AsRef<Path>>(path: P) -> ImageResult<Self> {
+        ImageReaderOptions::open(path)?.into_reader()
     }
 }

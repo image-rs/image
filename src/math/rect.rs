@@ -27,7 +27,26 @@ impl Rect {
     /// assert_eq!(rect.width, 10);
     /// assert_eq!(rect.height, 20);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics with debug assertions if the end of either range is less than the start. In release
+    /// configurations that is treated as an empty range, the top-left coordinate is copied from
+    /// the start and the width or height respectively is set to zero.
     pub fn from_xy_ranges(x: Range<u32>, y: Range<u32>) -> Self {
+        debug_assert!(
+            x.start <= x.end,
+            "Range for x is incorrectly empty: {}..{}",
+            x.start,
+            x.end
+        );
+        debug_assert!(
+            y.start <= y.end,
+            "Range for y is incorrectly empty: {}..{}",
+            x.start,
+            x.end
+        );
+
         Self {
             x: x.start,
             y: y.start,

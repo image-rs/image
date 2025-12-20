@@ -989,6 +989,64 @@ where
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel;
     }
+
+    /// Crop this image in place, removing pixels outside of the bounding rectangle.
+    ///
+    /// This behaves similar to [`imageops::crop`](crate::imageops::crop) except no additional
+    /// allocation takes place. The width and height of this buffer are adjusted as part of the
+    /// operation. The selection is shrunk to the overlap with this image if it is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use image::{RgbImage, math::Rect};
+    ///
+    /// let mut img = RgbImage::new(128, 128);
+    /// img.put_pixel(64, 64, image::Rgb([255, 0, 0]));
+    ///
+    /// let selection = Rect::from_xy_ranges(64..128, 64..128);
+    /// img.crop_in_place(selection);
+    ///
+    /// assert_eq!(img.dimensions(), (64, 64));
+    /// assert_eq!(img.get_pixel(0, 0), &image::Rgb([255, 0, 0]));
+    /// ```
+    ///
+    /// Selections beyond the image bounds are clamped.
+    ///
+    /// ```
+    /// use image::{RgbImage, math::Rect};
+    ///
+    /// let mut img = RgbImage::new(32, 32);
+    /// let selection = Rect::from_xy_ranges(16..40, 16..24);
+    /// # use image::GenericImageView as _;
+    /// # assert_eq!(image::imageops::crop_imm(&img, selection).dimensions(), (16, 8));
+    ///
+    /// img.crop_in_place(selection);
+    /// assert_eq!(img.dimensions(), (16, 8));
+    /// ```
+    pub fn crop_in_place(&mut self, selection: Rect) {
+        let selection = selection.crop_dimms(self);
+        // We're now running essentially `copy_within` with differing source and destination row
+        // pitches. The above ensures that the target row pitch is smaller than our current one and
+        // we copy to offset `0` so always all data backwards.
+        //
+        // Since `selection` describes a smaller layout than our own, all indices that are computed
+        // from the pitches as type `usize` are within the bounds of the type and the underlying
+        // storage and we assume them to be valid. (If the `DerefMut` is malicious you'll get
+        // panics at runtime but that is not our problem, violating the contract of the container
+        // type for channels).
+        let rowlen = (selection.width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+
+        for y in 0..selection.height {
+            let sy = selection.y + y;
+            let source = self.pixel_indices_unchecked(selection.x, sy).start;
+            let dst = y as usize * rowlen;
+            self.data.copy_within(source..source + rowlen, dst);
+        }
+
+        self.width = selection.width;
+        self.height = selection.height;
+    }
 }
 
 impl<P: Pixel, Container> ImageBuffer<P, Container> {

@@ -500,6 +500,14 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::crop_imm(p, selection).to_image())
     }
 
+    /// Crop this image in place, removing pixels outside of the bounding rectangle.
+    ///
+    /// See [`ImageBuffer::crop_in_place`] for more details. This changes the image with its
+    /// current color type.
+    pub fn crop_in_place(&mut self, selection: Rect) {
+        dynamic_map!(self, ref mut p, p.crop_in_place(selection))
+    }
+
     /// Return a reference to an 8bit RGB image
     #[must_use]
     pub fn as_rgb8(&self) -> Option<&RgbImage> {

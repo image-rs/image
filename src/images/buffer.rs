@@ -996,6 +996,9 @@ where
     /// allocation takes place. The width and height of this buffer are adjusted as part of the
     /// operation. The selection is shrunk to the overlap with this image if it is out of bounds.
     ///
+    /// The pixel buffer is *not* shrunk and will continue to occupy the same amount of memory as
+    /// before. See [`ImageBuffer::shrink_to_fit`] if the container is a [`Vec`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -1475,6 +1478,27 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     #[must_use]
     pub fn into_vec(self) -> Vec<P::Subpixel> {
         self.into_raw()
+    }
+
+    /// Shrink the length and capacity of the data buffer to fit the image size.
+    ///
+    /// This is useful after shrinking an image in-place, e.g. via cropping, to free unused memory
+    /// or in case the image was created from a buffer with excess capacity.
+    ///
+    /// ```
+    /// use image::RgbImage;
+    ///
+    /// let data = vec![0u8; 10000];
+    /// // `from_raw` allows excess data
+    /// let mut img = RgbImage::from_raw(16, 16, data).unwrap();
+    /// img.shrink_to_fit();
+    ///
+    /// assert_eq!(img.into_vec().len(), 16 * 16 * 3);
+    /// ```
+    pub fn shrink_to_fit(&mut self) {
+        let need = self.inner_pixels().len();
+        self.data.truncate(need);
+        self.data.shrink_to_fit();
     }
 
     /// Transfer the meta data, not the pixel values.

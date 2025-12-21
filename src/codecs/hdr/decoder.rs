@@ -143,17 +143,22 @@ impl Rgbe8Pixel {
     /// Converts `Rgbe8Pixel` into `Rgb<f32>` linearly
     #[inline]
     pub(crate) fn to_hdr(self) -> Rgb<f32> {
-        if self.e == 0 {
-            Rgb([0.0, 0.0, 0.0])
+        // Directly construct the exponent 2.0^{e - 128 - 8}; because the normal
+        // exponent value range of f32, 1..=254, is slightly smaller than the
+        // range for rgbe8 (1..=255), a special case is needed to create the
+        // subnormal intermediate value 2^{e - 128} for e=1; the branch also
+        // implements the special case mapping of e=0 to exp=0.0.
+        let exp = f32::from_bits(if self.e > 1 {
+            ((self.e - 1) as u32) << 23
         } else {
-            //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128.0 + 8.0));
-            Rgb([
-                exp * <f32 as From<_>>::from(self.c[0]),
-                exp * <f32 as From<_>>::from(self.c[1]),
-                exp * <f32 as From<_>>::from(self.c[2]),
-            ])
-        }
+            (self.e as u32) << 22
+        }) * 0.00390625;
+
+        Rgb([
+            exp * <f32 as From<_>>::from(self.c[0]),
+            exp * <f32 as From<_>>::from(self.c[1]),
+            exp * <f32 as From<_>>::from(self.c[2]),
+        ])
     }
 }
 

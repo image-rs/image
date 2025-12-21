@@ -17,7 +17,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
     // TODO this method should probably already exist in the main image crate
     fn read_as_rgba_byte_image(read: impl BufRead + Seek) -> ImageResult<(u32, u32, Vec<u8>)> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
-        match usize::try_from(decoder.total_bytes()) {
+        match usize::try_from(decoder.peek_layout()?.total_bytes()) {
             Ok(decoded_size) if decoded_size <= 256 * 1024 * 1024 => {
                 decoder.set_limits(Limits::default())?;
                 let (width, height) = decoder.dimensions();

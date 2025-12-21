@@ -500,6 +500,15 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::crop_imm(p, selection).to_image())
     }
 
+    /// Crop this image in place, removing pixels outside of the bounding rectangle.
+    ///
+    /// See [`ImageBuffer::crop_in_place`] for more details. This changes the image with its
+    /// current color type. The pixel buffer is *not* shrunk and will continue to occupy the same
+    /// amount of memory as before. See [`Self::shrink_to_fit`].
+    pub fn crop_in_place(&mut self, selection: Rect) {
+        dynamic_map!(self, ref mut p, p.crop_in_place(selection))
+    }
+
     /// Return a reference to an 8bit RGB image
     #[must_use]
     pub fn as_rgb8(&self) -> Option<&RgbImage> {
@@ -713,6 +722,14 @@ impl DynamicImage {
             ref image_buffer,
             bytemuck::cast_slice(image_buffer.as_raw())
         )
+    }
+
+    /// Shrink the capacity of the underlying [`Vec`] buffer to fit its length.
+    ///
+    /// The data may have excess capacity or padding for a number of reasons, depending on how it
+    /// was created or from in-place manipulation such as [`Self::crop_in_place`].
+    pub fn shrink_to_fit(&mut self) {
+        dynamic_map!(self, ref mut p, p.shrink_to_fit());
     }
 
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`

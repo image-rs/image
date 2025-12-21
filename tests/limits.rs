@@ -51,7 +51,10 @@ fn permissive_limits() -> Limits {
     let mut limits = Limits::no_limits();
     limits.max_image_width = Some(WIDTH);
     limits.max_image_height = Some(HEIGHT);
-    limits.max_alloc = Some((WIDTH * HEIGHT * 5).into()); // `* 3`` would be an exact fit for RGB; `* 5`` allows some slack space
+    // `* 3`` would be an exact fit for RGB;
+    // `* 6` allows a duplicate buffer (ImageReader and internal)
+    // `* 8` gives some slack for reserving half in ImageReader
+    limits.max_alloc = Some((WIDTH * HEIGHT * 8).into());
     limits
 }
 
@@ -153,7 +156,8 @@ fn tiff() {
     // so there is a copy from the buffer allocated by `tiff` to a buffer allocated by `image`.
     // This results in memory usage overhead the size of the output buffer.
     let mut tiff_permissive_limits = permissive_limits();
-    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 10).into()); // `* 9` would be exactly three output buffers, `* 10`` has some slack space
+    // `* 6` would be exactly two output buffers, `* 12`` accounts for ImageReader taking half.
+    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 12).into());
     load_through_reader(&image, ImageFormat::Tiff, tiff_permissive_limits).unwrap();
 
     // image::ImageReader

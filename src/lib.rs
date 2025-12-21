@@ -13,7 +13,7 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`](crate::ImageReader):
+//! Load images using [`ImageReader`]:
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;

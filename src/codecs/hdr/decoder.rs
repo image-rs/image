@@ -119,8 +119,6 @@ const SIGNATURE_LENGTH: usize = 10;
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
     r: R,
-    width: u32,
-    height: u32,
     meta: HdrMetadata,
 }
 
@@ -251,8 +249,6 @@ impl<R: Read> HdrDecoder<R> {
         Ok(HdrDecoder {
             r: reader,
 
-            width,
-            height,
             meta: HdrMetadata {
                 width,
                 height,
@@ -265,36 +261,6 @@ impl<R: Read> HdrDecoder<R> {
     pub fn metadata(&self) -> HdrMetadata {
         self.meta.clone()
     }
-
-    /// Consumes decoder and returns a vector of transformed pixels
-    fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
-        mut self,
-        f: F,
-        output_slice: &mut [T],
-    ) -> ImageResult<()> {
-        assert_eq!(
-            output_slice.len(),
-            self.width as usize * self.height as usize
-        );
-
-        // Don't read anything if image is empty
-        if self.width == 0 || self.height == 0 {
-            return Ok(());
-        }
-
-        let chunks_iter = output_slice.chunks_mut(self.width as usize);
-
-        let mut buf = vec![Default::default(); self.width as usize];
-        for chunk in chunks_iter {
-            // read_scanline overwrites the entire buffer or returns an Err,
-            // so not resetting the buffer here is ok.
-            read_scanline(&mut self.r, &mut buf[..])?;
-            for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                *dst = f(pix);
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
@@ -306,14 +272,27 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         ColorType::Rgb32F
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
+        // Don't read anything if image is empty
+        if self.meta.width == 0 || self.meta.height == 0 {
+            return Ok(());
+        }
 
-        for (i, Rgb(data)) in img.into_iter().enumerate() {
-            buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
+        let mut scanline = vec![Default::default(); self.meta.width as usize];
+
+        const PIXEL_SIZE: usize = size_of::<Rgb<f32>>();
+        let line_bytes = self.meta.width as usize * PIXEL_SIZE;
+
+        let chunks_iter = buf.chunks_exact_mut(line_bytes);
+        for chunk in chunks_iter {
+            // read_scanline overwrites the entire buffer or returns an Err,
+            // so not resetting the buffer here is ok.
+            read_scanline(&mut self.r, &mut scanline[..])?;
+            for (dst, &pix) in chunk.chunks_exact_mut(PIXEL_SIZE).zip(scanline.iter()) {
+                dst.copy_from_slice(bytemuck::cast_slice(&pix.to_hdr().0));
+            }
         }
 
         Ok(())

@@ -4,7 +4,7 @@ use std::path::Path;
 use std::{iter, mem::size_of};
 
 use crate::io::encoder::ImageEncoderBoxed;
-use crate::{codecs::*, ExtendedColorType, ImageReader};
+use crate::{codecs::*, ExtendedColorType, ImageReaderOptions};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
@@ -19,7 +19,7 @@ use crate::{DynamicImage, ImageDecoder, ImageFormat};
 ///
 /// Try [`ImageReader`] for more advanced uses.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    let mut reader = ImageReader::new(r);
+    let mut reader = ImageReaderOptions::new(r);
     reader.set_format(format);
     reader.decode()
 }
@@ -166,11 +166,11 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<T>(decoder: impl ImageDecoder) -> ImageResult<Vec<T>>
+pub(crate) fn decoder_to_vec<T>(decoder: &mut (impl ImageDecoder + ?Sized)) -> ImageResult<Vec<T>>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let total_bytes = usize::try_from(decoder.total_bytes());
+    let total_bytes = usize::try_from(decoder.peek_layout()?.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::MAX as usize {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::InsufficientMemory,

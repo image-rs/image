@@ -11,7 +11,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::ReadExt;
+use crate::io::{DecodedImageAttributes, ReadExt};
 use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -1386,6 +1386,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: self.width as u32,
+            height: self.height as u32,
+            color: self.color_type(),
+        })
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -1404,13 +1412,11 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        self.read_image_data(buf)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+        self.read_image_data(buf)?;
+        Ok(DecodedImageAttributes::default())
     }
 }
 
@@ -1458,8 +1464,9 @@ mod test {
             0x4d, 0x00, 0x2a, 0x00,
         ];
 
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let layout = decoder.peek_layout().unwrap();
+        let mut buf = vec![0; usize::try_from(layout.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }
 

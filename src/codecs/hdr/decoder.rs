@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -263,7 +264,7 @@ impl<R: Read> HdrDecoder<R> {
 
     /// Consumes decoder and returns a vector of transformed pixels
     fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
-        mut self,
+        &mut self,
         f: F,
         output_slice: &mut [T],
     ) -> ImageResult<()> {
@@ -288,6 +289,7 @@ impl<R: Read> HdrDecoder<R> {
                 *dst = f(pix);
             }
         }
+
         Ok(())
     }
 }
@@ -301,8 +303,9 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         ColorType::Rgb32F
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
         self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
@@ -311,11 +314,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
             buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
         }
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

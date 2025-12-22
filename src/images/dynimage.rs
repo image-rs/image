@@ -19,7 +19,7 @@ use crate::{
     imageops,
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
     ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
-    ImageEncoder, ImageFormat, ImageReader, Luma, LumaA,
+    ImageEncoder, ImageFormat, ImageReaderOptions, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -240,8 +240,16 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder(decoder: impl ImageDecoder) -> ImageResult<Self> {
-        decoder_to_image(decoder)
+    pub fn from_decoder(mut decoder: impl ImageDecoder) -> ImageResult<Self> {
+        let layout = decoder.peek_layout()?;
+        decoder_to_image(&mut decoder, layout)
+    }
+
+    pub(crate) fn decoder_to_image(
+        decoder: &mut dyn ImageDecoder,
+        layout: crate::ImageLayout,
+    ) -> ImageResult<Self> {
+        decoder_to_image(decoder, layout)
     }
 
     /// Encodes a dynamic image into a buffer.
@@ -724,6 +732,17 @@ impl DynamicImage {
         )
     }
 
+    /// Return this image's pixels as a native endian byte slice.
+    #[must_use]
+    pub(crate) fn as_mut_bytes(&mut self) -> &mut [u8] {
+        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        dynamic_map!(
+            *self,
+            ref mut image_buffer,
+            bytemuck::cast_slice_mut(image_buffer.inner_pixels_mut())
+        )
+    }
+
     /// Shrink the capacity of the underlying [`Vec`] buffer to fit its length.
     ///
     /// The data may have excess capacity or padding for a number of reasons, depending on how it
@@ -1132,19 +1151,17 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Rotates and/or flips the image as indicated by [Orientation].
+    /// Rotates and/or flips the image as indicated by [`Orientation`].
     ///
     /// This can be used to apply Exif orientation to an image,
     /// e.g. to correctly display a photo taken by a smartphone camera:
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// use image::{DynamicImage, ImageReader, ImageDecoder};
+    /// use image::{ImageReader, metadata::Orientation};
     ///
-    /// let mut decoder = ImageReader::open("file.jpg")?.into_decoder()?;
-    /// let orientation = decoder.orientation()?;
-    /// let mut image = DynamicImage::from_decoder(decoder)?;
-    /// image.apply_orientation(orientation);
+    /// let mut image = ImageReader::open("file.jpg")?.decode()?;
+    /// image.apply_orientation(Orientation::Rotate90);
     /// # Ok(())
     /// # }
     /// ```
@@ -1550,9 +1567,15 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
-    let (w, h) = decoder.dimensions();
-    let color_type = decoder.color_type();
+pub(crate) fn decoder_to_image(
+    decoder: &mut dyn ImageDecoder,
+    layout: crate::ImageLayout,
+) -> ImageResult<DynamicImage> {
+    let crate::ImageLayout {
+        width: w,
+        height: h,
+        color: color_type,
+    } = layout;
 
     let mut image = match color_type {
         color::ColorType::Rgb8 => {
@@ -1629,7 +1652,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    ImageReader::open(path)?.decode()
+    ImageReaderOptions::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1641,7 +1664,7 @@ pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    ImageReader::open(path)?.into_dimensions()
+    ImageReaderOptions::open(path)?.into_dimensions()
 }
 
 /// Writes the supplied buffer to a writer in the specified format.

@@ -42,11 +42,22 @@ where
     /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let (dimensions, color_type, original_color_type) = Self::read_header(&mut inner)?;
+        Ok(TiffDecoder {
+            dimensions,
+            color_type,
+            original_color_type,
+            inner: Some(inner),
+        })
+    }
 
-        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
-        let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
+    fn read_header(
+        decoder: &mut Decoder<R>,
+    ) -> Result<((u32, u32), ColorType, ExtendedColorType), ImageError> {
+        let dimensions = decoder.dimensions().map_err(ImageError::from_tiff_decode)?;
+        let tiff_color_type = decoder.colortype().map_err(ImageError::from_tiff_decode)?;
 
-        match inner.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
+        match decoder.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
                     check_sample_format(format, tiff_color_type)?;
@@ -56,7 +67,7 @@ where
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         }
 
-        let planar_config = inner
+        let planar_config = decoder
             .find_tag(Tag::PlanarConfiguration)
             .map(|res| res.and_then(|r| r.into_u16().ok()).unwrap_or_default())
             .unwrap_or_default();
@@ -113,12 +124,7 @@ where
             _ => color_type.into(),
         };
 
-        Ok(TiffDecoder {
-            dimensions,
-            color_type,
-            original_color_type,
-            inner: Some(inner),
-        })
+        Ok((dimensions, color_type, original_color_type))
     }
 
     // The buffer can be larger for CMYK than the RGB output
@@ -132,6 +138,32 @@ where
             _ => u64::from(self.color_type.bytes_per_pixel()),
         };
         total_pixels.saturating_mul(bytes_per_pixel)
+    }
+
+    fn more_images(&self) -> bool {
+        self.inner.as_ref().expect("no inner").more_images()
+    }
+
+    fn next_image(&mut self) -> Result<(), ImageError> {
+        let img = self
+            .inner
+            .as_mut()
+            .expect("no inner")
+            .next_image()
+            .map_err(ImageError::from_tiff_decode);
+
+        // need to update header info
+        match img {
+            Ok(img) => {
+                let (dimensions, color_type, original_color_type) =
+                    Self::read_header(self.inner.as_mut().expect("no inner"))?;
+                self.dimensions = dimensions;
+                self.color_type = color_type;
+                self.original_color_type = original_color_type;
+                Ok(img)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -465,12 +497,11 @@ impl<R: BufRead + Seek> Iterator for TiffFrameIterator<R> {
             return None;
         }
         let img = DynamicImage::from_decoder(TiffFrameDecoder::Borrowed(&mut self.reader));
-        let inner = &mut self.reader.inner.as_mut().expect("no inner decoder");
 
-        if !inner.more_images() {
+        if !self.reader.more_images() {
             self.is_end = true;
         } else {
-            inner.next_image().expect("failed to read next image");
+            self.reader.next_image().expect("failed to read next image");
         }
 
         match img {

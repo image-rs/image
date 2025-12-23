@@ -170,6 +170,7 @@ pub use crate::io::{
 pub use crate::images::dynimage::DynamicImage;
 
 pub use crate::animation::{AnimationFrame, AnimationFrames, Delay};
+pub use crate::image_stack::{Stack, Frame};
 
 // More detailed error type
 pub mod error;

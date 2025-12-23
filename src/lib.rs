@@ -160,7 +160,7 @@ pub use crate::images::dynimage::{
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder},
+    decoder::{AnimationDecoder, DynamicImageStackDecoder, ImageDecoder, ImageStackDecoder},
     encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::ImageReader,
@@ -169,7 +169,7 @@ pub use crate::io::{
 
 pub use crate::images::dynimage::DynamicImage;
 
-pub use crate::animation::{Delay, Frame, Frames};
+pub use crate::animation::{AnimationFrame, AnimationFrames, Delay};
 
 // More detailed error type
 pub mod error;
@@ -277,6 +277,8 @@ pub mod codecs {
 mod animation;
 mod color;
 pub mod hooks;
+/// Stack of images
+pub mod image_stack;
 mod images;
 /// Deprecated io module the original io module has been renamed to `image_reader`.
 /// This is going to be internal.

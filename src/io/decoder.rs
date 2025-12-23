@@ -1,7 +1,8 @@
-use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
+use crate::image_stack::{Frame, Stack};
 use crate::metadata::Orientation;
+use crate::{AnimationFrame, DynamicImage};
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
@@ -175,11 +176,21 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
 }
 
-/// `AnimationDecoder` trait
-pub trait AnimationDecoder<'a> {
+/// `ImageStackDecoder` trait
+pub trait ImageStackDecoder<'a, C> {
     /// Consume the decoder producing a series of frames.
-    fn into_frames(self) -> Frames<'a>;
+    fn into_frames(self) -> Stack<'a, C>;
 }
+
+/// decode into dynamic image frames
+pub trait DynamicImageStackDecoder<'a>: ImageStackDecoder<'a, Frame<DynamicImage>> {}
+
+impl<'a, T> DynamicImageStackDecoder<'a> for T where T: ImageStackDecoder<'a, Frame<DynamicImage>> {}
+
+/// decode into animation frames
+pub trait AnimationDecoder<'a>: ImageStackDecoder<'a, AnimationFrame> {}
+
+impl<'a, T> AnimationDecoder<'a> for T where T: ImageStackDecoder<'a, AnimationFrame> {}
 
 #[cfg(test)]
 mod tests {

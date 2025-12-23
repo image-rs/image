@@ -8,7 +8,7 @@
 //! # Examples
 //! ```rust,no_run
 //! use image::codecs::gif::{GifDecoder, GifEncoder};
-//! use image::{ImageDecoder, AnimationDecoder};
+//! use image::{ImageDecoder, ImageStackDecoder};
 //! use std::fs::File;
 //! use std::io::BufReader;
 //! # fn main() -> std::io::Result<()> {
@@ -42,8 +42,8 @@ use crate::error::{
 };
 use crate::traits::Pixel;
 use crate::{
-    AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
-    Limits,
+    AnimationDecoder, AnimationFrame, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageStackDecoder, Limits,
 };
 
 /// GIF decoder
@@ -261,9 +261,9 @@ impl<R: BufRead + Seek> GifFrameIterator<R> {
 }
 
 impl<R: Read> Iterator for GifFrameIterator<R> {
-    type Item = ImageResult<animation::Frame>;
+    type Item = ImageResult<animation::AnimationFrame>;
 
-    fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
+    fn next(&mut self) -> Option<ImageResult<animation::AnimationFrame>> {
         if self.is_end {
             return None;
         }
@@ -412,7 +412,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             })
         };
 
-        Some(Ok(animation::Frame::from_parts(
+        Some(Ok(animation::AnimationFrame::from_parts(
             image_buffer,
             0,
             0,
@@ -421,9 +421,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     }
 }
 
-impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
-    fn into_frames(self) -> animation::Frames<'a> {
-        animation::Frames::new(Box::new(GifFrameIterator::new(self)))
+impl<'a, R: BufRead + Seek + 'a> ImageStackDecoder<'a, AnimationFrame> for GifDecoder<R> {
+    fn into_frames(self) -> animation::AnimationFrames<'a> {
+        animation::AnimationFrames::new(Box::new(GifFrameIterator::new(self)))
     }
 }
 
@@ -548,16 +548,16 @@ impl<W: Write> GifEncoder<W> {
     }
 
     /// Encode one frame of animation.
-    pub fn encode_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
+    pub fn encode_frame(&mut self, img_frame: animation::AnimationFrame) -> ImageResult<()> {
         let frame = self.convert_frame(img_frame)?;
         self.encode_gif(frame)
     }
 
     /// Encodes Frames.
-    /// Consider using `try_encode_frames` instead to encode an `animation::Frames` like iterator.
+    /// Consider using `try_encode_frames` instead to encode an `animation::AnimationFrames` like iterator.
     pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
-        F: IntoIterator<Item = animation::Frame>,
+        F: IntoIterator<Item = animation::AnimationFrame>,
     {
         for img_frame in frames {
             self.encode_frame(img_frame)?;
@@ -565,12 +565,12 @@ impl<W: Write> GifEncoder<W> {
         Ok(())
     }
 
-    /// Try to encode a collection of `ImageResult<animation::Frame>` objects.
-    /// Use this function to encode an `animation::Frames` like iterator.
+    /// Try to encode a collection of `ImageResult<animation::AnimationFrame>` objects.
+    /// Use this function to encode an `animation::AnimationFrames` like iterator.
     /// Whenever an `Err` item is encountered, that value is returned without further actions.
     pub fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
-        F: IntoIterator<Item = ImageResult<animation::Frame>>,
+        F: IntoIterator<Item = ImageResult<animation::AnimationFrame>>,
     {
         for img_frame in frames {
             self.encode_frame(img_frame?)?;
@@ -580,7 +580,7 @@ impl<W: Write> GifEncoder<W> {
 
     pub(crate) fn convert_frame(
         &mut self,
-        img_frame: animation::Frame,
+        img_frame: animation::AnimationFrame,
     ) -> ImageResult<Frame<'static>> {
         // get the delay before converting img_frame
         let frame_delay = img_frame.delay().into_ratio().to_integer();
@@ -588,7 +588,7 @@ impl<W: Write> GifEncoder<W> {
         let mut rbga_frame = img_frame.into_buffer();
         let (width, height) = self.gif_dimensions(rbga_frame.width(), rbga_frame.height())?;
 
-        // Create the gif::Frame from the animation::Frame
+        // Create the gif::Frame from the animation::AnimationFrame
         let mut frame = Frame::from_rgba_speed(width, height, &mut rbga_frame, self.speed);
         // Saturate the conversion to u16::MAX instead of returning an error as that
         // would require a new special cased variant in ParameterErrorKind which most

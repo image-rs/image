@@ -42,7 +42,7 @@ use crate::error::{
 };
 use crate::traits::Pixel;
 use crate::{
-    AnimationDecoder, AnimationFrame, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder,
+    AnimationFrame, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder,
     ImageFormat, ImageStackDecoder, Limits,
 };
 
@@ -261,9 +261,9 @@ impl<R: BufRead + Seek> GifFrameIterator<R> {
 }
 
 impl<R: Read> Iterator for GifFrameIterator<R> {
-    type Item = ImageResult<animation::AnimationFrame>;
+    type Item = ImageResult<AnimationFrame>;
 
-    fn next(&mut self) -> Option<ImageResult<animation::AnimationFrame>> {
+    fn next(&mut self) -> Option<ImageResult<AnimationFrame>> {
         if self.is_end {
             return None;
         }
@@ -412,7 +412,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             })
         };
 
-        Some(Ok(animation::AnimationFrame::from_parts(
+        Some(Ok(AnimationFrame::from_parts(
             image_buffer,
             0,
             0,
@@ -548,7 +548,7 @@ impl<W: Write> GifEncoder<W> {
     }
 
     /// Encode one frame of animation.
-    pub fn encode_frame(&mut self, img_frame: animation::AnimationFrame) -> ImageResult<()> {
+    pub fn encode_frame(&mut self, img_frame: AnimationFrame) -> ImageResult<()> {
         let frame = self.convert_frame(img_frame)?;
         self.encode_gif(frame)
     }
@@ -557,7 +557,7 @@ impl<W: Write> GifEncoder<W> {
     /// Consider using `try_encode_frames` instead to encode an `animation::AnimationFrames` like iterator.
     pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
-        F: IntoIterator<Item = animation::AnimationFrame>,
+        F: IntoIterator<Item = AnimationFrame>,
     {
         for img_frame in frames {
             self.encode_frame(img_frame)?;
@@ -570,7 +570,7 @@ impl<W: Write> GifEncoder<W> {
     /// Whenever an `Err` item is encountered, that value is returned without further actions.
     pub fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
-        F: IntoIterator<Item = ImageResult<animation::AnimationFrame>>,
+        F: IntoIterator<Item = ImageResult<AnimationFrame>>,
     {
         for img_frame in frames {
             self.encode_frame(img_frame?)?;
@@ -580,7 +580,7 @@ impl<W: Write> GifEncoder<W> {
 
     pub(crate) fn convert_frame(
         &mut self,
-        img_frame: animation::AnimationFrame,
+        img_frame: AnimationFrame,
     ) -> ImageResult<Frame<'static>> {
         // get the delay before converting img_frame
         let frame_delay = img_frame.delay().into_ratio().to_integer();

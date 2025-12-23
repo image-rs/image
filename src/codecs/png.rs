@@ -19,7 +19,7 @@ use crate::error::{
 use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
+    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
     ImageEncoder, ImageFormat, ImageStackDecoder, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 

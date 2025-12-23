@@ -160,7 +160,7 @@ pub use crate::images::dynimage::{
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, DynamicImageStackDecoder, ImageDecoder, ImageStackDecoder},
+    decoder::{ImageDecoder, ImageStackDecoder},
     encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::ImageReader,
@@ -277,8 +277,7 @@ pub mod codecs {
 mod animation;
 mod color;
 pub mod hooks;
-/// Stack of images
-pub mod image_stack;
+mod image_stack;
 mod images;
 /// Deprecated io module the original io module has been renamed to `image_reader`.
 /// This is going to be internal.

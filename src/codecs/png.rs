@@ -19,8 +19,8 @@ use crate::error::{
 use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, ImageStackDecoder, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageStackDecoder, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html

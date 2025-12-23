@@ -42,8 +42,8 @@ use crate::error::{
 };
 use crate::traits::Pixel;
 use crate::{
-    AnimationFrame, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder,
-    ImageFormat, ImageStackDecoder, Limits,
+    AnimationFrame, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
+    ImageStackDecoder, Limits,
 };
 
 /// GIF decoder

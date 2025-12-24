@@ -10,7 +10,7 @@ use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
-use crate::animation::{Delay, Frame, Frames, Ratio};
+use crate::animation::{AnimationFrame, AnimationFrames, Delay, Ratio};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
@@ -19,8 +19,8 @@ use crate::error::{
 use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageStackDecoder, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -518,12 +518,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
     }
 }
 
-impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
-    fn into_frames(self) -> Frames<'a> {
+impl<'a, R: BufRead + Seek + 'a> ImageStackDecoder<'a, AnimationFrame> for ApngDecoder<R> {
+    fn into_frames(self) -> AnimationFrames<'a> {
         struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
 
         impl<R: BufRead + Seek> Iterator for FrameIterator<R> {
-            type Item = ImageResult<Frame>;
+            type Item = ImageResult<AnimationFrame>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 let image = match self.0.mix_next_frame() {
@@ -542,11 +542,11 @@ impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
                     d => u32::from(d),
                 };
                 let delay = Delay::from_ratio(Ratio::new(num, denom));
-                Some(Ok(Frame::from_parts(image, 0, 0, delay)))
+                Some(Ok(AnimationFrame::from_parts(image, 0, 0, delay)))
             }
         }
 
-        Frames::new(Box::new(FrameIterator(self)))
+        AnimationFrames::new(Box::new(FrameIterator(self)))
     }
 }
 

@@ -1,65 +1,30 @@
 use std::cmp::Ordering;
 use std::time::Duration;
 
-use crate::error::ImageResult;
+use crate::image_stack::Frame;
+use crate::image_stack::Stack;
 use crate::RgbaImage;
 
-/// An implementation dependent iterator, reading the frames as requested
-pub struct Frames<'a> {
-    iterator: Box<dyn Iterator<Item = ImageResult<Frame>> + 'a>,
-}
-
-impl<'a> Frames<'a> {
-    /// Creates a new `Frames` from an implementation specific iterator.
-    #[must_use]
-    pub fn new(iterator: Box<dyn Iterator<Item = ImageResult<Frame>> + 'a>) -> Self {
-        Frames { iterator }
-    }
-
-    /// Steps through the iterator from the current frame until the end and pushes each frame into
-    /// a `Vec`.
-    /// If en error is encountered that error is returned instead.
-    ///
-    /// Note: This is equivalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
-    pub fn collect_frames(self) -> ImageResult<Vec<Frame>> {
-        self.collect()
-    }
-}
-
-impl Iterator for Frames<'_> {
-    type Item = ImageResult<Frame>;
-
-    fn next(&mut self) -> Option<ImageResult<Frame>> {
-        self.iterator.next()
-    }
-}
+/// An alias for animation frames iterator
+pub type AnimationFrames<'a> = Stack<'a, AnimationFrame>;
 
 /// A single animation frame
-pub struct Frame {
-    /// Delay between the frames in milliseconds
+pub struct AnimationFrame {
     delay: Delay,
-    /// x offset
-    left: u32,
-    /// y offset
-    top: u32,
-    buffer: RgbaImage,
+    frame: Frame<RgbaImage>,
 }
 
-impl Clone for Frame {
+impl Clone for AnimationFrame {
     fn clone(&self) -> Self {
         Self {
             delay: self.delay,
-            left: self.left,
-            top: self.top,
-            buffer: self.buffer.clone(),
+            frame: self.frame.clone(),
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
         self.delay = source.delay;
-        self.left = source.left;
-        self.top = source.top;
-        self.buffer.clone_from(&source.buffer);
+        self.frame.clone_from(&source.frame);
     }
 }
 
@@ -82,26 +47,22 @@ pub struct Delay {
     ratio: Ratio,
 }
 
-impl Frame {
+impl AnimationFrame {
     /// Constructs a new frame without any delay.
     #[must_use]
-    pub fn new(buffer: RgbaImage) -> Frame {
-        Frame {
+    pub fn new(buffer: RgbaImage) -> AnimationFrame {
+        AnimationFrame {
             delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
-            left: 0,
-            top: 0,
-            buffer,
+            frame: Frame::new(buffer),
         }
     }
 
     /// Constructs a new frame
     #[must_use]
-    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
-        Frame {
+    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> AnimationFrame {
+        AnimationFrame {
             delay,
-            left,
-            top,
-            buffer,
+            frame: Frame::from_parts(buffer, left, top),
         }
     }
 
@@ -114,30 +75,30 @@ impl Frame {
     /// Returns the image buffer
     #[must_use]
     pub fn buffer(&self) -> &RgbaImage {
-        &self.buffer
+        self.frame.buffer()
     }
 
     /// Returns a mutable image buffer
     pub fn buffer_mut(&mut self) -> &mut RgbaImage {
-        &mut self.buffer
+        &mut self.frame.buffer
     }
 
     /// Returns the image buffer
     #[must_use]
     pub fn into_buffer(self) -> RgbaImage {
-        self.buffer
+        self.frame.buffer().clone()
     }
 
     /// Returns the x offset
     #[must_use]
     pub fn left(&self) -> u32 {
-        self.left
+        self.frame.left()
     }
 
     /// Returns the y offset
     #[must_use]
     pub fn top(&self) -> u32 {
-        self.top
+        self.frame.top()
     }
 }
 

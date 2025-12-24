@@ -3,7 +3,7 @@ use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 
 #[cfg(feature = "webp")]
-use image::{codecs::webp::WebPDecoder, AnimationDecoder};
+use image::{codecs::webp::WebPDecoder, ImageStackDecoder};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";

@@ -4,8 +4,8 @@ use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::metadata::Orientation;
 use crate::{
-    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
-    RgbaImage,
+    AnimationFrame, AnimationFrames, ColorType, Delay, ImageDecoder, ImageFormat,
+    ImageStackDecoder, RgbImage, Rgba, RgbaImage,
 };
 
 /// WebP Image format decoder.
@@ -99,14 +99,14 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
-    fn into_frames(self) -> Frames<'a> {
+impl<'a, R: 'a + BufRead + Seek> ImageStackDecoder<'a, AnimationFrame> for WebPDecoder<R> {
+    fn into_frames(self) -> AnimationFrames<'a> {
         struct FramesInner<R: Read + Seek> {
             decoder: WebPDecoder<R>,
             current: u32,
         }
         impl<R: BufRead + Seek> Iterator for FramesInner<R> {
-            type Item = ImageResult<Frame>;
+            type Item = ImageResult<AnimationFrame>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 if self.current == self.decoder.inner.num_frames() {
@@ -131,7 +131,7 @@ impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
                     }
                 };
 
-                Some(Ok(Frame::from_parts(
+                Some(Ok(AnimationFrame::from_parts(
                     img,
                     0,
                     0,
@@ -140,7 +140,7 @@ impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
             }
         }
 
-        Frames::new(Box::new(FramesInner {
+        AnimationFrames::new(Box::new(FramesInner {
             decoder: self,
             current: 0,
         }))

@@ -8,8 +8,9 @@ use image::ImageDecoder;
 use image::codecs::jpeg::JpegDecoder;
 #[cfg(feature = "png")]
 use image::codecs::png::PngDecoder;
+
 #[cfg(feature = "tiff")]
-use image::codecs::tiff::TiffDecoder;
+use image::codecs::tiff::TiffFrameDecoder;
 #[cfg(feature = "webp")]
 use image::codecs::webp::WebPDecoder;
 
@@ -58,8 +59,8 @@ fn test_read_xmp_tiff() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(XMP_TIFF_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
-    let metadata = tiff_decoder.xmp_metadata()?;
+    let mut tiff_frame_decoder = TiffFrameDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = tiff_frame_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA.as_bytes(), metadata.unwrap());
 

@@ -166,7 +166,7 @@ fn webp() {
 #[test]
 #[cfg(feature = "tiff")]
 fn tiff() {
-    use image::codecs::tiff::TiffDecoder;
+    use image::codecs::tiff::TiffFrameDecoder;
 
     let image = test_image(ImageFormat::Tiff);
     // sanity check that our image loads successfully without limits
@@ -185,7 +185,7 @@ fn tiff() {
     assert!(load_through_reader(&image, ImageFormat::Tiff, allocation_limits()).is_err());
 
     // TiffDecoder
-    let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
+    let mut decoder = TiffFrameDecoder::new(Cursor::new(&image)).unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
     // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

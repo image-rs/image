@@ -210,7 +210,7 @@ fn check_references() {
                 #[cfg(feature = "gif")]
                 if format == Some(image::ImageFormat::Gif) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
+                    use image::ImageStackDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
                     let decoder = match image::codecs::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
@@ -238,7 +238,7 @@ fn check_references() {
                 #[cfg(feature = "png")]
                 if format == Some(image::ImageFormat::Png) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
+                    use image::ImageStackDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
                     let decoder = match image::codecs::png::PngDecoder::new(stream) {
                         Ok(decoder) => decoder.apng().unwrap(),

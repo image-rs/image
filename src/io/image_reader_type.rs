@@ -182,7 +182,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "webp")]
             ImageFormat::WebP => Box::new(webp::WebPDecoder::new(reader)?),
             #[cfg(feature = "tiff")]
-            ImageFormat::Tiff => Box::new(tiff::TiffDecoder::new(reader)?),
+            ImageFormat::Tiff => Box::new(tiff::TiffFrameDecoder::new(reader)?),
             #[cfg(feature = "tga")]
             ImageFormat::Tga => Box::new(tga::TgaDecoder::new(reader)?),
             #[cfg(feature = "dds")]

@@ -1,6 +1,6 @@
 //! Test enforcement of size and memory limits for animation decoding APIs.
 
-use image::{AnimationDecoder, ImageDecoder, ImageResult, Limits};
+use image::{ImageDecoder, ImageResult, ImageStackDecoder, Limits};
 
 #[cfg(feature = "gif")]
 use image::codecs::gif::GifDecoder;

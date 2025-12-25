@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
+use tiff::encoder::{Compression, DeflateLevel};
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -393,7 +394,68 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
-    w: W,
+    writer: W,
+    compression: Compression,
+}
+
+/// Compression types supported by the TIFF format
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CompressionType {
+    /// No compression
+    Uncompressed,
+    /// LZW compression
+    Lzw,
+    /// Deflate compression
+    ///
+    /// It is best to view the level options as a _hint_ to the implementation on the smallest or
+    /// fastest option for encoding a particular image. These have no direct mapping to any
+    /// particular attribute and may be interpreted differently in minor versions. The exact output
+    /// is expressly __not__ part of the SemVer stability guarantee.
+    Deflate(TiffDeflateLevel),
+    /// Bit packing compression
+    Packbits,
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        CompressionType::Lzw
+    }
+}
+
+/// The level of compression used by the Deflate algorithm.
+/// It allows trading compression ratio for compression speed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[non_exhaustive]
+pub enum TiffDeflateLevel {
+    /// The fastest possible compression mode.
+    Fast = 1,
+    /// The conserative choice between speed and ratio.
+    #[default]
+    Balanced = 6,
+    /// The best compression available with Deflate.
+    Best = 9,
+}
+
+impl TiffDeflateLevel {
+    fn into_tiff(self: TiffDeflateLevel) -> DeflateLevel {
+        match self {
+            TiffDeflateLevel::Fast => DeflateLevel::Fast,
+            TiffDeflateLevel::Balanced => DeflateLevel::Balanced,
+            TiffDeflateLevel::Best => DeflateLevel::Best,
+        }
+    }
+}
+
+impl CompressionType {
+    fn into_tiff(self: CompressionType) -> Compression {
+        match self {
+            CompressionType::Uncompressed => Compression::Uncompressed,
+            CompressionType::Lzw => Compression::Lzw,
+            CompressionType::Deflate(lvl) => Compression::Deflate(lvl.into_tiff()),
+            CompressionType::Packbits => Compression::Packbits,
+        }
+    }
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
@@ -450,8 +512,19 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
-    pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w }
+    pub fn new(writer: W) -> TiffEncoder<W> {
+        TiffEncoder {
+            writer,
+            compression: CompressionType::default().into_tiff(),
+        }
+    }
+
+    /// Create a new encoder that writes its output with [`CompressionType`] `compression`.
+    pub fn new_with_compression(writer: W, comp: CompressionType) -> Self {
+        TiffEncoder {
+            writer,
+            compression: comp.into_tiff(),
+        }
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
@@ -480,7 +553,12 @@ impl<W: Write + Seek> TiffEncoder<W> {
             buf.len(),
         );
         let mut encoder =
-            tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
+            tiff::encoder::TiffEncoder::new(self.writer).map_err(ImageError::from_tiff_encode)?;
+
+        if !matches!(self.compression, Compression::Uncompressed) {
+            encoder = encoder.with_compression(self.compression);
+        }
+
         match color_type {
             ExtendedColorType::L8 => encoder.write_image::<Gray8>(width, height, buf),
             ExtendedColorType::Rgb8 => encoder.write_image::<RGB8>(width, height, buf),

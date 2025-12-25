@@ -2,10 +2,13 @@
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
 extern crate image;
 
-use image::codecs::jpeg::JpegEncoder;
+use image::codecs::jpeg::{JpegDecoder, JpegEncoder};
+use image::ImageDecoder;
+use std::fs;
+use std::io::Cursor;
 
 #[test]
-fn jqeg_qualitys() {
+fn save_qualities() {
     let img = image::open("tests/images/tiff/testsuite/mandrill.tiff").unwrap();
 
     let mut default = vec![];
@@ -26,4 +29,19 @@ fn jqeg_qualitys() {
     assert_eq!(&[255, 216], &large[..2]);
 
     assert!(large.len() > default.len());
+}
+
+#[test]
+fn strict_mode() {
+    let mut image = fs::read("tests/images/jpg/progressive/cat.jpg").unwrap();
+    image.truncate(image.len() - 1000); // simulate a truncated image.
+
+    let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
+    let mut buffer = vec![0; decoder.total_bytes() as usize];
+    decoder.set_strict_mode(false);
+    assert!(decoder.read_image(&mut buffer).is_ok());
+
+    let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
+    decoder.set_strict_mode(true);
+    assert!(decoder.read_image(&mut buffer).is_err());
 }

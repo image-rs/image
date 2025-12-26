@@ -17,6 +17,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
@@ -401,7 +402,15 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             DecodingResult::F16(_) => unreachable!(),
         }
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            // is any sort of iTXT chunk.
+            xmp: DecodedMetadataHint::PerImage,
+            icc: DecodedMetadataHint::PerImage,
+            exif: DecodedMetadataHint::PerImage,
+            // not provided above.
+            iptc: DecodedMetadataHint::None,
+            ..DecodedImageAttributes::default()
+        })
     }
 }
 

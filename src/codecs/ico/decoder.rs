@@ -451,6 +451,13 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
             Png(decoder) => decoder.more_images(),
         }
     }
+
+    fn finish(&mut self) -> ImageResult<()> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.finish(),
+            Png(decoder) => decoder.finish(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -180,10 +180,34 @@ pub enum LimitErrorKind {
     /// The specified strict limits are not supported for this operation
     Unsupported {
         /// The given limits
-        limits: crate::Limits,
+        limits: LimitsSnapshot,
         /// The supported strict limits
         supported: crate::LimitSupport,
     },
+}
+
+/// Snapshot information about given limits that is comparable and hash.
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[allow(missing_copy_implementations)] // Limits be non-Copy in the future.
+pub struct LimitsSnapshot {
+    pub(crate) max_image_height: Option<u32>,
+    pub(crate) max_image_width: Option<u32>,
+    pub(crate) max_alloc: Option<u64>,
+    pub(crate) shared_alloc: Option<u64>,
+}
+
+impl From<&crate::Limits> for LimitsSnapshot {
+    fn from(limits: &crate::Limits) -> Self {
+        LimitsSnapshot {
+            max_image_height: limits.max_image_height,
+            max_image_width: limits.max_image_width,
+            max_alloc: limits.max_alloc,
+            shared_alloc: limits
+                .shared_alloc
+                .as_ref()
+                .map(|v| v.load(std::sync::atomic::Ordering::Relaxed)),
+        }
+    }
 }
 
 /// A best effort representation for image formats.

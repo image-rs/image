@@ -167,6 +167,14 @@ pub trait ImageDecoder {
     fn more_images(&self) -> SequenceControl {
         SequenceControl::MaybeMore
     }
+
+    /// Consume the rest of the file, including any trailer.
+    ///
+    /// This method should ensure that metadata that used [`DecodedMetadataHint::AfterFinish`] has
+    /// all been ingested and can be retrieved.
+    fn finish(&mut self) -> ImageResult<()> {
+        Ok(())
+    }
 }
 
 /// Additional attributes of an image available after decoding.
@@ -184,6 +192,42 @@ pub struct DecodedImageAttributes {
     pub y: u32,
     /// A suggested presentation offset relative to the previous image.
     pub delay: Option<Delay>,
+    /// A hint for retrieving ICC profiles.
+    pub icc: DecodedMetadataHint,
+    /// A hint for polling EXIF metadata.
+    pub exif: DecodedMetadataHint,
+    /// A hint for polling XMP metadata.
+    pub xmp: DecodedMetadataHint,
+    /// A hint for polling IPTC metadata.
+    pub iptc: DecodedMetadataHint,
+}
+
+/// A hint when metadata corresponding to the image is decoded.
+///
+/// Note that while this is a hint, different variants give contradictory indication on when they
+/// should be polled. When a metadatum is tagged as [`DecodedMetadataHint::PerImage`] it MUST be
+/// polled after each image to ensure all are retrieved, iterating to the next image without
+/// polling MAY reset and skip some metadata. Conversely, when a metadatum is tagged as
+/// [`DecodedMetadataHint::AfterFinish`] it should not be considered fully valid until after a call
+/// to [`ImageDecoder::finish`]. This call might be destructive with regards to the other kind of
+/// metadata.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub enum DecodedMetadataHint {
+    /// The metadata could be anywhere in the file and can only be reliably polled when the image
+    /// is finished.
+    #[default]
+    Unknown,
+    /// Explicitly indicate that the file must be polled fully before interpreting this kind of
+    /// metadata.
+    AfterFinish,
+    /// Metadata is available in the header and will be valid after the first call to
+    /// [`ImageDecoder::peek_layout`] and will remain valid for all subsequent images.
+    InHeader,
+    /// Metadata exists for each image in this file, it must be retrieved after reading the image.
+    PerImage,
+    /// There's no metadata of this type, the decoder would return `None` or an error.
+    None,
 }
 
 /// Indicate if there may be more images to decode.
@@ -245,6 +289,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn more_images(&self) -> SequenceControl {
         (**self).more_images()
+    }
+    fn finish(&mut self) -> ImageResult<()> {
+        (**self).finish()
     }
 }
 

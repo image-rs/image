@@ -41,6 +41,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::DecodedImageAttributes;
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
@@ -259,7 +260,13 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         }
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            xmp: DecodedMetadataHint::AfterFinish,
+            icc: DecodedMetadataHint::AfterFinish,
+            iptc: DecodedMetadataHint::None,
+            exif: DecodedMetadataHint::None,
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

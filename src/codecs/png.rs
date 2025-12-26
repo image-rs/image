@@ -15,6 +15,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{DecodedImageAttributes, SequenceControl};
 use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
@@ -206,6 +207,14 @@ fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
         // We do not set x_offset and y_offset since the decoder performs composition according
         // to Dispose and blend. For reading raw frames we'd pass the `fc.x_offset` here.
         delay,
+        // is any sort of iTXT chunk.
+        xmp: DecodedMetadataHint::AfterFinish,
+        // is any sort of iTXT chunk.
+        iptc: DecodedMetadataHint::AfterFinish,
+        // see iCCP chunk order.
+        icc: DecodedMetadataHint::InHeader,
+        // see eXIf chunk order.
+        exif: DecodedMetadataHint::InHeader,
         ..DecodedImageAttributes::default()
     }
 }

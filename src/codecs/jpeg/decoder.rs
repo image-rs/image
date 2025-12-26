@@ -7,6 +7,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{ImageDecoder, ImageFormat, Limits};
@@ -93,6 +94,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -104,6 +107,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -123,6 +128,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -135,6 +142,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -174,7 +183,16 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, &self.limits);
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            // As per specification, once we start with MCUs we can only have restarts. Also all
+            // our methods currently seek of their own accord anyways, it's just important to
+            // uphold this if we do not buffer the whole file.
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::InHeader,
+            xmp: DecodedMetadataHint::InHeader,
+            iptc: DecodedMetadataHint::InHeader,
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {

@@ -5,6 +5,7 @@ use image_webp::LoopCount;
 
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{
@@ -63,7 +64,14 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .read_image(buf)
             .map_err(ImageError::from_webp_decode)?;
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            // As per extended file format description:
+            // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::AfterFinish,
+            xmp: DecodedMetadataHint::AfterFinish,
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

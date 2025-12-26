@@ -1,5 +1,10 @@
 use crate::{error, ColorType, ImageError, ImageResult};
 
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
+
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
@@ -27,7 +32,7 @@ pub struct LimitSupport {}
 ///
 /// [`LimitSupport`]: ./struct.LimitSupport.html
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_copy_implementations)]
 #[non_exhaustive]
 pub struct Limits {
@@ -40,6 +45,8 @@ pub struct Limits {
     /// The bytes required to store the output image count towards this value. The default is
     /// 512MiB.
     pub max_alloc: Option<u64>,
+    /// A budget of allocations shared between all values from the same `Limits`.
+    pub shared_alloc: Option<Arc<AtomicU64>>,
 }
 
 /// Add some reasonable limits.
@@ -52,6 +59,7 @@ impl Default for Limits {
             max_image_width: None,
             max_image_height: None,
             max_alloc: Some(512 * 1024 * 1024),
+            shared_alloc: None,
         }
     }
 }
@@ -64,6 +72,7 @@ impl Limits {
             max_image_width: None,
             max_image_height: None,
             max_alloc: None,
+            shared_alloc: None,
         }
     }
 
@@ -97,6 +106,13 @@ impl Limits {
     /// This function checks that the current limit allows for reserving the set amount
     /// of bytes, it then reduces the limit accordingly.
     pub fn reserve(&mut self, amount: u64) -> ImageResult<()> {
+        // Try to grab any missing budget from the shared allocation.
+        if self.shared_alloc.is_some() {
+            if let Some(missing @ 1..) = self.max_alloc.and_then(|v| amount.checked_sub(v)) {
+                self.privatize_bulk(missing);
+            }
+        }
+
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             if *max_alloc < amount {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
@@ -169,4 +185,112 @@ impl Limits {
             }
         }
     }
+
+    // Attempt to take part of the share allocation into our private budget.
+    fn privatize_bulk(&mut self, amount: u64) -> Option<u64> {
+        // If we have no limit, we take what we want out of nowhere.
+        let Some(private_free) = self.max_alloc else {
+            return Some(amount);
+        };
+
+        let Some(shared) = &self.shared_alloc else {
+            // Nothing to grab from.
+            return None;
+        };
+
+        let mut prevent_spin = 0;
+
+        let result = shared.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            if prevent_spin > 32 {
+                // Over-allocate instead.
+                return None;
+            }
+
+            prevent_spin += 1;
+            current.checked_sub(amount)
+        });
+
+        if let Ok(_pre_update) = result {
+            self.max_alloc = Some(private_free.saturating_add(amount));
+            return Some(amount);
+        }
+
+        // Fallback to `fetch_sub` which is hazard-free atomic on some platforms. But as a tradeoff
+        // we might get less than we requested, and so we instead
+        let available = shared.load(Ordering::Relaxed);
+        let remain = available.saturating_sub(amount).saturating_sub(amount);
+
+        // Check if we have enough available to satisfy the request, we do not speculate on freed
+        // allocations in this path to avoid touching the atomic twice on the common failure.
+        if available - remain < amount {
+            // Not enough available.
+            return None;
+        }
+
+        let actual = shared.fetch_min(remain, Ordering::Relaxed);
+        let taken = available.saturating_sub(actual);
+
+        if taken < amount {
+            shared.fetch_add(taken, Ordering::Relaxed);
+            None
+        } else {
+            self.max_alloc = Some(private_free.saturating_add(taken));
+            Some(taken)
+        }
+    }
+}
+
+#[test]
+fn limits_reserve_free() {
+    let mut limits = Limits {
+        max_image_width: Some(100),
+        max_image_height: Some(100),
+        max_alloc: Some(1024),
+        shared_alloc: None,
+    };
+
+    assert!(limits.reserve(512).is_ok());
+    assert_eq!(limits.max_alloc, Some(512));
+
+    assert!(limits.reserve(600).is_err());
+    assert_eq!(limits.max_alloc, Some(512));
+
+    limits.free(256);
+    assert_eq!(limits.max_alloc, Some(768));
+}
+
+#[test]
+fn shared_limits() {
+    let shared = Arc::new(AtomicU64::new(1024));
+
+    let mut limits_a = Limits {
+        max_image_width: Some(100),
+        max_image_height: Some(100),
+        max_alloc: Some(512),
+        shared_alloc: Some(shared.clone()),
+    };
+
+    let mut limits_b = Limits {
+        max_image_width: Some(100),
+        max_image_height: Some(100),
+        max_alloc: Some(256),
+        shared_alloc: Some(shared.clone()),
+    };
+
+    assert!(limits_a.reserve(512).is_ok());
+    assert_eq!(limits_a.max_alloc, Some(0));
+    assert_eq!(shared.load(Ordering::Relaxed), 1024);
+
+    assert!(limits_a.reserve(1025).is_err());
+    assert_eq!(limits_a.max_alloc, Some(0));
+    assert_eq!(shared.load(Ordering::Relaxed), 1024);
+
+    // b does not have enough itself but can grab from shared.
+    assert!(limits_b.reserve(512).is_ok());
+    assert_eq!(limits_b.max_alloc, Some(0));
+    assert_eq!(shared.load(Ordering::Relaxed), 768);
+
+    assert!(limits_b.reserve(1024).is_err());
+    assert_eq!(limits_b.max_alloc, Some(0));
+    assert_eq!(shared.load(Ordering::Relaxed), 768);
 }

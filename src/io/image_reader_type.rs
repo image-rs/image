@@ -211,8 +211,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
     /// Convert the reader into a decoder.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
-        let mut decoder =
-            Self::make_decoder(self.require_format()?, self.inner, self.limits.clone())?;
+        let mut decoder = Self::make_decoder(
+            self.require_format()?,
+            self.inner,
+            self.limits.duplicate_allocation_budget(),
+        )?;
+
         decoder.set_limits(self.limits)?;
         Ok(decoder)
     }
@@ -294,7 +298,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = self.require_format()?;
 
         let mut limits = self.limits;
-        let mut decoder = Self::make_decoder(format, self.inner, limits.clone())?;
+        let mut decoder =
+            Self::make_decoder(format, self.inner, limits.duplicate_allocation_budget())?;
 
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?

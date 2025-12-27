@@ -32,7 +32,7 @@ pub struct LimitSupport {}
 ///
 /// [`LimitSupport`]: ./struct.LimitSupport.html
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[allow(missing_copy_implementations)]
 #[non_exhaustive]
 pub struct Limits {
@@ -85,6 +85,40 @@ impl Limits {
             max_image_height: None,
             max_alloc: None,
             shared_alloc: None,
+        }
+    }
+
+    /// Split the current `Limits` into two, giving the new one up to `split_off` bytes of allocation
+    pub fn split(&mut self, split_off: u64) -> Self {
+        let max_alloc = if let Some(limit) = &mut self.max_alloc {
+            let given = split_off.min(*limit);
+            *limit -= given;
+            Some(given)
+        } else {
+            None
+        };
+
+        Limits {
+            max_image_width: self.max_image_width,
+            max_image_height: self.max_image_height,
+            max_alloc,
+            shared_alloc: self.shared_alloc.clone(),
+        }
+    }
+
+    /// Create another `Limits` like this one, and give it the same allocation budget as we
+    /// currently have.
+    ///
+    /// Carefully evaluate if [`Self::split`] is more appropriate for your use case.
+    pub fn duplicate_allocation_budget(&mut self) -> Self {
+        Limits {
+            max_image_width: self.max_image_width,
+            max_image_height: self.max_image_height,
+            max_alloc: self.max_alloc,
+            shared_alloc: self
+                .shared_alloc
+                .as_ref()
+                .map(|arc| Arc::new(AtomicU64::new(arc.load(Ordering::Relaxed)))),
         }
     }
 

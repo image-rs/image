@@ -97,9 +97,8 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         ColorType::Rgba8
     }
 
-    fn set_allocation_limit(&mut self, limit: u64) -> ImageResult<()> {
+    fn set_allocation_limit(&mut self, limit: u64) {
         self.allocation_limit = limit;
-        Ok(())
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

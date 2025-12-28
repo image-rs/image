@@ -299,7 +299,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         }
     }
 
-    fn set_allocation_limit(&mut self, max_alloc: u64) -> ImageResult<()> {
+    fn set_allocation_limit(&mut self, max_alloc: u64) {
         let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes_buffer());
 
         let mut tiff_limits: tiff::decoder::Limits = Default::default();
@@ -309,8 +309,6 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             usize::try_from(max_intermediate_alloc).unwrap_or(usize::MAX);
         tiff_limits.ifd_value_size = tiff_limits.intermediate_buffer_size;
         self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
-
-        Ok(())
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

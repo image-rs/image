@@ -259,9 +259,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         (*self).read_image(buf)
     }
 
-    fn set_allocation_limit(&mut self, limit: u64) -> ImageResult<()> {
+    fn set_allocation_limit(&mut self, limit: u64) {
         self.allocation_limit = limit;
-        Ok(())
     }
 }
 

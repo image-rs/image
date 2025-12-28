@@ -10,7 +10,7 @@ fn gif_decode(data: &[u8], limits: Limits) -> ImageResult<()> {
     use std::io::Cursor;
 
     let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
-    decoder.set_allocation_limit(limits.max_alloc.unwrap_or(u64::MAX))?;
+    decoder.set_allocation_limit(limits.max_alloc.unwrap_or(u64::MAX));
 
     // The decoder doesn't check dimension limits, so we have to.
     if decoder.dimensions().0 > limits.max_image_width.unwrap_or(u32::MAX)

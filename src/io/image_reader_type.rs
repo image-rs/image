@@ -218,7 +218,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             self.inner,
             self.limits.max_alloc.unwrap_or(u64::MAX),
         )?;
-        decoder.set_allocation_limit(self.limits.max_alloc.unwrap_or(u64::MAX))?;
+        decoder.set_allocation_limit(self.limits.max_alloc.unwrap_or(u64::MAX));
         Ok(decoder)
     }
 
@@ -307,7 +307,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         limits::reserve(&mut max_alloc, decoder.total_bytes())?;
-        decoder.set_allocation_limit(max_alloc)?;
+        decoder.set_allocation_limit(max_alloc);
 
         DynamicImage::from_decoder(decoder)
     }

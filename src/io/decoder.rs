@@ -112,8 +112,7 @@ pub trait ImageDecoder {
     /// [`Limits`]: ./io/struct.Limits.html
     /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
     /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
-    fn set_allocation_limit(&mut self, _limit: u64) -> ImageResult<()> {
-        Ok(())
+    fn set_allocation_limit(&mut self, _limit: u64) {
     }
 
     /// Use `read_image` instead; this method is an implementation detail needed so the trait can
@@ -167,7 +166,7 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         T::read_image_boxed(*self, buf)
     }
-    fn set_allocation_limit(&mut self, limit: u64) -> ImageResult<()> {
+    fn set_allocation_limit(&mut self, limit: u64) {
         (**self).set_allocation_limit(limit)
     }
 }

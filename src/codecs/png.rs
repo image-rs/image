@@ -16,11 +16,12 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::limits;
 use crate::math::Rect;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    ImageEncoder, ImageFormat, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -33,25 +34,20 @@ const IPTC_KEYS: &[&str] = &["Raw profile type iptc", "Raw profile type 8bim"];
 pub struct PngDecoder<R: BufRead + Seek> {
     color_type: ColorType,
     reader: png::Reader<R>,
-    limits: Limits,
+    allocation_limit: u64,
 }
 
 impl<R: BufRead + Seek> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
-        Self::with_limits(r, Limits::no_limits())
+        Self::with_limits(r, u64::MAX)
     }
 
     /// Creates a new decoder that decodes from the stream ```r``` with the given limits.
-    pub fn with_limits(r: R, limits: Limits) -> ImageResult<PngDecoder<R>> {
-        limits.check_support(&crate::LimitSupport::default())?;
-
-        let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
+    pub fn with_limits(r: R, allocation_limit: u64) -> ImageResult<PngDecoder<R>> {
+        let max_bytes = usize::try_from(allocation_limit).unwrap_or(usize::MAX);
         let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
         decoder.set_ignore_text_chunk(false);
-
-        let info = decoder.read_header_info().map_err(ImageError::from_png)?;
-        limits.check_dimensions(info.width, info.height)?;
 
         // By default the PNG decoder will scale 16 bpc to 8 bpc, so custom
         // transformations must be set. EXPAND preserves the default behavior
@@ -116,7 +112,7 @@ impl<R: BufRead + Seek> PngDecoder<R> {
         Ok(PngDecoder {
             color_type,
             reader,
-            limits,
+            allocation_limit,
         })
     }
 
@@ -263,13 +259,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         (*self).read_image(buf)
     }
 
-    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-        let info = self.reader.info();
-        limits.check_dimensions(info.width, info.height)?;
-        self.limits = limits;
-        // TODO: add `png::Reader::change_limits()` and call it here
-        // to also constrain the internal buffer allocations in the PNG crate
+    fn set_allocation_limit(&mut self, limit: u64) -> ImageResult<()> {
+        self.allocation_limit = limit;
         Ok(())
     }
 }
@@ -330,14 +321,14 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // Allocate the buffers, honoring the memory limits
         let (width, height) = self.inner.dimensions();
         {
-            let limits = &mut self.inner.limits;
+            let limit = &mut self.inner.allocation_limit;
             if self.previous.is_none() {
-                limits.reserve_buffer(width, height, COLOR_TYPE)?;
+                limits::reserve_buffer(limit, width, height, COLOR_TYPE)?;
                 self.previous = Some(RgbaImage::new(width, height));
             }
 
             if self.current.is_none() {
-                limits.reserve_buffer(width, height, COLOR_TYPE)?;
+                limits::reserve_buffer(limit, width, height, COLOR_TYPE)?;
                 self.current = Some(RgbaImage::new(width, height));
             }
         }
@@ -355,13 +346,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // Skip the thumbnail that is not part of the animation.
         if self.has_thumbnail {
             // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
-            let mut limits = self.inner.limits.clone();
+            let mut local_limit = self.inner.allocation_limit;
 
             let buffer_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             })?;
 
-            limits.reserve_usize(buffer_size)?;
+            limits::reserve_usize(&mut local_limit, buffer_size)?;
             let mut buffer = vec![0; buffer_size];
             // TODO: add `png::Reader::change_limits()` and call it here
             // to also constrain the internal buffer allocations in the PNG crate
@@ -416,14 +407,14 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // The allocations from now on are not going to persist,
         // and will be destroyed at the end of the scope.
         // Clone the limits so that any changes to them die with the allocations.
-        let mut limits = self.inner.limits.clone();
+        let mut local_limit = self.inner.allocation_limit.clone();
 
         // Read next frame data.
         let raw_frame_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
             ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
         })?;
 
-        limits.reserve_usize(raw_frame_size)?;
+        limits::reserve_usize(&mut local_limit, raw_frame_size)?;
         let mut buffer = vec![0; raw_frame_size];
         // TODO: add `png::Reader::change_limits()` and call it here
         // to also constrain the internal buffer allocations in the PNG crate
@@ -461,7 +452,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         });
 
         // Turn the data into an rgba image proper.
-        limits.reserve_buffer(width, height, COLOR_TYPE)?;
+        limits::reserve_buffer(&mut local_limit, width, height, COLOR_TYPE)?;
         let source = match self.inner.color_type {
             ColorType::L8 => {
                 let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
@@ -483,7 +474,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             _ => unreachable!("Invalid png color"),
         };
         // We've converted the raw frame to RGBA8 and disposed of the original allocation
-        limits.free_usize(raw_frame_size);
+        limits::free_usize(&mut local_limit, raw_frame_size);
 
         match blend {
             BlendOp::Source => {

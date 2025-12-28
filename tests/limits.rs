@@ -15,9 +15,7 @@
 
 use std::io::Cursor;
 
-use image::{
-    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReader, Limits, RgbImage,
-};
+use image::{load_from_memory_with_format, ImageFormat, ImageReader, Limits, RgbImage};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
@@ -69,8 +67,6 @@ fn load_through_reader(
 #[test]
 #[cfg(feature = "gif")]
 fn gif() {
-    use image::codecs::gif::GifDecoder;
-
     let image = test_image(ImageFormat::Gif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());
@@ -78,29 +74,13 @@ fn gif() {
     assert!(load_through_reader(&image, ImageFormat::Gif, permissive_limits()).is_ok());
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
-    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err()); // BROKEN!
-
-    // GifDecoder
-    let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-
-    // Custom constructor on GifDecoder
-    #[allow(deprecated)]
-    {
-        assert!(GifDecoder::new(Cursor::new(&image))
-            .unwrap()
-            .set_limits(width_height_limits())
-            .is_err());
-        // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-    }
+    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err());
+    // BROKEN!
 }
 
 #[test]
 #[cfg(feature = "png")]
 fn png() {
-    use image::codecs::png::PngDecoder;
-
     let image = test_image(ImageFormat::Png);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Png).is_ok());
@@ -109,25 +89,11 @@ fn png() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Png, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
-
-    // PngDecoder
-    let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
-    // Unlike many others, the `png` crate does natively support memory limits for auxiliary buffers,
-    // but they are not passed down from `set_limits` - only from the `with_limits` constructor.
-    // The proper fix is known to require an API break: https://github.com/image-rs/image/issues/2084
-
-    // Custom constructor on PngDecoder
-    assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
 #[cfg(feature = "jpeg")]
 fn jpeg() {
-    use image::codecs::jpeg::JpegDecoder;
-
     let image = test_image(ImageFormat::Jpeg);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Jpeg).is_ok());
@@ -136,18 +102,11 @@ fn jpeg() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Jpeg, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Jpeg, allocation_limits()).is_err());
-
-    // JpegDecoder
-    let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
 #[cfg(feature = "webp")]
 fn webp() {
-    use image::codecs::webp::WebPDecoder;
-
     let image = test_image(ImageFormat::WebP);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::WebP).is_ok());
@@ -156,18 +115,11 @@ fn webp() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::WebP, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::WebP, allocation_limits()).is_err());
-
-    // WebPDecoder
-    let mut decoder = WebPDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
 #[cfg(feature = "tiff")]
 fn tiff() {
-    use image::codecs::tiff::TiffDecoder;
-
     let image = test_image(ImageFormat::Tiff);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Tiff).is_ok());
@@ -183,11 +135,6 @@ fn tiff() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Tiff, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Tiff, allocation_limits()).is_err());
-
-    // TiffDecoder
-    let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
@@ -203,18 +150,11 @@ fn avif() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Avif, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Avif, allocation_limits()).is_err());
-
-    // AvifDecoder
-    let mut decoder = AvifDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }
 
 #[test]
 #[cfg(feature = "bmp")]
 fn bmp() {
-    use image::codecs::bmp::BmpDecoder;
-
     let image = test_image(ImageFormat::Bmp);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Bmp).is_ok());
@@ -223,9 +163,4 @@ fn bmp() {
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Bmp, width_height_limits()).is_err());
     assert!(load_through_reader(&image, ImageFormat::Bmp, allocation_limits()).is_err());
-
-    // BmpDecoder
-    let mut decoder = BmpDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

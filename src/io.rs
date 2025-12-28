@@ -19,9 +19,6 @@ pub type Reader<R> = ImageReader<R>;
 #[deprecated(note = "this type has been moved to image::Limits")]
 /// Deprecated re-export of `Limits`
 pub type Limits = limits::Limits;
-#[deprecated(note = "this type has been moved to image::LimitSupport")]
-/// Deprecated re-export of `LimitSupport`
-pub type LimitSupport = limits::LimitSupport;
 
 pub(crate) use self::image_reader_type::ImageReader;
 

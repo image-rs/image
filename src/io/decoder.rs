@@ -112,10 +112,7 @@ pub trait ImageDecoder {
     /// [`Limits`]: ./io/struct.Limits.html
     /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
     /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
-    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
+    fn set_allocation_limit(&mut self, _limit: u64) -> ImageResult<()> {
         Ok(())
     }
 
@@ -170,8 +167,8 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         T::read_image_boxed(*self, buf)
     }
-    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
-        (**self).set_limits(limits)
+    fn set_allocation_limit(&mut self, limit: u64) -> ImageResult<()> {
+        (**self).set_allocation_limit(limit)
     }
 }
 

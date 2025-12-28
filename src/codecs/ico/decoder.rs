@@ -249,12 +249,8 @@ impl DirEntry {
         self.seek_to_start(&mut r)?;
 
         if is_png {
-            let limits = crate::Limits {
-                max_image_width: Some(self.real_width().into()),
-                max_image_height: Some(self.real_height().into()),
-                max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
-            };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits)?)))
+            let max_alloc = 256 * 256 * 4 * 2; // width * height * 4 bytes per pixel * safety factor of 2
+            Ok(Png(Box::new(PngDecoder::with_limits(r, max_alloc)?)))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }

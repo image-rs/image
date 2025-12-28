@@ -299,13 +299,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         }
     }
 
-    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
-
-        let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
+    fn set_allocation_limit(&mut self, max_alloc: u64) -> ImageResult<()> {
         let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes_buffer());
 
         let mut tiff_limits: tiff::decoder::Limits = Default::default();

@@ -1,12 +1,14 @@
+use std::borrow::Cow;
 use std::io::{self, Read};
 
 use std::num::{ParseFloatError, ParseIntError};
 use std::{error, fmt};
 
 use crate::error::{
-    DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
+use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +131,9 @@ const SIGNATURE_LENGTH: usize = 10;
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
     r: R,
+    /// Estimate of the total memory allocation when decoding the image, including
+    /// the header lines and the temporary buffer to read scanlines into
+    max_allocated: u64,
     meta: HdrMetadata,
 }
 
@@ -186,12 +191,37 @@ impl<R: Read> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream `reader`,
     /// if the header is valid, creates `HdrDecoder`.
     ///
+    /// `strict` enables strict mode
+    ///
+    /// This does not impose any memory or size limits.
+    ///
+    /// Warning! Reading wrong file without strict
+    ///   could consume file size worth of memory in the process.
+    pub fn with_strictness(reader: R, strict: bool) -> ImageResult<Self> {
+        Self::with_strictness_and_limits(reader, strict, u64::MAX)
+    }
+
+    /// Reads Radiance HDR image header from stream `reader`,
+    /// if the header is valid, creates `HdrDecoder`.
+    ///
     /// strict enables strict mode
     ///
-    /// Warning! Reading wrong file in non-strict mode
+    /// max_alloc imposes a rough limit on the maximum memory allocation for the decoder
+    ///
+    /// Warning! Reading wrong file without strict mode
     ///   could consume file size worth of memory in the process.
-    pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
+    pub fn with_strictness_and_limits(
+        mut reader: R,
+        strict: bool,
+        max_alloc: u64,
+    ) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
+
+        let mut free_space: u64 = max_alloc;
+
+        let out_of_memory: ImageResult<_> = Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
 
         {
             // scope to make borrowck happy
@@ -203,14 +233,14 @@ impl<R: Read> HdrDecoder<R> {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
                   // skip signature line ending
-                read_line_u8(r)?;
+                read_until_newline(r)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
                 // Let them be parsed in non-strict mode
             }
             // read header data until empty line
             loop {
-                match read_line_u8(r)? {
+                match read_line_u8(r, free_space)? {
                     None => {
                         // EOF before end of header
                         return Err(DecoderError::TruncatedHeader.into());
@@ -224,20 +254,31 @@ impl<R: Read> HdrDecoder<R> {
                             // skip comments
                             continue;
                         } // no else
-                          // process attribute line
-                        let line = String::from_utf8_lossy(&line[..]);
-                        attributes.update_header_info(&line, strict)?;
+
+                        free_space -= line.len() as u64;
+
+                        // process attribute line
+                        let str_line = string_from_utf8_lossy_limited(&line[..], &mut free_space)?;
+
+                        attributes.update_header_info(&str_line, strict, &mut free_space)?;
+
+                        // `line` and `str_line` are not retained
+                        free_space += line.len() as u64;
+                        if let Cow::Owned(x) = str_line {
+                            free_space += x.capacity() as u64;
+                        }
                     } // <= Some(line)
                 } // match read_line_u8()
             } // loop
         } // scope to end borrow of reader
           // parse dimensions
-        let (width, height) = match read_line_u8(&mut reader)? {
+        let (width, height) = match read_line_u8(&mut reader, free_space)? {
             None => {
                 // EOF instead of image dimensions
                 return Err(DecoderError::TruncatedDimensions.into());
             }
             Some(dimensions) => {
+                // No update to `free_space`; `dimensions` is temporary
                 parse_dimensions_line(&dimensions, strict)?
             }
         };
@@ -255,16 +296,26 @@ impl<R: Read> HdrDecoder<R> {
             ));
         }
 
+        // Decoding the image will require loading an rgbe8 scanline into memory;
+        // to simplify the decoding logic, register this immediately
+        let scanline_space = (width as u64) * 4;
+        if free_space < scanline_space {
+            return out_of_memory;
+        }
+        free_space -= scanline_space;
+
+        let allocated = max_alloc - free_space;
+
         Ok(HdrDecoder {
             r: reader,
-
+            max_allocated: allocated,
             meta: HdrMetadata {
                 width,
                 height,
                 ..attributes
             },
         })
-    } // end with_strictness
+    } // end with_strictness_and_limits
 
     /// Returns file metadata. Refer to `HdrMetadata` for details.
     pub fn metadata(&self) -> HdrMetadata {
@@ -279,6 +330,14 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         ColorType::Rgb32F
+    }
+
+    fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        limits.check_dimensions(self.meta.width, self.meta.height)?;
+
+        limits.reserve(self.max_allocated)?;
+        Ok(())
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -506,10 +565,30 @@ impl HdrMetadata {
 
     // Updates header info, in strict mode returns error for malformed lines (no '=' separator)
     // unknown attributes are skipped
-    fn update_header_info(&mut self, line: &str, strict: bool) -> ImageResult<()> {
+    fn update_header_info(
+        &mut self,
+        line: &str,
+        strict: bool,
+        free_space: &mut u64,
+    ) -> ImageResult<()> {
         // split line at first '='
         // old Radiance HDR files (*.pic) feature tabs in key, so                vvv trim
         let maybe_key_value = split_at_first(line, "=").map(|(key, value)| (key.trim(), value));
+
+        // Estimate the space needed to retain the header line
+        // The factor 2 corrects for HdrMetadata::custom_attributes overcapacity
+        const ATTRIB_OVERHEAD: u64 = 2 * size_of::<(String, String)>() as u64;
+        let stored_memory = match maybe_key_value {
+            Some((key, val)) => (key.len() + val.len()) as u64 + ATTRIB_OVERHEAD,
+            None => line.len() as u64 + ATTRIB_OVERHEAD,
+        };
+        if *free_space < stored_memory {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
+        }
+        *free_space -= stored_memory;
+
         // save all header lines in custom_attributes
         match maybe_key_value {
             Some((key, val)) => self
@@ -689,10 +768,58 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
     }
 }
 
+/// Call String::from_utf8_lossy, returning an error if this might use more memory
+/// than `free_space`, and otherwise reducing `free_space` by the actual amount allocated.
+fn string_from_utf8_lossy_limited<'a>(
+    line: &'a [u8],
+    free_space: &mut u64,
+) -> ImageResult<Cow<'a, str>> {
+    // String::from_utf8_lossy has a most uses triple the len of the original
+    // &[u8], because each replacement "�" takes 3 bytes
+    const STRING_EXPANSION_FACTOR: u64 = 3;
+
+    // The factor 2 accounts for possible capacity overhead
+    let max_memory_estimate = 2 * STRING_EXPANSION_FACTOR * line.len() as u64;
+
+    if *free_space < max_memory_estimate {
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
+    }
+
+    let s = String::from_utf8_lossy(line);
+
+    let space_used = if let Cow::Owned(x) = &s {
+        x.capacity() as u64
+    } else {
+        0
+    };
+
+    if *free_space < space_used {
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
+    }
+
+    *free_space -= space_used;
+
+    Ok(s)
+}
+
+// Reads input until b"\n" or EOF, returning () in either case
+fn read_until_newline<R: Read>(r: &mut R) -> io::Result<()> {
+    loop {
+        let mut byte = [0];
+        if r.read(&mut byte)? == 0 || byte[0] == b'\n' {
+            return Ok(());
+        }
+    }
+}
+
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
+fn read_line_u8<R: Read>(r: &mut R, max_len: u64) -> ImageResult<Option<Vec<u8>>> {
     // keeping repeated redundant allocations to avoid added complexity of having a `&mut tmp` argument
     #[allow(clippy::disallowed_methods)]
     let mut ret = Vec::with_capacity(16);
@@ -704,6 +831,12 @@ fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
             }
             return Ok(Some(ret));
         }
+        if ret.len() as u64 >= max_len {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
+        }
+
         ret.push(byte[0]);
     }
 }
@@ -742,13 +875,17 @@ mod tests {
     fn read_line_u8_test() {
         let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
         let input = &mut Cursor::new(buf);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(read_line_u8(input).unwrap(), None);
+        let read_line = |input: &mut Cursor<Vec<u8>>| -> Option<Vec<u8>> {
+            read_line_u8(input, u64::MAX).unwrap()
+        };
+
+        assert_eq!(&read_line(input).unwrap()[..], &b"One"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Two"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Three"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Four"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(read_line(input), None);
     }
 
     #[test]

@@ -360,25 +360,20 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         }
     }
 
-    fn channels4(&self) -> (T, T, T, T) {
-        const CHANNELS: usize = $channels;
-        let mut channels = [T::DEFAULT_MAX_VALUE; 4];
-        channels[0..CHANNELS].copy_from_slice(&self.0);
-        (channels[0], channels[1], channels[2], channels[3])
-    }
-
-    fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        const CHANNELS: usize = $channels;
-        *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..CHANNELS])
-    }
-
+    #[track_caller]
     fn from_slice(slice: &[T]) -> &$ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { &*(slice.as_ptr() as *const $ident<T>) }
     }
+
+    #[track_caller]
     fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
+    }
+
+    fn broadcast(val: T) -> $ident<T> {
+        $ident([val; $channels])
     }
 
     fn to_rgb(&self) -> Rgb<T> {
@@ -594,10 +589,7 @@ where
 {
     #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> O {
-        // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
-        // the pixel due to a current bug/limitation of consts.
-        #[allow(deprecated)]
-        let mut pix = O::from_channels(Zero::zero(), Zero::zero(), Zero::zero(), Zero::zero());
+        let mut pix = O::broadcast(Zero::zero());
         pix.from_color(self);
         pix
     }

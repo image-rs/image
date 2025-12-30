@@ -1,4 +1,7 @@
 //! Functions and filters for the sampling of pixels.
+//!
+//! Some of these functions assume structure of the `Pixel` type beyond the trait interface.
+//! Generally: methods operating on individual channels have a limit of 4 channels.
 
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
@@ -20,6 +23,8 @@ use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
 };
+
+const MAX_CHANNEL: usize = 4;
 
 /// Available Sampling Filters.
 ///
@@ -227,12 +232,15 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 }
 
 // Sample the rows of the supplied image using the provided filter.
+//
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
 //
 // Note: if an empty image is passed in, panics unless the image is truly empty.
+//
+// Note: this function processes pixels for the standard pixel types with up to 4 channels.
 fn horizontal_sample<P, S>(
     image: &Rgba32FImage,
     new_width: u32,
@@ -259,6 +267,8 @@ where
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
+
+    let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
 
     for outx in 0..new_width {
         // Find the point in the input image corresponding to the centre
@@ -297,29 +307,21 @@ where
         }
 
         for y in 0..height {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut t = [0.0; MAX_CHANNEL];
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
-                #[allow(deprecated)]
-                let vec = p.channels4();
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
+                for (t, &c) in t.iter_mut().zip(p.channels()) {
+                    *t += c * w;
+                }
             }
 
-            #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
-            );
+            for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {
+                *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
+            }
 
-            out.put_pixel(outx, y, t);
+            out.put_pixel(outx, y, pix_temp);
         }
     }
 
@@ -401,7 +403,7 @@ pub fn interpolate_bilinear<P: Pixel>(
     y: f32,
 ) -> Option<P> {
     // assumption needed for correctness of pixel creation
-    assert!(P::CHANNEL_COUNT <= 4);
+    assert!(P::CHANNEL_COUNT as usize <= MAX_CHANNEL);
 
     let (w, h) = img.dimensions();
     if w == 0 || h == 0 {
@@ -421,10 +423,10 @@ pub fn interpolate_bilinear<P: Pixel>(
     let vc = (vf + 1).min(h - 1);
 
     // clamp coords to the range of the image
-    let mut sxx = [[0.; 4]; 4];
+    let mut sxx = [[0.; MAX_CHANNEL]; MAX_CHANNEL];
 
     // do not use Array::map, as it can be slow with high stack usage,
-    // for [[f32; 4]; 4].
+    // for [[f32; MAX_CHANNEL4]; MAX_CHANNEL4].
 
     // convert samples to f32
     // currently rgba is the largest one,
@@ -540,31 +542,17 @@ where
         }
 
         for x in 0..width {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut pix = crate::Rgba([1.0; 4]);
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
 
-                #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
+                for (tc, &c) in pix.channels_mut().iter_mut().zip(p.channels()) {
+                    *tc += <f32 as NumCast>::from(c).unwrap() * w;
+                }
             }
 
-            #[allow(deprecated)]
-            // This is not necessarily Rgba.
-            let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
-
-            out.put_pixel(x, outy, t);
+            out.put_pixel(x, outy, pix);
         }
     }
 
@@ -572,16 +560,11 @@ where
 }
 
 /// Local struct for keeping track of pixel sums for fast thumbnail averaging
-struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+struct ThumbnailSum<S: Primitive + Enlargeable>([S::Larger; MAX_CHANNEL]);
 
 impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {
-        ThumbnailSum(
-            S::Larger::zero(),
-            S::Larger::zero(),
-            S::Larger::zero(),
-            S::Larger::zero(),
-        )
+        ThumbnailSum([S::Larger::zero(); MAX_CHANNEL])
     }
 
     fn sample_val(val: S) -> S::Larger {
@@ -589,12 +572,9 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 
     fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
-        #[allow(deprecated)]
-        let pixel = pixel.channels4();
-        self.0 += Self::sample_val(pixel.0);
-        self.1 += Self::sample_val(pixel.1);
-        self.2 += Self::sample_val(pixel.2);
-        self.3 += Self::sample_val(pixel.3);
+        for (s, &c) in self.0.iter_mut().zip(pixel.channels()) {
+            *s += Self::sample_val(c);
+        }
     }
 }
 
@@ -616,6 +596,9 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
+    // Maximum support channels for `ThumbnailSum`.
+    assert!(P::CHANNEL_COUNT as usize <= MAX_CHANNEL);
+
     let (width, height) = image.dimensions();
     let mut out = image.buffer_with_dimensions(new_width, new_height);
 
@@ -684,9 +667,7 @@ where
                 )
             };
 
-            #[allow(deprecated)]
-            let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
-            out.put_pixel(outx, outy, pixel);
+            out.put_pixel(outx, outy, avg);
         }
     }
 
@@ -694,13 +675,7 @@ where
 }
 
 /// Get a pixel for a thumbnail where the input window encloses at least a full pixel.
-fn thumbnail_sample_block<I, P, S>(
-    image: &I,
-    left: u32,
-    right: u32,
-    bottom: u32,
-    top: u32,
-) -> (S, S, S, S)
+fn thumbnail_sample_block<I, P, S>(image: &I, left: u32, right: u32, bottom: u32, top: u32) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
@@ -725,12 +700,9 @@ where
         S::Larger::zero()
     };
 
-    (
-        S::clamp_from((sum.0 + round) / n),
-        S::clamp_from((sum.1 + round) / n),
-        S::clamp_from((sum.2 + round) / n),
-        S::clamp_from((sum.3 + round) / n),
-    )
+    let rounded_avg = sum.0.map(|v| S::clamp_from((v + round) / n));
+    let used_channels: usize = (<P as Pixel>::CHANNEL_COUNT).min(4u8).into();
+    *<P as Pixel>::from_slice(&rounded_avg[..used_channels])
 }
 
 /// Get a thumbnail pixel where the input window encloses at least a vertical pixel.
@@ -740,7 +712,7 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
     fraction_horizontal: f32,
     bottom: u32,
     top: u32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
@@ -769,12 +741,18 @@ where
         .expect("Average sample value should fit into sample type")
     };
 
-    (
-        mix_left_and_right(sum_left.0, sum_right.0),
-        mix_left_and_right(sum_left.1, sum_right.1),
-        mix_left_and_right(sum_left.2, sum_right.2),
-        mix_left_and_right(sum_left.3, sum_right.3),
-    )
+    let left = sum_left.0;
+    let right = sum_right.0;
+
+    let mixed_sum = [
+        mix_left_and_right(left[0], right[0]),
+        mix_left_and_right(left[1], right[1]),
+        mix_left_and_right(left[2], right[2]),
+        mix_left_and_right(left[3], right[3]),
+    ];
+
+    let used_channels: usize = (<P as Pixel>::CHANNEL_COUNT).min(4u8).into();
+    *<P as Pixel>::from_slice(&mixed_sum[..used_channels])
 }
 
 /// Get a thumbnail pixel where the input window encloses at least a horizontal pixel.
@@ -784,7 +762,7 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
     right: u32,
     bottom: u32,
     fraction_vertical: f32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
@@ -811,12 +789,18 @@ where
             .expect("Average sample value should fit into sample type")
     };
 
-    (
-        mix_bot_and_top(sum_bot.0, sum_top.0),
-        mix_bot_and_top(sum_bot.1, sum_top.1),
-        mix_bot_and_top(sum_bot.2, sum_top.2),
-        mix_bot_and_top(sum_bot.3, sum_top.3),
-    )
+    let bot = sum_bot.0;
+    let top = sum_top.0;
+
+    let mixed_sum = [
+        mix_bot_and_top(bot[0], top[0]),
+        mix_bot_and_top(bot[1], top[1]),
+        mix_bot_and_top(bot[2], top[2]),
+        mix_bot_and_top(bot[3], top[3]),
+    ];
+
+    let used_channels: usize = (<P as Pixel>::CHANNEL_COUNT).min(4u8).into();
+    *<P as Pixel>::from_slice(&mixed_sum[..used_channels])
 }
 
 /// Get a single pixel for a thumbnail where the input window does not enclose any full pixel.
@@ -826,20 +810,16 @@ fn thumbnail_sample_fraction_both<I, P, S>(
     fraction_vertical: f32,
     bottom: u32,
     fraction_horizontal: f32,
-) -> (S, S, S, S)
+) -> P
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
-    #[allow(deprecated)]
-    let k_bl = image.get_pixel(left, bottom).channels4();
-    #[allow(deprecated)]
-    let k_tl = image.get_pixel(left, bottom + 1).channels4();
-    #[allow(deprecated)]
-    let k_br = image.get_pixel(left + 1, bottom).channels4();
-    #[allow(deprecated)]
-    let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
+    let k_bl = image.get_pixel(left, bottom);
+    let k_tl = image.get_pixel(left, bottom + 1);
+    let k_br = image.get_pixel(left + 1, bottom);
+    let k_tr = image.get_pixel(left + 1, bottom + 1);
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
@@ -859,12 +839,19 @@ where
         .expect("Average sample value should fit into sample type")
     };
 
-    (
-        mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
-        mix(k_br.1, k_tr.1, k_bl.1, k_tl.1),
-        mix(k_br.2, k_tr.2, k_bl.2, k_tl.2),
-        mix(k_br.3, k_tr.3, k_bl.3, k_tl.3),
-    )
+    // Make a copy of any pixel, we'll fully overwrite it.
+    let mut sum = k_br;
+
+    for (i, ch) in sum.channels_mut().iter_mut().enumerate() {
+        *ch = mix(
+            k_br.channels()[i],
+            k_tr.channels()[i],
+            k_bl.channels()[i],
+            k_tl.channels()[i],
+        );
+    }
+
+    sum
 }
 
 /// Perform a 3x3 box filter on the supplied image.
@@ -908,7 +895,7 @@ where
 
     for y in 1..height - 1 {
         for x in 1..width - 1 {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let mut t = [0.0; MAX_CHANNEL];
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first
@@ -919,38 +906,18 @@ where
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
-                #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * k;
-                t.1 += vec.1 * k;
-                t.2 += vec.2 * k;
-                t.3 += vec.3 * k;
+                for (tc, &c) in t.iter_mut().zip(p.channels()) {
+                    *tc += <f32 as NumCast>::from(c).unwrap() * k;
+                }
             }
 
-            let (t1, t2, t3, t4) = (
-                t.0 * inverse_sum,
-                t.1 * inverse_sum,
-                t.2 * inverse_sum,
-                t.3 * inverse_sum,
-            );
+            let channel_avg = t
+                .map(|ti| ti * inverse_sum)
+                .map(|ti| NumCast::from(clamp(ti, 0.0, max)).unwrap());
 
-            #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
-            );
+            let pix = *Pixel::from_slice(&channel_avg[..P::CHANNEL_COUNT as usize]);
 
-            out.put_pixel(x, y, t);
+            out.put_pixel(x, y, pix);
         }
     }
 
@@ -1545,34 +1512,32 @@ where
     for (dst, src) in out.pixels_mut().zip(transient_dst.chunks_exact_mut(CN)) {
         match CN {
             1 => {
-                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
-                #[allow(deprecated)]
-                let t = Pixel::from_channels(v0, v0, v0, v0);
-                *dst = t;
+                let channels = <[_; 1]>::try_from(src)
+                    .unwrap()
+                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
+
+                *dst = *Pixel::from_slice(&channels);
             }
             2 => {
-                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
-                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
-                #[allow(deprecated)]
-                let t = Pixel::from_channels(v0, v1, v0, v0);
-                *dst = t;
+                let channels = <[_; 2]>::try_from(src)
+                    .unwrap()
+                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
+
+                *dst = *Pixel::from_slice(&channels);
             }
             3 => {
-                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
-                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
-                let v2 = NumCast::from(FloatNearest(src[2])).unwrap();
-                #[allow(deprecated)]
-                let t = Pixel::from_channels(v0, v1, v2, v0);
-                *dst = t;
+                let channels = <[_; 3]>::try_from(src)
+                    .unwrap()
+                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
+
+                *dst = *Pixel::from_slice(&channels);
             }
             4 => {
-                let v0 = NumCast::from(FloatNearest(src[0])).unwrap();
-                let v1 = NumCast::from(FloatNearest(src[1])).unwrap();
-                let v2 = NumCast::from(FloatNearest(src[2])).unwrap();
-                let v3 = NumCast::from(FloatNearest(src[3])).unwrap();
-                #[allow(deprecated)]
-                let t = Pixel::from_channels(v0, v1, v2, v3);
-                *dst = t;
+                let channels = <[_; 4]>::try_from(src)
+                    .unwrap()
+                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
+
+                *dst = *Pixel::from_slice(&channels);
             }
             _ => unreachable!(),
         }

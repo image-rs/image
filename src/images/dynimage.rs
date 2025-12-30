@@ -497,7 +497,7 @@ impl DynamicImage {
     /// Return a cut-out of this image delimited by the bounding rectangle.
     #[must_use]
     pub fn crop(&self, selection: Rect) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::crop_imm(p, selection).to_image())
+        dynamic_map!(*self, ref p => imageops::crop(p, selection).to_image())
     }
 
     /// Crop this image in place, removing pixels outside of the bounding rectangle.

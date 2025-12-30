@@ -1022,7 +1022,7 @@ where
     /// let mut img = RgbImage::new(32, 32);
     /// let selection = Rect::from_xy_ranges(16..40, 16..24);
     /// # use image::GenericImageView as _;
-    /// # assert_eq!(image::imageops::crop_imm(&img, selection).dimensions(), (16, 8));
+    /// # assert_eq!(image::imageops::crop(&img, selection).dimensions(), (16, 8));
     ///
     /// img.crop_in_place(selection);
     /// assert_eq!(img.dimensions(), (16, 8));

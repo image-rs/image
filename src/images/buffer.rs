@@ -1520,8 +1520,8 @@ where
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
 
-        for pix in img.pixels_mut() {
-            pix.0.reverse();
+        for pix in img.inner_pixels_mut().chunks_exact_mut(3) {
+            pix.reverse();
         }
 
         Some(img)
@@ -1546,8 +1546,8 @@ where
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
 
-        for pix in img.pixels_mut() {
-            pix.0[..3].reverse();
+        for pix in img.inner_pixels_mut().chunks_exact_mut(4) {
+            pix[0..3].reverse();
         }
 
         Some(img)

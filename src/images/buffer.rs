@@ -1543,6 +1543,8 @@ where
     Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
+    ///
+    /// If you have a container of u8, use the faster [Self::from_raw_bgra_bytes]
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
 
@@ -1554,12 +1556,83 @@ where
     }
 
     /// Return the underlying raw buffer after converting it into `BgrA` channel order.
+    ///
+    /// If you have a container of u8, use the faster [Self::from_raw_bgra_bytes]
     pub fn into_raw_bgra(mut self) -> Container {
         for pix in self.pixels_mut() {
             pix.0[..3].reverse();
         }
 
         self.into_raw()
+    }
+}
+
+/// This is a inlined version of as_chunks_mut::<4>() with some shuffling to avoid duplicate division
+/// replace usages with buf.as_chunks_mut::<4>() when MSRV is bumped to 1.88 or above
+///
+/// SAFETY: Callers need to ensure buf.len() >= N
+#[inline(always)]
+pub(crate) unsafe fn as_chunks_mut<const N: usize, T>(buf: &mut [T]) -> (&mut [[T; 4]], &mut [T]) {
+    let new_len = buf.len() / N;
+    let len_rounded_down = new_len * N;
+    // SAFETY: The rounded-down value is always the same or smaller than the
+    // original length, and thus must be in-bounds of the slice.
+    let (multiple_of_n, remainder) = unsafe { buf.split_at_mut_unchecked(len_rounded_down) };
+    // SAFETY: Self::from_raw already returned , and ensured by construction
+    // that the length of the subslice is a multiple of N.
+    // We cast a slice of `new_len * 4` elements into
+    // a slice of `new_len` many `4` elements chunks.
+    let array_slice =
+        unsafe { std::slice::from_raw_parts_mut(multiple_of_n.as_mut_ptr().cast(), new_len) };
+    (array_slice, remainder)
+}
+
+impl<Container> ImageBuffer<Rgba<u8>, Container>
+where
+    Container: DerefMut<Target = [u8]>,
+{
+    /// SAFETY: Callers need to ensure buf.len() >= 4
+    #[inline]
+    unsafe fn _swap_bgra_rgba_buf_bytes_inplace(buf: &mut [u8]) {
+        // Replace with let (chunked, _) = img.as_chunks_mut::<4>(); when MSRV is bumped to 1.88 or above
+        // SAFETY: Ensured by caller
+        let (chunked, _) = unsafe { as_chunks_mut::<4, _>(buf) };
+
+        for p in chunked {
+            let bgra = u32::from_be_bytes(*p);
+            let argb = bgra.swap_bytes();
+            let rgba = argb.rotate_left(8);
+            *p = rgba.to_be_bytes();
+        }
+    }
+    /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
+    ///
+    /// Optimized method for u8-based containers
+    pub fn from_raw_bgra_bytes(width: u32, height: u32, container: Container) -> Option<Self> {
+        let mut img = Self::from_raw(width, height, container)?;
+        if img.len() < 4 {
+            return None;
+        }
+
+        // SAFETY: Early-return when img < 4
+        unsafe { Self::_swap_bgra_rgba_buf_bytes_inplace(&mut img) };
+
+        Some(img)
+    }
+
+    /// Return the underlying raw buffer after converting it into `BgrA` channel order.
+    ///
+    /// Optimized method for u8-based containers
+    pub fn into_raw_bgra_bytes(self) -> Container {
+        if self.len() < 4 {
+            return self.into_raw();
+        }
+        let mut buf = self.into_raw();
+
+        // SAFETY: Early-return when img < 4
+        unsafe { Self::_swap_bgra_rgba_buf_bytes_inplace(&mut buf) };
+
+        buf
     }
 }
 

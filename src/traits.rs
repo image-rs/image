@@ -471,31 +471,6 @@ pub trait Pixel: Copy + Clone {
         }
     }
 
-    /// Returns the channels of this pixel as a 4 tuple. If the pixel
-    /// has less than 4 channels the remainder is filled with the maximum value
-    #[deprecated(since = "0.24.0", note = "Use `channels()` or `channels_mut()`")]
-    fn channels4(
-        &self,
-    ) -> (
-        Self::Subpixel,
-        Self::Subpixel,
-        Self::Subpixel,
-        Self::Subpixel,
-    );
-
-    /// Construct a pixel from the 4 channels a, b, c and d.
-    /// If the pixel does not contain 4 channels the extra are ignored.
-    #[deprecated(
-        since = "0.24.0",
-        note = "Use the constructor of the pixel, for example `Rgba([r,g,b,a])` or `Pixel::from_slice`"
-    )]
-    fn from_channels(
-        a: Self::Subpixel,
-        b: Self::Subpixel,
-        c: Self::Subpixel,
-        d: Self::Subpixel,
-    ) -> Self;
-
     /// Returns a view into a slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
@@ -507,6 +482,9 @@ pub trait Pixel: Copy + Clone {
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
+
+    /// Create a pixel from setting all channels to the same value.
+    fn broadcast(_: Self::Subpixel) -> Self;
 
     /// Convert this pixel to RGB
     fn to_rgb(&self) -> Rgb<Self::Subpixel>;

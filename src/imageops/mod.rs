@@ -40,13 +40,13 @@ pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
-pub fn crop<I: GenericImageView>(image: &mut I, rect: Rect) -> SubImage<&mut I> {
+pub fn crop_mut<I: GenericImageView>(image: &mut I, rect: Rect) -> SubImage<&mut I> {
     SubImage::new(image, rect.crop_dimms(image))
 }
 
 /// Return an immutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
-pub fn crop_imm<I: GenericImageView>(image: &I, rect: Rect) -> SubImage<&I> {
+pub fn crop<I: GenericImageView>(image: &I, rect: Rect) -> SubImage<&I> {
     SubImage::new(image, rect.crop_dimms(image))
 }
 

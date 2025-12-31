@@ -226,7 +226,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
 
         Ok(ImageReader {
             inner: decoder,
-            viewbox: None,
             limits: self.limits,
             last_attributes: Default::default(),
         })
@@ -331,10 +330,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
 pub struct ImageReader<'lt> {
     /// The reader. Should be buffered.
     inner: Box<dyn ImageDecoder + 'lt>,
-    /// An additional viewbox to apply after decoding.
-    ///
-    /// This is only used if the inner decoder does not support viewboxes directly.
-    viewbox: Option<crate::math::Rect>,
     /// Remaining limits for allocations by the reader.
     limits: Limits,
     /// A buffered cache of the last image attributes.
@@ -374,9 +369,6 @@ impl ImageReaderOptions<BufReader<File>> {
 impl ImageReader<'_> {
     /// Decode the next image into a `DynamicImage`.
     pub fn decode(&mut self) -> ImageResult<DynamicImage> {
-        // Try to resolve the viewbox via the decoder, fallback to `crop` if that is not possible.
-        let residual_vb = self.viewbox.and_then(|vb| self.inner.viewbox(vb).err());
-
         let layout = self.inner.peek_layout()?;
         // This is technically redundant but it's also cheap.
         self.limits.check_dimensions(layout.width, layout.height)?;
@@ -406,13 +398,7 @@ impl ImageReader<'_> {
             }
         }
 
-        Ok(if let Some(vb) = residual_vb {
-            // Crop the image. This re-allocates a completely new buffer. For other types it may be
-            // possible to do so with less work but not the normalized `ImageBuffer`.
-            image.crop(vb)
-        } else {
-            image
-        })
+        Ok(image)
     }
 
     /// Skip the next image, discard its image data.
@@ -421,15 +407,9 @@ impl ImageReader<'_> {
     /// running the usual verification routines. It will inform the underlying decoder that it is
     /// uninterested in all of the image data, then run its decoding routine.
     pub fn skip(&mut self) -> ImageResult<()> {
-        const EMPTY: crate::math::Rect = crate::math::Rect {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-        };
-
-        // This is just an information..
-        let _ = self.inner.viewbox(EMPTY);
+        // TODO: with `viewbox` (temporarily removed) we can inform the decoder that no data is
+        // required which may be quite efficient. Other variants of achieving the same may also be
+        // possible. We can just try out until one works.
 
         // Some decoders may still want a buffer, so we can't fully ignore it.
         let layout = self.inner.peek_layout()?;
@@ -454,11 +434,6 @@ impl ImageReader<'_> {
     /// Query the layout that the image will have.
     pub fn layout(&mut self) -> ImageResult<crate::ImageLayout> {
         self.inner.peek_layout()
-    }
-
-    /// Set the viewbox to apply when decoding images.
-    pub fn set_viewbox(&mut self, viewbox: crate::math::Rect) {
-        self.viewbox = Some(viewbox);
     }
 
     /// Get the previously decoded EXIF metadata if any.
@@ -519,7 +494,6 @@ impl<'stream> ImageReader<'stream> {
     pub fn from_decoder(boxed: Box<dyn ImageDecoder + 'stream>) -> Self {
         ImageReader {
             inner: boxed,
-            viewbox: None,
             limits: Limits::default(),
             last_attributes: Default::default(),
         }

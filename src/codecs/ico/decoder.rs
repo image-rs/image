@@ -443,13 +443,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn viewbox(&mut self, rect: crate::math::Rect) -> Result<(), crate::math::Rect> {
-        match &mut self.inner_decoder {
-            Bmp(decoder) => decoder.viewbox(rect),
-            Png(decoder) => decoder.viewbox(rect),
-        }
-    }
-
     fn more_images(&self) -> crate::io::SequenceControl {
         // ICO files only provide a single image for now. This may change in the future, we might
         // want to yield the others as thumbnails.

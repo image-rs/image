@@ -39,6 +39,17 @@ pub trait ImageDecoder {
         Ok(())
     }
 
+    /// Retrieve general information about the decoder / its format itself.
+    ///
+    /// This hint which methods should be called while decoding (a sequence of) images from this
+    /// decoder, e.g. when metadata is available and when it will be overridden. It also provides
+    /// basic capability information about the format. If, in the future, we added different basic
+    /// methods of retrieving color data then the attributes would indicate the preferred and/or
+    /// possible choices.
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes::default()
+    }
+
     /// Consume the header of the image, determining the image's layout.
     ///
     /// This must be called before a call to [`Self::read_image`] to ensure that the initial
@@ -177,6 +188,24 @@ pub trait ImageDecoder {
     }
 }
 
+/// Information meant to steer the protocol usage with the decoder.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct DecoderAttributes {
+    /// Are there multiple images in this file that form an animation?
+    pub is_animated: bool,
+    /// Are there multiple images in this file, as an unrelated sequence?
+    pub is_sequence: bool,
+    /// When should ICC profiles be retrieved.
+    pub icc: DecodedMetadataHint,
+    /// A hint for polling EXIF metadata.
+    pub exif: DecodedMetadataHint,
+    /// A hint for polling XMP metadata.
+    pub xmp: DecodedMetadataHint,
+    /// A hint for polling IPTC metadata.
+    pub iptc: DecodedMetadataHint,
+}
+
 /// Additional attributes of an image available after decoding.
 ///
 /// The [`Default`] is implemented and returns a value suitable for very basic images from formats
@@ -192,14 +221,6 @@ pub struct DecodedImageAttributes {
     pub y: u32,
     /// A suggested presentation offset relative to the previous image.
     pub delay: Option<Delay>,
-    /// A hint for retrieving ICC profiles.
-    pub icc: DecodedMetadataHint,
-    /// A hint for polling EXIF metadata.
-    pub exif: DecodedMetadataHint,
-    /// A hint for polling XMP metadata.
-    pub xmp: DecodedMetadataHint,
-    /// A hint for polling IPTC metadata.
-    pub iptc: DecodedMetadataHint,
 }
 
 /// A hint when metadata corresponding to the image is decoded.
@@ -251,6 +272,9 @@ pub enum SequenceControl {
 
 #[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
+    fn attributes(&self) -> DecoderAttributes {
+        (**self).attributes()
+    }
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         (**self).peek_layout()
     }

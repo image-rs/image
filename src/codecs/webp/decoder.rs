@@ -3,7 +3,7 @@ use std::io::{BufRead, Read, Seek};
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderAttributes};
 use crate::metadata::Orientation;
 use crate::{
     AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
@@ -41,6 +41,17 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // As per extended file format description:
+            // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::AfterFinish,
+            xmp: DecodedMetadataHint::AfterFinish,
+            ..DecoderAttributes::default()
+        }
+    }
+
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()
     }
@@ -62,11 +73,6 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .map_err(ImageError::from_webp_decode)?;
 
         Ok(DecodedImageAttributes {
-            // As per extended file format description:
-            // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
-            icc: DecodedMetadataHint::InHeader,
-            exif: DecodedMetadataHint::AfterFinish,
-            xmp: DecodedMetadataHint::AfterFinish,
             ..DecodedImageAttributes::default()
         })
     }

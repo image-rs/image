@@ -40,8 +40,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::decoder::DecodedMetadataHint;
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes};
 use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
@@ -124,6 +123,17 @@ impl<R> Read for GifReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            xmp: DecodedMetadataHint::AfterFinish,
+            icc: DecodedMetadataHint::AfterFinish,
+            iptc: DecodedMetadataHint::None,
+            exif: DecodedMetadataHint::None,
+            is_animated: true,
+            ..DecoderAttributes::default()
+        }
+    }
+
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         let decoder = self.ensure_decoder()?;
         Ok(Self::layout_from_decoder(decoder))
@@ -258,13 +268,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         }
 
-        Ok(DecodedImageAttributes {
-            xmp: DecodedMetadataHint::AfterFinish,
-            icc: DecodedMetadataHint::AfterFinish,
-            iptc: DecodedMetadataHint::None,
-            exif: DecodedMetadataHint::None,
-            ..DecodedImageAttributes::default()
-        })
+        Ok(DecodedImageAttributes::default())
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

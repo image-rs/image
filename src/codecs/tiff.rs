@@ -18,7 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderAttributes};
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -251,6 +251,19 @@ impl<R> Read for TiffReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // is any sort of iTXT chunk.
+            xmp: DecodedMetadataHint::PerImage,
+            icc: DecodedMetadataHint::PerImage,
+            exif: DecodedMetadataHint::PerImage,
+            // not provided above.
+            iptc: DecodedMetadataHint::None,
+            is_sequence: true,
+            ..DecoderAttributes::default()
+        }
+    }
+
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         if self.inner.is_none() {
             return Err(ImageError::Parameter(ParameterError::from_kind(
@@ -403,12 +416,6 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         }
 
         Ok(DecodedImageAttributes {
-            // is any sort of iTXT chunk.
-            xmp: DecodedMetadataHint::PerImage,
-            icc: DecodedMetadataHint::PerImage,
-            exif: DecodedMetadataHint::PerImage,
-            // not provided above.
-            iptc: DecodedMetadataHint::None,
             ..DecodedImageAttributes::default()
         })
     }

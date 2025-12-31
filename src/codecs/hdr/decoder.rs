@@ -32,6 +32,8 @@ enum DecoderError {
     DimensionsLineTooShort(usize, usize),
     /// Dimensions line had too many elements
     DimensionsLineTooLong(usize),
+    /// Dimensions line had non-ASCII letters
+    DimensionsLineNotAscii,
 
     /// The length of a scanline (1) wasn't a match for the specified length (2)
     WrongScanlineLength(usize, usize),
@@ -65,6 +67,9 @@ impl fmt::Display for DecoderError {
             DecoderError::DimensionsLineTooLong(expected) => f.write_fmt(format_args!(
                 "Dimensions line too long, expected {expected} elements"
             )),
+            DecoderError::DimensionsLineNotAscii => {
+                f.write_str("Dimensions line contained non-ASCII characters")
+            }
             DecoderError::WrongScanlineLength(len, expected) => f.write_fmt(format_args!(
                 "Wrong length of decoded scanline: got {len}, expected {expected}"
             )),
@@ -233,7 +238,6 @@ impl<R: Read> HdrDecoder<R> {
                 return Err(DecoderError::TruncatedDimensions.into());
             }
             Some(dimensions) => {
-                let dimensions = String::from_utf8_lossy(&dimensions[..]);
                 parse_dimensions_line(&dimensions, strict)?
             }
         };
@@ -611,22 +615,29 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], line_tp: LineType) ->
 
 // Parses dimension line "-Y height +X width"
 // returns (width, height) or error
-fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
+fn parse_dimensions_line(line: &[u8], strict: bool) -> ImageResult<(u32, u32)> {
     const DIMENSIONS_COUNT: usize = 4;
 
-    let mut dim_parts = line.split_whitespace();
-    let c1_tag = dim_parts
-        .next()
-        .ok_or(DecoderError::DimensionsLineTooShort(0, DIMENSIONS_COUNT))?;
-    let c1_str = dim_parts
-        .next()
-        .ok_or(DecoderError::DimensionsLineTooShort(1, DIMENSIONS_COUNT))?;
-    let c2_tag = dim_parts
-        .next()
-        .ok_or(DecoderError::DimensionsLineTooShort(2, DIMENSIONS_COUNT))?;
-    let c2_str = dim_parts
-        .next()
-        .ok_or(DecoderError::DimensionsLineTooShort(3, DIMENSIONS_COUNT))?;
+    fn next_part<'b, 'a, I: Iterator<Item = &'b [u8]>>(
+        iter: &'a mut I,
+        index: usize,
+    ) -> Result<&'b str, DecoderError> {
+        std::str::from_utf8(iter.next().ok_or(DecoderError::DimensionsLineTooShort(
+            index,
+            DIMENSIONS_COUNT,
+        ))?)
+        .map_err(|_| DecoderError::DimensionsLineNotAscii)
+    }
+
+    // Split by ASCII whitespace (including vertical tab, to match C isspace)
+    let mut dim_parts = line
+        .split(|x| matches!(x, b' ' | b'\x0c' | b'\n' | b'\r' | b'\t' | b'\x0b'))
+        .filter(|x| !x.is_empty());
+
+    let c1_tag = next_part(&mut dim_parts, 0)?;
+    let c1_str = next_part(&mut dim_parts, 1)?;
+    let c2_tag = next_part(&mut dim_parts, 2)?;
+    let c2_str = next_part(&mut dim_parts, 3)?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
         return Err(DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT).into());

@@ -386,10 +386,6 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        Ok(self.orientation)
-    }
-
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
@@ -523,7 +519,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
         }
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            orientation: Some(self.orientation),
+            ..DecodedImageAttributes::default()
+        })
     }
 }
 

@@ -429,13 +429,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn orientation(&mut self) -> ImageResult<crate::metadata::Orientation> {
-        match &mut self.inner_decoder {
-            Bmp(decoder) => decoder.orientation(),
-            Png(decoder) => decoder.orientation(),
-        }
-    }
-
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.set_limits(limits),

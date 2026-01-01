@@ -9,6 +9,7 @@ use crate::error::{
 use crate::io::limits::Limits;
 use crate::io::DecodedImageAttributes;
 use crate::io::SequenceControl;
+use crate::metadata::Orientation;
 use crate::{hooks, Delay, Frame, Frames};
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
@@ -215,20 +216,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// Convert the file into a reader object.
     pub fn into_reader(mut self) -> ImageResult<ImageReader<'a>> {
         let format = self.require_format()?;
-        let mut decoder = Self::make_decoder(format, self.inner)?;
-
-        if let Some(max_alloc) = &mut self.limits.max_alloc {
-            // We'll take half for ourselves, half to the decoder.
-            *max_alloc /= 2;
-        }
-
-        decoder.set_limits(self.limits.clone())?;
-
-        Ok(ImageReader {
-            inner: decoder,
-            limits: self.limits,
-            last_attributes: Default::default(),
-        })
+        let decoder = Self::make_decoder(format, self.inner)?;
+        let mut reader = ImageReader::from_decoder(decoder);
+        reader.set_limits(self.limits)?;
+        Ok(reader)
     }
 
     /// Make a format guess based on the content, replacing it on success.
@@ -330,10 +321,27 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
 pub struct ImageReader<'lt> {
     /// The reader. Should be buffered.
     inner: Box<dyn ImageDecoder + 'lt>,
+    /// Settings of the reader, not the underlying decoder.
+    ///
+    /// Those apply to each individual `read_image` call, i.e. can be modified during reading.
+    settings: ImageReaderSettings,
     /// Remaining limits for allocations by the reader.
     limits: Limits,
     /// A buffered cache of the last image attributes.
     last_attributes: DecodedImageAttributes,
+}
+
+#[derive(Clone, Copy)]
+struct ImageReaderSettings {
+    apply_orientation: bool,
+}
+
+impl Default for ImageReaderSettings {
+    fn default() -> Self {
+        ImageReaderSettings {
+            apply_orientation: true,
+        }
+    }
 }
 
 impl ImageReaderOptions<BufReader<File>> {
@@ -367,6 +375,11 @@ impl ImageReaderOptions<BufReader<File>> {
 }
 
 impl ImageReader<'_> {
+    /// Query the layout that the image will have.
+    pub fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        self.inner.peek_layout()
+    }
+
     /// Decode the next image into a `DynamicImage`.
     pub fn decode(&mut self) -> ImageResult<DynamicImage> {
         let layout = self.inner.peek_layout()?;
@@ -376,7 +389,8 @@ impl ImageReader<'_> {
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         self.limits.reserve(layout.total_bytes())?;
 
-        let mut image = DynamicImage::decoder_to_image(self.inner.as_mut(), layout)?;
+        let mut image = DynamicImage::new_luma8(0, 0);
+        let mut attr = image.decode_raw(self.inner.as_mut(), layout)?;
 
         // Apply the profile. If the profile itself is not valid or not present you get the default
         // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
@@ -398,6 +412,18 @@ impl ImageReader<'_> {
             }
         }
 
+        if attr.orientation.is_none() {
+            let exif = self.inner.exif_metadata()?;
+            attr.orientation = exif.and_then(|chunk| Orientation::from_exif_chunk(&chunk));
+        }
+
+        if self.settings.apply_orientation {
+            if let Some(orient) = attr.orientation {
+                image.apply_orientation(orient);
+            }
+        }
+
+        self.last_attributes = attr;
         Ok(image)
     }
 
@@ -423,17 +449,13 @@ impl ImageReader<'_> {
         } else {
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+            let mut placeholder = DynamicImage::new_luma8(0, 0);
             self.limits.reserve(bytes)?;
-            DynamicImage::decoder_to_image(self.inner.as_mut(), layout)?;
+            placeholder.decode_raw(self.inner.as_mut(), layout)?;
             self.limits.free(bytes);
         }
 
         Ok(())
-    }
-
-    /// Query the layout that the image will have.
-    pub fn layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        self.inner.peek_layout()
     }
 
     /// Get the previously decoded EXIF metadata if any.
@@ -454,6 +476,11 @@ impl ImageReader<'_> {
     /// Get the previously decoded IPTC metadata if any.
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         self.inner.iptc_metadata()
+    }
+
+    /// Get auxiliary attributes of the last image.
+    pub fn last_attributes(&self) -> &DecodedImageAttributes {
+        &self.last_attributes
     }
 }
 
@@ -494,6 +521,7 @@ impl<'stream> ImageReader<'stream> {
     pub fn from_decoder(boxed: Box<dyn ImageDecoder + 'stream>) -> Self {
         ImageReader {
             inner: boxed,
+            settings: ImageReaderSettings::default(),
             limits: Limits::default(),
             last_attributes: Default::default(),
         }

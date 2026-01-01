@@ -59,6 +59,15 @@ pub struct ImageLayout {
 }
 
 impl ImageLayout {
+    /// Return width and height as a tuple, consistent with
+    /// [`GenericImageView::dimensions`][`crate::GenericImageView::dimensions`].
+    ///
+    /// Note that this refers to underlying pixel matrix, not the orientation of the image as
+    /// indicated to be viewed in user facing applications by metadata.
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
     /// A layout with no pixels, of the given [`ColorType`][`crate::ColorType`].
     pub fn empty(color: crate::ColorType) -> Self {
         ImageLayout {

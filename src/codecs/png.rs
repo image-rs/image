@@ -256,24 +256,12 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         }
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        if let Some(reader) = &self.reader {
-            reader.info().size()
-        } else {
-            (0, 0)
-        }
-    }
-
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
         let Some(reader) = &self.reader else {
-            return ExtendedColorType::L8; // dummy value
+            return Err(reader_finished_already());
         };
 
-        match (reader.info().color_type, reader.info().bit_depth) {
+        Ok(match (reader.info().color_type, reader.info().bit_depth) {
             (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
             (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
             (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
@@ -299,7 +287,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
             (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
-        }
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -678,14 +666,6 @@ impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
         self.inner.peek_layout()
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
-    }
-
-    fn color_type(&self) -> ColorType {
-        self.inner.color_type
-    }
-
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.mix_next_frame(buf)?
             .ok_or_else(reader_finished_already)
@@ -1032,14 +1012,15 @@ mod tests {
                 .unwrap(),
         ));
 
-        dec.peek_layout()
+        let layout = dec
+            .peek_layout()
             .expect("Unable to read PNG file (does it exist?)");
 
-        assert_eq![(2000, 1000), dec.dimensions()];
+        assert_eq![(2000, 1000), layout.dimensions()];
 
         assert_eq![
             ColorType::Rgb8,
-            dec.color_type(),
+            layout.color,
             "Image MUST have the Rgb8 format"
         ];
 

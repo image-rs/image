@@ -1,5 +1,5 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
-use crate::error::DecodingError;
+use crate::error::{DecodingError, LimitError, LimitErrorKind};
 use crate::io::{DecodedImageAttributes, ReadExt};
 use crate::utils::vec_try_with_capacity;
 use crate::{
@@ -386,17 +386,24 @@ impl<R: Read> TgaDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        fn try_dimensions(value: usize) -> ImageResult<u32> {
+            value
+                .try_into()
+                .map_err(|_| LimitError::from_kind(LimitErrorKind::DimensionError))
+                .map_err(ImageError::Limits)
+        }
+
+        Ok(crate::ImageLayout {
+            width: try_dimensions(self.width)?,
+            height: try_dimensions(self.height)?,
+            color: self.color_type,
+        })
     }
 
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type
-            .unwrap_or_else(|| self.color_type().into())
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
+        let fallback = self.peek_layout()?.color;
+        Ok(self.original_color_type.unwrap_or_else(|| fallback.into()))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

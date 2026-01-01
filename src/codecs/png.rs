@@ -256,18 +256,6 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         }
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        if let Some(reader) = &self.reader {
-            reader.info().size()
-        } else {
-            (0, 0)
-        }
-    }
-
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let reader = self.ensure_reader_and_header()?;
         Ok(reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
@@ -626,14 +614,6 @@ impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
         self.inner.peek_layout()
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
-    }
-
-    fn color_type(&self) -> ColorType {
-        self.inner.color_type
-    }
-
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.mix_next_frame(buf)?
             .ok_or_else(reader_finished_already)
@@ -980,14 +960,15 @@ mod tests {
                 .unwrap(),
         ));
 
-        dec.peek_layout()
+        let layout = dec
+            .peek_layout()
             .expect("Unable to read PNG file (does it exist?)");
 
-        assert_eq![(2000, 1000), dec.dimensions()];
+        assert_eq![(2000, 1000), layout.dimensions()];
 
         assert_eq![
             ColorType::Rgb8,
-            dec.color_type(),
+            layout.color,
             "Image MUST have the Rgb8 format"
         ];
 

@@ -139,22 +139,10 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Ok(Self::layout_from_decoder(decoder))
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        if let Some(ref decoder) = self.decoder {
-            (u32::from(decoder.width()), u32::from(decoder.height()))
-        } else {
-            (0, 0)
-        }
-    }
-
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgba8
-    }
-
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
 
-        let (width, height) = self.dimensions();
+        let (width, height) = self.peek_layout()?.dimensions();
         limits.check_dimensions(width, height)?;
 
         self.limits = limits;
@@ -299,7 +287,12 @@ struct GifFrameIterator<R: Read> {
 
 impl<R: BufRead + Seek> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
-        let (width, height) = decoder.dimensions();
+        let (width, height) = match &decoder.decoder {
+            Some(decoder) => GifDecoder::layout_from_decoder(decoder).dimensions(),
+            // No more frames to get anyways.
+            None => (0, 0),
+        };
+
         let limits = decoder.limits.clone();
 
         // intentionally ignore the background color for web compatibility

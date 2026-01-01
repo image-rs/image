@@ -1390,22 +1390,14 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         Ok(crate::ImageLayout {
             width: self.width as u32,
             height: self.height as u32,
-            color: self.color_type(),
+            color: if self.indexed_color {
+                ColorType::L8
+            } else if self.add_alpha_channel {
+                ColorType::Rgba8
+            } else {
+                ColorType::Rgb8
+            },
         })
-    }
-
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.indexed_color {
-            ColorType::L8
-        } else if self.add_alpha_channel {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgb8
-        }
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

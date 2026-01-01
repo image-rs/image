@@ -279,20 +279,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        match self.inner_decoder {
-            Bmp(ref decoder) => decoder.dimensions(),
-            Png(ref decoder) => decoder.dimensions(),
-        }
-    }
-
-    fn color_type(&self) -> ColorType {
-        match self.inner_decoder {
-            Bmp(ref decoder) => decoder.color_type(),
-            Png(ref decoder) => decoder.color_type(),
-        }
-    }
-
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         match &mut self.inner_decoder {
             Png(decoder) => {
@@ -301,7 +287,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 }
 
                 // Check if the image dimensions match the ones in the image data.
-                let (width, height) = decoder.dimensions();
+                let (width, height) = decoder.peek_layout()?.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Png,
@@ -316,14 +302,14 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if decoder.color_type() != ColorType::Rgba8 {
+                if decoder.peek_layout()?.color != ColorType::Rgba8 {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 
                 decoder.read_image(buf)
             }
             Bmp(decoder) => {
-                let (width, height) = decoder.dimensions();
+                let (width, height) = decoder.peek_layout()?.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Bmp,
@@ -337,11 +323,11 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if decoder.color_type() != ColorType::Rgba8 {
+                if decoder.peek_layout()?.color != ColorType::Rgba8 {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Bmp.into(),
-                            UnsupportedErrorKind::Color(decoder.color_type().into()),
+                            UnsupportedErrorKind::Color(decoder.peek_layout()?.color.into()),
                         ),
                     ));
                 }
@@ -394,8 +380,8 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn original_color_type(&self) -> crate::ExtendedColorType {
-        match &self.inner_decoder {
+    fn original_color_type(&mut self) -> ImageResult<crate::ExtendedColorType> {
+        match &mut self.inner_decoder {
             Bmp(decoder) => decoder.original_color_type(),
             Png(decoder) => decoder.original_color_type(),
         }

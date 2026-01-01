@@ -193,12 +193,14 @@ mod tests {
     const MOCK_IMAGE_OUTPUT: [u8; 9] = [255, 0, 0, 0, 255, 0, 0, 0, 255];
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
-        fn dimensions(&self) -> (u32, u32) {
-            ((&MOCK_IMAGE_OUTPUT.len() / 3) as u32, 1)
+        fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+            Ok(crate::ImageLayout {
+                width: (MOCK_IMAGE_OUTPUT.len() / 3) as u32,
+                height: 1,
+                color: ColorType::Rgb8,
+            })
         }
-        fn color_type(&self) -> ColorType {
-            ColorType::Rgb8
-        }
+
         fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
             buf[..MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
             Ok(DecodedImageAttributes::default())

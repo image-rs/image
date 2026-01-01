@@ -49,16 +49,18 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         }
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
-    }
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let (width, height) = self.inner.dimensions();
 
-    fn color_type(&self) -> ColorType {
-        if self.inner.has_alpha() {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgb8
-        }
+        Ok(crate::ImageLayout {
+            width,
+            height,
+            color: if self.inner.has_alpha() {
+                ColorType::Rgba8
+            } else {
+                ColorType::Rgb8
+            },
+        })
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

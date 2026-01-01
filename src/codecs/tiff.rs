@@ -558,28 +558,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         })
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        if let ImageState::At(info) = &self.info {
-            info.dimensions
-        } else {
-            (0, 0)
-        }
-    }
-
-    fn color_type(&self) -> ColorType {
-        if let ImageState::At(info) = &self.info {
-            info.color_type
-        } else {
-            ColorType::L8
-        }
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        if let ImageState::At(info) = &self.info {
-            info.original_color_type
-        } else {
-            ColorType::L8.into()
-        }
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
+        Ok(self.peek_info()?.original_color_type)
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

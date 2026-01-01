@@ -37,14 +37,13 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
-            let color_type = decoder.color_type();
             let layout = decoder.peek_layout().unwrap();
             let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, color_type, image)
+            (header, layout.color, image)
         };
 
         assert_eq!(header.width(), width);
@@ -71,14 +70,13 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
-            let color_type = decoder.color_type();
             let layout = decoder.peek_layout().unwrap();
             let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, color_type, image)
+            (header, layout.color, image)
         };
 
         assert_eq!(header.width(), width);
@@ -100,14 +98,13 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
-            let color_type = decoder.color_type();
             let layout = decoder.peek_layout().unwrap();
             let mut image = vec![0; layout.total_bytes() as usize];
             decoder
                 .read_image(&mut image)
                 .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, color_type, image)
+            (header, layout.color, image)
         };
 
         let mut buffer_u8 = vec![0; buffer.len() * 2];

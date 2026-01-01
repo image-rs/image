@@ -1,5 +1,5 @@
 use crate::animation::Frames;
-use crate::color::{ColorType, ExtendedColorType};
+use crate::color::ExtendedColorType;
 use crate::error::ImageResult;
 use crate::metadata::{LoopCount, Orientation};
 use crate::Delay;
@@ -34,7 +34,7 @@ pub trait ImageDecoder {
     /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
+        let (width, height) = self.peek_layout()?.dimensions();
         limits.check_dimensions(width, height)?;
         Ok(())
     }
@@ -58,25 +58,11 @@ pub trait ImageDecoder {
     ///
     /// The layout returned by an implementation of [`ImageDecoder::peek_layout`] must match the
     /// buffer expected in [`ImageDecoder::read_image`].
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        let (width, height) = self.dimensions();
-
-        Ok(crate::ImageLayout {
-            color: self.color_type(),
-            width,
-            height,
-        })
-    }
-
-    /// Returns a tuple containing the width and height of the image
-    fn dimensions(&self) -> (u32, u32);
-
-    /// Returns the color type of the image data produced by this decoder
-    fn color_type(&self) -> ColorType;
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout>;
 
     /// Returns the color type of the image file before decoding
-    fn original_color_type(&self) -> ExtendedColorType {
-        self.color_type().into()
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
+        Ok(self.peek_layout()?.color.into())
     }
 
     /// Read all the bytes in the image into a buffer.
@@ -247,13 +233,7 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         (**self).peek_layout()
     }
-    fn dimensions(&self) -> (u32, u32) {
-        (**self).dimensions()
-    }
-    fn color_type(&self) -> ColorType {
-        (**self).color_type()
-    }
-    fn original_color_type(&self) -> ExtendedColorType {
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
         (**self).original_color_type()
     }
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -292,19 +272,22 @@ pub trait AnimationDecoder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColorType, DecodedImageAttributes, ImageDecoder, ImageResult};
+    use super::{DecodedImageAttributes, ImageDecoder, ImageResult};
+    use crate::ColorType;
 
     #[test]
     fn total_bytes_overflow() {
         struct D;
 
         impl ImageDecoder for D {
-            fn color_type(&self) -> ColorType {
-                ColorType::Rgb8
+            fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+                Ok(crate::ImageLayout {
+                    width: 0xffff_ffff,
+                    height: 0xffff_ffff,
+                    color: ColorType::Rgb8,
+                })
             }
-            fn dimensions(&self) -> (u32, u32) {
-                (0xffff_ffff, 0xffff_ffff)
-            }
+
             fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
                 unreachable!("Must not be called in this test")
             }

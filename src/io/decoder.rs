@@ -11,7 +11,7 @@ use crate::Delay;
 ///
 /// ```text,bnf
 /// set_limits*
-/// > (peek_layout+ > read_image)*
+/// > (peek_layout+ > {xmp,icc,exif,iptc}_metadata* > read_image)*
 /// > finish
 /// ```
 ///
@@ -213,7 +213,8 @@ pub enum DecodedMetadataHint {
     /// Metadata is available in the header and will be valid after the first call to
     /// [`ImageDecoder::peek_layout`] and will remain valid for all subsequent images.
     InHeader,
-    /// Metadata exists for each image in this file, it must be retrieved after reading the image.
+    /// Metadata exists for each image in this file, it must be retrieved between peeking the
+    /// layout and reading the image.
     PerImage,
     /// There's no metadata of this type, the decoder would return `None` or an error.
     None,

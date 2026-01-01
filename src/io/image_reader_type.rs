@@ -389,6 +389,11 @@ impl ImageReader<'_> {
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         self.limits.reserve(layout.total_bytes())?;
 
+        // Run all the metadata extraction which we may need.
+        let icc = self.inner.icc_profile()?;
+        let exif = self.inner.exif_metadata()?;
+
+        // Retrieve the raw image data as indicated by the layout.
         let mut image = DynamicImage::new_luma8(0, 0);
         let mut attr = image.decode_raw(self.inner.as_mut(), layout)?;
 
@@ -396,7 +401,7 @@ impl ImageReader<'_> {
         // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
         // RGB we'll treat it as unspecified so that downstream will know that our handling of this
         // _existing_ profile was not / could not be done with full fidelity.
-        if let Some(icc) = self.inner.icc_profile()? {
+        if let Some(icc) = icc {
             if let Some(cicp) = crate::metadata::cms_provider().parse_icc(&icc) {
                 // We largely ignore the error itself here, you just get the image with no color
                 // space attached to it.
@@ -412,8 +417,8 @@ impl ImageReader<'_> {
             }
         }
 
+        // Determine which orientation to use.
         if attr.orientation.is_none() {
-            let exif = self.inner.exif_metadata()?;
             attr.orientation = exif.and_then(|chunk| Orientation::from_exif_chunk(&chunk));
         }
 
@@ -449,6 +454,7 @@ impl ImageReader<'_> {
         } else {
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+            // Or should we make an extension method on `ImageDecoder`?
             let mut placeholder = DynamicImage::new_luma8(0, 0);
             self.limits.reserve(bytes)?;
             placeholder.decode_raw(self.inner.as_mut(), layout)?;
@@ -458,29 +464,33 @@ impl ImageReader<'_> {
         Ok(())
     }
 
-    /// Get the previously decoded EXIF metadata if any.
+    /// Get the EXIF metadata of the pending image if any.
     pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let _ = self.inner.peek_layout();
         self.inner.exif_metadata()
     }
 
-    /// Get the previously decoded ICC profile if any.
+    /// Get the ICC profile of the pending image if any.
     pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let _ = self.inner.peek_layout();
         self.inner.icc_profile()
     }
 
-    /// Get the previously decoded XMP metadata if any.
+    /// Get the XMP metadata of the pending image if any.
     pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let _ = self.inner.peek_layout();
         self.inner.xmp_metadata()
     }
 
-    /// Get the previously decoded IPTC metadata if any.
+    /// Get the IPTC metadata of the pending image if any.
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let _ = self.inner.peek_layout();
         self.inner.iptc_metadata()
     }
 
     /// Get auxiliary attributes of the last image.
-    pub fn last_attributes(&self) -> &DecodedImageAttributes {
-        &self.last_attributes
+    pub fn last_attributes(&self) -> DecodedImageAttributes {
+        self.last_attributes.clone()
     }
 }
 

@@ -396,7 +396,7 @@ mod test {
     fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(&mut decoder)?;
+        let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -410,7 +410,7 @@ mod test {
     fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(&mut decoder)?;
+        let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,

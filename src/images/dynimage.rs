@@ -12,6 +12,7 @@ use crate::images::buffer::{
 };
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
+use crate::io::DecodedImageAttributes;
 use crate::math::{resize_dimensions, Rect};
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
@@ -241,15 +242,19 @@ impl DynamicImage {
 
     /// Decodes an encoded image into a dynamic image.
     pub fn from_decoder(mut decoder: impl ImageDecoder) -> ImageResult<Self> {
+        let mut image = DynamicImage::new_luma8(0, 0);
         let layout = decoder.peek_layout()?;
-        decoder_to_image(&mut decoder, layout)
+        image.decode_raw(&mut decoder, layout)?;
+        Ok(image)
     }
 
-    pub(crate) fn decoder_to_image(
+    /// Assign decoded data from a decoder into this dynamic image.
+    pub(crate) fn decode_raw(
+        &mut self,
         decoder: &mut dyn ImageDecoder,
         layout: crate::ImageLayout,
-    ) -> ImageResult<Self> {
-        decoder_to_image(decoder, layout)
+    ) -> ImageResult<DecodedImageAttributes> {
+        decoder_to_image(self, decoder, layout)
     }
 
     /// Encodes a dynamic image into a buffer.
@@ -1567,64 +1572,79 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
+///
+/// FIXME: this should reuse existing buffers from the dynamic image.
 pub(crate) fn decoder_to_image(
+    image: &mut DynamicImage,
     decoder: &mut dyn ImageDecoder,
     layout: crate::ImageLayout,
-) -> ImageResult<DynamicImage> {
+) -> ImageResult<DecodedImageAttributes> {
     let crate::ImageLayout {
         width: w,
         height: h,
         color: color_type,
     } = layout;
 
-    let mut image = match color_type {
+    let attr;
+
+    *image = match color_type {
         color::ColorType::Rgb8 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
-            let buf = free_functions::decoder_to_vec(decoder)?;
+            let buf;
+            (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
     }
@@ -1640,7 +1660,7 @@ pub(crate) fn decoder_to_image(
     image.set_rgb_primaries(Cicp::SRGB.primaries);
     image.set_transfer_function(Cicp::SRGB.transfer);
 
-    Ok(image)
+    Ok(attr)
 }
 
 /// Open the image located at the path specified.

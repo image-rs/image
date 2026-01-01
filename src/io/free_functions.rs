@@ -4,6 +4,7 @@ use std::path::Path;
 use std::{iter, mem::size_of};
 
 use crate::io::encoder::ImageEncoderBoxed;
+use crate::io::DecodedImageAttributes;
 use crate::{codecs::*, ExtendedColorType, ImageReaderOptions};
 
 use crate::error::{
@@ -166,7 +167,9 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<T>(decoder: &mut (impl ImageDecoder + ?Sized)) -> ImageResult<Vec<T>>
+pub(crate) fn decoder_to_vec<T>(
+    decoder: &mut (impl ImageDecoder + ?Sized),
+) -> ImageResult<(Vec<T>, DecodedImageAttributes)>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
@@ -178,8 +181,8 @@ where
     }
 
     let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / size_of::<T>()];
-    decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
-    Ok(buf)
+    let attr = decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
+    Ok((buf, attr))
 }
 
 #[test]

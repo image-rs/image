@@ -136,17 +136,6 @@ pub trait ImageDecoder {
         Ok(None)
     }
 
-    /// Returns the orientation of the image.
-    ///
-    /// This is usually obtained from the Exif metadata, if present. Formats that don't support
-    /// indicating orientation in their image metadata will return `Ok(Orientation::NoTransforms)`.
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        Ok(self
-            .exif_metadata()?
-            .and_then(|chunk| Orientation::from_exif_chunk(&chunk))
-            .unwrap_or(Orientation::NoTransforms))
-    }
-
     /// Called to determine if there may be more images to decode.
     ///
     /// This ends the decoding loop early when it indicates `None`. Otherwise, termination can only
@@ -198,6 +187,8 @@ pub struct DecodedImageAttributes {
     pub y: u32,
     /// A suggested presentation offset relative to the previous image.
     pub delay: Option<Delay>,
+    /// Orientation of the image, not relayed through EXIF metadata.
+    pub orientation: Option<Orientation>,
 }
 
 /// A hint when metadata corresponding to the image is decoded.
@@ -276,9 +267,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).iptc_metadata()
     }
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        (**self).orientation()
-    }
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         (**self).read_image(buf)
     }
@@ -320,7 +308,7 @@ mod tests {
         }
 
         assert_eq!(D.peek_layout().unwrap().total_bytes(), u64::MAX);
-        let v: ImageResult<Vec<u8>> = crate::io::free_functions::decoder_to_vec(&mut D);
+        let v = crate::DynamicImage::from_decoder(D);
         assert!(v.is_err());
     }
 }

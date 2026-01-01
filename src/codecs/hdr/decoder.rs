@@ -35,6 +35,8 @@ enum DecoderError {
 
     /// The length of a scanline (1) wasn't a match for the specified length (2)
     WrongScanlineLength(usize, usize),
+    /// A chain of run length instructions would produce a too large run
+    OverlyLongRepeat,
     /// First pixel of a scanline is a run length marker
     FirstPixelRlMarker,
 }
@@ -66,6 +68,9 @@ impl fmt::Display for DecoderError {
             DecoderError::WrongScanlineLength(len, expected) => f.write_fmt(format_args!(
                 "Wrong length of decoded scanline: got {len}, expected {expected}"
             )),
+            DecoderError::OverlyLongRepeat => f.write_str(
+                "Sequence of run length markers produces run longer than max image width",
+            ),
             DecoderError::FirstPixelRlMarker => {
                 f.write_str("First pixel of a scanline shouldn't be run length marker")
             }
@@ -401,27 +406,36 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) ->
     buf[0] = fb; // set first pixel of scanline
 
     let mut x_off = 1; // current offset from beginning of a scanline
-    let mut rl_mult = 1; // current run length multiplier
+    let mut rl_shift: u32 = 0; // current run length shift value
     let mut prev_pixel = fb;
     while x_off < width {
         let pix = read_rgbe(r)?;
         // it's harder to forget to increase x_off if I write this this way.
         x_off += {
             if let Some(rl) = rl_marker(pix) {
-                // rl_mult takes care of consecutive RL markers
-                let rl = rl * rl_mult;
-                rl_mult *= 256;
-                if x_off + rl <= width {
-                    // do run
-                    for b in &mut buf[x_off..x_off + rl] {
-                        *b = prev_pixel;
+                if rl_shift >= 32 {
+                    if rl != 0 {
+                        // run length of >= 2^32 rl
+                        return Err(DecoderError::OverlyLongRepeat.into());
+                    } else {
+                        0
                     }
                 } else {
-                    return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
-                };
-                rl // value to increase x_off by
+                    // rl_shift takes care of consecutive RL markers
+                    let rl = rl << rl_shift;
+                    rl_shift += 8;
+                    if x_off + rl <= width {
+                        // do run
+                        for b in &mut buf[x_off..x_off + rl] {
+                            *b = prev_pixel;
+                        }
+                    } else {
+                        return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
+                    };
+                    rl // value to increase x_off by
+                }
             } else {
-                rl_mult = 1; // chain of consecutive RL markers is broken
+                rl_shift = 0; // chain of consecutive RL markers is broken
                 prev_pixel = pix;
                 buf[x_off] = pix;
                 1 // value to increase x_off by

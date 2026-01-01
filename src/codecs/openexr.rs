@@ -104,45 +104,56 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        match &self.exr_reader {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let (width, height) = match &self.exr_reader {
             Some(exr) => {
                 let header = &exr.meta_data().headers[self.header_index];
                 let size = header.shared_attributes.display_window.size;
                 (size.width() as u32, size.height() as u32)
             }
             // We have already ended..
-            None => (0, 0),
-        }
-    }
+            None => {
+                return Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::NoMoreData,
+                )))
+            }
+        };
 
-    fn color_type(&self) -> ColorType {
         let returns_alpha = self.alpha_preference.unwrap_or(self.alpha_present_in_file);
-        if returns_alpha {
+        let color = if returns_alpha {
             ColorType::Rgba32F
         } else {
             ColorType::Rgb32F
-        }
+        };
+
+        Ok(crate::ImageLayout {
+            width,
+            height,
+            color,
+        })
     }
 
-    fn original_color_type(&self) -> ExtendedColorType {
-        if self.alpha_present_in_file {
+    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
+        let _ = self.peek_layout()?;
+
+        Ok(if self.alpha_present_in_file {
             ExtendedColorType::Rgba32F
         } else {
             ExtendedColorType::Rgb32F
-        }
+        })
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
     fn read_image(&mut self, unaligned_bytes: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let (width, height) = self.dimensions();
+        let layout = self.peek_layout()?;
+        let (width, height) = layout.dimensions();
 
         let reader = self.exr_reader.take().ok_or_else(|| {
             ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
         })?;
 
         let _blocks_in_header = reader.headers()[self.header_index].chunk_count as u64;
-        let channel_count = self.color_type().channel_count() as usize;
+        let channel_count = layout.color.channel_count() as usize;
 
         let display_window = reader.headers()[self.header_index]
             .shared_attributes
@@ -155,7 +166,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
 
         {
             // check whether the buffer is large enough for the dimensions of the file
-            let bytes_per_pixel = usize::from(self.color_type().bytes_per_pixel());
+            let bytes_per_pixel = usize::from(layout.color.bytes_per_pixel());
             let expected_byte_count = (width as usize)
                 .checked_mul(height as usize)
                 .and_then(|size| size.checked_mul(bytes_per_pixel));
@@ -395,7 +406,7 @@ mod test {
     /// Read the file from the specified path into an `Rgb32FImage`.
     fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
-        let (width, height) = decoder.dimensions();
+        let (width, height) = decoder.peek_layout()?.dimensions();
         let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -409,7 +420,7 @@ mod test {
     /// Read the file from the specified path into an `Rgba32FImage`.
     fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
-        let (width, height) = decoder.dimensions();
+        let (width, height) = decoder.peek_layout()?.dimensions();
         let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)

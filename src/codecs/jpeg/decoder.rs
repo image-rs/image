@@ -95,14 +95,6 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         })
     }
 
-    fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.width), u32::from(self.height))
-    }
-
-    fn color_type(&self) -> ColorType {
-        ColorType::from_jpeg(self.orig_color_space)
-    }
-
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         // If this is changed to operate on a file, ensure all headers are done here and we have
         // reached the MCU/RST portion of the stream.
@@ -186,7 +178,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
+        let (width, height) = self.peek_layout()?.dimensions();
         limits.check_dimensions(width, height)?;
         self.limits = limits;
         Ok(())

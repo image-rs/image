@@ -130,12 +130,12 @@ impl<R: Read> DxtDecoder<R> {
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
 impl<R: Read> ImageDecoder for DxtDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width_blocks * 4, self.height_blocks * 4)
-    }
-
-    fn color_type(&self) -> ColorType {
-        self.variant.color_type()
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: self.width_blocks * 4,
+            height: self.height_blocks * 4,
+            color: self.variant.color_type(),
+        })
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

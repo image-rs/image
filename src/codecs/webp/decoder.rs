@@ -2,7 +2,8 @@ use std::io::{BufRead, Read, Seek};
 
 use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
-use crate::metadata::Orientation;
+use crate::io::decoder::DecodedMetadataHint;
+use crate::io::{DecodedImageAttributes, DecoderAttributes};
 use crate::{
     AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
     RgbaImage,
@@ -13,7 +14,6 @@ use crate::{
 /// Supports both lossless and lossy WebP images.
 pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
-    orientation: Option<Orientation>,
 }
 
 impl<R: BufRead + Seek> WebPDecoder<R> {
@@ -21,7 +21,6 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
     pub fn new(r: R) -> ImageResult<Self> {
         Ok(Self {
             inner: image_webp::WebPDecoder::new(r).map_err(ImageError::from_webp_decode)?,
-            orientation: None,
         })
     }
 
@@ -39,28 +38,42 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.inner.has_alpha() {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgb8
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // As per extended file format description:
+            // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::AfterFinish,
+            xmp: DecodedMetadataHint::AfterFinish,
+            ..DecoderAttributes::default()
         }
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let (width, height) = self.inner.dimensions();
+
+        Ok(crate::ImageLayout {
+            width,
+            height,
+            color: if self.inner.has_alpha() {
+                ColorType::Rgba8
+            } else {
+                ColorType::Rgb8
+            },
+        })
+    }
+
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         self.inner
             .read_image(buf)
-            .map_err(ImageError::from_webp_decode)
-    }
+            .map_err(ImageError::from_webp_decode)?;
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -75,12 +88,6 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .exif_metadata()
             .map_err(ImageError::from_webp_decode)?;
 
-        self.orientation = Some(
-            exif.as_ref()
-                .and_then(|exif| Orientation::from_exif_chunk(exif))
-                .unwrap_or(Orientation::NoTransforms),
-        );
-
         Ok(exif)
     }
 
@@ -88,14 +95,6 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         self.inner
             .xmp_metadata()
             .map_err(ImageError::from_webp_decode)
-    }
-
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
-        if self.orientation.is_none() {
-            let _ = self.exif_metadata()?;
-        }
-        Ok(self.orientation.unwrap())
     }
 }
 

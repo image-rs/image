@@ -12,10 +12,10 @@ use byteorder_lite::{LittleEndian, ReadBytesExt};
 
 #[allow(deprecated)]
 use crate::codecs::dxt::{DxtDecoder, DxtVariant};
-use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ImageDecoder, ImageFormat};
 
 /// Errors that can occur during decoding and parsing a DDS image
@@ -326,20 +326,12 @@ impl<R: Read> DdsDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for DdsDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        self.inner.peek_layout()
     }
 
-    fn color_type(&self) -> ColorType {
-        self.inner.color_type()
-    }
-
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.inner.read_image(buf)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 

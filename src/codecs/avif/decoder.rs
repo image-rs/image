@@ -328,16 +328,16 @@ fn get_matrix(
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.picture.width(), self.picture.height())
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.picture.bit_depth() == 8 {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgba16
-        }
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout {
+            width: self.picture.width(),
+            height: self.picture.height(),
+            color: if self.picture.bit_depth() == 8 {
+                ColorType::Rgba8
+            } else {
+                ColorType::Rgba16
+            },
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -354,7 +354,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         // if this happens then there is an incorrect implementation somewhere else
         assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
-        let (width, height) = self.dimensions();
+        let (width, height) = layout.dimensions();
         // This is suspicious if this happens, better fail early
         if width == 0 || height == 0 {
             return Err(ImageError::Limits(LimitError::from_kind(

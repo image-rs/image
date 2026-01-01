@@ -10,7 +10,6 @@ use crate::error::{
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::image_reader_type::SpecCompliance;
 use crate::io::{DecodedImageAttributes, DecoderAttributes};
-use crate::metadata::Orientation;
 use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
@@ -23,7 +22,6 @@ pub struct JpegDecoder<R> {
     width: u16,
     height: u16,
     limits: Limits,
-    orientation: Option<Orientation>,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
     phantom: PhantomData<R>,
@@ -73,7 +71,6 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
             width,
             height,
             limits,
-            orientation: None,
             phantom: PhantomData,
         })
     }
@@ -144,12 +141,6 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         let exif = decoder.exif().cloned();
 
-        self.orientation = Some(
-            exif.as_ref()
-                .and_then(|exif| Orientation::from_exif_chunk(exif))
-                .unwrap_or(Orientation::NoTransforms),
-        );
-
         Ok(exif)
     }
 
@@ -179,14 +170,6 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
 
         Ok(decoder.iptc().cloned())
-    }
-
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
-        if self.orientation.is_none() {
-            let _ = self.exif_metadata()?;
-        }
-        Ok(self.orientation.unwrap())
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -300,8 +283,15 @@ mod tests {
     #[test]
     fn test_exif_orientation() {
         let data = fs::read("tests/images/jpg/portrait_2.jpg").unwrap();
-        let mut decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
-        assert_eq!(decoder.orientation().unwrap(), Orientation::FlipHorizontal);
+        let decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
+
+        let mut reader = crate::ImageReader::from_decoder(Box::new(decoder));
+        reader.decode().unwrap();
+
+        assert_eq!(
+            reader.last_attributes().orientation.unwrap(),
+            crate::metadata::Orientation::FlipHorizontal
+        );
     }
 
     #[test]

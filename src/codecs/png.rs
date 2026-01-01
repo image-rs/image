@@ -1043,8 +1043,9 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
-        let correct_bytes = decoder_to_vec(&mut dec)
-            .expect("Unable to read file")
+        let (data, _) = decoder_to_vec(&mut dec).expect("Unable to read file");
+
+        let correct_bytes = data
             .bytes()
             .map(|x| x.expect("Unable to read byte"))
             .collect::<Vec<u8>>();

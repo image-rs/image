@@ -1,11 +1,5 @@
 use crate::{error, ColorType, ImageError, ImageResult};
 
-/// Set of supported strict limits for a decoder.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
-#[allow(missing_copy_implementations)]
-#[non_exhaustive]
-pub struct LimitSupport {}
-
 /// Resource limits for decoding.
 ///
 /// Limits can be either *strict* or *non-strict*. Non-strict limits are best-effort
@@ -67,14 +61,9 @@ impl Limits {
         }
     }
 
-    /// This function checks that all currently set strict limits are supported.
-    pub fn check_support(&self, _supported: &LimitSupport) -> ImageResult<()> {
-        Ok(())
-    }
-
     /// This function checks the `max_image_width` and `max_image_height` limits given
     /// the image width and height.
-    pub fn check_dimensions(&self, width: u32, height: u32) -> ImageResult<()> {
+    pub(crate) fn check_dimensions(&self, width: u32, height: u32) -> ImageResult<()> {
         if let Some(max_width) = self.max_image_width {
             if width > max_width {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
@@ -93,80 +82,68 @@ impl Limits {
 
         Ok(())
     }
+}
 
-    /// This function checks that the current limit allows for reserving the set amount
-    /// of bytes, it then reduces the limit accordingly.
-    pub fn reserve(&mut self, amount: u64) -> ImageResult<()> {
-        if let Some(max_alloc) = self.max_alloc.as_mut() {
-            if *max_alloc < amount {
-                return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory,
-                )));
-            }
-
-            *max_alloc -= amount;
-        }
-
-        Ok(())
+/// This function checks that the current limit allows for reserving the set amount
+/// of bytes, it then reduces the limit accordingly.
+pub(crate) fn reserve(allocation_limit: &mut u64, amount: u64) -> ImageResult<()> {
+    if *allocation_limit < amount {
+        return Err(ImageError::Limits(error::LimitError::from_kind(
+            error::LimitErrorKind::InsufficientMemory,
+        )));
     }
 
-    /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
-    ///
-    /// [`reserve`]: #method.reserve
-    pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
-        match u64::try_from(amount) {
-            Ok(n) => self.reserve(n),
-            Err(_) if self.max_alloc.is_some() => Err(ImageError::Limits(
-                error::LimitError::from_kind(error::LimitErrorKind::InsufficientMemory),
-            )),
-            Err(_) => {
-                // Out of bounds, but we weren't asked to consider any limit.
-                Ok(())
-            }
-        }
-    }
+    *allocation_limit -= amount;
 
-    /// This function acts identically to [`reserve`], but accepts the width, height and color type
-    /// used to create an [`ImageBuffer`] and does all the math for you.
-    ///
-    /// [`ImageBuffer`]: crate::ImageBuffer
-    /// [`reserve`]: #method.reserve
-    pub fn reserve_buffer(
-        &mut self,
-        width: u32,
-        height: u32,
-        color_type: ColorType,
-    ) -> ImageResult<()> {
-        self.check_dimensions(width, height)?;
-        let in_memory_size = u64::from(width)
-            .saturating_mul(u64::from(height))
-            .saturating_mul(color_type.bytes_per_pixel().into());
-        self.reserve(in_memory_size)?;
-        Ok(())
-    }
+    Ok(())
+}
 
-    /// This function increases the `max_alloc` limit with amount. Should only be used
-    /// together with [`reserve`].
-    ///
-    /// [`reserve`]: #method.reserve
-    pub fn free(&mut self, amount: u64) {
-        if let Some(max_alloc) = self.max_alloc.as_mut() {
-            *max_alloc = max_alloc.saturating_add(amount);
-        }
+/// This function acts identically to [`reserve`], but takes a `usize` for convenience.
+///
+/// [`reserve`]: #method.reserve
+pub(crate) fn reserve_usize(allocation_limit: &mut u64, amount: usize) -> ImageResult<()> {
+    match u64::try_from(amount) {
+        Ok(n) => reserve(allocation_limit, n),
+        Err(_) => Err(ImageError::Limits(error::LimitError::from_kind(
+            error::LimitErrorKind::InsufficientMemory,
+        ))),
     }
+}
 
-    /// This function acts identically to [`free`], but takes a `usize` for convenience.
-    ///
-    /// [`free`]: #method.free
-    pub fn free_usize(&mut self, amount: usize) {
-        match u64::try_from(amount) {
-            Ok(n) => self.free(n),
-            Err(_) if self.max_alloc.is_some() => {
-                panic!("max_alloc is set, we should have exited earlier when the reserve failed");
-            }
-            Err(_) => {
-                // Out of bounds, but we weren't asked to consider any limit.
-            }
+/// This function acts identically to [`reserve`], but accepts the width, height and color type
+/// used to create an [`ImageBuffer`] and does all the math for you.
+///
+/// [`ImageBuffer`]: crate::ImageBuffer
+/// [`reserve`]: #method.reserve
+pub(crate) fn reserve_buffer(
+    allocation_limit: &mut u64,
+    width: u32,
+    height: u32,
+    color_type: ColorType,
+) -> ImageResult<()> {
+    let in_memory_size = u64::from(width)
+        .saturating_mul(u64::from(height))
+        .saturating_mul(color_type.bytes_per_pixel().into());
+    reserve(allocation_limit, in_memory_size)?;
+    Ok(())
+}
+
+/// This function increases the `max_alloc` limit with amount. Should only be used
+/// together with [`reserve`].
+///
+/// [`reserve`]: #method.reserve
+pub(crate) fn free(allocation_limit: &mut u64, amount: u64) {
+    *allocation_limit = allocation_limit.saturating_add(amount);
+}
+
+/// This function acts identically to [`free`], but takes a `usize` for convenience.
+///
+/// [`free`]: #method.free
+pub(crate) fn free_usize(allocation_limit: &mut u64, amount: usize) {
+    match u64::try_from(amount) {
+        Ok(n) => free(allocation_limit, n),
+        Err(_) => {
+            panic!("max_alloc is set, we should have exited earlier when the reserve failed");
         }
     }
 }

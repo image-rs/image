@@ -40,16 +40,16 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::limits;
 use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
-    Limits,
 };
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
     reader: gif::Decoder<R>,
-    limits: Limits,
+    allocation_limit: u64,
 }
 
 impl<R: Read> GifDecoder<R> {
@@ -60,7 +60,7 @@ impl<R: Read> GifDecoder<R> {
 
         Ok(GifDecoder {
             reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
-            limits: Limits::no_limits(),
+            allocation_limit: u64::MAX,
         })
     }
 }
@@ -97,15 +97,8 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         ColorType::Rgba8
     }
 
-    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
-
-        self.limits = limits;
-
-        Ok(())
+    fn set_allocation_limit(&mut self, limit: u64) {
+        self.allocation_limit = limit;
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -169,9 +162,9 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                     LimitErrorKind::InsufficientMemory,
                 )))?;
 
-            self.limits.reserve_usize(buffer_size)?;
+            limits::reserve_usize(&mut self.allocation_limit, buffer_size)?;
             let mut frame_buffer = vec![0; buffer_size];
-            self.limits.free_usize(buffer_size);
+            limits::free_usize(&mut self.allocation_limit, buffer_size);
 
             self.reader
                 .read_into_buffer(&mut frame_buffer[..])
@@ -236,7 +229,7 @@ struct GifFrameIterator<R: Read> {
     height: u32,
 
     non_disposed_frame: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
-    limits: Limits,
+    allocation_limit: u64,
     // `is_end` is used to indicate whether the iterator has reached the end of the frames.
     // Or encounter any un-recoverable error.
     is_end: bool,
@@ -245,7 +238,6 @@ struct GifFrameIterator<R: Read> {
 impl<R: BufRead + Seek> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
-        let limits = decoder.limits.clone();
 
         // intentionally ignore the background color for web compatibility
 
@@ -254,7 +246,7 @@ impl<R: BufRead + Seek> GifFrameIterator<R> {
             width,
             height,
             non_disposed_frame: None,
-            limits,
+            allocation_limit: decoder.allocation_limit,
             is_end: false,
         }
     }
@@ -275,10 +267,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // This is done here and not in the constructor because
         // the constructor cannot return an error when the allocation limit is exceeded.
         if self.non_disposed_frame.is_none() {
-            if let Err(e) = self
-                .limits
-                .reserve_buffer(self.width, self.height, COLOR_TYPE)
-            {
+            if let Err(e) = limits::reserve_buffer(
+                &mut self.allocation_limit,
+                self.width,
+                self.height,
+                COLOR_TYPE,
+            ) {
                 return Some(Err(e));
             }
             self.non_disposed_frame = Some(ImageBuffer::from_pixel(
@@ -319,10 +313,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // Therefore, do not count them towards the persistent limits.
         // Instead, create a local instance of `Limits` for this function alone
         // which will be dropped along with all the buffers when they go out of scope.
-        let mut local_limits = self.limits.clone();
+        let mut local_limit = self.allocation_limit;
 
         // Check the allocation we're about to perform against the limits
-        if let Err(e) = local_limits.reserve_buffer(frame.width, frame.height, COLOR_TYPE) {
+        if let Err(e) =
+            limits::reserve_buffer(&mut local_limit, frame.width, frame.height, COLOR_TYPE)
+        {
             return Some(Err(e));
         }
         // Allocate the buffer now that the limits allowed it
@@ -393,7 +389,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             frame_buffer
         } else {
             // Check limits before allocating the buffer
-            if let Err(e) = local_limits.reserve_buffer(self.width, self.height, COLOR_TYPE) {
+            if let Err(e) =
+                limits::reserve_buffer(&mut local_limit, self.width, self.height, COLOR_TYPE)
+            {
                 return Some(Err(e));
             }
             ImageBuffer::from_fn(self.width, self.height, |x, y| {

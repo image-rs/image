@@ -8,7 +8,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::metadata::Orientation;
-use crate::{ImageDecoder, ImageFormat, Limits};
+use crate::{ImageDecoder, ImageFormat};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
@@ -18,7 +18,6 @@ pub struct JpegDecoder<R> {
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
-    limits: Limits,
     orientation: Option<Orientation>,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
@@ -60,14 +59,11 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
             decoder.options().jpeg_set_out_colorspace(requested_color)
         });
 
-        // Limits are disabled by default in the constructor for all decoders
-        let limits = Limits::no_limits();
         Ok(JpegDecoder {
             input,
             orig_color_space,
             width,
             height,
-            limits,
             orientation: None,
             phantom: PhantomData,
         })
@@ -160,16 +156,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
-        Ok(())
-    }
-
-    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
-        self.limits = limits;
         Ok(())
     }
 
@@ -207,20 +195,11 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
 fn new_zune_decoder(
     input: &[u8],
     orig_color_space: ZuneColorSpace,
-    limits: Limits,
 ) -> zune_jpeg::JpegDecoder<ZCursor<&[u8]>> {
     let target_color_space = to_supported_color_space(orig_color_space);
-    let mut options = zune_core::options::DecoderOptions::default()
+    let options = zune_core::options::DecoderOptions::default()
         .jpeg_set_out_colorspace(target_color_space)
         .set_strict_mode(false);
-    options = options.set_max_width(match limits.max_image_width {
-        Some(max_width) => max_width as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
-    options = options.set_max_height(match limits.max_image_height {
-        Some(max_height) => max_height as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
     zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(input), options)
 }
 

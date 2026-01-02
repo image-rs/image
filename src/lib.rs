@@ -164,7 +164,7 @@ pub use crate::io::{
     encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::ImageReader,
-    limits::{LimitSupport, Limits},
+    limits::Limits,
 };
 
 pub use crate::images::dynimage::DynamicImage;

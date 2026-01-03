@@ -18,7 +18,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::metadata::Orientation;
-use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::{utils, DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageStackDecoder};
 
 const TAG_XML_PACKET: Tag = Tag::Unknown(700);
 
@@ -42,11 +42,22 @@ where
     /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let (dimensions, color_type, original_color_type) = Self::read_header(&mut inner)?;
+        Ok(TiffDecoder {
+            dimensions,
+            color_type,
+            original_color_type,
+            inner: Some(inner),
+        })
+    }
 
-        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
-        let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
+    fn read_header(
+        decoder: &mut Decoder<R>,
+    ) -> Result<((u32, u32), ColorType, ExtendedColorType), ImageError> {
+        let dimensions = decoder.dimensions().map_err(ImageError::from_tiff_decode)?;
+        let tiff_color_type = decoder.colortype().map_err(ImageError::from_tiff_decode)?;
 
-        match inner.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
+        match decoder.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
                     check_sample_format(format, tiff_color_type)?;
@@ -56,7 +67,7 @@ where
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         }
 
-        let planar_config = inner
+        let planar_config = decoder
             .find_tag(Tag::PlanarConfiguration)
             .map(|res| res.and_then(|r| r.into_u16().ok()).unwrap_or_default())
             .unwrap_or_default();
@@ -113,25 +124,46 @@ where
             _ => color_type.into(),
         };
 
-        Ok(TiffDecoder {
-            dimensions,
-            color_type,
-            original_color_type,
-            inner: Some(inner),
-        })
+        Ok((dimensions, color_type, original_color_type))
     }
 
     // The buffer can be larger for CMYK than the RGB output
     fn total_bytes_buffer(&self) -> u64 {
-        let dimensions = self.dimensions();
+        let dimensions = self.dimensions;
         let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
 
         let bytes_per_pixel = match self.original_color_type {
             ExtendedColorType::Cmyk8 => 4,
             ExtendedColorType::Cmyk16 => 8,
-            _ => u64::from(self.color_type().bytes_per_pixel()),
+            _ => u64::from(self.color_type.bytes_per_pixel()),
         };
         total_pixels.saturating_mul(bytes_per_pixel)
+    }
+
+    fn more_images(&self) -> bool {
+        self.inner.as_ref().expect("no inner").more_images()
+    }
+
+    fn next_image(&mut self) -> Result<(), ImageError> {
+        let img = self
+            .inner
+            .as_mut()
+            .expect("no inner")
+            .next_image()
+            .map_err(ImageError::from_tiff_decode);
+
+        // need to update header info
+        match img {
+            Ok(img) => {
+                let (dimensions, color_type, original_color_type) =
+                    Self::read_header(self.inner.as_mut().expect("no inner"))?;
+                self.dimensions = dimensions;
+                self.color_type = color_type;
+                self.original_color_type = original_color_type;
+                Ok(img)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -248,21 +280,60 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
+/// A TIFF decoder that allows to decode a single frame.
+#[allow(clippy::large_enum_variant)]
+pub enum TiffFrameDecoder<'a, R: BufRead + Seek> {
+    /// an owned TiffDecoder
+    Owned(TiffDecoder<R>),
+    /// a borrowed TiffDecoder (with a parent tiff decoder somewhere else)
+    Borrowed(&'a mut TiffDecoder<R>),
+}
+
+impl<'a, R: BufRead + Seek> TiffFrameDecoder<'a, R> {
+    /// Create a new `TiffFrameDecoder` from an owned `TiffDecoder`.
+    pub fn new(r: R) -> Result<Self, ImageError> {
+        Ok(TiffFrameDecoder::Owned(TiffDecoder::new(r)?))
+    }
+}
+
+impl<R: BufRead + Seek> TiffFrameDecoder<'_, R> {
+    fn decoder(&self) -> &TiffDecoder<R> {
+        match self {
+            TiffFrameDecoder::Owned(decoder) => decoder,
+            TiffFrameDecoder::Borrowed(decoder) => decoder,
+        }
+    }
+
+    fn decoder_mut(&mut self) -> &mut TiffDecoder<R> {
+        match self {
+            TiffFrameDecoder::Owned(decoder) => decoder,
+            TiffFrameDecoder::Borrowed(decoder) => decoder,
+        }
+    }
+}
+
+/// Convert owned TiffDecoder into TiffFrameDecoder
+impl<R: BufRead + Seek> From<TiffDecoder<R>> for TiffFrameDecoder<'_, R> {
+    fn from(decoder: TiffDecoder<R>) -> Self {
+        TiffFrameDecoder::Owned(decoder)
+    }
+}
+
+impl<R: BufRead + Seek> ImageDecoder for TiffFrameDecoder<'_, R> {
     fn dimensions(&self) -> (u32, u32) {
-        self.dimensions
+        self.decoder().dimensions
     }
 
     fn color_type(&self) -> ColorType {
-        self.color_type
+        self.decoder().color_type
     }
 
     fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type
+        self.decoder().original_color_type
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        if let Some(decoder) = &mut self.inner {
+        if let Some(decoder) = &mut self.decoder_mut().inner {
             Ok(decoder.get_tag_u8_vec(Tag::Unknown(34675)).ok())
         } else {
             Ok(None)
@@ -270,7 +341,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let Some(decoder) = &mut self.inner else {
+        let Some(decoder) = &mut self.decoder_mut().inner else {
             return Ok(None);
         };
 
@@ -288,7 +359,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     }
 
     fn orientation(&mut self) -> ImageResult<Orientation> {
-        if let Some(decoder) = &mut self.inner {
+        if let Some(decoder) = &mut self.decoder_mut().inner {
             Ok(decoder
                 .find_tag(Tag::Orientation)
                 .map_err(ImageError::from_tiff_decode)?
@@ -306,7 +377,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         limits.check_dimensions(width, height)?;
 
         let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
-        let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes_buffer());
+        let max_intermediate_alloc = max_alloc.saturating_sub(self.decoder().total_bytes_buffer());
 
         let mut tiff_limits: tiff::decoder::Limits = Default::default();
         tiff_limits.decoding_buffer_size =
@@ -314,34 +385,43 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         tiff_limits.intermediate_buffer_size =
             usize::try_from(max_intermediate_alloc).unwrap_or(usize::MAX);
         tiff_limits.ifd_value_size = tiff_limits.intermediate_buffer_size;
-        self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
+        let decoder_inner = self.decoder_mut().inner.take().unwrap();
+        self.decoder_mut().inner = Some(decoder_inner.with_limits(tiff_limits));
 
         Ok(())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         match self
+            .decoder_mut()
             .inner
+            .as_mut()
             .unwrap()
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
-            DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
+            DecodingResult::U8(v)
+                if self.decoder().original_color_type == ExtendedColorType::Cmyk8 =>
+            {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
                 }
             }
-            DecodingResult::U16(v) if self.original_color_type == ExtendedColorType::Cmyk16 => {
+            DecodingResult::U16(v)
+                if self.decoder().original_color_type == ExtendedColorType::Cmyk16 =>
+            {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
                     out_cur.write_all(bytemuck::cast_slice(&cmyk_to_rgb16(cmyk)))?;
                 }
             }
-            DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::L1 => {
-                let width = self.dimensions.0;
+            DecodingResult::U8(v)
+                if self.decoder().original_color_type == ExtendedColorType::L1 =>
+            {
+                let width = self.decoder().dimensions.0;
                 let row_bytes = width.div_ceil(8);
 
                 for (in_row, out_row) in v
@@ -388,6 +468,55 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
+    }
+}
+
+struct TiffFrameIterator<R: BufRead + Seek> {
+    reader: TiffDecoder<R>,
+    // `is_end` is used to indicate whether the iterator has reached the end of the frames.
+    // Or encounter any un-recoverable error.
+    is_end: bool,
+}
+
+impl<R: BufRead + Seek> TiffFrameIterator<R> {
+    fn new(decoder: TiffDecoder<R>) -> TiffFrameIterator<R> {
+        TiffFrameIterator {
+            reader: decoder,
+            is_end: false,
+        }
+    }
+}
+
+use crate::image_stack::{Frame, Stack};
+
+impl<R: BufRead + Seek> Iterator for TiffFrameIterator<R> {
+    type Item = ImageResult<Frame<DynamicImage>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_end {
+            return None;
+        }
+        let img = DynamicImage::from_decoder(TiffFrameDecoder::Borrowed(&mut self.reader));
+
+        if !self.reader.more_images() {
+            self.is_end = true;
+        } else {
+            self.reader.next_image().expect("failed to read next image");
+        }
+
+        match img {
+            Err(e) => {
+                self.is_end = true;
+                Some(Err(e))
+            }
+            Ok(img) => Some(Ok(Frame::new(img))),
+        }
+    }
+}
+
+impl<'a, R: BufRead + Seek + 'a> ImageStackDecoder<'a, Frame<DynamicImage>> for TiffDecoder<R> {
+    fn into_frames(self) -> Stack<'a, Frame<DynamicImage>> {
+        Stack::new(Box::new(TiffFrameIterator::new(self)))
     }
 }
 

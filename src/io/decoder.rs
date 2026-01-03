@@ -1,6 +1,6 @@
-use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
+use crate::image_stack::Stack;
 use crate::metadata::Orientation;
 
 /// The trait that all decoders implement
@@ -175,10 +175,10 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
 }
 
-/// `AnimationDecoder` trait
-pub trait AnimationDecoder<'a> {
+/// `ImageStackDecoder` trait
+pub trait ImageStackDecoder<'a, C> {
     /// Consume the decoder producing a series of frames.
-    fn into_frames(self) -> Frames<'a>;
+    fn into_frames(self) -> Stack<'a, C>;
 }
 
 #[cfg(test)]

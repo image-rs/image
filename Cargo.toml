@@ -72,7 +72,7 @@ quickcheck = "1"
 criterion = "0.5.0"
 
 [features]
-default = ["rayon", "default-formats"]
+default = ["default-formats"]
 
 # Format features
 default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]

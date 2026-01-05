@@ -1,4 +1,5 @@
 use std::io::{BufRead, Read, Seek};
+use std::num::NonZeroU32;
 
 use image_webp::LoopCount;
 
@@ -6,8 +7,8 @@ use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::metadata::Orientation;
 use crate::{
-    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
-    RgbaImage,
+    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, LoopTimes,
+    RgbImage, Rgba, RgbaImage,
 };
 
 /// WebP Image format decoder.
@@ -102,10 +103,12 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
 }
 
 impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
-    fn loop_count(&self) -> u32 {
+    fn loop_count(&self) -> LoopTimes {
         match self.inner.loop_count() {
-            LoopCount::Forever => 0,
-            LoopCount::Times(n) => n.get() as u32,
+            LoopCount::Forever => LoopTimes::Infinite,
+            LoopCount::Times(n) => LoopTimes::Finite(
+                NonZeroU32::new(n.get().into()).expect("LoopCount::Times should be non-zero"),
+            ),
         }
     }
 

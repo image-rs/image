@@ -30,6 +30,7 @@
 use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
+use std::num::NonZeroU32;
 
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
@@ -43,7 +44,7 @@ use crate::error::{
 use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
-    Limits,
+    Limits, LoopTimes,
 };
 
 /// GIF decoder
@@ -422,10 +423,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
-    fn loop_count(&self) -> u32 {
+    fn loop_count(&self) -> LoopTimes {
         match self.reader.repeat() {
-            gif::Repeat::Finite(n) => n as u32,
-            gif::Repeat::Infinite => 0,
+            gif::Repeat::Finite(n) => LoopTimes::Finite(
+                NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
+            ),
+            gif::Repeat::Infinite => LoopTimes::Infinite,
         }
     }
     fn into_frames(self) -> animation::Frames<'a> {

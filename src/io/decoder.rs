@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
@@ -179,8 +181,17 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
 pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
-    /// Loop count of the animation, if known. Zero indicates infinite looping. By default, returns 0.
-    fn loop_count(&self) -> u32;
+    /// Loop count of the animated image.
+    fn loop_count(&self) -> LoopTimes;
+}
+
+/// The number of times animated image should loop over.
+#[derive(Clone, Copy)]
+pub enum LoopTimes {
+    /// Loop the image Infinitely
+    Infinite,
+    /// Loop the image within Finite times.
+    Finite(NonZeroU32),
 }
 
 #[cfg(test)]

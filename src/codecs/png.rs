@@ -7,6 +7,7 @@
 
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
+use std::num::NonZeroU32;
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
@@ -19,7 +20,7 @@ use crate::error::{
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    ImageEncoder, ImageFormat, Limits, LoopTimes, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -513,10 +514,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
-    fn loop_count(&self) -> u32 {
+    fn loop_count(&self) -> LoopTimes {
         match self.inner.reader.info().animation_control() {
-            Some(actl) => actl.num_plays,
-            None => 0,
+            None => LoopTimes::Infinite,
+            Some(actl) if actl.num_plays == 0 => LoopTimes::Infinite,
+            Some(actl) => LoopTimes::Finite(
+                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
+            ),
         }
     }
 

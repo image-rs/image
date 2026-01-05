@@ -179,6 +179,8 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
 pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
+    /// Loop count of the animation, if known. Zero indicates infinite looping. By default, returns 0.
+    fn loop_count(&self) -> u32;
 }
 
 #[cfg(test)]

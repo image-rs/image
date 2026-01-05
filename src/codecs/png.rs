@@ -519,6 +519,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
+    fn loop_count(&self) -> u32 {
+        match self.inner.reader.info().animation_control() {
+            Some(actl) => actl.num_plays,
+            None => 0,
+        }
+    }
+
     fn into_frames(self) -> Frames<'a> {
         struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
 

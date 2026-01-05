@@ -228,6 +228,18 @@ impl<W: Write> JpegEncoder<W> {
                 let color = jpeg_encoder::ColorType::Rgb;
                 encode_jpeg(color)
             }
+            ExtendedColorType::Rgba8 => {
+                let color = jpeg_encoder::ColorType::Rgba;
+                encode_jpeg(color)
+            }
+            ExtendedColorType::Bgr8 => {
+                let color = jpeg_encoder::ColorType::Bgr;
+                encode_jpeg(color)
+            }
+            ExtendedColorType::Bgra8 => {
+                let color = jpeg_encoder::ColorType::Bgra;
+                encode_jpeg(color)
+            }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Jpeg.into(),

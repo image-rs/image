@@ -4,6 +4,7 @@ use std::io;
 use std::path::PathBuf;
 
 use crc32fast::Hasher as Crc32;
+use image::ColorType;
 use image::DynamicImage;
 use image::ImageReader;
 
@@ -12,7 +13,7 @@ const IMAGE_DIR: &str = "images";
 const OUTPUT_DIR: &str = "output";
 const REFERENCE_DIR: &str = "reference";
 
-fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
+fn process_images<F>(dir: &str, input_decoders: Option<&[&str]>, func: F)
 where
     F: Fn(&PathBuf, PathBuf, &str),
 {
@@ -27,13 +28,18 @@ where
         path.push("**");
         path.push(
             "*.".to_string()
-                + match input_decoder {
-                    Some(val) => val,
+                + match input_decoders {
+                    Some(_) => "*",
                     None => decoder,
                 },
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+            if let Some(suffixes) = input_decoders {
+                if !suffixes.contains(&path.extension().unwrap().to_str().unwrap()) {
+                    continue;
+                }
+            }
             func(&base, path, decoder);
         }
     }
@@ -45,8 +51,12 @@ fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
         println!("render_images {}", path.display());
         let img = match image::open(&path) {
+            #[cfg(not(feature = "tiff"))]
             Ok(DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_)) => {
-                println!("Skipping {} - HDR codec is not enabled", path.display());
+                println!(
+                    "Skipping {} - writing floating point reference image is not enabled",
+                    path.display()
+                );
                 return;
             }
             Ok(img) => img,
@@ -62,6 +72,8 @@ fn render_images() {
         let mut crc = Crc32::new();
         crc.update(img.as_bytes());
 
+        let use_tiff = matches!(img.color(), ColorType::Rgb32F | ColorType::Rgba32F);
+
         let (filename, testsuite) = {
             let mut path: Vec<_> = path.components().collect();
             (path.pop().unwrap(), path.pop().unwrap())
@@ -72,10 +84,12 @@ fn render_images() {
         out_path.push(decoder);
         out_path.push(testsuite.as_os_str());
         fs::create_dir_all(&out_path).unwrap();
+
         out_path.push(format!(
-            "{}.{:x}.png",
+            "{}.{:x}.{}",
             filename.as_os_str().to_str().unwrap(),
             crc.finalize(),
+            if use_tiff { "tiff" } else { "png" }
         ));
         img.save(out_path).unwrap();
     });
@@ -154,7 +168,8 @@ fn parse_crc(src: &str) -> Option<u32> {
 
 #[test]
 fn check_references() {
-    process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
+    let exts = &["tiff", "png"];
+    process_images(REFERENCE_DIR, Some(exts), |base, path, decoder| {
         println!("check_references {}", path.display());
 
         let ref_img = match image::open(&path) {
@@ -296,15 +311,17 @@ fn check_references() {
             hasher.finalize()
         };
 
-        // Convert to a PNG compatible format
-        match test_img {
-            DynamicImage::ImageRgb32F(_) => {
-                *test_img = test_img.to_rgb16().into();
+        // If the reference is PNG, convert to a PNG compatible format
+        if path.extension().unwrap() == "png" {
+            match test_img {
+                DynamicImage::ImageRgb32F(_) => {
+                    *test_img = test_img.to_rgb16().into();
+                }
+                DynamicImage::ImageRgba32F(_) => {
+                    *test_img = test_img.to_rgba16().into();
+                }
+                _ => {}
             }
-            DynamicImage::ImageRgba32F(_) => {
-                *test_img = test_img.to_rgba16().into();
-            }
-            _ => {}
         }
 
         assert!(
@@ -340,73 +357,4 @@ fn check_references() {
             }
         );
     });
-}
-
-#[cfg(feature = "hdr")]
-#[test]
-fn check_hdr_references() {
-    use byteorder_lite::{LittleEndian as LE, ReadBytesExt};
-    use std::fs::File;
-    use std::io::BufReader;
-    use std::path::Path;
-
-    /// Helper function for reading raw 3-channel f32 images
-    fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<f32>> {
-        let mut r = BufReader::new(File::open(path)?);
-        let w = r.read_u32::<LE>()? as usize;
-        let h = r.read_u32::<LE>()? as usize;
-        let c = r.read_u32::<LE>()? as usize;
-        assert_eq!(c, 3);
-        let cnt = w * h;
-        #[allow(clippy::disallowed_methods)]
-        let mut ret = Vec::with_capacity(cnt);
-        for _ in 0..cnt {
-            ret.push(r.read_f32::<LE>()?);
-            ret.push(r.read_f32::<LE>()?);
-            ret.push(r.read_f32::<LE>()?);
-        }
-        Ok(ret)
-    }
-
-    let mut ref_path: PathBuf = BASE_PATH.iter().collect();
-    ref_path.push(REFERENCE_DIR);
-    ref_path.push("hdr");
-    let mut path: PathBuf = BASE_PATH.iter().collect();
-    path.push(IMAGE_DIR);
-    path.push("hdr");
-    path.push("*");
-    path.push("*.hdr");
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        use std::path::Component::Normal;
-        let mut ref_path = ref_path.clone();
-        // append 2 last components of image path to reference path
-        for c in path
-            .components()
-            .rev()
-            .take(2)
-            .collect::<Vec<_>>()
-            .iter()
-            .rev()
-        {
-            if let Normal(name) = *c {
-                ref_path.push(name);
-            } else {
-                panic!()
-            }
-        }
-        ref_path.set_extension("raw");
-        println!("{}", ref_path.display());
-        println!("{}", path.display());
-        let decoder =
-            image::codecs::hdr::HdrDecoder::new(io::BufReader::new(fs::File::open(&path).unwrap()))
-                .unwrap();
-        let decoded = match DynamicImage::from_decoder(decoder).unwrap() {
-            DynamicImage::ImageRgb32F(img) => img.into_vec(),
-            _ => unreachable!(),
-        };
-
-        let reference = read_raw_file(&ref_path).unwrap();
-        assert_eq!(decoded, reference);
-    }
 }

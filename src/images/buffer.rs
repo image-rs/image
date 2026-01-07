@@ -657,7 +657,7 @@ where
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
@@ -989,6 +989,67 @@ where
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel;
     }
+
+    /// Crop this image in place, removing pixels outside of the bounding rectangle.
+    ///
+    /// This behaves similar to [`imageops::crop`](crate::imageops::crop) except no additional
+    /// allocation takes place. The width and height of this buffer are adjusted as part of the
+    /// operation. The selection is shrunk to the overlap with this image if it is out of bounds.
+    ///
+    /// The pixel buffer is *not* shrunk and will continue to occupy the same amount of memory as
+    /// before. See [`ImageBuffer::shrink_to_fit`] if the container is a [`Vec`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use image::{RgbImage, math::Rect};
+    ///
+    /// let mut img = RgbImage::new(128, 128);
+    /// img.put_pixel(64, 64, image::Rgb([255, 0, 0]));
+    ///
+    /// let selection = Rect::from_xy_ranges(64..128, 64..128);
+    /// img.crop_in_place(selection);
+    ///
+    /// assert_eq!(img.dimensions(), (64, 64));
+    /// assert_eq!(img.get_pixel(0, 0), &image::Rgb([255, 0, 0]));
+    /// ```
+    ///
+    /// Selections beyond the image bounds are clamped.
+    ///
+    /// ```
+    /// use image::{RgbImage, math::Rect};
+    ///
+    /// let mut img = RgbImage::new(32, 32);
+    /// let selection = Rect::from_xy_ranges(16..40, 16..24);
+    /// # use image::GenericImageView as _;
+    /// # assert_eq!(image::imageops::crop(&img, selection).dimensions(), (16, 8));
+    ///
+    /// img.crop_in_place(selection);
+    /// assert_eq!(img.dimensions(), (16, 8));
+    /// ```
+    pub fn crop_in_place(&mut self, selection: Rect) {
+        let selection = selection.crop_dimms(self);
+        // We're now running essentially `copy_within` with differing source and destination row
+        // pitches. The above ensures that the target row pitch is smaller than our current one and
+        // we copy to offset `0` so always all data backwards.
+        //
+        // Since `selection` describes a smaller layout than our own, all indices that are computed
+        // from the pitches as type `usize` are within the bounds of the type and the underlying
+        // storage and we assume them to be valid. (If the `DerefMut` is malicious you'll get
+        // panics at runtime but that is not our problem, violating the contract of the container
+        // type for channels).
+        let rowlen = (selection.width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+
+        for y in 0..selection.height {
+            let sy = selection.y + y;
+            let source = self.pixel_indices_unchecked(selection.x, sy).start;
+            let dst = y as usize * rowlen;
+            self.data.copy_within(source..source + rowlen, dst);
+        }
+
+        self.width = selection.width;
+        self.height = selection.height;
+    }
 }
 
 impl<P: Pixel, Container> ImageBuffer<P, Container> {
@@ -1223,6 +1284,29 @@ where
     }
 }
 
+impl<P, Container> fmt::Debug for ImageBuffer<P, Container>
+where
+    P: Pixel + fmt::Debug,
+    Container: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut pixel = std::any::type_name::<P>();
+        pixel = pixel.strip_prefix("image::color::").unwrap_or(pixel);
+
+        let mut debug_struct = f.debug_struct(&format!("ImageBuffer::<{pixel}, _>"));
+        debug_struct.field("width", &self.width);
+        debug_struct.field("height", &self.height);
+
+        if let Some(color_name) = self.color.known_name() {
+            debug_struct.field("color", &color_name);
+        } else {
+            debug_struct.field("color", &self.color);
+        }
+
+        debug_struct.finish()
+    }
+}
+
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1396,6 +1480,27 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
         self.into_raw()
     }
 
+    /// Shrink the length and capacity of the data buffer to fit the image size.
+    ///
+    /// This is useful after shrinking an image in-place, e.g. via cropping, to free unused memory
+    /// or in case the image was created from a buffer with excess capacity.
+    ///
+    /// ```
+    /// use image::RgbImage;
+    ///
+    /// let data = vec![0u8; 10000];
+    /// // `from_raw` allows excess data
+    /// let mut img = RgbImage::from_raw(16, 16, data).unwrap();
+    /// img.shrink_to_fit();
+    ///
+    /// assert_eq!(img.into_vec().len(), 16 * 16 * 3);
+    /// ```
+    pub fn shrink_to_fit(&mut self) {
+        let need = self.inner_pixels().len();
+        self.data.truncate(need);
+        self.data.shrink_to_fit();
+    }
+
     /// Transfer the meta data, not the pixel values.
     ///
     /// This will reinterpret all the pixels.
@@ -1403,6 +1508,58 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// We may want to export this but under what name?
     pub(crate) fn copy_color_space_from<O: Pixel, C>(&mut self, other: &ImageBuffer<O, C>) {
         self.color = other.color;
+    }
+}
+
+impl<S, Container> ImageBuffer<Rgb<S>, Container>
+where
+    Rgb<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
+{
+    /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
+    pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
+        let mut img = Self::from_raw(width, height, container)?;
+
+        for pix in img.pixels_mut() {
+            pix.0.reverse();
+        }
+
+        Some(img)
+    }
+
+    /// Return the underlying raw buffer after converting it into `Bgr` channel order.
+    pub fn into_raw_bgr(mut self) -> Container {
+        for pix in self.pixels_mut() {
+            pix.0.reverse();
+        }
+
+        self.into_raw()
+    }
+}
+
+impl<S, Container> ImageBuffer<Rgba<S>, Container>
+where
+    Rgba<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
+{
+    /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
+    pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
+        let mut img = Self::from_raw(width, height, container)?;
+
+        for pix in img.pixels_mut() {
+            pix.0[..3].reverse();
+        }
+
+        Some(img)
+    }
+
+    /// Return the underlying raw buffer after converting it into `BgrA` channel order.
+    pub fn into_raw_bgra(mut self) -> Container {
+        for pix in self.pixels_mut() {
+            pix.0[..3].reverse();
+        }
+
+        self.into_raw()
     }
 }
 
@@ -1768,7 +1925,9 @@ mod test {
     use super::{GrayImage, ImageBuffer, RgbImage};
     use crate::math::Rect;
     use crate::metadata::Cicp;
+    use crate::metadata::CicpMatrixCoefficients;
     use crate::metadata::CicpTransform;
+    use crate::metadata::CicpVideoFullRangeFlag;
     use crate::GenericImage as _;
     use crate::ImageFormat;
     use crate::{Luma, LumaA, Pixel, Rgb, Rgba};
@@ -2130,6 +2289,83 @@ mod test {
 
         let result = target.copy_from_color_space(&source, options);
         assert!(matches!(result, Err(crate::ImageError::Parameter(_))));
+    }
+
+    #[test]
+    fn pleasant_debug() {
+        use super::*;
+
+        assert_eq!(
+            format!("{:?}", GrayImage::new(100, 100)),
+            "ImageBuffer::<Luma<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlphaImage::new(100, 100)),
+            "ImageBuffer::<LumaA<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", RgbImage::new(100, 100)),
+            "ImageBuffer::<Rgb<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", RgbaImage::new(100, 100)),
+            "ImageBuffer::<Rgba<u8>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Gray16Image::new(100, 100)),
+            "ImageBuffer::<Luma<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", GrayAlpha16Image::new(100, 100)),
+            "ImageBuffer::<LumaA<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb16Image::new(100, 100)),
+            "ImageBuffer::<Rgb<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba16Image::new(100, 100)),
+            "ImageBuffer::<Rgba<u16>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgb32FImage::new(100, 100)),
+            "ImageBuffer::<Rgb<f32>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:?}", Rgba32FImage::new(100, 100)),
+            "ImageBuffer::<Rgba<f32>, _> { width: 100, height: 100, color: \"sRGB\" }"
+        );
+
+        let gray8 = ImageBuffer::from_pixel(16, 16, Luma([255u8]));
+        assert_eq!(
+            format!("{:?}", gray8),
+            "ImageBuffer::<Luma<u8>, _> { width: 16, height: 16, color: \"sRGB\" }"
+        );
+        assert_eq!(
+            format!("{:#?}", gray8),
+           "ImageBuffer::<Luma<u8>, _> {\n    width: 16,\n    height: 16,\n    color: \"sRGB\",\n}"
+        );
+
+        let mut rgba32f = ImageBuffer::from_pixel(16, 16, Rgba([0.0_f32; 4]));
+        rgba32f.set_color_space(Cicp::DISPLAY_P3).unwrap();
+        assert_eq!(
+            format!("{:?}", rgba32f),
+            "ImageBuffer::<Rgba<f32>, _> { width: 16, height: 16, color: \"Display P3\" }"
+        );
+
+        let mut custom_color_space = ImageBuffer::from_pixel(16, 16, Rgba([0.0_f32; 4]));
+        custom_color_space
+            .set_color_space(Cicp {
+                primaries: CicpColorPrimaries::Rgb240m,
+                transfer: CicpTransferCharacteristics::LogSqrt,
+                matrix: CicpMatrixCoefficients::Identity,
+                full_range: CicpVideoFullRangeFlag::FullRange,
+            })
+            .unwrap();
+        assert_eq!(
+            format!("{:?}", custom_color_space),
+            "ImageBuffer::<Rgba<f32>, _> { width: 16, height: 16, color: CicpRgb { primaries: Rgb240m, transfer: LogSqrt, luminance: NonConstant } }"
+        );
     }
 }
 

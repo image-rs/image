@@ -12,7 +12,7 @@ use crate::images::buffer::{
 };
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
-use crate::math::resize_dimensions;
+use crate::math::{resize_dimensions, Rect};
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
@@ -495,18 +495,18 @@ impl DynamicImage {
     }
 
     /// Return a cut-out of this image delimited by the bounding rectangle.
-    ///
-    /// Note: this method does *not* modify the object,
-    /// and its signature will be replaced with `crop_imm()`'s in the 0.24 release
     #[must_use]
-    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
-        dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
+    pub fn crop(&self, selection: Rect) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::crop(p, selection).to_image())
     }
 
-    /// Return a cut-out of this image delimited by the bounding rectangle.
-    #[must_use]
-    pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::crop_imm(p, x, y, width, height).to_image())
+    /// Crop this image in place, removing pixels outside of the bounding rectangle.
+    ///
+    /// See [`ImageBuffer::crop_in_place`] for more details. This changes the image with its
+    /// current color type. The pixel buffer is *not* shrunk and will continue to occupy the same
+    /// amount of memory as before. See [`Self::shrink_to_fit`].
+    pub fn crop_in_place(&mut self, selection: Rect) {
+        dynamic_map!(self, ref mut p, p.crop_in_place(selection))
     }
 
     /// Return a reference to an 8bit RGB image
@@ -722,6 +722,14 @@ impl DynamicImage {
             ref image_buffer,
             bytemuck::cast_slice(image_buffer.as_raw())
         )
+    }
+
+    /// Shrink the capacity of the underlying [`Vec`] buffer to fit its length.
+    ///
+    /// The data may have excess capacity or padding for a number of reasons, depending on how it
+    /// was created or from in-place manipulation such as [`Self::crop_in_place`].
+    pub fn shrink_to_fit(&mut self) {
+        dynamic_map!(self, ref mut p, p.shrink_to_fit());
     }
 
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`
@@ -941,19 +949,24 @@ impl DynamicImage {
         let ratio = u64::from(iwidth) * u64::from(nheight);
         let nratio = u64::from(nwidth) * u64::from(iheight);
 
-        let cropped = if nratio > ratio {
-            self.crop(0, (iheight - nheight) / 2, nwidth, nheight)
+        let select = if nratio > ratio {
+            let y = (iheight - nheight) / 2;
+            Rect::from_xy_ranges(0..nwidth, y..y + nheight)
         } else {
-            self.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
+            let x = (iwidth - nwidth) / 2;
+            Rect::from_xy_ranges(x..x + nwidth, 0..nheight)
         };
-        *self = cropped;
+
+        *self = self.crop(select);
     }
 
     /// Performs a Gaussian blur on this image.
     ///
     /// # Arguments
     ///
-    /// * `sigma` - gaussian bell flattening level.
+    /// * `radius` - Blurring window radius. These parameter controls directly the window size.
+    ///   We choose visually optimal sigma for the given radius. To control sigma
+    ///   directly use [DynamicImage::blur_advanced] instead.
     ///
     /// Use [DynamicImage::fast_blur()] for a faster but less
     /// accurate version.
@@ -965,11 +978,8 @@ impl DynamicImage {
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
     #[must_use]
-    pub fn blur(&self, sigma: f32) -> DynamicImage {
-        gaussian_blur_dyn_image(
-            self,
-            GaussianBlurParameters::new_from_sigma(if sigma == 0.0 { 0.8 } else { sigma }),
-        )
+    pub fn blur(&self, radius: f32) -> DynamicImage {
+        gaussian_blur_dyn_image(self, GaussianBlurParameters::new_from_radius(radius))
     }
 
     /// Performs a Gaussian blur on this image.

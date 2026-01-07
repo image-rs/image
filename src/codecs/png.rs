@@ -7,6 +7,7 @@
 
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
+use std::num::NonZeroU32;
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
@@ -16,6 +17,8 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::math::Rect;
+use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
@@ -290,7 +293,7 @@ pub struct ApngDecoder<R: BufRead + Seek> {
     dispose: DisposeOp,
 
     /// The region to dispose of the previous frame.
-    dispose_region: Option<(u32, u32, u32, u32)>,
+    dispose_region: Option<Rect>,
     /// The number of image still expected to be able to load.
     remaining: u32,
     /// The next (first) image is the thumbnail.
@@ -385,8 +388,8 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             }
             DisposeOp::Background => {
                 previous.clone_from(current);
-                if let Some((px, py, width, height)) = self.dispose_region {
-                    let mut region_current = current.sub_image(px, py, width, height);
+                if let Some(rect) = self.dispose_region {
+                    let mut region_current = current.sub_image(rect);
 
                     // FIXME: This is a workaround for the fact that `pixels_mut` is not implemented
                     let pixels: Vec<_> = region_current.pixels().collect();
@@ -402,12 +405,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 }
             }
             DisposeOp::Previous => {
-                let (px, py, width, height) = self
+                let rect = self
                     .dispose_region
                     .expect("The first frame must not set dispose=Previous");
-                let region_previous = previous.sub_image(px, py, width, height);
+                let region_previous = previous.sub_image(rect);
                 current
-                    .copy_from(&region_previous.to_image(), px, py)
+                    .copy_from(&region_previous.to_image(), rect.x, rect.y)
                     .unwrap();
             }
         }
@@ -452,7 +455,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             }
         }
 
-        self.dispose_region = Some((px, py, width, height));
+        self.dispose_region = Some(Rect {
+            x: px,
+            y: py,
+            width,
+            height,
+        });
 
         // Turn the data into an rgba image proper.
         limits.reserve_buffer(width, height, COLOR_TYPE)?;
@@ -513,6 +521,16 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
+    fn loop_count(&self) -> LoopCount {
+        match self.inner.reader.info().animation_control() {
+            None => LoopCount::Infinite,
+            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
+            Some(actl) => LoopCount::Finite(
+                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
+            ),
+        }
+    }
+
     fn into_frames(self) -> Frames<'a> {
         struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
 

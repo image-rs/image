@@ -244,36 +244,32 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    for (x, y, pixel) in out.enumerate_pixels_mut() {
-        let p = image.get_pixel(x, y);
 
-        #[allow(deprecated)]
-        let (k1, k2, k3, k4) = p.channels4();
-        let vec: (f64, f64, f64, f64) = (
-            NumCast::from(k1).unwrap(),
-            NumCast::from(k2).unwrap(),
-            NumCast::from(k3).unwrap(),
-            NumCast::from(k4).unwrap(),
-        );
+    let mut v = [0.0f64; 4];
+    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
 
-        let r = vec.0;
-        let g = vec.1;
-        let b = vec.2;
+    for (x, y, outpixel) in out.enumerate_pixels_mut() {
+        let pixel = image.get_pixel(x, y);
+
+        for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
+            *v = NumCast::from(*c).unwrap();
+        }
+
+        let r = v[0];
+        let g = v[1];
+        let b = v[2];
 
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        #[allow(deprecated)]
-        let outpixel = Pixel::from_channels(
-            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-        );
-        *pixel = outpixel;
+        let channels = [new_r, new_b, new_g, v[3]];
+        let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+
+        *outpixel = *Pixel::from_slice(&channels[..used_channels]);
     }
+
     out
 }
 
@@ -309,39 +305,32 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
+    let mut v = [0.0f64; 4];
+    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
+
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
             let pixel = image.get_pixel(x, y);
 
-            #[allow(deprecated)]
-            let (k1, k2, k3, k4) = pixel.channels4();
+            for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
+                *v = NumCast::from(*c).unwrap();
+            }
 
-            let vec: (f64, f64, f64, f64) = (
-                NumCast::from(k1).unwrap(),
-                NumCast::from(k2).unwrap(),
-                NumCast::from(k3).unwrap(),
-                NumCast::from(k4).unwrap(),
-            );
-
-            let r = vec.0;
-            let g = vec.1;
-            let b = vec.2;
+            let r = v[0];
+            let g = v[1];
+            let b = v[2];
 
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            #[allow(deprecated)]
-            let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-            );
+            let channels = [new_r, new_b, new_g, v[3]];
+            let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
 
-            image.put_pixel(x, y, outpixel);
+            let outpixel = Pixel::from_slice(&channels[..used_channels]);
+            image.put_pixel(x, y, *outpixel);
         }
     }
 }

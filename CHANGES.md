@@ -6,6 +6,11 @@
 
 ## Changes
 
+### Version Next
+
+Breaking Changes:
+ - Trait `ImageDecoderRect` has been removed (#2355, #2681)
+
 ### Version 0.25.9
 
 Features:

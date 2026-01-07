@@ -25,10 +25,10 @@ pub struct MethodSealedToImage;
 pub trait ImageEncoder {
     /// Writes all the bytes in an image to the encoder.
     ///
-    /// This function takes a slice of bytes of the pixel data of the image
-    /// and encodes them. Just like for [`ImageDecoder::read_image`], no particular
-    /// alignment is required and data is expected to be in native endian.
-    /// The implementation will reorder the endianness as necessary for the target encoding format.
+    /// This function takes a slice of bytes of the pixel data of the image and encodes them. Just
+    /// like for [`ImageDecoder::read_image`](crate::ImageDecoder), no particular alignment is
+    /// required and data is expected to be in native endian. The implementation will reorder the
+    /// endianness as necessary for the target encoding format.
     ///
     /// # Panics
     ///

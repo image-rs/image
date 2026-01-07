@@ -41,10 +41,11 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::metadata::LoopCount;
 use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
-    Limits, LoopTimes,
+    Limits,
 };
 
 /// GIF decoder
@@ -423,12 +424,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
-    fn loop_count(&self) -> LoopTimes {
+    fn loop_count(&self) -> LoopCount {
         match self.reader.repeat() {
-            gif::Repeat::Finite(n) => LoopTimes::Finite(
+            gif::Repeat::Finite(n) => LoopCount::Finite(
                 NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
             ),
-            gif::Repeat::Infinite => LoopTimes::Infinite,
+            gif::Repeat::Infinite => LoopCount::Infinite,
         }
     }
     fn into_frames(self) -> animation::Frames<'a> {

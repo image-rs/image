@@ -7,8 +7,8 @@ use crate::buffer::ConvertBuffer;
 use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::metadata::Orientation;
 use crate::{
-    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, LoopTimes,
-    RgbImage, Rgba, RgbaImage,
+    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
+    RgbaImage,
 };
 
 /// WebP Image format decoder.
@@ -103,10 +103,10 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
 }
 
 impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
-    fn loop_count(&self) -> LoopTimes {
+    fn loop_count(&self) -> crate::metadata::LoopCount {
         match self.inner.loop_count() {
-            LoopCount::Forever => LoopTimes::Infinite,
-            LoopCount::Times(n) => LoopTimes::Finite(
+            LoopCount::Forever => crate::metadata::LoopCount::Infinite,
+            LoopCount::Times(n) => crate::metadata::LoopCount::Finite(
                 NonZeroU32::new(n.get().into()).expect("LoopCount::Times should be non-zero"),
             ),
         }

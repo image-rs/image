@@ -17,10 +17,11 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, LoopTimes, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -514,11 +515,11 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
-    fn loop_count(&self) -> LoopTimes {
+    fn loop_count(&self) -> LoopCount {
         match self.inner.reader.info().animation_control() {
-            None => LoopTimes::Infinite,
-            Some(actl) if actl.num_plays == 0 => LoopTimes::Infinite,
-            Some(actl) => LoopTimes::Finite(
+            None => LoopCount::Infinite,
+            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
+            Some(actl) => LoopCount::Finite(
                 NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
             ),
         }

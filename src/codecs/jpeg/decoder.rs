@@ -1,8 +1,6 @@
 use std::io::{BufRead, Seek};
 use std::marker::PhantomData;
 
-use zune_core::bytestream::ZCursor;
-
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
@@ -15,7 +13,7 @@ type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
 /// JPEG decoder
 pub struct JpegDecoder<R> {
-    input: Vec<u8>,
+    input: zune_jpeg::JpegDecoder<R>,
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
@@ -28,15 +26,12 @@ pub struct JpegDecoder<R> {
 impl<R: BufRead + Seek> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
-        let mut input = Vec::new();
-        let mut r = r;
-        r.read_to_end(&mut input)?;
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
-        let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(input.as_slice()), options);
+        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(r, options);
+        // Adjust ensure_headers if we do not run this in the constructor!
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
@@ -63,13 +58,18 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
         Ok(JpegDecoder {
-            input,
+            input: decoder,
             orig_color_space,
             width,
             height,
             limits,
             phantom: PhantomData,
         })
+    }
+
+    fn ensure_headers(&mut self) -> ImageResult<&mut zune_jpeg::JpegDecoder<R>> {
+        // Headers are already decoded in `new()` right now, so this is a no-op.
+        Ok(&mut self.input)
     }
 }
 
@@ -96,58 +96,22 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        // If this is changed to operate on a file, ensure all headers are done here and we have
-        // reached the MCU/RST portion of the stream.
-        let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
-            .set_max_width(usize::MAX)
-            .set_max_height(usize::MAX);
-        let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
+        let decoder = self.ensure_headers()?;
         Ok(decoder.icc_profile())
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        // If this is changed to operate on a file, ensure all headers are done here and we have
-        // reached the MCU/RST portion of the stream.
-        let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
-            .set_max_width(usize::MAX)
-            .set_max_height(usize::MAX);
-        let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
-        let exif = decoder.exif().cloned();
-
-        Ok(exif)
+        let decoder = self.ensure_headers()?;
+        Ok(decoder.exif().cloned())
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        // If this is changed to operate on a file, ensure all headers are done here and we have
-        // reached the MCU/RST portion of the stream.
-        let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
-            .set_max_width(usize::MAX)
-            .set_max_height(usize::MAX);
-        let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
-
+        let decoder = self.ensure_headers()?;
         Ok(decoder.xmp().cloned())
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        // If this is changed to operate on a file, ensure all headers are done here and we have
-        // reached the MCU/RST portion of the stream.
-        let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
-            .set_max_width(usize::MAX)
-            .set_max_height(usize::MAX);
-        let mut decoder =
-            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
-
+        let decoder = self.ensure_headers()?;
         Ok(decoder.iptc().cloned())
     }
 
@@ -168,8 +132,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, &self.limits);
-        decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
+        let decoder = self.ensure_headers()?;
+        decoder.decode_into(buf).map_err(|err| {
+            ImageError::Decoding(DecodingError::new(ImageFormat::Jpeg.into(), err))
+        })?;
 
         Ok(DecodedImageAttributes {
             ..DecodedImageAttributes::default()
@@ -209,26 +175,6 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
         // the rest is not supported by `image` so it will be converted to RGB during decoding
         _ => RGB,
     }
-}
-
-fn new_zune_decoder<'input>(
-    input: &'input [u8],
-    orig_color_space: ZuneColorSpace,
-    limits: &Limits,
-) -> zune_jpeg::JpegDecoder<ZCursor<&'input [u8]>> {
-    let target_color_space = to_supported_color_space(orig_color_space);
-    let mut options = zune_core::options::DecoderOptions::default()
-        .jpeg_set_out_colorspace(target_color_space)
-        .set_strict_mode(false);
-    options = options.set_max_width(match limits.max_image_width {
-        Some(max_width) => max_width as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
-    options = options.set_max_height(match limits.max_image_height {
-        Some(max_height) => max_height as usize, // u32 to usize never truncates
-        None => usize::MAX,
-    });
-    zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(input), options)
 }
 
 impl ImageError {

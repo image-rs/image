@@ -7,6 +7,7 @@
 
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
+use std::num::NonZeroU32;
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
@@ -17,6 +18,7 @@ use crate::error::{
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::math::Rect;
+use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
@@ -519,6 +521,16 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
+    fn loop_count(&self) -> LoopCount {
+        match self.inner.reader.info().animation_control() {
+            None => LoopCount::Infinite,
+            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
+            Some(actl) => LoopCount::Finite(
+                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
+            ),
+        }
+    }
+
     fn into_frames(self) -> Frames<'a> {
         struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
 

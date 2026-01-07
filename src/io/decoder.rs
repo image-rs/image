@@ -1,9 +1,7 @@
-use std::num::NonZeroU32;
-
 use crate::animation::Frames;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::ImageResult;
-use crate::metadata::Orientation;
+use crate::metadata::{LoopCount, Orientation};
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
@@ -182,16 +180,7 @@ pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
     /// Loop count of the animated image.
-    fn loop_count(&self) -> LoopTimes;
-}
-
-/// The number of times animated image should loop over.
-#[derive(Clone, Copy)]
-pub enum LoopTimes {
-    /// Loop the image Infinitely
-    Infinite,
-    /// Loop the image within Finite times.
-    Finite(NonZeroU32),
+    fn loop_count(&self) -> LoopCount;
 }
 
 #[cfg(test)]

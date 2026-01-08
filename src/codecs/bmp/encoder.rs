@@ -56,10 +56,12 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         if palette.is_some()
             && color_type != ExtendedColorType::L8
             && color_type != ExtendedColorType::La8
+            && color_type != ExtendedColorType::L4
         {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(
-                    "Palette given which must only be used with L8 or La8 color types".to_string(),
+                    "Palette given which must only be used with L8, La8 or L4 color types"
+                        .to_string(),
                 ),
             )));
         }
@@ -77,10 +79,20 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         let (dib_header_size, written_pixel_size, palette_color_count) =
             written_pixel_info(color_type, palette)?;
 
-        let (padded_row, image_size) = width
-            .checked_mul(written_pixel_size)
+        // Special case for L4, `written_pixel_info` returns a placeholder
+        let row_bytes_unpadded: u32 = if color_type == ExtendedColorType::L4 {
+            width.div_ceil(2)
+        } else {
+            width.checked_mul(written_pixel_size).ok_or_else(|| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?
+        };
+
+        let (padded_row, image_size) = row_bytes_unpadded
             // each row must be padded to a multiple of 4 bytes
-            .and_then(|v| v.checked_next_multiple_of(4))
+            .checked_next_multiple_of(4)
             .and_then(|v| {
                 let image_bytes = v.checked_mul(height)?;
                 Some((v, image_bytes))
@@ -91,7 +103,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                 ))
             })?;
 
-        let row_padding = padded_row - width * written_pixel_size;
+        let row_padding = padded_row - row_bytes_unpadded;
 
         // all palette colors are BGRA
         let palette_size = palette_color_count.checked_mul(4).ok_or_else(|| {
@@ -135,8 +147,15 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         self.writer.write_i32::<LittleEndian>(width as i32)?;
         self.writer.write_i32::<LittleEndian>(height as i32)?;
         self.writer.write_u16::<LittleEndian>(1)?; // color planes
-        self.writer
-            .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)?; // bits per pixel
+
+        // bits per pixel: special-case L4
+        if color_type == ExtendedColorType::L4 {
+            self.writer.write_u16::<LittleEndian>(4)?; // 4 bits per pixel
+        } else {
+            self.writer
+                .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)?; // bits per pixel
+        }
+
         if dib_header_size >= BITMAPV4HEADER_SIZE {
             // Assume BGRA32
             self.writer.write_u32::<LittleEndian>(3)?; // compression method - bitfields
@@ -171,6 +190,9 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             }
             ExtendedColorType::La8 => {
                 self.encode_gray(image, width, height, row_padding, 2, palette)?;
+            }
+            ExtendedColorType::L4 => {
+                self.encode_l4(image, width, height, row_padding, palette)?;
             }
             _ => {
                 return Err(ImageError::Unsupported(
@@ -290,6 +312,50 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         Ok(())
     }
 
+    /// Encodes 4-bit paletted images.
+    ///
+    /// Input image buffer: **packed** 4bpp, two pixels per input byte (high nibble = left pixel).
+    /// Output: packed 4bpp BMP rows (direct copy of packed input rows), rows bottom-up,
+    /// each row padded to a 4-byte boundary.
+    fn encode_l4(
+        &mut self,
+        image: &[u8],
+        width: u32,
+        height: u32,
+        row_padding: u32,
+        palette: Option<&[[u8; 3]]>,
+    ) -> io::Result<()> {
+        // write palette: 16 entries
+        if let Some(palette) = palette {
+            // If palette provided with fewer than 16 entries, write provided entries and pad remaining.
+            for item in palette.iter().take(16) {
+                self.writer.write_all(&[item[2], item[1], item[0], 0])?;
+            }
+            if palette.len() < 16 {
+                for _ in 0..(16 - palette.len()) {
+                    self.writer.write_all(&[0, 0, 0, 0])?;
+                }
+            }
+        } else {
+            // default: first 16 greys 0..15
+            for val in 0u8..16u8 {
+                self.writer.write_all(&[val, val, val, 0])?;
+            }
+        }
+
+        // Write image data: input is already packed 4bpp (2 pixels per byte).
+        let row_packed_len: usize = width.div_ceil(2) as usize;
+        let row_input_stride = row_packed_len;
+
+        for row in (0..height as usize).rev() {
+            let row_start = row * row_input_stride;
+            self.writer
+                .write_all(&image[row_start..row_start + row_input_stride])?;
+            self.write_row_pad(row_padding)?;
+        }
+
+        Ok(())
+    }
     fn write_row_pad(&mut self, row_pad_size: u32) -> io::Result<()> {
         for _ in 0..row_pad_size {
             self.writer.write_u8(0)?;
@@ -337,6 +403,11 @@ fn written_pixel_info(
             BITMAPINFOHEADER_SIZE,
             1,
             u32::try_from(palette.map(|p| p.len()).unwrap_or(256)).ok(),
+        ),
+        ExtendedColorType::L4 => (
+            BITMAPINFOHEADER_SIZE,
+            1, // placeholder for calculation; actual bytes-per-row for L4 are handled specially
+            u32::try_from(palette.map(|p| p.len()).unwrap_or(16)).ok(),
         ),
         _ => {
             return Err(ImageError::Unsupported(

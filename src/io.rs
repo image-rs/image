@@ -10,8 +10,11 @@ pub(crate) mod encoder;
 
 pub(crate) mod format;
 pub(crate) mod free_functions;
+pub(crate) mod generic;
 pub(crate) mod image_reader_type;
 pub(crate) mod limits;
+pub(crate) mod registry;
+pub(crate) mod signatures;
 
 #[deprecated(note = "this type has been moved and renamed to image::ImageReader")]
 /// Deprecated re-export of `ImageReader` as `Reader`

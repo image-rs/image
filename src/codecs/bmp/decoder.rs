@@ -1288,10 +1288,82 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     if self.image_type == ImageType::Bitfields16
                         || self.image_type == ImageType::Bitfields32
                     {
-                        self.streaming_state = Some(DecoderState::ReadingBitmasks {
-                            bytes_read: 0,
-                            buffer: Vec::new(),
-                        });
+                        // For V3/V4/V5 headers, bitmasks are embedded in the header at bytes 40-55
+                        // For Info headers with BI_BITFIELDS, bitmasks come after the header
+                        if matches!(
+                            self.bmp_header_type,
+                            BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5
+                        ) && buffer.len() >= 52
+                        {
+                            // Extract bitmasks from header buffer
+                            // Masks are at bytes 40-55 in the full header, but we've already read
+                            // the 4-byte size field, so they're at bytes 36-51 in our buffer
+                            let r_mask = u32::from_le_bytes([
+                                buffer[36], buffer[37], buffer[38], buffer[39],
+                            ]);
+                            let g_mask = u32::from_le_bytes([
+                                buffer[40], buffer[41], buffer[42], buffer[43],
+                            ]);
+                            let b_mask = u32::from_le_bytes([
+                                buffer[44], buffer[45], buffer[46], buffer[47],
+                            ]);
+                            let a_mask = u32::from_le_bytes([
+                                buffer[48], buffer[49], buffer[50], buffer[51],
+                            ]);
+
+                            self.bitfields = match self.image_type {
+                                ImageType::Bitfields16 => {
+                                    Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 16)?)
+                                }
+                                ImageType::Bitfields32 => {
+                                    Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 32)?)
+                                }
+                                _ => None,
+                            };
+
+                            if self.bitfields.is_some() && a_mask != 0 {
+                                self.add_alpha_channel = true;
+                            }
+
+                            // No need to read bitmasks separately - go to next state
+                            if matches!(
+                                self.image_type,
+                                ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
+                            ) {
+                                let num_entries = self.get_palette_size()?;
+                                let bytes_per_color = self.bytes_per_color();
+                                self.streaming_state = Some(DecoderState::ReadingPalette {
+                                    entries_read: 0,
+                                    total_entries: num_entries as u32,
+                                    bytes_per_color,
+                                    buffer: Vec::new(),
+                                });
+                            } else {
+                                // Ready for pixel data
+                                let num_channels = self.num_channels();
+                                let row_byte_length = (self.width as usize) * num_channels;
+
+                                if matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8) {
+                                    self.streaming_state = Some(DecoderState::ReadyForRleData {
+                                        current_row: 0,
+                                        x_position: 0,
+                                        row_buffer: vec![0u8; row_byte_length],
+                                        hit_eof: false,
+                                    });
+                                } else {
+                                    self.streaming_state = Some(DecoderState::ReadyForPixelData {
+                                        current_row: 0,
+                                        row_byte_length,
+                                    });
+                                }
+                            }
+                        } else {
+                            // For Info headers or V3, need to read bitmasks from after the header
+                            self.streaming_state = Some(DecoderState::ReadingBitmasks {
+                                bytes_read: 0,
+                                buffer: Vec::new(),
+                            });
+                        }
                     } else if matches!(
                         self.image_type,
                         ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
@@ -1329,11 +1401,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     mut bytes_read,
                     mut buffer,
                 } => {
-                    // Read bitmasks incrementally (12 or 16 bytes depending on header version)
-                    let bitmask_size = match self.bmp_header_type {
-                        BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => 16, // 4 masks (R, G, B, A)
-                        _ => 12, // 3 masks (R, G, B)
-                    };
+                    // Read bitmasks incrementally from after the header
+                    // This state is only used for BITMAPINFOHEADER with BI_BITFIELDS
+                    // (V3/V4/V5 bitmasks are extracted directly from the header buffer)
+                    let bitmask_size = 12; // 3 masks (R, G, B) for Info
 
                     if !Self::try_read_exact_incremental(
                         &mut self.reader,
@@ -1791,24 +1862,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 let bitfields = self.bitfields.unwrap();
                 let num_channels = self.num_channels();
 
-                // Check for optimized paths
-                if bitfields == R8_G8_B8_COLOR_MASK || bitfields == R8_G8_B8_A8_COLOR_MASK {
-                    // Can read directly
-                    self.read_exact_or_insufficient(buf)?;
-                } else {
-                    // Need to apply bitfield masks
-                    for pixel in buf.chunks_exact_mut(num_channels) {
-                        let data = self.read_u32_or_insufficient()?;
+                // Apply bitfield masks to extract R, G, B values
+                // Note: Cannot use optimized direct read even for standard masks because
+                // BMP files store pixels in little-endian BGR order, requiring extraction
+                for pixel in buf.chunks_exact_mut(num_channels) {
+                    let data = self.read_u32_or_insufficient()?;
 
-                        pixel[0] = bitfields.r.read(data);
-                        pixel[1] = bitfields.g.read(data);
-                        pixel[2] = bitfields.b.read(data);
-                        if num_channels == 4 {
-                            if bitfields.a.len != 0 {
-                                pixel[3] = bitfields.a.read(data);
-                            } else {
-                                pixel[3] = ALPHA_OPAQUE;
-                            }
+                    pixel[0] = bitfields.r.read(data);
+                    pixel[1] = bitfields.g.read(data);
+                    pixel[2] = bitfields.b.read(data);
+                    if num_channels == 4 {
+                        if bitfields.a.len != 0 {
+                            pixel[3] = bitfields.a.read(data);
+                        } else {
+                            pixel[3] = ALPHA_OPAQUE;
                         }
                     }
                 }
@@ -2972,6 +3039,16 @@ mod test {
             ("pal4rle.bmp", "RLE4 compressed"),
             ("pal4rlecut.bmp", "RLE4 early termination"),
             ("pal4rletrns.bmp", "RLE4 delta/transparency"),
+            ("V3_R5_G6_B5.bmp", "V3 16-bit RGB565"),
+            ("V3_R5_G6_B5_Top_Down.bmp", "V3 16-bit RGB565 top-down"),
+            ("V3_A1_R5_G5_B5.bmp", "V3 16-bit ARGB1555"),
+            ("V3_A4_R4_G4_B4.bmp", "V3 16-bit ARGB4444"),
+            ("V3_X8_R8_G8_B8.bmp", "V3 32-bit XRGB"),
+            ("V4_24_Bit.bmp", "V4 24-bit RGB"),
+            ("V4_R5_G6_B5.bmp", "V4 16-bit RGB565 bitfields"),
+            ("V4_A8_R8_G8_B8.bmp", "V4 32-bit ARGB bitfields"),
+            ("V5_24_Bit.bmp", "V5 24-bit RGB"),
+            ("V5_A1_R5_G5_B5.bmp", "V5 16-bit ARGB1555 bitfields"),
         ];
 
         for (file, format_desc) in &test_files {
@@ -2979,7 +3056,9 @@ mod test {
 
             // Traditional decode
             let f = BufReader::new(std::fs::File::open(&path).unwrap());
-            let mut traditional = BmpDecoder::new(f).unwrap();
+            let mut traditional = BmpDecoder::new(f).unwrap_or_else(|e| {
+                panic!("Traditional decoder failed for {}: {:?}", file, e);
+            });
             let trad_width = traditional.dimensions().0;
             let trad_height = traditional.dimensions().1;
             let trad_color_type = traditional.color_type();

@@ -18,6 +18,9 @@ enum DecoderError {
     TruncatedHeader,
     /// EOF instead of image dimensions
     TruncatedDimensions,
+    /// The end of the header, if it exists, is far enough in the file that
+    /// this is unlikely to be a valid image
+    HeaderTooLong,
 
     /// A value couldn't be parsed
     UnparsableF32(LineType, ParseFloatError),
@@ -50,6 +53,9 @@ impl fmt::Display for DecoderError {
             }
             DecoderError::TruncatedHeader => f.write_str("EOF in header"),
             DecoderError::TruncatedDimensions => f.write_str("EOF in dimensions line"),
+            DecoderError::HeaderTooLong => f.write_fmt(format_args!(
+                "Header end not in the first {MAX_HEADER_LENGTH} bytes, unlikely to be valid image"
+            )),
             DecoderError::UnparsableF32(line, pe) => {
                 f.write_fmt(format_args!("Cannot parse {line} value as f32: {pe}"))
             }
@@ -121,6 +127,17 @@ impl fmt::Display for LineType {
 pub const SIGNATURE: &[u8] = b"#?RADIANCE";
 const SIGNATURE_LENGTH: usize = 10;
 
+/// An arbitrary and generous limit on the length of the image header.
+///
+/// The HdrDecoder retains essentially the entire header in memory, because any
+/// line could be a custom attribute, so a limit is useful to avoid allocating
+/// too much.
+///
+/// Older images produced by Radiance tools often included the commands used to
+/// generate the image;in particular, for composite images this could grow
+/// rather large: some historical images have headers of up to 2-3 kilobytes.
+const MAX_HEADER_LENGTH: usize = 1 << 16;
+
 /// An Radiance HDR decoder
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
@@ -190,11 +207,18 @@ impl<R: Read> HdrDecoder<R> {
     ///
     /// strict enables strict mode
     ///
-    /// Warning! Reading wrong file in non-strict mode
-    ///   could consume file size worth of memory in the process.
+    /// Warning! Reading wrong file in non-strict mode could consume up to a few
+    ///   megabytes of memory before this errors, if the file is large enough.
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
 
+        // Limit the total header length, ensuring that the total memory allocated
+        // for lines and is not much more than a constant multiple of the length.
+        // Because a new entry in attributes.custom_attributes is made for each
+        // line, the constant may be quite large (at least `size_of::<String>()`,
+        // likely no more than 100 depending on allocation overhead.); but even
+        // so, in total no more than a few MB will be allocated.
+        let mut remaining_limit = MAX_HEADER_LENGTH;
         {
             // scope to make borrowck happy
             let r = &mut reader;
@@ -205,19 +229,21 @@ impl<R: Read> HdrDecoder<R> {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
                   // skip signature line ending
-                read_line_u8(r)?;
+                read_line_u8(r, remaining_limit)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
                 // Let them be parsed in non-strict mode
             }
             // read header data until empty line
             loop {
-                match read_line_u8(r)? {
+                match read_line_u8(r, remaining_limit)? {
                     None => {
                         // EOF before end of header
                         return Err(DecoderError::TruncatedHeader.into());
                     }
                     Some(line) => {
+                        remaining_limit = remaining_limit.saturating_sub(line.len() + 1);
+
                         if line.is_empty() {
                             // end of header
                             break;
@@ -234,7 +260,7 @@ impl<R: Read> HdrDecoder<R> {
             } // loop
         } // scope to end borrow of reader
           // parse dimensions
-        let (width, height) = match read_line_u8(&mut reader)? {
+        let (width, height) = match read_line_u8(&mut reader, remaining_limit)? {
             None => {
                 // EOF instead of image dimensions
                 return Err(DecoderError::TruncatedDimensions.into());
@@ -689,7 +715,8 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
+// Returns an error if the line would require more than max_len bytes
+fn read_line_u8<R: Read>(r: &mut R, max_len: usize) -> ImageResult<Option<Vec<u8>>> {
     // keeping repeated redundant allocations to avoid added complexity of having a `&mut tmp` argument
     #[allow(clippy::disallowed_methods)]
     let mut ret = Vec::with_capacity(16);
@@ -700,6 +727,10 @@ fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
                 return Ok(None);
             }
             return Ok(Some(ret));
+        }
+
+        if ret.len() >= max_len {
+            return Err(DecoderError::HeaderTooLong.into());
         }
         ret.push(byte[0]);
     }
@@ -739,13 +770,17 @@ mod tests {
     fn read_line_u8_test() {
         let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
         let input = &mut Cursor::new(buf);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(read_line_u8(input).unwrap(), None);
+        let read_line = |input: &mut Cursor<Vec<u8>>| -> Option<Vec<u8>> {
+            read_line_u8(input, usize::MAX).unwrap()
+        };
+
+        assert_eq!(&read_line(input).unwrap()[..], &b"One"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Two"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Three"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Four"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(read_line(input), None);
     }
 
     #[test]

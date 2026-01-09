@@ -7,7 +7,7 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::image_reader_type::SpecCompliance;
-use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
+use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -308,6 +308,15 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         ColorType::Rgb32F
+    }
+
+    fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        limits.check_dimensions(self.meta.width, self.meta.height)?;
+
+        let scanline_space = (self.meta.width as u64) * (size_of::<Rgbe8Pixel>() as u64);
+        limits.reserve(scanline_space)?;
+        Ok(())
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

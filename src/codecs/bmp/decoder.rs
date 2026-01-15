@@ -21,6 +21,18 @@ const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
 
+// Compression method constants
+const BI_RGB: u32 = 0;
+const BI_RLE8: u32 = 1;
+const BI_RLE4: u32 = 2;
+const BI_BITFIELDS: u32 = 3;
+const BI_JPEG: u32 = 4; // Used in legacy Windows pass-through printing path - not supported
+const BI_PNG: u32 = 5; // Used in legacy Windows pass-through printing path - not supported
+const BI_ALPHABITFIELDS: u32 = 6;
+const BI_CMYK: u32 = 11;
+const BI_CMYKRLE8: u32 = 12;
+const BI_CMYKRLE4: u32 = 13;
+
 static LOOKUP_TABLE_3_BIT_TO_8_BIT: [u8; 8] = [0, 36, 73, 109, 146, 182, 219, 255];
 static LOOKUP_TABLE_4_BIT_TO_8_BIT: [u8; 16] = [
     0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255,
@@ -584,6 +596,66 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Determine the image type from the compression method and bit count.
+    fn image_type_from_compression(
+        compression: u32,
+        bit_count: u16,
+        add_alpha_channel: bool,
+    ) -> ImageResult<ImageType> {
+        match compression {
+            BI_RGB => match bit_count {
+                1 | 2 | 4 | 8 => Ok(ImageType::Palette),
+                16 => Ok(ImageType::RGB16),
+                24 => Ok(ImageType::RGB24),
+                32 if add_alpha_channel => Ok(ImageType::RGBA32),
+                32 => Ok(ImageType::RGB32),
+                _ => {
+                    Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rgb, bit_count).into())
+                }
+            },
+            BI_RLE8 => match bit_count {
+                8 => Ok(ImageType::RLE8),
+                _ => Err(
+                    DecoderError::InvalidChannelWidth(ChannelWidthError::Rle8, bit_count).into(),
+                ),
+            },
+            BI_RLE4 => match bit_count {
+                4 => Ok(ImageType::RLE4),
+                _ => Err(
+                    DecoderError::InvalidChannelWidth(ChannelWidthError::Rle4, bit_count).into(),
+                ),
+            },
+            BI_BITFIELDS | BI_ALPHABITFIELDS => match bit_count {
+                16 => Ok(ImageType::Bitfields16),
+                32 => Ok(ImageType::Bitfields32),
+                _ => Err(DecoderError::InvalidChannelWidth(
+                    ChannelWidthError::Bitfields,
+                    bit_count,
+                )
+                .into()),
+            },
+            BI_JPEG => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Bmp.into(),
+                    UnsupportedErrorKind::GenericFeature("JPEG compression".to_owned()),
+                ),
+            )),
+            BI_PNG => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Bmp.into(),
+                    UnsupportedErrorKind::GenericFeature("PNG compression".to_owned()),
+                ),
+            )),
+            BI_CMYK | BI_CMYKRLE4 | BI_CMYKRLE8 => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Bmp.into(),
+                    UnsupportedErrorKind::GenericFeature("CMYK format".to_owned()),
+                ),
+            )),
+            _ => Err(DecoderError::ImageTypeUnknown(compression).into()),
+        }
+    }
+
     /// Read BITMAPCOREHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183372(v=vs.85).aspx>
     ///
     /// returns Err if any of the values are invalid.
@@ -651,90 +723,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         self.bit_count = self.reader.read_u16::<LittleEndian>()?;
-        let image_type_u32 = self.reader.read_u32::<LittleEndian>()?;
+        let compression = self.reader.read_u32::<LittleEndian>()?;
 
         // Top-down dibs can not be compressed.
-        if self.top_down && image_type_u32 != 0 && image_type_u32 != 3 {
-            return Err(DecoderError::ImageTypeInvalidForTopDown(image_type_u32).into());
+        if self.top_down && compression != BI_RGB && compression != BI_BITFIELDS {
+            return Err(DecoderError::ImageTypeInvalidForTopDown(compression).into());
         }
-        self.image_type = match image_type_u32 {
-            0 => match self.bit_count {
-                1 | 2 | 4 | 8 => ImageType::Palette,
-                16 => ImageType::RGB16,
-                24 => ImageType::RGB24,
-                32 if self.add_alpha_channel => ImageType::RGBA32,
-                32 => ImageType::RGB32,
-                _ => {
-                    return Err(DecoderError::InvalidChannelWidth(
-                        ChannelWidthError::Rgb,
-                        self.bit_count,
-                    )
-                    .into())
-                }
-            },
-            1 => match self.bit_count {
-                8 => ImageType::RLE8,
-                _ => {
-                    return Err(DecoderError::InvalidChannelWidth(
-                        ChannelWidthError::Rle8,
-                        self.bit_count,
-                    )
-                    .into())
-                }
-            },
-            2 => match self.bit_count {
-                4 => ImageType::RLE4,
-                _ => {
-                    return Err(DecoderError::InvalidChannelWidth(
-                        ChannelWidthError::Rle4,
-                        self.bit_count,
-                    )
-                    .into())
-                }
-            },
-            3 => match self.bit_count {
-                16 => ImageType::Bitfields16,
-                32 => ImageType::Bitfields32,
-                _ => {
-                    return Err(DecoderError::InvalidChannelWidth(
-                        ChannelWidthError::Bitfields,
-                        self.bit_count,
-                    )
-                    .into())
-                }
-            },
-            4 => {
-                // JPEG compression is not implemented yet.
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Bmp.into(),
-                        UnsupportedErrorKind::GenericFeature("JPEG compression".to_owned()),
-                    ),
-                ));
-            }
-            5 => {
-                // PNG compression is not implemented yet.
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Bmp.into(),
-                        UnsupportedErrorKind::GenericFeature("PNG compression".to_owned()),
-                    ),
-                ));
-            }
-            11..=13 => {
-                // CMYK types are not implemented yet.
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Bmp.into(),
-                        UnsupportedErrorKind::GenericFeature("CMYK format".to_owned()),
-                    ),
-                ));
-            }
-            _ => {
-                // Unknown compression type.
-                return Err(DecoderError::ImageTypeUnknown(image_type_u32).into());
-            }
-        };
+        self.image_type =
+            Self::image_type_from_compression(compression, self.bit_count, self.add_alpha_channel)?;
 
         // The next 12 bytes represent data array size in bytes,
         // followed the horizontal and vertical printing resolutions

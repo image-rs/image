@@ -87,17 +87,17 @@ struct ParsedCoreHeader {
 }
 
 impl ParsedCoreHeader {
-    /// Parse BITMAPCOREHEADER fields from buffer. Requires exactly 8 bytes.
-    fn parse(buffer: &[u8]) -> ImageResult<Self> {
-        let width = i32::from(u16::from_le_bytes([buffer[0], buffer[1]]));
-        let height = i32::from(u16::from_le_bytes([buffer[2], buffer[3]]));
+    /// Parse BITMAPCOREHEADER fields from an 8-byte buffer.
+    fn parse(buffer: &[u8; 8]) -> ImageResult<Self> {
+        let width = i32::from(u16::from_le_bytes(buffer[0..2].try_into().unwrap()));
+        let height = i32::from(u16::from_le_bytes(buffer[2..4].try_into().unwrap()));
 
-        let planes = u16::from_le_bytes([buffer[4], buffer[5]]);
+        let planes = u16::from_le_bytes(buffer[4..6].try_into().unwrap());
         if planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
-        let bit_count = u16::from_le_bytes([buffer[6], buffer[7]]);
+        let bit_count = u16::from_le_bytes(buffer[6..8].try_into().unwrap());
         let image_type = match bit_count {
             1 | 4 | 8 => ImageType::Palette,
             24 => ImageType::RGB24,
@@ -128,10 +128,10 @@ struct ParsedInfoHeader {
 }
 
 impl ParsedInfoHeader {
-    /// Parse BITMAPINFOHEADER fields from buffer. Requires at least 36 bytes.
-    fn parse(buffer: &[u8]) -> ImageResult<Self> {
-        let width = i32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-        let mut height = i32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+    /// Parse BITMAPINFOHEADER fields from a 36-byte buffer.
+    fn parse(buffer: &[u8; 36]) -> ImageResult<Self> {
+        let width = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
+        let mut height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
         // Width cannot be negative
         if width < 0 {
@@ -152,13 +152,13 @@ impl ParsedInfoHeader {
             false
         };
 
-        let planes = u16::from_le_bytes([buffer[8], buffer[9]]);
+        let planes = u16::from_le_bytes(buffer[8..10].try_into().unwrap());
         if planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
-        let bit_count = u16::from_le_bytes([buffer[10], buffer[11]]);
-        let compression = u32::from_le_bytes([buffer[12], buffer[13], buffer[14], buffer[15]]);
+        let bit_count = u16::from_le_bytes(buffer[10..12].try_into().unwrap());
+        let compression = u32::from_le_bytes(buffer[12..16].try_into().unwrap());
 
         // Top-down DIBs cannot be compressed
         if top_down && compression != BI_RGB && compression != BI_BITFIELDS {
@@ -166,7 +166,7 @@ impl ParsedInfoHeader {
         }
 
         // Skip size_image (16-19), x_pix_permeter (20-23), y_pix_permeter (24-27)
-        let colors_used = u32::from_le_bytes([buffer[28], buffer[29], buffer[30], buffer[31]]);
+        let colors_used = u32::from_le_bytes(buffer[28..32].try_into().unwrap());
         // Skip important_colors (32-35)
         Ok(ParsedInfoHeader {
             width,

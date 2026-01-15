@@ -78,6 +78,107 @@ const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 /// The value of the V5 header field indicating an embedded ICC profile ("MBED").
 const PROFILE_EMBEDDED: u32 = 0x4D424544;
 
+/// Parsed BITMAPCOREHEADER fields (excludes 4-byte size field).
+struct ParsedCoreHeader {
+    width: i32,
+    height: i32,
+    bit_count: u16,
+    image_type: ImageType,
+}
+
+impl ParsedCoreHeader {
+    /// Parse BITMAPCOREHEADER fields from buffer. Requires exactly 8 bytes.
+    fn parse(buffer: &[u8]) -> ImageResult<Self> {
+        let width = i32::from(u16::from_le_bytes([buffer[0], buffer[1]]));
+        let height = i32::from(u16::from_le_bytes([buffer[2], buffer[3]]));
+
+        let planes = u16::from_le_bytes([buffer[4], buffer[5]]);
+        if planes != 1 {
+            return Err(DecoderError::MoreThanOnePlane.into());
+        }
+
+        let bit_count = u16::from_le_bytes([buffer[6], buffer[7]]);
+        let image_type = match bit_count {
+            1 | 4 | 8 => ImageType::Palette,
+            24 => ImageType::RGB24,
+            _ => {
+                return Err(
+                    DecoderError::InvalidChannelWidth(ChannelWidthError::Rgb, bit_count).into(),
+                )
+            }
+        };
+
+        Ok(ParsedCoreHeader {
+            width,
+            height,
+            bit_count,
+            image_type,
+        })
+    }
+}
+
+/// Parsed BITMAPINFOHEADER fields (excludes 4-byte size field).
+struct ParsedInfoHeader {
+    width: i32,
+    height: i32,
+    top_down: bool,
+    bit_count: u16,
+    compression: u32,
+    colors_used: u32,
+}
+
+impl ParsedInfoHeader {
+    /// Parse BITMAPINFOHEADER fields from buffer. Requires at least 36 bytes.
+    fn parse(buffer: &[u8]) -> ImageResult<Self> {
+        let width = i32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+        let mut height = i32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+
+        // Width cannot be negative
+        if width < 0 {
+            return Err(DecoderError::NegativeWidth(width).into());
+        } else if width > MAX_WIDTH_HEIGHT || height > MAX_WIDTH_HEIGHT {
+            return Err(DecoderError::ImageTooLarge(width, height).into());
+        }
+
+        if height == i32::MIN {
+            return Err(DecoderError::InvalidHeight.into());
+        }
+
+        // A negative height indicates a top-down DIB
+        let top_down = if height < 0 {
+            height = -height;
+            true
+        } else {
+            false
+        };
+
+        let planes = u16::from_le_bytes([buffer[8], buffer[9]]);
+        if planes != 1 {
+            return Err(DecoderError::MoreThanOnePlane.into());
+        }
+
+        let bit_count = u16::from_le_bytes([buffer[10], buffer[11]]);
+        let compression = u32::from_le_bytes([buffer[12], buffer[13], buffer[14], buffer[15]]);
+
+        // Top-down DIBs cannot be compressed
+        if top_down && compression != BI_RGB && compression != BI_BITFIELDS {
+            return Err(DecoderError::ImageTypeInvalidForTopDown(compression).into());
+        }
+
+        // Skip size_image (16-19), x_pix_permeter (20-23), y_pix_permeter (24-27)
+        let colors_used = u32::from_le_bytes([buffer[28], buffer[29], buffer[30], buffer[31]]);
+        // Skip important_colors (32-35)
+        Ok(ParsedInfoHeader {
+            width,
+            height,
+            top_down,
+            bit_count,
+            compression,
+            colors_used,
+        })
+    }
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
     Palette,
@@ -660,30 +761,18 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ///
     /// returns Err if any of the values are invalid.
     fn read_bitmap_core_header(&mut self) -> ImageResult<()> {
-        // As height/width values in BMP files with core headers are only 16 bits long,
-        // they won't be larger than `MAX_WIDTH_HEIGHT`.
-        self.width = i32::from(self.reader.read_u16::<LittleEndian>()?);
-        self.height = i32::from(self.reader.read_u16::<LittleEndian>()?);
+        // Core header (after size field): width(2), height(2), planes(2), bitcount(2) = 8 bytes
+        let mut buffer = [0u8; 8];
+        self.reader.read_exact(&mut buffer)?;
+
+        let parsed = ParsedCoreHeader::parse(&buffer)?;
+
+        self.width = parsed.width;
+        self.height = parsed.height;
+        self.bit_count = parsed.bit_count;
+        self.image_type = parsed.image_type;
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
-
-        // Number of planes (format specifies that this should be 1).
-        if self.reader.read_u16::<LittleEndian>()? != 1 {
-            return Err(DecoderError::MoreThanOnePlane.into());
-        }
-
-        self.bit_count = self.reader.read_u16::<LittleEndian>()?;
-        self.image_type = match self.bit_count {
-            1 | 4 | 8 => ImageType::Palette,
-            24 => ImageType::RGB24,
-            _ => {
-                return Err(DecoderError::InvalidChannelWidth(
-                    ChannelWidthError::Rgb,
-                    self.bit_count,
-                )
-                .into())
-            }
-        };
 
         Ok(())
     }
@@ -693,58 +782,24 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ///
     /// returns Err if any of the values are invalid.
     fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
-        self.width = self.reader.read_i32::<LittleEndian>()?;
-        self.height = self.reader.read_i32::<LittleEndian>()?;
+        // Info header (after size field): 36 bytes minimum
+        let mut buffer = [0u8; 36];
+        self.reader.read_exact(&mut buffer)?;
 
-        // Width can not be negative
-        if self.width < 0 {
-            return Err(DecoderError::NegativeWidth(self.width).into());
-        } else if self.width > MAX_WIDTH_HEIGHT || self.height > MAX_WIDTH_HEIGHT {
-            // Limit very large image sizes to avoid OOM issues. Images with these sizes are
-            // unlikely to be valid anyhow.
-            return Err(DecoderError::ImageTooLarge(self.width, self.height).into());
-        }
+        let parsed = ParsedInfoHeader::parse(&buffer)?;
 
-        if self.height == i32::MIN {
-            return Err(DecoderError::InvalidHeight.into());
-        }
-
-        // A negative height indicates a top-down DIB.
-        if self.height < 0 {
-            self.height *= -1;
-            self.top_down = true;
-        }
+        self.width = parsed.width;
+        self.height = parsed.height;
+        self.top_down = parsed.top_down;
+        self.bit_count = parsed.bit_count;
+        self.colors_used = parsed.colors_used;
+        self.image_type = Self::image_type_from_compression(
+            parsed.compression,
+            parsed.bit_count,
+            self.add_alpha_channel,
+        )?;
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
-
-        // Number of planes (format specifies that this should be 1).
-        if self.reader.read_u16::<LittleEndian>()? != 1 {
-            return Err(DecoderError::MoreThanOnePlane.into());
-        }
-
-        self.bit_count = self.reader.read_u16::<LittleEndian>()?;
-        let compression = self.reader.read_u32::<LittleEndian>()?;
-
-        // Top-down dibs can not be compressed.
-        if self.top_down && compression != BI_RGB && compression != BI_BITFIELDS {
-            return Err(DecoderError::ImageTypeInvalidForTopDown(compression).into());
-        }
-        self.image_type =
-            Self::image_type_from_compression(compression, self.bit_count, self.add_alpha_channel)?;
-
-        // The next 12 bytes represent data array size in bytes,
-        // followed the horizontal and vertical printing resolutions
-        // We will calculate the pixel array size using width & height of image
-        // We're not interesting the horz or vert printing resolutions
-        self.reader.read_u32::<LittleEndian>()?;
-        self.reader.read_u32::<LittleEndian>()?;
-        self.reader.read_u32::<LittleEndian>()?;
-
-        self.colors_used = self.reader.read_u32::<LittleEndian>()?;
-
-        // The next 4 bytes represent number of "important" colors
-        // We're not interested in this value, so we'll skip it
-        self.reader.read_u32::<LittleEndian>()?;
 
         Ok(())
     }

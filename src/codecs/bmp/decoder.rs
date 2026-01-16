@@ -676,12 +676,24 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         &mut self.reader
     }
 
+    /// Try to read exactly `buf.len()` bytes into `buf`.
+    /// Returns `InsufficientData` error if not enough bytes are available.
+    fn try_read_exact(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        use std::io::ErrorKind;
+
+        match self.reader.read_exact(buf) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == ErrorKind::UnexpectedEof => Err(ImageError::InsufficientData),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     fn read_file_header(&mut self) -> ImageResult<()> {
         if self.no_file_header {
             return Ok(());
         }
         let mut signature = [0; 2];
-        self.reader.read_exact(&mut signature)?;
+        self.try_read_exact(&mut signature)?;
 
         if signature != b"BM"[..] {
             return Err(DecoderError::BmpSignatureInvalid.into());
@@ -763,7 +775,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     fn read_bitmap_core_header(&mut self) -> ImageResult<()> {
         // Core header (after size field): width(2), height(2), planes(2), bitcount(2) = 8 bytes
         let mut buffer = [0u8; 8];
-        self.reader.read_exact(&mut buffer)?;
+        self.try_read_exact(&mut buffer)?;
 
         let parsed = ParsedCoreHeader::parse(&buffer)?;
 
@@ -784,7 +796,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
         // Info header (after size field): 36 bytes minimum
         let mut buffer = [0u8; 36];
-        self.reader.read_exact(&mut buffer)?;
+        self.try_read_exact(&mut buffer)?;
 
         let parsed = ParsedInfoHeader::parse(&buffer)?;
 
@@ -858,7 +870,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.reader
             .seek(SeekFrom::Start(u64::from(profile_offset)))?;
         let mut profile_data = vec![0u8; profile_size as usize];
-        self.reader.read_exact(&mut profile_data)?;
+        self.try_read_exact(&mut profile_data)?;
 
         self.icc_profile = Some(profile_data);
 
@@ -1002,7 +1014,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // We limit the buffer to at most 256 colours to avoid any oom issues as
         // 8-bit images can't reference more than 256 indexes anyhow.
         buf.resize(cmp::min(length, max_length), 0);
-        self.reader.by_ref().read_exact(&mut buf)?;
+        self.try_read_exact(&mut buf)?;
 
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.

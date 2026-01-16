@@ -61,6 +61,13 @@ pub enum ImageError {
     /// * no abstraction for a lower level could be found.
     Unsupported(UnsupportedError),
 
+    /// Insufficient data is available to complete the requested operation.
+    ///
+    /// This is a resumable error - providing more data may allow the operation to succeed.
+    /// This is typically used in streaming/incremental decoding scenarios where not all
+    /// data is available at once.
+    InsufficientData,
+
     /// An error occurred while interacting with the environment.
     IoError(io::Error),
 }
@@ -365,6 +372,9 @@ impl fmt::Display for ImageError {
             ImageError::Parameter(err) => err.fmt(fmt),
             ImageError::Limits(err) => err.fmt(fmt),
             ImageError::Unsupported(err) => err.fmt(fmt),
+            ImageError::InsufficientData => {
+                fmt.write_str("Insufficient data available to complete operation")
+            }
         }
     }
 }
@@ -378,6 +388,7 @@ impl Error for ImageError {
             ImageError::Parameter(err) => err.source(),
             ImageError::Limits(err) => err.source(),
             ImageError::Unsupported(err) => err.source(),
+            ImageError::InsufficientData => None,
         }
     }
 }

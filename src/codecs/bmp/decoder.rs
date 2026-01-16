@@ -72,6 +72,9 @@ const RLE_ESCAPE_EOL: u8 = 0;
 const RLE_ESCAPE_EOF: u8 = 1;
 const RLE_ESCAPE_DELTA: u8 = 2;
 
+/// Opaque alpha channel value (fully opaque)
+const ALPHA_OPAQUE: u8 = 0xFF;
+
 /// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 
@@ -348,6 +351,12 @@ impl fmt::Display for ChannelWidthError {
             ChannelWidthError::Bitfields => "bitfields",
         })
     }
+}
+
+/// BMP rows must be padded to a multiple of 4 bytes.
+#[inline]
+fn calculate_row_padding(bytes_per_row: usize) -> usize {
+    (4 - (bytes_per_row % 4)) % 4
 }
 
 /// Convenience function to check if the combination of width, length and number of
@@ -676,23 +685,33 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         &mut self.reader
     }
 
+    /// Parse BMP file header from a 14-byte buffer.
+    /// Returns data_offset on success.
+    fn parse_file_header(buffer: &[u8; 14]) -> ImageResult<u64> {
+        // Check signature
+        if &buffer[0..2] != b"BM" {
+            return Err(DecoderError::BmpSignatureInvalid.into());
+        }
+
+        // Skip file size (4 bytes) and reserved (4 bytes) at offsets 2-9
+        // Extract data_offset from bytes 10-13
+        let data_offset = u32::from_le_bytes([buffer[10], buffer[11], buffer[12], buffer[13]]);
+
+        Ok(u64::from(data_offset))
+    }
+
     fn read_file_header(&mut self) -> ImageResult<()> {
         if self.no_file_header {
             return Ok(());
         }
-        let mut signature = [0; 2];
-        self.reader.read_exact(&mut signature)?;
 
-        if signature != b"BM"[..] {
-            return Err(DecoderError::BmpSignatureInvalid.into());
-        }
+        // Read entire 14-byte file header
+        const FILE_HEADER_SIZE: usize = 14;
+        let mut buffer = [0u8; FILE_HEADER_SIZE];
+        self.reader.read_exact(&mut buffer)?;
 
-        // The next 8 bytes represent file size, followed the 4 reserved bytes
-        // We're not interesting these values
-        self.reader.read_u32::<LittleEndian>()?;
-        self.reader.read_u32::<LittleEndian>()?;
-
-        self.data_offset = u64::from(self.reader.read_u32::<LittleEndian>()?);
+        // Parse using shared logic
+        self.data_offset = Self::parse_file_header(&buffer)?;
 
         Ok(())
     }
@@ -1070,7 +1089,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
         if num_channels == 4 {
-            buf.chunks_exact_mut(4).for_each(|c| c[3] = 0xFF);
+            buf.chunks_exact_mut(4).for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
         with_rows(
@@ -1114,8 +1133,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         bitfields: Option<&Bitfields>,
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
-        let row_padding_len = self.width as usize % 2 * 2;
-        let row_padding = &mut [0; 2][..row_padding_len];
+        let row_padding_len = calculate_row_padding(self.width as usize * 2);
+        let row_padding = &mut [0; 4][..row_padding_len];
         let bitfields = match bitfields {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap(),
@@ -1141,7 +1160,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         if bitfields.a.len != 0 {
                             pixel[3] = bitfields.a.read(data);
                         } else {
-                            pixel[3] = 0xFF;
+                            pixel[3] = ALPHA_OPAQUE;
                         }
                     }
                 }
@@ -1178,7 +1197,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         if bitfields.a.len != 0 {
                             pixel[3] = bitfields.a.read(data);
                         } else {
-                            pixel[3] = 0xff;
+                            pixel[3] = ALPHA_OPAQUE;
                         }
                     }
                 }
@@ -1197,7 +1216,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
         let row_padding_len = match *format {
-            FormatFullBytes::RGB24 => (4 - (self.width as usize * 3) % 4) % 4,
+            FormatFullBytes::RGB24 => calculate_row_padding(self.width as usize * 3),
             _ => 0,
         };
         let row_padding = &mut [0; 4][..row_padding_len];
@@ -1232,7 +1251,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     if *format == FormatFullBytes::RGBA32 {
                         reader.read_exact(&mut pixel[3..4])?;
                     } else if num_channels == 4 {
-                        pixel[3] = 0xFF;
+                        pixel[3] = ALPHA_OPAQUE;
                     }
                 }
                 reader.read_exact(row_padding)

@@ -1225,8 +1225,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         bitfields: Option<&Bitfields>,
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
-        let row_padding_len = calculate_row_padding(self.width as usize * 2);
-        let row_padding = &mut [0; 4][..row_padding_len];
+        let row_padding_len = self.width as usize % 2 * 2;
+        let row_padding = &mut [0; 2][..row_padding_len];
         let bitfields = match bitfields {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap(),

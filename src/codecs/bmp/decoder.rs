@@ -182,6 +182,91 @@ impl ParsedInfoHeader {
     }
 }
 
+/// Parsed bitfield masks from DIB header.
+struct ParsedBitfields {
+    r_mask: u32,
+    g_mask: u32,
+    b_mask: u32,
+    a_mask: u32,
+}
+
+impl ParsedBitfields {
+    /// Parse bitfield masks from buffer.
+    /// For V2/Core headers: reads 12 bytes (RGB masks only, alpha is 0).
+    /// For V3/V4/V5 headers: reads 16 bytes (RGBA masks).
+    fn parse(buffer: &[u8], has_alpha: bool) -> ImageResult<Self> {
+        let min_size = if has_alpha { 16 } else { 12 };
+        if buffer.len() < min_size {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Bmp.into(),
+                "Insufficient data for bitfield masks",
+            )));
+        }
+
+        let r_mask = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+        let g_mask = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+        let b_mask = u32::from_le_bytes([buffer[8], buffer[9], buffer[10], buffer[11]]);
+        let a_mask = if has_alpha {
+            u32::from_le_bytes([buffer[12], buffer[13], buffer[14], buffer[15]])
+        } else {
+            0
+        };
+
+        Ok(ParsedBitfields {
+            r_mask,
+            g_mask,
+            b_mask,
+            a_mask,
+        })
+    }
+}
+
+/// Parsed ICC profile metadata from V5 header.
+struct ParsedIccProfile {
+    profile_offset: u32,
+    profile_size: u32,
+}
+
+impl ParsedIccProfile {
+    /// Parse ICC profile metadata from V5 header buffer.
+    /// Buffer should be the full DIB header (120 bytes after the size field for V5).
+    /// Returns None if no embedded ICC profile is present.
+    fn parse(buffer: &[u8]) -> ImageResult<Option<Self>> {
+        // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+        // We need at least 116 bytes to read the ICC profile metadata
+        if buffer.len() < 116 {
+            return Ok(None);
+        }
+
+        // bV5CSType is at offset 56 from header start, which is offset 52 from after the size field
+        let cs_type = u32::from_le_bytes([buffer[52], buffer[53], buffer[54], buffer[55]]);
+
+        // Only embedded profiles are supported
+        if cs_type != PROFILE_EMBEDDED {
+            return Ok(None);
+        }
+
+        // bV5ProfileData is at offset 112 from header start, which is offset 108 from after size field
+        let profile_offset = u32::from_le_bytes([buffer[108], buffer[109], buffer[110], buffer[111]]);
+        
+        // bV5ProfileSize is at offset 116 from header start, which is offset 112 from after size field
+        let profile_size = if buffer.len() >= 116 {
+            u32::from_le_bytes([buffer[112], buffer[113], buffer[114], buffer[115]])
+        } else {
+            return Ok(None);
+        };
+
+        if profile_size == 0 || profile_offset == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(ParsedIccProfile {
+            profile_offset,
+            profile_size,
+        }))
+    }
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
     Palette,
@@ -824,28 +909,40 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     fn read_bitmasks(&mut self) -> ImageResult<()> {
-        let r_mask = self.reader.read_u32::<LittleEndian>()?;
-        let g_mask = self.reader.read_u32::<LittleEndian>()?;
-        let b_mask = self.reader.read_u32::<LittleEndian>()?;
+        // Determine if we need to read alpha mask
+        let has_alpha = matches!(
+            self.bmp_header_type,
+            BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5
+        );
 
-        let a_mask = match self.bmp_header_type {
-            BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => {
-                self.reader.read_u32::<LittleEndian>()?
-            }
-            _ => 0,
-        };
+        // Read bitfield masks into buffer
+        let buffer_size = if has_alpha { 16 } else { 12 };
+        let mut buffer = vec![0u8; buffer_size];
+        self.reader.read_exact(&mut buffer)?;
 
+        // Parse masks using shared logic
+        let parsed = ParsedBitfields::parse(&buffer, has_alpha)?;
+
+        // Create Bitfields from parsed masks
         self.bitfields = match self.image_type {
-            ImageType::Bitfields16 => {
-                Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 16)?)
-            }
-            ImageType::Bitfields32 => {
-                Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 32)?)
-            }
+            ImageType::Bitfields16 => Some(Bitfields::from_mask(
+                parsed.r_mask,
+                parsed.g_mask,
+                parsed.b_mask,
+                parsed.a_mask,
+                16,
+            )?),
+            ImageType::Bitfields32 => Some(Bitfields::from_mask(
+                parsed.r_mask,
+                parsed.g_mask,
+                parsed.b_mask,
+                parsed.a_mask,
+                32,
+            )?),
             _ => None,
         };
 
-        if self.bitfields.is_some() && a_mask != 0 {
+        if self.bitfields.is_some() && parsed.a_mask != 0 {
             self.add_alpha_channel = true;
         }
 
@@ -853,33 +950,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     /// Read ICC profile data from BITMAPV5HEADER if present.
-    fn read_icc_profile(&mut self, bmp_header_offset: u64) -> ImageResult<()> {
-        // Seek to bV5CSType field (56 bytes from header start)
-        self.reader.seek(SeekFrom::Start(bmp_header_offset + 56))?;
-        let cs_type = self.reader.read_u32::<LittleEndian>()?;
+    /// header_buffer should contain the full DIB header (after the size field).
+    fn read_icc_profile(&mut self, header_buffer: &[u8]) -> ImageResult<()> {
+        // Parse ICC profile metadata from the header buffer
+        let parsed = ParsedIccProfile::parse(header_buffer)?;
 
-        // Only embedded profiles are supported (not linked profiles)
-        if cs_type != PROFILE_EMBEDDED {
-            return Ok(());
+        if let Some(profile_info) = parsed {
+            // Profile offset is from the beginning of the file
+            self.reader
+                .seek(SeekFrom::Start(u64::from(profile_info.profile_offset)))?;
+            let mut profile_data = vec![0u8; profile_info.profile_size as usize];
+            self.reader.read_exact(&mut profile_data)?;
+
+            self.icc_profile = Some(profile_data);
         }
-
-        // Seek to bV5ProfileData at offset 112
-        self.reader.seek(SeekFrom::Start(bmp_header_offset + 112))?;
-
-        let profile_offset = self.reader.read_u32::<LittleEndian>()?;
-        let profile_size = self.reader.read_u32::<LittleEndian>()?;
-
-        if profile_size == 0 || profile_offset == 0 {
-            return Ok(());
-        }
-
-        // Profile offset is from the beginning of the file
-        self.reader
-            .seek(SeekFrom::Start(u64::from(profile_offset)))?;
-        let mut profile_data = vec![0u8; profile_size as usize];
-        self.reader.read_exact(&mut profile_data)?;
-
-        self.icc_profile = Some(profile_data);
 
         Ok(())
     }
@@ -950,7 +1034,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
             // Read ICC profile if present (V5 header or later)
             if bmp_header_size >= BITMAPV5HEADER_SIZE {
-                self.read_icc_profile(bmp_header_offset)?;
+                // Read the full V5 header into a buffer for ICC profile parsing
+                // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+                let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
+                let current_pos = self.reader.stream_position()?;
+                self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
+                self.reader.read_exact(&mut header_buffer)?;
+                self.read_icc_profile(&header_buffer)?;
+                // Seek back to where we were
+                self.reader.seek(SeekFrom::Start(current_pos))?;
             }
 
             self.reader

@@ -192,17 +192,10 @@ struct ParsedBitfields {
 
 impl ParsedBitfields {
     /// Parse bitfield masks from buffer.
-    /// For V2/Core headers: reads 12 bytes (RGB masks only, alpha is 0).
-    /// For V3/V4/V5 headers: reads 16 bytes (RGBA masks).
-    fn parse(buffer: &[u8], has_alpha: bool) -> ImageResult<Self> {
-        let min_size = if has_alpha { 16 } else { 12 };
-        if buffer.len() < min_size {
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Bmp.into(),
-                "Insufficient data for bitfield masks",
-            )));
-        }
-
+    /// Caller must ensure buffer has sufficient length; this method does not validate.
+    /// Note: Caller must ensure buffer has 12 (V2/Core) or 16 (V3/V4/V5) bytes length; this method does not validate.
+    #[track_caller]
+    fn parse(buffer: &[u8], has_alpha: bool) -> Self {
         let r_mask = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let g_mask = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         let b_mask = u32::from_le_bytes(buffer[8..12].try_into().unwrap());
@@ -212,12 +205,12 @@ impl ParsedBitfields {
             0
         };
 
-        Ok(ParsedBitfields {
+        ParsedBitfields {
             r_mask,
             g_mask,
             b_mask,
             a_mask,
-        })
+        }
     }
 }
 
@@ -229,21 +222,16 @@ struct ParsedIccProfile {
 
 impl ParsedIccProfile {
     /// Parse ICC profile metadata from V5 header buffer.
-    /// Buffer should be the full DIB header (120 bytes after the size field for V5).
     /// Returns None if no embedded ICC profile is present.
-    fn parse(buffer: &[u8]) -> ImageResult<Option<Self>> {
-        // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
-        // We need at least 116 bytes to read the ICC profile metadata
-        if buffer.len() < 116 {
-            return Ok(None);
-        }
-
+    /// Note: Caller must ensure buffer has 116 bytes length; this method does not validate.
+    #[track_caller]
+    fn parse(buffer: &[u8]) -> Option<Self> {
         // bV5CSType is at offset 56 from header start, which is offset 52 from after the size field
         let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
 
         // Only embedded profiles are supported
         if cs_type != PROFILE_EMBEDDED {
-            return Ok(None);
+            return None;
         }
 
         // bV5ProfileData is at offset 112 from header start, which is offset 108 from after size field
@@ -253,13 +241,13 @@ impl ParsedIccProfile {
         let profile_size = u32::from_le_bytes(buffer[112..116].try_into().unwrap());
 
         if profile_size == 0 || profile_offset == 0 {
-            return Ok(None);
+            return None;
         }
 
-        Ok(Some(ParsedIccProfile {
+        Some(ParsedIccProfile {
             profile_offset,
             profile_size,
-        }))
+        })
     }
 }
 
@@ -909,7 +897,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.reader.read_exact(&mut buffer)?;
 
         // Parse masks using shared logic
-        let parsed = ParsedBitfields::parse(&buffer, has_alpha)?;
+        let parsed = ParsedBitfields::parse(&buffer, has_alpha);
 
         // Create Bitfields from parsed masks
         self.bitfields = match self.image_type {
@@ -941,7 +929,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// header_buffer should contain the full DIB header (after the size field).
     fn read_icc_profile(&mut self, header_buffer: &[u8]) -> ImageResult<()> {
         // Parse ICC profile metadata from the header buffer
-        let parsed = ParsedIccProfile::parse(header_buffer)?;
+        let parsed = ParsedIccProfile::parse(header_buffer);
 
         if let Some(profile_info) = parsed {
             // Profile offset is from the beginning of the file

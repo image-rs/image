@@ -63,6 +63,18 @@ pub enum ImageError {
 
     /// An error occurred while interacting with the environment.
     IoError(io::Error),
+
+    /// Insufficient data is available to complete the operation.
+    ///
+    /// This is used in streaming/incremental decoding contexts to signal that more input
+    /// data is needed before the operation can proceed. The caller should provide more data
+    /// and retry the operation. This is distinct from `IoError` which represents actual I/O
+    /// failures, and from `Parameter(ParameterError::NoMoreData)` which represents reaching
+    /// the end of available data.
+    ///
+    /// When using streaming decoders, this error indicates the operation can be retried
+    /// successfully once more input becomes available.
+    InsufficientData(InsufficientDataError),
 }
 
 /// The implementation for an operation was not provided.
@@ -164,6 +176,15 @@ pub struct LimitError {
     kind: LimitErrorKind,
     // do we need an underlying error?
 }
+
+/// An error indicating insufficient data for a streaming operation.
+///
+/// This is used as an opaque representation for the [`ImageError::InsufficientData`] variant.
+/// See its documentation for more information.
+///
+/// [`ImageError::InsufficientData`]: enum.ImageError.html#variant.InsufficientData
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InsufficientDataError;
 
 /// Indicates the limit that prevented an operation from completing.
 ///
@@ -317,6 +338,28 @@ impl From<LimitErrorKind> for LimitError {
     }
 }
 
+impl InsufficientDataError {
+    /// Construct an `InsufficientDataError`.
+    #[must_use]
+    pub fn new() -> Self {
+        InsufficientDataError
+    }
+}
+
+impl Default for InsufficientDataError {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for InsufficientDataError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(fmt, "Insufficient data available to complete operation")
+    }
+}
+
+impl Error for InsufficientDataError {}
+
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
         ImageError::IoError(err)
@@ -365,6 +408,7 @@ impl fmt::Display for ImageError {
             ImageError::Parameter(err) => err.fmt(fmt),
             ImageError::Limits(err) => err.fmt(fmt),
             ImageError::Unsupported(err) => err.fmt(fmt),
+            ImageError::InsufficientData(err) => err.fmt(fmt),
         }
     }
 }
@@ -378,6 +422,7 @@ impl Error for ImageError {
             ImageError::Parameter(err) => err.source(),
             ImageError::Limits(err) => err.source(),
             ImageError::Unsupported(err) => err.source(),
+            ImageError::InsufficientData(err) => err.source(),
         }
     }
 }

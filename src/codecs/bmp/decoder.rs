@@ -203,11 +203,11 @@ impl ParsedBitfields {
             )));
         }
 
-        let r_mask = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-        let g_mask = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
-        let b_mask = u32::from_le_bytes([buffer[8], buffer[9], buffer[10], buffer[11]]);
+        let r_mask = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
+        let g_mask = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        let b_mask = u32::from_le_bytes(buffer[8..12].try_into().unwrap());
         let a_mask = if has_alpha {
-            u32::from_le_bytes([buffer[12], buffer[13], buffer[14], buffer[15]])
+            u32::from_le_bytes(buffer[12..16].try_into().unwrap())
         } else {
             0
         };
@@ -239,7 +239,7 @@ impl ParsedIccProfile {
         }
 
         // bV5CSType is at offset 56 from header start, which is offset 52 from after the size field
-        let cs_type = u32::from_le_bytes([buffer[52], buffer[53], buffer[54], buffer[55]]);
+        let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
 
         // Only embedded profiles are supported
         if cs_type != PROFILE_EMBEDDED {
@@ -247,15 +247,10 @@ impl ParsedIccProfile {
         }
 
         // bV5ProfileData is at offset 112 from header start, which is offset 108 from after size field
-        let profile_offset =
-            u32::from_le_bytes([buffer[108], buffer[109], buffer[110], buffer[111]]);
+        let profile_offset = u32::from_le_bytes(buffer[108..112].try_into().unwrap());
 
         // bV5ProfileSize is at offset 116 from header start, which is offset 112 from after size field
-        let profile_size = if buffer.len() >= 116 {
-            u32::from_le_bytes([buffer[112], buffer[113], buffer[114], buffer[115]])
-        } else {
-            return Ok(None);
-        };
+        let profile_size = u32::from_le_bytes(buffer[112..116].try_into().unwrap());
 
         if profile_size == 0 || profile_offset == 0 {
             return Ok(None);
@@ -918,20 +913,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         // Create Bitfields from parsed masks
         self.bitfields = match self.image_type {
-            ImageType::Bitfields16 => Some(Bitfields::from_mask(
-                parsed.r_mask,
-                parsed.g_mask,
-                parsed.b_mask,
-                parsed.a_mask,
-                16,
-            )?),
-            ImageType::Bitfields32 => Some(Bitfields::from_mask(
-                parsed.r_mask,
-                parsed.g_mask,
-                parsed.b_mask,
-                parsed.a_mask,
-                32,
-            )?),
+            ImageType::Bitfields16 | ImageType::Bitfields32 => {
+                let max_len = match self.image_type {
+                    ImageType::Bitfields16 => 16,
+                    ImageType::Bitfields32 => 32,
+                    _ => unreachable!(),
+                };
+                Some(Bitfields::from_mask(
+                    parsed.r_mask,
+                    parsed.g_mask,
+                    parsed.b_mask,
+                    parsed.a_mask,
+                    max_len,
+                )?)
+            }
             _ => None,
         };
 

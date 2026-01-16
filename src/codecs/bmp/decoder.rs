@@ -5,13 +5,10 @@ use std::iter::{repeat, Rev};
 use std::slice::ChunksExactMut;
 use std::{error, fmt};
 
-use byteorder_lite::{LittleEndian, ReadBytesExt};
-
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::ReadExt;
 use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -663,6 +660,58 @@ impl Bitfields {
     }
 }
 
+/// This struct reads data in chunks to avoid excessive system calls when
+/// decoding RLE-compressed BMP images.
+struct RleReader<'a, R> {
+    reader: &'a mut R,
+    buffer: Vec<u8>,
+    pos: usize,
+    len: usize,
+}
+
+impl<'a, R: io::Read> RleReader<'a, R> {
+    const RLE_BUFFER_SIZE: usize = 8192;
+
+    fn new(reader: &'a mut R) -> Self {
+        Self {
+            reader,
+            buffer: vec![0u8; Self::RLE_BUFFER_SIZE],
+            pos: 0,
+            len: 0,
+        }
+    }
+
+    fn read_byte(&mut self) -> io::Result<u8> {
+        if self.pos >= self.len {
+            // Refill buffer
+            self.len = self.reader.read(&mut self.buffer)?;
+            if self.len == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "unexpected end of RLE data",
+                ));
+            }
+            self.pos = 0;
+        }
+        let byte = self.buffer[self.pos];
+        self.pos += 1;
+        Ok(byte)
+    }
+
+    fn read_bytes(&mut self, count: usize) -> io::Result<Vec<u8>> {
+        let mut output = vec_try_with_capacity(count).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::OutOfMemory,
+                "failed to allocate buffer for RLE data",
+            )
+        })?;
+        for _ in 0..count {
+            output.push(self.read_byte()?);
+        }
+        Ok(output)
+    }
+}
+
 /// A bmp decoder
 pub struct BmpDecoder<R> {
     reader: R,
@@ -1206,8 +1255,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         bitfields: Option<&Bitfields>,
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
-        let row_padding_len = self.width as usize % 2 * 2;
-        let row_padding = &mut [0; 2][..row_padding_len];
         let bitfields = match bitfields {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap(),
@@ -1216,6 +1263,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
+        // Calculate row size in bytes (2 bytes per pixel + padding)
+        let row_data_len = self.width as usize * 2;
+        let row_padding_len = calculate_row_padding(row_data_len);
+        let total_row_len = row_data_len + row_padding_len;
+        let mut row_buffer = vec![0u8; total_row_len];
+
         with_rows(
             buf,
             self.width,
@@ -1223,8 +1276,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             num_channels,
             self.top_down,
             |row| {
-                for pixel in row.chunks_mut(num_channels) {
-                    let data = u32::from(reader.read_u16::<LittleEndian>()?);
+                reader.read_exact(&mut row_buffer)?;
+
+                for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
+                    let offset = i * 2;
+                    let data = u32::from(u16::from_le_bytes(
+                        row_buffer[offset..offset + 2].try_into().unwrap(),
+                    ));
 
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
@@ -1237,7 +1295,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         }
                     }
                 }
-                reader.read_exact(row_padding)
+                Ok(())
             },
         )?;
 
@@ -1253,6 +1311,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let reader = &mut self.reader;
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
+        // Calculate row size in bytes (4 bytes per pixel, no padding for 32-bit)
+        let row_data_len = self.width as usize * 4;
+        let mut row_buffer = vec![0u8; row_data_len];
+
         with_rows(
             buf,
             self.width,
@@ -1260,8 +1322,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             num_channels,
             self.top_down,
             |row| {
-                for pixel in row.chunks_mut(num_channels) {
-                    let data = reader.read_u32::<LittleEndian>()?;
+                reader.read_exact(&mut row_buffer)?;
+
+                for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
+                    let offset = i * 4;
+                    let data =
+                        u32::from_le_bytes(row_buffer[offset..offset + 4].try_into().unwrap());
 
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
@@ -1288,15 +1354,21 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         format: &FormatFullBytes,
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
+        let row_data_len = match *format {
+            FormatFullBytes::RGB24 => self.width as usize * 3,
+            FormatFullBytes::Format888 => self.width as usize * 4,
+            FormatFullBytes::RGB32 | FormatFullBytes::RGBA32 => self.width as usize * 4,
+        };
         let row_padding_len = match *format {
-            FormatFullBytes::RGB24 => calculate_row_padding(self.width as usize * 3),
+            FormatFullBytes::RGB24 => calculate_row_padding(row_data_len),
             _ => 0,
         };
-        let row_padding = &mut [0; 4][..row_padding_len];
+        let total_row_len = row_data_len + row_padding_len;
 
         self.reader.seek(SeekFrom::Start(self.data_offset))?;
 
         let reader = &mut self.reader;
+        let mut row_buffer = vec![0u8; total_row_len];
 
         with_rows(
             buf,
@@ -1305,29 +1377,31 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             num_channels,
             self.top_down,
             |row| {
-                for pixel in row.chunks_mut(num_channels) {
-                    if *format == FormatFullBytes::Format888 {
-                        reader.read_u8()?;
-                    }
+                reader.read_exact(&mut row_buffer)?;
 
-                    // Read the colour values (b, g, r).
-                    // Reading 3 bytes and reversing them is significantly faster than reading one
-                    // at a time.
-                    reader.read_exact(&mut pixel[0..3])?;
+                for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
+                    let offset = match *format {
+                        FormatFullBytes::Format888 => i * 4 + 1, // Skip first byte
+                        _ => {
+                            i * match *format {
+                                FormatFullBytes::RGB24 => 3,
+                                _ => 4,
+                            }
+                        }
+                    };
+
+                    // Read the colour values (b, g, r) and reverse to (r, g, b)
+                    pixel[0..3].copy_from_slice(&row_buffer[offset..offset + 3]);
                     pixel[0..3].reverse();
-
-                    if *format == FormatFullBytes::RGB32 {
-                        reader.read_u8()?;
-                    }
 
                     // Read the alpha channel if present
                     if *format == FormatFullBytes::RGBA32 {
-                        reader.read_exact(&mut pixel[3..4])?;
+                        pixel[3] = row_buffer[offset + 3];
                     } else if num_channels == 4 {
                         pixel[3] = ALPHA_OPAQUE;
                     }
                 }
-                reader.read_exact(row_padding)
+                Ok(())
             },
         )?;
 
@@ -1347,23 +1421,27 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // two rows.
         let mut row_iter = self.rows(buf);
 
+        // Create RleReader after getting row iterator to avoid borrow conflicts
+        let mut rle_reader = RleReader::new(&mut self.reader);
+
         while let Some(row) = row_iter.next() {
             let mut pixel_iter = row.chunks_exact_mut(num_channels);
 
             let mut x = 0;
             loop {
                 let instruction = {
-                    let control_byte = self.reader.read_u8()?;
+                    let control_byte = rle_reader.read_byte()?;
+
                     match control_byte {
                         RLE_ESCAPE => {
-                            let op = self.reader.read_u8()?;
+                            let op = rle_reader.read_byte()?;
 
                             match op {
                                 RLE_ESCAPE_EOL => RLEInsn::EndOfRow,
                                 RLE_ESCAPE_EOF => RLEInsn::EndOfFile,
                                 RLE_ESCAPE_DELTA => {
-                                    let xdelta = self.reader.read_u8()?;
-                                    let ydelta = self.reader.read_u8()?;
+                                    let xdelta = rle_reader.read_byte()?;
+                                    let ydelta = rle_reader.read_byte()?;
                                     RLEInsn::Delta(xdelta, ydelta)
                                 }
                                 _ => {
@@ -1372,14 +1450,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         length = length.div_ceil(2);
                                     }
                                     length += length & 1;
-                                    let mut buffer = Vec::new();
-                                    self.reader.read_exact_vec(&mut buffer, length)?;
-                                    RLEInsn::Absolute(op, buffer)
+                                    let indices = rle_reader.read_bytes(length)?;
+                                    RLEInsn::Absolute(op, indices)
                                 }
                             }
                         }
                         _ => {
-                            let palette_index = self.reader.read_u8()?;
+                            let palette_index = rle_reader.read_byte()?;
                             RLEInsn::PixelRun(control_byte, palette_index)
                         }
                     }

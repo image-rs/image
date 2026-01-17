@@ -4,6 +4,7 @@
 //!
 //! # Related Links
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
+use core::num::NonZeroU32;
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
 
@@ -16,8 +17,11 @@ use crate::error::{
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::{DecodedImageAttributes, DecoderAttributes, SequenceControl};
+use crate::io::{
+    DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes, SequenceControl,
+};
 use crate::math::Rect;
+use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     DynamicImage, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
@@ -290,6 +294,11 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         })
     }
 
+    /// Only for [`ApngDecoder`].
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        None
+    }
+
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let reader = self.ensure_reader_and_header()?;
         Ok(reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
@@ -393,11 +402,10 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 }
 
-/// An [`AnimationDecoder`] adapter of [`PngDecoder`].
+/// An animated adapter of [`PngDecoder`].
 ///
 /// See [`PngDecoder::apng`] for more information.
 ///
-/// [`AnimationDecoder`]: ../trait.AnimationDecoder.html
 /// [`PngDecoder`]: struct.PngDecoder.html
 /// [`PngDecoder::apng`]: struct.PngDecoder.html#method.apng
 pub struct ApngDecoder<R: BufRead + Seek> {
@@ -634,32 +642,30 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
     }
 }
 
-/*
-impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
-    fn loop_count(&self) -> LoopCount {
-        let Some(reader) = &self.inner.reader else {
-            // Not an animation or failed, anyways the caller is responsible for expecting a loop
-            // count here.
-            return LoopCount::Infinite;
-        };
-
-        match reader.info().animation_control() {
-            None => LoopCount::Infinite,
-            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
-            Some(actl) => LoopCount::Finite(
-                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
-            ),
-        }
-    }
-}
-*/
-
 impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
     fn attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             is_animated: true,
             ..self.inner.attributes()
         }
+    }
+
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        let count = if let Ok(reader) = self.inner.ensure_reader_and_header() {
+            reader.info().animation_control()
+        } else {
+            return None;
+        };
+
+        let loop_count = match count {
+            None => LoopCount::Infinite,
+            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
+            Some(actl) => LoopCount::Finite(
+                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
+            ),
+        };
+
+        Some(DecodedAnimationAttributes { loop_count })
     }
 
     fn peek_layout(&mut self) -> ImageResult<ImageLayout> {

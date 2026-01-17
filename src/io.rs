@@ -21,7 +21,8 @@ pub type Limits = limits::Limits;
 pub type LimitSupport = limits::LimitSupport;
 
 pub use decoder::{
-    DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes, SequenceControl,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
+    SequenceControl,
 };
 
 /// Adds `read_exact_vec`

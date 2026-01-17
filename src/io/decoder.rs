@@ -1,4 +1,3 @@
-use crate::animation::Frames;
 use crate::color::ExtendedColorType;
 use crate::error::ImageResult;
 use crate::metadata::{LoopCount, Orientation};
@@ -48,6 +47,15 @@ pub trait ImageDecoder {
     /// possible choices.
     fn attributes(&self) -> DecoderAttributes {
         DecoderAttributes::default()
+    }
+
+    /// Retrieve animation attributes.
+    ///
+    /// You should check [`DecoderAttributes::is_animated`] before calling this method. It will
+    /// only be available on animated images. Additionally, most file formats store the metadata in
+    /// the header which might not be read until after calling [`ImageDecoder::peek_layout`].
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        None
     }
 
     /// Consume the header of the image, determining the image's layout.
@@ -158,6 +166,22 @@ pub struct DecoderAttributes {
     pub iptc: DecodedMetadataHint,
 }
 
+/// Additional attributes of animated image sequences.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct DecodedAnimationAttributes {
+    /// Loop count of the animated image.
+    pub loop_count: LoopCount,
+}
+
+impl Default for DecodedAnimationAttributes {
+    fn default() -> Self {
+        Self {
+            loop_count: LoopCount::Infinite,
+        }
+    }
+}
+
 /// Additional attributes of an image available after decoding.
 ///
 /// The [`Default`] is implemented and returns a value suitable for very basic images from formats
@@ -233,6 +257,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         (**self).peek_layout()
     }
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        (**self).animation_attributes()
+    }
     fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
         (**self).original_color_type()
     }
@@ -260,14 +287,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn finish(&mut self) -> ImageResult<()> {
         (**self).finish()
     }
-}
-
-/// `AnimationDecoder` trait
-pub trait AnimationDecoder<'a> {
-    /// Consume the decoder producing a series of frames.
-    fn into_frames(self) -> Frames<'a>;
-    /// Loop count of the animated image.
-    fn loop_count(&self) -> LoopCount;
 }
 
 #[cfg(test)]

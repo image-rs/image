@@ -8,14 +8,16 @@
 //! # Examples
 //! ```rust,no_run
 //! use image::codecs::gif::{GifDecoder, GifEncoder};
-//! use image::{ImageDecoder, AnimationDecoder};
+//! use image::ImageReader;
 //! use std::fs::File;
 //! use std::io::BufReader;
+//!
 //! # fn main() -> std::io::Result<()> {
 //! // Decode a gif into frames
 //! let file_in = BufReader::new(File::open("foo.gif")?);
-//! let mut decoder = GifDecoder::new(file_in).unwrap();
-//! let frames = decoder.into_frames();
+//! let mut decoder = Box::new(GifDecoder::new(file_in).unwrap());
+//!
+//! let frames = ImageReader::from_decoder(decoder).into_frames();
 //! let frames = frames.collect_frames().expect("error decoding gif");
 //!
 //! // Encode frames into a gif and save to a file
@@ -41,21 +43,23 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::{DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes};
+use crate::io::{
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
+};
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
-use crate::{
-    AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
-    Limits,
-};
+use crate::{ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat, Limits};
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
     options: gif::DecodeOptions,
     reader: Option<R>,
     decoder: Option<gif::Decoder<R>>,
+    non_disposed_frame: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
     limits: Limits,
 }
+
+const COLOR: ColorType = ColorType::Rgba8;
 
 impl<R: Read> GifDecoder<R> {
     /// Creates a new decoder that decodes the input steam `r`
@@ -67,6 +71,7 @@ impl<R: Read> GifDecoder<R> {
             options,
             reader: Some(r),
             decoder: None,
+            non_disposed_frame: None,
             limits: Limits::no_limits(),
         })
     }
@@ -74,6 +79,9 @@ impl<R: Read> GifDecoder<R> {
     // We're manipulating the lifetime. The early return must not borrow from `self.decoder` for
     // the whole scope of the function thus this check does not work with if-let patterns until at
     // least the next generation borrow checker (as of 1.89).
+    //
+    // FIXME: would be nice to have a sub-object for these two attributes or an enum for the state
+    // machine so that we can `ensure_decoder` without borrowing the whole `GifDecoder` type.
     #[allow(clippy::unnecessary_unwrap)]
     fn ensure_decoder(&mut self) -> ImageResult<&mut gif::Decoder<R>> {
         if self.decoder.is_some() {
@@ -108,6 +116,7 @@ impl<R: Read> GifDecoder<R> {
 #[allow(dead_code)]
 #[deprecated]
 pub struct GifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+
 #[allow(deprecated)]
 impl<R> Read for GifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -136,6 +145,18 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         }
     }
 
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        let decoder = self.ensure_decoder().ok()?;
+        let loop_count = match decoder.repeat() {
+            gif::Repeat::Finite(n) => LoopCount::Finite(
+                NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
+            ),
+            gif::Repeat::Infinite => LoopCount::Infinite,
+        };
+
+        Some(DecodedAnimationAttributes { loop_count })
+    }
+
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         let decoder = self.ensure_decoder()?;
         Ok(Self::layout_from_decoder(decoder))
@@ -154,8 +175,25 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let decoder = self.ensure_decoder()?;
-        let layout @ crate::ImageLayout { width, height, .. } = Self::layout_from_decoder(decoder);
 
+        let layout @ crate::ImageLayout {
+            width,
+            height,
+            color,
+            ..
+        } = Self::layout_from_decoder(decoder);
+
+        // Allocate the buffer for the previous frame.
+        // This is done here and not in the constructor because
+        // the constructor cannot return an error when the allocation limit is exceeded.
+        if self.non_disposed_frame.is_none() {
+            self.limits.reserve_buffer(width, height, color)?;
+            self.non_disposed_frame =
+                Some(ImageBuffer::from_pixel(width, height, Rgba([0, 0, 0, 0])));
+        }
+
+        // Initialized from `ensure_decoder` above, re-acquired for borrow checker.
+        let decoder = self.decoder.as_mut().unwrap();
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let frame = match decoder
@@ -170,8 +208,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         };
 
-        if frame.left == 0
-            && frame.width == width
+        let frame_start_len = if (frame.left, frame.width) == (0, width)
             && (u64::from(frame.top) + u64::from(frame.height) <= u64::from(height))
         {
             // If the frame matches the logical screen, or, as a more general case,
@@ -179,15 +216,21 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             // we can directly write it into the buffer without causing line wraparound.
             let line_length = usize::try_from(width)
                 .unwrap()
-                .checked_mul(ColorType::Rgba8.bytes_per_pixel() as usize)
+                .checked_mul(COLOR.bytes_per_pixel() as usize)
                 .unwrap();
 
+            let frame_start = line_length.checked_mul(frame.top as usize).unwrap();
+            let frame_len = line_length.checked_mul(frame.height as usize).unwrap();
+            Some((frame_start, frame_len))
+        } else {
+            None
+        };
+
+        if let Some((frame_start, frame_len)) = frame_start_len {
             // isolate the portion of the buffer to read the frame data into.
             // the chunks above and below it are going to be zeroed.
-            let (blank_top, rest) =
-                buf.split_at_mut(line_length.checked_mul(frame.top as usize).unwrap());
-            let (buf, blank_bottom) =
-                rest.split_at_mut(line_length.checked_mul(frame.height as usize).unwrap());
+            let (blank_top, rest) = buf.split_at_mut(frame_start);
+            let (buf, blank_bottom) = rest.split_at_mut(frame_len);
 
             debug_assert_eq!(buf.len(), decoder.buffer_size());
 
@@ -200,6 +243,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             decoder
                 .read_into_buffer(buf)
                 .map_err(ImageError::from_decoding)?;
+
             // this is only necessary in case the buffer is not zeroed
             for b in blank_bottom {
                 *b = 0;
@@ -225,7 +269,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                 .map_err(ImageError::from_decoding)?;
 
             let frame_buffer = ImageBuffer::from_raw(frame.width, frame.height, frame_buffer);
-            let image_buffer = ImageBuffer::from_raw(width, height, buf);
+            let image_buffer = ImageBuffer::from_raw(width, height, &mut *buf);
 
             // `buffer_size` uses wrapping arithmetic, thus might not report the
             // correct storage requirement if the result does not fit in `usize`.
@@ -258,7 +302,79 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             }
         }
 
-        Ok(DecodedImageAttributes::default())
+        // Bind to a variable to avoid repeated `.unwrap()` calls
+        let non_disposed_frame = self.non_disposed_frame.as_mut().unwrap();
+
+        // blend and dispose into the current non-disposed frame.
+        if let Some((frame_start, frame_len)) = frame_start_len {
+            // We can blend pixels in a fully contiguous region instead of row-by-row.
+            let non_disposed_data =
+                &mut non_disposed_frame.inner_pixels_mut()[frame_start..][..frame_len];
+            let frame_data = &mut buf[frame_start..][..frame_len];
+            blend_and_dispose_region(frame.disposal_method, non_disposed_data, frame_data);
+        } else {
+            // We have validated bounds already so no checked math.
+            let effective_left = frame.left.min(width);
+            let effective_width = (width - effective_left).min(frame.width);
+
+            let row_len = width as usize * COLOR.bytes_per_pixel() as usize;
+            let data_len = effective_width as usize * COLOR.bytes_per_pixel() as usize;
+            let row_skip = effective_left as usize * COLOR.bytes_per_pixel() as usize;
+
+            // process rows before, within and after the frame. Everything not in bounds is copied
+            // as if by `DisposalMethod::Previous`.
+            for y in 0..frame.top {
+                if y >= height {
+                    break;
+                }
+
+                let start = y as usize * row_len;
+                let non_disposed_data =
+                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let frame_data = &mut buf[start..][..row_len];
+                frame_data.copy_from_slice(non_disposed_data);
+            }
+
+            for y in frame.top..(frame.top + frame.height) {
+                if y >= height {
+                    break;
+                }
+
+                let start = y as usize * row_len;
+
+                let non_disposed_data =
+                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let frame_data = &mut buf[start..][..row_len];
+
+                non_disposed_data[..row_skip].copy_from_slice(&frame_data[..row_skip]);
+
+                blend_and_dispose_region(
+                    frame.disposal_method,
+                    &mut non_disposed_data[row_skip..][..data_len],
+                    &mut frame_data[row_skip..][..data_len],
+                );
+
+                let after_frame = row_skip + data_len;
+                non_disposed_data[after_frame..].copy_from_slice(&frame_data[after_frame..]);
+            }
+
+            for y in (frame.top + frame.height)..height {
+                if y >= height {
+                    break;
+                }
+
+                let start = y as usize * row_len;
+                let non_disposed_data =
+                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let frame_data = &mut buf[start..][..row_len];
+                frame_data.copy_from_slice(non_disposed_data);
+            }
+        }
+
+        Ok(DecodedImageAttributes {
+            delay: Some(frame.delay),
+            ..Default::default()
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -274,220 +390,52 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     }
 }
 
-struct GifFrameIterator<R: Read> {
-    decoder: Option<gif::Decoder<R>>,
-
-    width: u32,
-    height: u32,
-
-    non_disposed_frame: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
-    limits: Limits,
-    // `is_end` is used to indicate whether the iterator has reached the end of the frames.
-    // Or encounter any un-recoverable error.
-    is_end: bool,
-}
-
-impl<R: BufRead + Seek> GifFrameIterator<R> {
-    fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
-        let (width, height) = match &decoder.decoder {
-            Some(decoder) => GifDecoder::layout_from_decoder(decoder).dimensions(),
-            // No more frames to get anyways.
-            None => (0, 0),
-        };
-
-        let limits = decoder.limits.clone();
-
-        // intentionally ignore the background color for web compatibility
-
-        GifFrameIterator {
-            decoder: decoder.decoder,
-            width,
-            height,
-            non_disposed_frame: None,
-            limits,
-            is_end: false,
-        }
+fn blend_and_dispose_region(
+    dispose: DisposalMethod,
+    non_disposed_data: &mut [u8],
+    frame_data: &mut [u8],
+) {
+    for (disposed, pixel) in non_disposed_data
+        .chunks_exact_mut(4)
+        .zip(frame_data.chunks_exact_mut(4))
+    {
+        // FIXME: internal dispatch on disposal method may be slow, investigate if this is
+        // properly and reliably vectorized.
+        let disposed = Rgba::<u8>::from_slice_mut(disposed);
+        let pixel = Rgba::<u8>::from_slice_mut(pixel);
+        blend_and_dispose_pixel(dispose, disposed, pixel);
     }
 }
 
-impl<R: Read> Iterator for GifFrameIterator<R> {
-    type Item = ImageResult<animation::Frame>;
-
-    fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
-        if self.is_end {
-            return None;
-        }
-
-        // The iterator always produces RGBA8 images
-        const COLOR_TYPE: ColorType = ColorType::Rgba8;
-
-        // Allocate the buffer for the previous frame.
-        // This is done here and not in the constructor because
-        // the constructor cannot return an error when the allocation limit is exceeded.
-        if self.non_disposed_frame.is_none() {
-            if let Err(e) = self
-                .limits
-                .reserve_buffer(self.width, self.height, COLOR_TYPE)
-            {
-                return Some(Err(e));
-            }
-            self.non_disposed_frame = Some(ImageBuffer::from_pixel(
-                self.width,
-                self.height,
-                Rgba([0, 0, 0, 0]),
-            ));
-        }
-        // Bind to a variable to avoid repeated `.unwrap()` calls
-        let non_disposed_frame = self.non_disposed_frame.as_mut().unwrap();
-
-        // begin looping over each frame
-        let decoder = self.decoder.as_mut()?;
-
-        let frame = match decoder.next_frame_info() {
-            Ok(frame_info) => {
-                if let Some(frame) = frame_info {
-                    FrameInfo::new_from_frame(frame)
-                } else {
-                    // no more frames
-                    return None;
-                }
-            }
-            Err(err) => match err {
-                gif::DecodingError::Io(ref e) => {
-                    if e.kind() == io::ErrorKind::UnexpectedEof {
-                        // end of file reached, no more frames
-                        self.is_end = true;
-                    }
-                    return Some(Err(ImageError::from_decoding(err)));
-                }
-                _ => {
-                    return Some(Err(ImageError::from_decoding(err)));
-                }
-            },
-        };
-
-        // All allocations we do from now on will be freed at the end of this function.
-        // Therefore, do not count them towards the persistent limits.
-        // Instead, create a local instance of `Limits` for this function alone
-        // which will be dropped along with all the buffers when they go out of scope.
-        let mut local_limits = self.limits.clone();
-
-        // Check the allocation we're about to perform against the limits
-        if let Err(e) = local_limits.reserve_buffer(frame.width, frame.height, COLOR_TYPE) {
-            return Some(Err(e));
-        }
-
-        // Allocate the buffer now that the limits allowed it
-        let mut vec = vec![0; decoder.buffer_size()];
-        if let Err(err) = decoder.read_into_buffer(&mut vec) {
-            return Some(Err(ImageError::from_decoding(err)));
-        }
-
-        // create the image buffer from the raw frame.
-        // `buffer_size` uses wrapping arithmetic, thus might not report the
-        // correct storage requirement if the result does not fit in `usize`.
-        // on the other hand, `ImageBuffer::from_raw` detects overflow and
-        // reports by returning `None`.
-        let Some(mut frame_buffer) = ImageBuffer::from_raw(frame.width, frame.height, vec) else {
-            return Some(Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Gif.into(),
-                    UnsupportedErrorKind::GenericFeature(format!(
-                        "Image dimensions ({}, {}) are too large",
-                        frame.width, frame.height
-                    )),
-                ),
-            )));
-        };
-
-        // blend the current frame with the non-disposed frame, then update
-        // the non-disposed frame according to the disposal method.
-        fn blend_and_dispose_pixel(
-            dispose: DisposalMethod,
-            previous: &mut Rgba<u8>,
-            current: &mut Rgba<u8>,
-        ) {
-            let pixel_alpha = current.channels()[3];
-            if pixel_alpha == 0 {
-                *current = *previous;
-            }
-
-            match dispose {
-                DisposalMethod::Any | DisposalMethod::Keep => {
-                    // do not dispose
-                    // (keep pixels from this frame)
-                    // note: the `Any` disposal method is underspecified in the GIF
-                    // spec, but most viewers treat it identically to `Keep`
-                    *previous = *current;
-                }
-                DisposalMethod::Background => {
-                    // restore to background color
-                    // (background shows through transparent pixels in the next frame)
-                    *previous = Rgba([0, 0, 0, 0]);
-                }
-                DisposalMethod::Previous => {
-                    // restore to previous
-                    // (dispose frames leaving the last none disposal frame)
-                }
-            }
-        }
-
-        // if `frame_buffer`'s frame exactly matches the entire image, then
-        // use it directly, else create a new buffer to hold the composited
-        // image.
-        let image_buffer = if (frame.left, frame.top) == (0, 0)
-            && (self.width, self.height) == frame_buffer.dimensions()
-        {
-            for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
-                blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
-            }
-            frame_buffer
-        } else {
-            // Check limits before allocating the buffer
-            if let Err(e) = local_limits.reserve_buffer(self.width, self.height, COLOR_TYPE) {
-                return Some(Err(e));
-            }
-            ImageBuffer::from_fn(self.width, self.height, |x, y| {
-                let frame_x = x.wrapping_sub(frame.left);
-                let frame_y = y.wrapping_sub(frame.top);
-                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
-
-                if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
-                    let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
-                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
-                    pixel
-                } else {
-                    // out of bounds, return pixel from previous frame
-                    *previous_pixel
-                }
-            })
-        };
-
-        Some(Ok(animation::Frame::from_parts(
-            image_buffer,
-            0,
-            0,
-            frame.delay,
-        )))
+// blend the current frame with the non-disposed frame, then update
+// the non-disposed frame according to the disposal method.
+fn blend_and_dispose_pixel(
+    dispose: DisposalMethod,
+    previous: &mut Rgba<u8>,
+    current: &mut Rgba<u8>,
+) {
+    let pixel_alpha = current.channels()[3];
+    if pixel_alpha == 0 {
+        *current = *previous;
     }
-}
 
-impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
-    fn loop_count(&self) -> LoopCount {
-        let Some(gif) = &self.decoder else {
-            return LoopCount::Infinite;
-        };
-
-        match gif.repeat() {
-            gif::Repeat::Finite(n) => LoopCount::Finite(
-                NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
-            ),
-            gif::Repeat::Infinite => LoopCount::Infinite,
+    match dispose {
+        DisposalMethod::Any | DisposalMethod::Keep => {
+            // do not dispose
+            // (keep pixels from this frame)
+            // note: the `Any` disposal method is underspecified in the GIF
+            // spec, but most viewers treat it identically to `Keep`
+            *previous = *current;
         }
-    }
-    fn into_frames(self) -> animation::Frames<'a> {
-        animation::Frames::new(Box::new(GifFrameIterator::new(self)))
+        DisposalMethod::Background => {
+            // restore to background color
+            // (background shows through transparent pixels in the next frame)
+            *previous = Rgba([0, 0, 0, 0]);
+        }
+        DisposalMethod::Previous => {
+            // restore to previous
+            // (dispose frames leaving the last none disposal frame)
+        }
     }
 }
 

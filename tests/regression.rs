@@ -3,7 +3,7 @@ use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 
 #[cfg(feature = "webp")]
-use image::{codecs::webp::WebPDecoder, AnimationDecoder};
+use image::{codecs::webp::WebPDecoder, ImageReader};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -61,10 +61,11 @@ fn check_webp_frames_regressions() {
             .unwrap()
             .num_frames() as usize;
         let decoder = WebPDecoder::new(cursor).unwrap();
+        let reader = ImageReader::from_decoder(Box::new(decoder));
         // The `take` guards against a potentially infinitely running iterator.
         // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.
         // We then check that each frame has been decoded successfully.
-        let decoded_frames_count = decoder
+        let decoded_frames_count = reader
             .into_frames()
             .take(frame_count + 1)
             .enumerate()
@@ -216,16 +217,16 @@ fn resizing_with_catmul() {
 #[cfg(feature = "gif")]
 fn gif_regressions() {
     use image::codecs::gif::GifDecoder;
-    use image::AnimationDecoder as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
     let path = base.join("regression/gif/zero-loop-count.gif");
     let file = BufReader::new(File::open(path).unwrap());
 
     let decoder = GifDecoder::new(file).expect("Failed to create GIF decoder for regression test");
+    let mut reader = ImageReader::from_decoder(Box::new(decoder));
 
-    let _ = decoder.loop_count();
-    let mut frames = decoder.into_frames();
+    let _ = reader.animation_attributes();
+    let mut frames = reader.into_frames();
 
     while let Some(Ok(_frame)) = frames.next() {}
 }

@@ -11,6 +11,13 @@
 Breaking Changes:
  - Trait `ImageDecoderRect` has been removed (#2355, #2681)
 
+Features:
+ - Added `RbgImage::from_raw_bgr` and `RbgaImage::from_raw_bgra` constructors, which convert
+   from `BGR(A)` with an optimized specialization for bytes of `BGRA`
+
+Structural changes:
+  - Increased MSRV to 1.88.0 (from 1.85.0)
+
 ### Version 0.25.9
 
 Features:

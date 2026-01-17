@@ -7,8 +7,8 @@ use crate::error::{
     ImageFormatHint, ImageResult, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::limits::Limits;
-use crate::io::DecodedImageAttributes;
 use crate::io::SequenceControl;
+use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes};
 use crate::metadata::Orientation;
 use crate::{hooks, Delay, Frame, Frames};
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
@@ -523,6 +523,12 @@ impl ImageReader<'_> {
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let _ = self.inner.peek_layout();
         self.inner.iptc_metadata()
+    }
+
+    /// Get the animation attributes of the file if any.
+    pub fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        let _ = self.inner.peek_layout();
+        self.inner.animation_attributes()
     }
 
     /// Get auxiliary attributes of the last image.

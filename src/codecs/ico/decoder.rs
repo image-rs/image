@@ -6,7 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::{DecodedImageAttributes, DecoderAttributes};
+use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes};
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -277,6 +277,13 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.peek_layout(),
             Png(decoder) => decoder.peek_layout(),
+        }
+    }
+
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.animation_attributes(),
+            Png(decoder) => decoder.animation_attributes(),
         }
     }
 

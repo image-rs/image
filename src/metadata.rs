@@ -172,7 +172,7 @@ enum ExifEndian {
 }
 
 /// The number of times animated image should loop over.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LoopCount {
     /// Loop the image Infinitely
     Infinite,

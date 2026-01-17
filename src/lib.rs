@@ -162,7 +162,7 @@ pub use crate::images::dynimage::{
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder},
+    decoder::ImageDecoder,
     encoder::ImageEncoder,
     format::ImageFormat,
     image_reader_type::{ImageReader, ImageReaderOptions},

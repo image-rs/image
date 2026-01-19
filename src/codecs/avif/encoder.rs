@@ -130,6 +130,14 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         self.inner.write_all(&data.avif_file)?;
         Ok(())
     }
+
+    fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
+        // encoder.with_exif() accepts Self rather than &mut self, and Encoder doesn't impl Default,
+        // so we can't even mem::take it and have to do this instead
+        let encoder = std::mem::replace(&mut self.encoder, Encoder::new());
+        self.encoder = encoder.with_exif(exif);
+        Ok(())
+    }
 }
 
 impl<W: Write> AvifEncoder<W> {

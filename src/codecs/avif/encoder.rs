@@ -26,7 +26,7 @@ use rgb::AsPixels;
 /// Writes one image into the chosen output.
 pub struct AvifEncoder<W> {
     inner: W,
-    encoder: Encoder,
+    encoder: Encoder<'static>,
 }
 
 /// An enumeration over supported AVIF color spaces

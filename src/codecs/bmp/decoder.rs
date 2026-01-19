@@ -1664,10 +1664,12 @@ mod test {
             tested += 1;
         }
 
-        // Ensure we actually tested some files
-        assert!(
-            tested >= 40,
-            "Expected to test at least 40 BMP files, but only tested {}",
+        // Ensure we actually tested all expected files
+        assert_eq!(
+            tested,
+            expected.len(),
+            "Expected to test {} BMP files, but only tested {}",
+            expected.len(),
             tested
         );
     }

@@ -1560,4 +1560,115 @@ mod test {
         assert!(profile.is_some());
         assert_eq!(profile.unwrap().len(), 540);
     }
+
+    #[test]
+    fn test_bmp_decoding_regression() {
+        use std::collections::HashMap;
+
+        // Expected dimensions and pixel data CRC32 hashes for all test BMP files
+        // These values ensure decoding remains consistent across changes
+        let expected: HashMap<&str, (u32, u32, u32)> = [
+            ("Core_1_Bit.bmp", (435, 353, 0xa38b54e9)),
+            ("Core_4_Bit.bmp", (435, 353, 0xb8054352)),
+            ("Core_8_Bit.bmp", (435, 353, 0x04d23f82)),
+            ("Info_1_Bit.bmp", (6, 6, 0xe17c1696)),
+            ("Info_1_Bit_Top_Down.bmp", (6, 6, 0xe17c1696)),
+            ("Info_4_Bit.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_4_Bit_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_8_Bit.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_8_Bit_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_A8_R8_G8_B8.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_A8_R8_G8_B8_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_R8_G8_B8.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_R8_G8_B8_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_X1_R5_G5_B5.bmp", (6, 6, 0x58b65b8d)),
+            ("Info_X1_R5_G5_B5_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_A1_R5_G5_B5.bmp", (6, 6, 0xdcd94d7c)),
+            ("V3_A1_R5_G5_B5_Top_Down.bmp", (6, 6, 0xdcd94d7c)),
+            ("V3_A4_R4_G4_B4.bmp", (6, 6, 0xdcd94d7c)),
+            ("V3_A4_R4_G4_B4_Top_Down.bmp", (6, 6, 0xdcd94d7c)),
+            ("V3_R5_G6_B5.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_R5_G6_B5_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_X4_R4_G4_B4.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_X4_R4_G4_B4_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_X8_R8_G8_B8.bmp", (6, 6, 0x58b65b8d)),
+            ("V3_X8_R8_G8_B8_Top_Down.bmp", (6, 6, 0x58b65b8d)),
+            ("V4_24_Bit.bmp", (435, 353, 0x4210721a)),
+            ("V4_A8_R8_G8_B8.bmp", (16, 16, 0xee3c0d72)),
+            ("V4_R5_G6_B5.bmp", (16, 16, 0x08a9ba1e)),
+            ("V5_24_Bit.bmp", (435, 353, 0x4210721a)),
+            ("V5_A1_R5_G5_B5.bmp", (16, 16, 0xc1945420)),
+            (
+                "imagemagick_invalid_run_length_issue_2321.bmp",
+                (25, 22, 0x97349b40),
+            ),
+            ("pal2.bmp", (127, 64, 0x0da27594)),
+            ("pal2color.bmp", (127, 64, 0xf0d8c5d6)),
+            ("pal4rle.bmp", (127, 64, 0x288e4371)),
+            ("pal8rle.bmp", (127, 64, 0x38454155)),
+            ("pal8v4.bmp", (127, 64, 0x38454155)),
+            ("pal8v5.bmp", (127, 64, 0x38454155)),
+            ("rgb16-565.bmp", (127, 64, 0x80839b35)),
+            ("rgb16.bmp", (127, 64, 0x46dd68ad)),
+            ("rgb24.bmp", (127, 64, 0x025bba0a)),
+            ("rgb24prof.bmp", (127, 64, 0x025bba0a)),
+            ("rgb24prof2.bmp", (127, 64, 0xcbef96a5)),
+            ("rgb32.bmp", (127, 64, 0x025bba0a)),
+            ("rgb32bf.bmp", (127, 64, 0x025bba0a)),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        let mut tested = 0;
+        for (filename, &(expected_width, expected_height, expected_crc)) in expected.iter() {
+            let path = format!("tests/images/bmp/images/{}", filename);
+
+            // Open and decode the image
+            let file = std::fs::File::open(&path)
+                .unwrap_or_else(|e| panic!("Failed to open {}: {}", path, e));
+            let reader = BufReader::new(file);
+            let decoder = BmpDecoder::new(reader)
+                .unwrap_or_else(|e| panic!("Failed to create decoder for {}: {}", path, e));
+
+            // Check dimensions
+            let (width, height) = decoder.dimensions();
+            assert_eq!(
+                width, expected_width,
+                "{}: expected width {}, got {}",
+                filename, expected_width, width
+            );
+            assert_eq!(
+                height, expected_height,
+                "{}: expected height {}, got {}",
+                filename, expected_height, height
+            );
+
+            // Decode pixel data and compute CRC32
+            let total_bytes = decoder.total_bytes();
+            let mut buf: Vec<u8> = vec![0u8; total_bytes as usize];
+            decoder
+                .read_image(&mut buf)
+                .unwrap_or_else(|e| panic!("Failed to decode {}: {}", path, e));
+
+            let mut hasher = crc32fast::Hasher::new();
+            hasher.update(&buf);
+            let crc = hasher.finalize();
+
+            assert_eq!(
+                crc, expected_crc,
+                "{}: CRC mismatch - expected {:08x}, got {:08x}",
+                filename, expected_crc, crc
+            );
+
+            tested += 1;
+        }
+
+        // Ensure we actually tested some files
+        assert!(
+            tested >= 40,
+            "Expected to test at least 40 BMP files, but only tested {}",
+            tested
+        );
+    }
 }

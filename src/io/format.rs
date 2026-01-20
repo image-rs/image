@@ -277,10 +277,8 @@ impl ImageFormat {
 
     /// Return a list of applicable extensions for this format.
     ///
-    /// All currently recognized image formats specify at least on extension but for future
-    /// compatibility you should not rely on this fact. The list may be empty if the format has no
-    /// recognized file representation, for example in case it is used as a purely transient memory
-    /// format.
+    /// All formats are guaranteed to have at least one extension, but some formats have
+    /// multiple extensions associated with them.
     ///
     /// The method name `extensions` remains reserved for introducing another method in the future
     /// that yields a slice of `OsStr` which is blocked by several features of const evaluation.
@@ -292,7 +290,7 @@ impl ImageFormat {
             ImageFormat::Jpeg => &["jpg", "jpeg"],
             ImageFormat::Gif => &["gif"],
             ImageFormat::WebP => &["webp"],
-            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm", "pnm"],
+            ImageFormat::Pnm => &["pnm", "pbm", "pam", "ppm", "pgm"],
             ImageFormat::Tiff => &["tiff", "tif"],
             ImageFormat::Tga => &["tga"],
             ImageFormat::Dds => &["dds"],

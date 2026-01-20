@@ -40,7 +40,7 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     let mask = (1u8 << bit_depth as usize) - 1;
     let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
     let bit_width = row_size * u32::from(bit_depth);
-    let skip = if bit_width % 8 == 0 {
+    let skip = if bit_width.is_multiple_of(8) {
         0
     } else {
         (8 - bit_width % 8) / u32::from(bit_depth)

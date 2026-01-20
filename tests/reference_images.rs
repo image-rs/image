@@ -4,9 +4,9 @@ use std::io;
 use std::path::PathBuf;
 
 use crc32fast::Hasher as Crc32;
-use image::ColorType;
-use image::DynamicImage;
-use image::ImageReader;
+#[cfg(feature = "png")]
+use image::ImageDecoder as _;
+use image::{ColorType, DynamicImage, ImageReaderOptions};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -201,7 +201,7 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
-                let format = ImageReader::open(&img_path)
+                let format = ImageReaderOptions::open(&img_path)
                     .unwrap()
                     .with_guessed_format()
                     .unwrap()
@@ -210,7 +210,6 @@ fn check_references() {
                 #[cfg(feature = "gif")]
                 if format == Some(image::ImageFormat::Gif) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
                     let decoder = match image::codecs::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
@@ -220,6 +219,7 @@ fn check_references() {
                         }
                     };
 
+                    let decoder = image::ImageReader::from_decoder(Box::new(decoder));
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
@@ -238,16 +238,18 @@ fn check_references() {
                 #[cfg(feature = "png")]
                 if format == Some(image::ImageFormat::Png) {
                     // Interpret the input file as an animation file
-                    use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                    let decoder = match image::codecs::png::PngDecoder::new(stream) {
-                        Ok(decoder) => decoder.apng().unwrap(),
+
+                    let mut decoder = image::codecs::png::PngDecoder::new(stream);
+                    let decoder = match decoder.peek_layout() {
+                        Ok(_layout) => decoder.apng().unwrap(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
                             panic!("decoding of {img_path:?} failed with: {err}")
                         }
                     };
 
+                    let decoder = image::ImageReader::from_decoder(Box::new(decoder));
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,

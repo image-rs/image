@@ -19,7 +19,7 @@ use crate::{
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
 };
-use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
+use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat, Primitive};
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>
@@ -1514,25 +1514,19 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
 impl<S, Container> ImageBuffer<Rgb<S>, Container>
 where
     Rgb<S>: PixelWithColorType<Subpixel = S>,
+    S: Primitive,
     Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-
-        for pix in img.pixels_mut() {
-            pix.0.reverse();
-        }
-
+        S::swizzle_rgb_bgr(img.as_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `Bgr` channel order.
     pub fn into_raw_bgr(mut self) -> Container {
-        for pix in self.pixels_mut() {
-            pix.0.reverse();
-        }
-
+        S::swizzle_rgb_bgr(self.as_mut());
         self.into_raw()
     }
 }
@@ -1540,25 +1534,19 @@ where
 impl<S, Container> ImageBuffer<Rgba<S>, Container>
 where
     Rgba<S>: PixelWithColorType<Subpixel = S>,
+    S: Primitive,
     Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-
-        for pix in img.pixels_mut() {
-            pix.0[..3].reverse();
-        }
-
+        S::swizzle_rgba_bgra(img.as_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `BgrA` channel order.
     pub fn into_raw_bgra(mut self) -> Container {
-        for pix in self.pixels_mut() {
-            pix.0[..3].reverse();
-        }
-
+        S::swizzle_rgba_bgra(self.as_mut());
         self.into_raw()
     }
 }
@@ -1825,7 +1813,7 @@ where
         let transform =
             options.as_transform_fn::<SelfPixel, SelfPixel>(self.color_space(), color)?;
 
-        let mut scratch = [<SelfPixel::Subpixel as crate::Primitive>::DEFAULT_MIN_VALUE; 1200];
+        let mut scratch = [<SelfPixel::Subpixel as Primitive>::DEFAULT_MIN_VALUE; 1200];
         let chunk_len = scratch.len() / usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT)
             * usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT);
 

@@ -1201,7 +1201,7 @@ impl GaussianBlurParameters {
     #[inline]
     fn round_to_nearest_odd(x: f32) -> u32 {
         let n = x.round() as u32;
-        if n % 2 != 0 {
+        if !n.is_multiple_of(2) {
             n
         } else {
             let lower = n - 1;
@@ -1225,7 +1225,7 @@ impl GaussianBlurParameters {
 
     fn kernel_size_from_sigma(sigma: f32) -> u32 {
         let possible_size = (((((sigma - 0.8) / 0.3) + 1.) * 2.) + 1.).max(3.) as u32;
-        if possible_size % 2 == 0 {
+        if possible_size.is_multiple_of(2) {
             return possible_size + 1;
         }
         possible_size

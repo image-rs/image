@@ -196,7 +196,7 @@ impl<W: Write> AvifEncoder<W> {
                 Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
                     // Sad, but let's allocate.
                     // bytemuck checks alignment _before_ slop but size mismatch before this..
-                    if buf.len() % size_of::<Channel>() != 0 {
+                    if !buf.len().is_multiple_of(size_of::<Channel>()) {
                         Err(ImageError::Parameter(ParameterError::from_kind(
                             ParameterErrorKind::DimensionMismatch,
                         )))

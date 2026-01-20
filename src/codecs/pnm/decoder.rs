@@ -786,7 +786,7 @@ impl Sample for PbmBit {
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         let count = width * samples;
-        let linelen = (count / 8) + u32::from((count % 8) != 0);
+        let linelen = (count / 8) + u32::from(!count.is_multiple_of(8));
         Ok((linelen * height) as usize)
     }
 

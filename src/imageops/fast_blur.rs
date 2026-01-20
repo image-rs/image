@@ -128,7 +128,7 @@ fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {
 
 #[inline]
 fn ceil_to_odd(x: usize) -> usize {
-    if x % 2 == 0 {
+    if x.is_multiple_of(2) {
         x + 1
     } else {
         x

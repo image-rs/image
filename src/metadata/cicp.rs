@@ -1155,7 +1155,7 @@ impl CicpRgb {
     {
         use crate::traits::private::LayoutWithColor as Layout;
 
-        assert!(buffer.len() % from_layout.channels() == 0);
+        assert!(buffer.len().is_multiple_of(from_layout.channels()));
         let pixels = buffer.len() / from_layout.channels();
 
         let mut output: Vec<IntoSubpixel> = vec_try_with_capacity(pixels * into_layout.channels())

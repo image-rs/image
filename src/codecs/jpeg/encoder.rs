@@ -85,17 +85,15 @@ impl PixelDensity {
     }
 
     /// Converts pixel density to the representation used by jpeg-encoder crate
-    fn to_encoder_repr(self) -> jpeg_encoder::Density {
-        match self.unit {
-            PixelDensityUnit::PixelAspectRatio => jpeg_encoder::Density::None, // TODO: https://github.com/vstroebel/jpeg-encoder/issues/21
-            PixelDensityUnit::Inches => jpeg_encoder::Density::Inch {
-                x: self.density.0,
-                y: self.density.1,
-            },
-            PixelDensityUnit::Centimeters => jpeg_encoder::Density::Centimeter {
-                x: self.density.0,
-                y: self.density.1,
-            },
+    fn to_encoder_repr(self) -> jpeg_encoder::PixelDensity {
+        let unit = match self.unit {
+            PixelDensityUnit::PixelAspectRatio => jpeg_encoder::PixelDensityUnit::PixelAspectRatio,
+            PixelDensityUnit::Inches => jpeg_encoder::PixelDensityUnit::Inches,
+            PixelDensityUnit::Centimeters => jpeg_encoder::PixelDensityUnit::Centimeters,
+        };
+        jpeg_encoder::PixelDensity {
+            density: self.density,
+            unit,
         }
     }
 }
@@ -238,11 +236,6 @@ impl<W: Write> JpegEncoder<W> {
     }
 }
 
-// E x i f \0 \0
-/// The header for an EXIF APP1 segment
-const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
-const APP1: u8 = 1;
-
 impl<W: Write> ImageEncoder for JpegEncoder<W> {
     #[track_caller]
     fn write_image(
@@ -265,16 +258,12 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
-        let mut formatted = EXIF_HEADER.to_vec();
-        formatted.extend_from_slice(&exif);
-        self.encoder
-            .add_app_segment(APP1, &formatted)
-            .map_err(|_| {
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Jpeg.into(),
-                    UnsupportedErrorKind::GenericFeature("Exif chunk too large".to_string()),
-                )
-            })?;
+        self.encoder.add_exif_metadata(&exif).map_err(|_| {
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Jpeg.into(),
+                UnsupportedErrorKind::GenericFeature("Exif chunk too large".to_string()),
+            )
+        })?;
         Ok(())
     }
 

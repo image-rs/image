@@ -660,41 +660,30 @@ impl Bitfields {
     }
 }
 
-/// This struct reads data in chunks to avoid excessive system calls when
-/// decoding RLE-compressed BMP images.
-struct RleReader<'a, R> {
-    reader: &'a mut R,
-    buffer: Vec<u8>,
-    pos: usize,
-    len: usize,
+/// Helper to read RLE data with buffering to minimize system calls.
+struct RleReader<R> {
+    buf_reader: io::BufReader<R>,
 }
 
-impl<'a, R: io::Read> RleReader<'a, R> {
+impl<R: io::Read> RleReader<R> {
     const RLE_BUFFER_SIZE: usize = 8192;
 
-    fn new(reader: &'a mut R) -> Self {
+    fn new(reader: R) -> Self {
         Self {
-            reader,
-            buffer: vec![0u8; Self::RLE_BUFFER_SIZE],
-            pos: 0,
-            len: 0,
+            buf_reader: io::BufReader::with_capacity(Self::RLE_BUFFER_SIZE, reader),
         }
     }
 
     fn read_byte(&mut self) -> io::Result<u8> {
-        if self.pos >= self.len {
-            // Refill buffer
-            self.len = self.reader.read(&mut self.buffer)?;
-            if self.len == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "unexpected end of RLE data",
-                ));
-            }
-            self.pos = 0;
+        let buf = self.buf_reader.fill_buf()?;
+        if buf.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "unexpected end of RLE data",
+            ));
         }
-        let byte = self.buffer[self.pos];
-        self.pos += 1;
+        let byte = buf[0];
+        self.buf_reader.consume(1);
         Ok(byte)
     }
 
@@ -705,9 +694,23 @@ impl<'a, R: io::Read> RleReader<'a, R> {
                 "failed to allocate buffer for RLE data",
             )
         })?;
-        for _ in 0..count {
-            output.push(self.read_byte()?);
+
+        let mut remaining = count;
+        while remaining > 0 {
+            let buf = self.buf_reader.fill_buf()?;
+            if buf.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "unexpected end of RLE data",
+                ));
+            }
+
+            let to_read = remaining.min(buf.len());
+            output.extend_from_slice(&buf[..to_read]);
+            self.buf_reader.consume(to_read);
+            remaining -= to_read;
         }
+
         Ok(output)
     }
 }
@@ -1421,7 +1424,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // two rows.
         let mut row_iter = self.rows(buf);
 
-        // Create RleReader after getting row iterator to avoid borrow conflicts
+        // Wrap reader in buffered RLE reader for efficient byte-by-byte access
         let mut rle_reader = RleReader::new(&mut self.reader);
 
         while let Some(row) = row_iter.next() {

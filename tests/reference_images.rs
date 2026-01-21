@@ -1,13 +1,18 @@
 //! Compares the decoding results with reference renderings.
+//!
+//! This test harness automatically detects all reference images in
+//! `tests/reference/...` and compares them to the associated file in
+//! `tests/images/...`.
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use crc32fast::Hasher as Crc32;
-use image::{DynamicImage, ImageFormat, ImageReader};
+use image::ColorType;
+use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
 use walkdir::WalkDir;
 
@@ -59,12 +64,15 @@ fn main() {
 
         let test_name = match case.kind {
             ReferenceTestKind::AnimatedFrame { frame } => format!(
-                "reference_images {}[{}]",
+                "reference tests/images/{}[{}]",
                 original_relative_path.display(),
                 frame + 1
             ),
             ReferenceTestKind::SingleImage => {
-                format!("reference_images {}", original_relative_path.display())
+                format!(
+                    "reference tests/images/{}",
+                    original_relative_path.display()
+                )
             }
         };
 
@@ -89,59 +97,51 @@ fn main() {
             continue;
         }
 
+        let output_dir = output_dir.clone();
         trials.push(Trial::test(test_name, move || -> Result<(), Failed> {
             // Load the test image
-            let mut test_img = None;
-
-            match case.kind {
-                ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
-                    let format = ImageReader::open(&img_path)
-                        .unwrap()
-                        .with_guessed_format()
-                        .unwrap()
-                        .format();
-
-                    #[cfg(feature = "gif")]
-                    if format == Some(image::ImageFormat::Gif) {
-                        // Interpret the input file as an animation file
-                        use image::AnimationDecoder;
-                        let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                        let decoder = image::codecs::gif::GifDecoder::new(stream)?;
-                        let mut frames = decoder.into_frames().collect_frames()?;
-
-                        // Select a single frame
-                        let frame = frames.drain(frame_num..).next().unwrap();
-
-                        // Convert the frame to a`RgbaImage`
-                        test_img = Some(DynamicImage::from(frame.into_buffer()));
-                    }
-
-                    #[cfg(feature = "png")]
-                    if format == Some(image::ImageFormat::Png) {
-                        // Interpret the input file as an animation file
-                        use image::AnimationDecoder;
-                        let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                        let decoder = image::codecs::png::PngDecoder::new(stream)?.apng()?;
-                        let mut frames = decoder.into_frames().collect_frames()?;
-
-                        // Select a single frame
-                        let frame = frames.drain(frame_num..).next().unwrap();
-
-                        // Convert the frame to a`RgbaImage`
-                        test_img = Some(DynamicImage::from(frame.into_buffer()));
-                    }
-
-                    assert!(test_img.is_some());
-                }
-
+            let mut test_img = match case.kind {
                 ReferenceTestKind::SingleImage => {
                     // Read the input file as a single image
-                    test_img = Some(image::open(&img_path)?);
+                    image::open(&img_path)?
                 }
-            }
+                ReferenceTestKind::AnimatedFrame { frame: frame_num } => {
+                    // TODO: Once there's a generic API for animated images, switch to that instead.
+                    match image_format {
+                        #[cfg(feature = "gif")]
+                        Some(image::ImageFormat::Gif) => {
+                            // Interpret the input file as an animation file
+                            use image::AnimationDecoder;
+                            let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
+                            let decoder = image::codecs::gif::GifDecoder::new(stream)?;
+                            let mut frames = decoder.into_frames().collect_frames()?;
 
-            let Some(test_img) = test_img.as_mut() else {
-                unreachable!()
+                            // Select a single frame
+                            let frame = frames.drain(frame_num..).next().unwrap();
+
+                            // Convert the frame to a`RgbaImage`
+                            DynamicImage::from(frame.into_buffer())
+                        }
+
+                        #[cfg(feature = "png")]
+                        Some(image::ImageFormat::Png) => {
+                            // Interpret the input file as an animation file
+                            use image::AnimationDecoder;
+                            let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
+                            let decoder = image::codecs::png::PngDecoder::new(stream)?.apng()?;
+                            let mut frames = decoder.into_frames().collect_frames()?;
+
+                            // Select a single frame
+                            let frame = frames.drain(frame_num..).next().unwrap();
+
+                            // Convert the frame to a`RgbaImage`
+                            DynamicImage::from(frame.into_buffer())
+                        }
+                        _ => unreachable!(
+                            "Format is unspported or disabled. Should have been detected earlier"
+                        ),
+                    }
+                }
             };
 
             let test_crc_actual = {
@@ -172,88 +172,45 @@ fn main() {
             if reference_format == ImageFormat::Png && image_format == Some(ImageFormat::Tiff) {
                 match test_img {
                     DynamicImage::ImageRgb32F(_) => {
-                        *test_img = test_img.to_rgb16().into();
+                        test_img = test_img.to_rgb16().into();
                     }
                     DynamicImage::ImageRgba32F(_) => {
-                        *test_img = test_img.to_rgba16().into();
+                        test_img = test_img.to_rgba16().into();
                     }
                     _ => {}
                 }
             }
 
-            if test_crc_actual != case.crc {
-                if let Some(tmpdir) = std::env::var_os("TMPDIR") {
-                    let filename =
-                        format!("{}.{:08x}.{}", case.orig_filename, test_crc_actual, "png");
-                    let filename = PathBuf::from(tmpdir).join(filename);
-                    match test_img.save(&filename) {
-                        Ok(()) => println!("New reference saved to: {}", filename.display()),
-                        Err(e) => println!("Failed to save new reference: {e}"),
-                    }
-                }
-                return Err(format!(
+            let mut error = if test_crc_actual != case.crc {
+                format!(
                     "The decoded image's hash does not match (expected = {:08x}, actual = {:08x})",
                     case.crc, test_crc_actual
                 )
-                .into());
-            }
-
-            let ref_img = image::open(&path)?;
-            if ref_img.as_bytes() != test_img.as_bytes() {
-                if let Some(tmpdir) = std::env::var_os("TMPDIR") {
-                    let filename =
-                        format!("{}.{:08x}.{}", case.orig_filename, test_crc_actual, "png");
-                    let filename = PathBuf::from(tmpdir).join(filename);
-                    match test_img.save(&filename) {
-                        Ok(()) => println!("New reference saved to: {}", filename.display()),
-                        Err(e) => println!("Failed to save new reference: {e}"),
-                    }
-                }
-                return Err("Reference rendering does not match".into());
+            } else if image::open(&path)?.as_bytes() != test_img.as_bytes() {
+                "Reference rendering does not match".into()
+            } else {
+                // The image exactly matches the reference. Success!
+                return Ok(());
             };
 
-            Ok(())
+            // The image doesn't match the reference. Save the decoded version to the
+            // output directory for inspection.
+            let ext = match test_img.color() {
+                ColorType::Rgb32F | ColorType::Rgba32F => "tiff",
+                _ => "png",
+            };
+            let output_filename = format!("{}.{test_crc_actual:08x}.{ext}", case.orig_filename);
+            let output_path = output_dir.join(output_filename);
+            match test_img.save(&output_path) {
+                Ok(()) => error.push_str(&format!(
+                    "\n\n    New reference saved to: {}",
+                    output_path.display()
+                )),
+                Err(e) => error.push_str(&format!("\n\n     Failed to save new reference: {e}")),
+            }
+            Err(error.into())
         }));
     }
-
-    // for image_path in images {
-    //     let Some(extension) = image_path.extension() else {
-    //         continue;
-    //     };
-    //     let Some(format) = ImageFormat::from_extension(extension) else {
-    //         continue;
-    //     };
-
-    //     let relative_path = image_path.strip_prefix(&image_dir).unwrap().to_path_buf();
-    //     let directory = output_dir.join(relative_path.parent().unwrap()).to_owned();
-    //     let test_name = format!("reference_images {}", relative_path.display());
-    //     if !format.reading_enabled() {
-    //         trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
-    //         continue;
-    //     }
-
-    //     trials.push(Trial::test(test_name, move || -> Result<(), Failed> {
-    //         let img = image::open(&image_path)?;
-
-    //         let mut crc = Crc32::new();
-    //         crc.update(img.as_bytes());
-
-    //         let use_tiff = matches!(img.color(), ColorType::Rgb32F | ColorType::Rgba32F);
-
-    //         fs::create_dir_all(&directory).unwrap();
-
-    //         let filename = format!(
-    //             "{}.{:x}.{}",
-    //             image_path.file_name().unwrap().to_str().unwrap(),
-    //             crc.finalize(),
-    //             if use_tiff { "tiff" } else { "png" }
-    //         );
-    //         img.save(directory.join(filename))?;
-
-    //         // Ok(())
-    //         Err("Missing reference file".into())
-    //     }));
-    // }
 
     let args = Arguments::from_args();
     libtest_mimic::run(&args, trials).exit();

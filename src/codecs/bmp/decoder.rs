@@ -261,6 +261,19 @@ enum ImageType {
     Bitfields32,
 }
 
+/// Decoder state for coarse-grained resumable decoding.
+///
+/// This allows the decoder to recover from `UnexpectedEof` errors by
+/// restarting from the beginning of the current phase (metadata or image data).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum DecoderState {
+    /// Initial state, ready to read metadata.
+    #[default]
+    ReadingMetadata,
+    /// Metadata has been read, ready to read image data.
+    ReadingImageData,
+}
+
 #[derive(PartialEq)]
 enum BMPHeaderType {
     Core,
@@ -736,7 +749,6 @@ pub struct BmpDecoder<R> {
     top_down: bool,
     no_file_header: bool,
     add_alpha_channel: bool,
-    has_loaded_metadata: bool,
     image_type: ImageType,
 
     bit_count: u16,
@@ -744,6 +756,9 @@ pub struct BmpDecoder<R> {
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
+
+    /// Current decoder state for resumable decoding.
+    state: DecoderState,
 }
 
 enum RLEInsn<'a> {
@@ -768,7 +783,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down: false,
             no_file_header: false,
             add_alpha_channel: false,
-            has_loaded_metadata: false,
             image_type: ImageType::Palette,
 
             bit_count: 0,
@@ -776,6 +790,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             palette: None,
             bitfields: None,
             icc_profile: None,
+
+            state: DecoderState::ReadingMetadata,
         }
     }
 
@@ -784,6 +800,60 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut decoder = Self::new_decoder(reader);
         decoder.read_metadata()?;
         Ok(decoder)
+    }
+
+    /// Create a new decoder that decodes from the stream `r` without reading
+    /// metadata immediately. This allows for resumable decoding when the
+    /// underlying reader may return `UnexpectedEof`.
+    ///
+    /// After creating the decoder, call `read_metadata()` to read the BMP
+    /// headers. If it returns an `UnexpectedEof` error, you can retry on the
+    /// same decoder instance after more data becomes available.
+    ///
+    /// Once metadata is read, call `read_image_data()` to read the pixel data.
+    /// This also supports retrying on `UnexpectedEof`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use image::codecs::bmp::BmpDecoder;
+    /// use image::error::ImageError;
+    /// use image::ImageDecoder;
+    /// use std::io;
+    ///
+    /// fn is_unexpected_eof(err: &ImageError) -> bool {
+    ///     matches!(err, ImageError::IoError(e) if e.kind() == io::ErrorKind::UnexpectedEof)
+    /// }
+    ///
+    /// let mut decoder = BmpDecoder::new_resumable(reader);
+    ///
+    /// // Phase 1: Read metadata (with retry on UnexpectedEof)
+    /// loop {
+    ///     match decoder.read_metadata() {
+    ///         Ok(()) => break,
+    ///         Err(ref e) if is_unexpected_eof(e) => {
+    ///             // Wait for more data and retry on same decoder
+    ///             continue;
+    ///         }
+    ///         Err(e) => return Err(e),
+    ///     }
+    /// }
+    ///
+    /// // Phase 2: Read image data (with retry on UnexpectedEof)
+    /// let mut buf = vec![0u8; decoder.total_bytes() as usize];
+    /// loop {
+    ///     match decoder.read_image_data(&mut buf) {
+    ///         Ok(()) => break,
+    ///         Err(ref e) if is_unexpected_eof(e) => {
+    ///             // Wait for more data and retry on same decoder
+    ///             continue;
+    ///         }
+    ///         Err(e) => return Err(e),
+    ///     }
+    /// }
+    /// ```
+    pub fn new_resumable(reader: R) -> BmpDecoder<R> {
+        Self::new_decoder(reader)
     }
 
     /// Create a new decoder that decodes from the stream ```r``` without first
@@ -1004,103 +1074,130 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    fn read_metadata(&mut self) -> ImageResult<()> {
-        if !self.has_loaded_metadata {
-            self.read_file_header()?;
-            let bmp_header_offset = self.reader.stream_position()?;
+    /// Check if an error is an `UnexpectedEof` I/O error.
+    fn is_unexpected_eof(err: &ImageError) -> bool {
+        matches!(err, ImageError::IoError(e) if e.kind() == io::ErrorKind::UnexpectedEof)
+    }
 
-            // Read header size into buffer for consistency with buffer-based pattern
-            let mut size_buffer = [0u8; 4];
-            self.reader.read_exact(&mut size_buffer)?;
-            let bmp_header_size = u32::from_le_bytes(size_buffer);
-
-            let bmp_header_end = bmp_header_offset + u64::from(bmp_header_size);
-
-            self.bmp_header_type = match bmp_header_size {
-                BITMAPCOREHEADER_SIZE => BMPHeaderType::Core,
-                BITMAPINFOHEADER_SIZE => BMPHeaderType::Info,
-                BITMAPV2HEADER_SIZE => BMPHeaderType::V2,
-                BITMAPV3HEADER_SIZE => BMPHeaderType::V3,
-                BITMAPV4HEADER_SIZE => BMPHeaderType::V4,
-                BITMAPV5HEADER_SIZE => BMPHeaderType::V5,
-                _ if bmp_header_size < BITMAPCOREHEADER_SIZE => {
-                    // Size of any valid header types won't be smaller than core header type.
-                    return Err(DecoderError::HeaderTooSmall(bmp_header_size).into());
-                }
-                _ => {
-                    return Err(ImageError::Unsupported(
-                        UnsupportedError::from_format_and_kind(
-                            ImageFormat::Bmp.into(),
-                            UnsupportedErrorKind::GenericFeature(format!(
-                                "Unknown bitmap header type (size={bmp_header_size})"
-                            )),
-                        ),
-                    ))
-                }
-            };
-
-            match self.bmp_header_type {
-                BMPHeaderType::Core => {
-                    self.read_bitmap_core_header()?;
-                }
-                BMPHeaderType::Info
-                | BMPHeaderType::V2
-                | BMPHeaderType::V3
-                | BMPHeaderType::V4
-                | BMPHeaderType::V5 => {
-                    self.read_bitmap_info_header()?;
-                }
-            }
-
-            let mut bitmask_bytes_offset = 0;
-            if self.image_type == ImageType::Bitfields16
-                || self.image_type == ImageType::Bitfields32
-            {
-                self.read_bitmasks()?;
-
-                // Per https://learn.microsoft.com/en-us/windows/win32/gdi/bitmap-header-types, bitmaps
-                // using the `BITMAPINFOHEADER`, `BITMAPV4HEADER`, or `BITMAPV5HEADER` structures with
-                // an image type of `BI_BITFIELD` contain RGB bitfield masks immediately after the header.
-                //
-                // `read_bitmasks` correctly reads these from earlier in the header itself but we must
-                // ensure the reader starts on the image data itself, not these extra mask bytes.
-                if matches!(
-                    self.bmp_header_type,
-                    BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5
-                ) {
-                    // This is `size_of::<u32>() * 3` (a red, green, and blue mask), but with less noise.
-                    bitmask_bytes_offset = 12;
-                }
-            };
-
-            // Read ICC profile if present (V5 header or later)
-            if bmp_header_size >= BITMAPV5HEADER_SIZE {
-                // Read the full V5 header into a buffer for ICC profile parsing
-                // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
-                let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
-                let current_pos = self.reader.stream_position()?;
-                self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
-                self.reader.read_exact(&mut header_buffer)?;
-                self.read_icc_profile(&header_buffer)?;
-                // Seek back to where we were
-                self.reader.seek(SeekFrom::Start(current_pos))?;
-            }
-
-            self.reader
-                .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
-
-            match self.image_type {
-                ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
-                _ => {}
-            }
-
-            if self.no_file_header {
-                // Use the offset of the end of metadata instead of reading a BMP file header.
-                self.data_offset = self.reader.stream_position()?;
-            }
-
-            self.has_loaded_metadata = true;
+    /// Read BMP metadata (headers, palette, etc.).
+    ///
+    /// On `UnexpectedEof`, the reader is seeked back to allow retry on the same decoder.
+    /// Once successful, subsequent calls are no-ops.
+    pub fn read_metadata(&mut self) -> ImageResult<()> {
+        if self.state != DecoderState::ReadingMetadata {
+            // Already read metadata, nothing to do
+            return Ok(());
         }
+
+        match self.read_metadata_impl() {
+            Ok(()) => {
+                self.state = DecoderState::ReadingImageData;
+                Ok(())
+            }
+            Err(e) if Self::is_unexpected_eof(&e) => {
+                // Seek back to the start for retry
+                // Note: For no_file_header mode, this seeks to position 0 which is where
+                // the DIB header starts (no file header to skip)
+                let _ = self.reader.seek(SeekFrom::Start(0));
+                Err(e)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Internal implementation of metadata reading.
+    fn read_metadata_impl(&mut self) -> ImageResult<()> {
+        self.read_file_header()?;
+        let bmp_header_offset = self.reader.stream_position()?;
+
+        // Read header size into buffer for consistency with buffer-based pattern
+        let mut size_buffer = [0u8; 4];
+        self.reader.read_exact(&mut size_buffer)?;
+        let bmp_header_size = u32::from_le_bytes(size_buffer);
+
+        let bmp_header_end = bmp_header_offset + u64::from(bmp_header_size);
+
+        self.bmp_header_type = match bmp_header_size {
+            BITMAPCOREHEADER_SIZE => BMPHeaderType::Core,
+            BITMAPINFOHEADER_SIZE => BMPHeaderType::Info,
+            BITMAPV2HEADER_SIZE => BMPHeaderType::V2,
+            BITMAPV3HEADER_SIZE => BMPHeaderType::V3,
+            BITMAPV4HEADER_SIZE => BMPHeaderType::V4,
+            BITMAPV5HEADER_SIZE => BMPHeaderType::V5,
+            _ if bmp_header_size < BITMAPCOREHEADER_SIZE => {
+                // Size of any valid header types won't be smaller than core header type.
+                return Err(DecoderError::HeaderTooSmall(bmp_header_size).into());
+            }
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Bmp.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Unknown bitmap header type (size={bmp_header_size})"
+                        )),
+                    ),
+                ))
+            }
+        };
+
+        match self.bmp_header_type {
+            BMPHeaderType::Core => {
+                self.read_bitmap_core_header()?;
+            }
+            BMPHeaderType::Info
+            | BMPHeaderType::V2
+            | BMPHeaderType::V3
+            | BMPHeaderType::V4
+            | BMPHeaderType::V5 => {
+                self.read_bitmap_info_header()?;
+            }
+        }
+
+        let mut bitmask_bytes_offset = 0;
+        if self.image_type == ImageType::Bitfields16 || self.image_type == ImageType::Bitfields32 {
+            self.read_bitmasks()?;
+
+            // Per https://learn.microsoft.com/en-us/windows/win32/gdi/bitmap-header-types, bitmaps
+            // using the `BITMAPINFOHEADER`, `BITMAPV4HEADER`, or `BITMAPV5HEADER` structures with
+            // an image type of `BI_BITFIELD` contain RGB bitfield masks immediately after the header.
+            //
+            // `read_bitmasks` correctly reads these from earlier in the header itself but we must
+            // ensure the reader starts on the image data itself, not these extra mask bytes.
+            if matches!(
+                self.bmp_header_type,
+                BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5
+            ) {
+                // This is `size_of::<u32>() * 3` (a red, green, and blue mask), but with less noise.
+                bitmask_bytes_offset = 12;
+            }
+        };
+
+        // Read ICC profile if present (V5 header or later)
+        if bmp_header_size >= BITMAPV5HEADER_SIZE {
+            // Read the full V5 header into a buffer for ICC profile parsing
+            // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+            let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
+            let current_pos = self.reader.stream_position()?;
+            self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
+            self.reader.read_exact(&mut header_buffer)?;
+            self.read_icc_profile(&header_buffer)?;
+            // Seek back to where we were
+            self.reader.seek(SeekFrom::Start(current_pos))?;
+        }
+
+        self.reader
+            .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
+
+        match self.image_type {
+            ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
+            _ => {}
+        }
+
+        if self.no_file_header {
+            // Use the offset of the end of metadata instead of reading a BMP file header.
+            self.data_offset = self.reader.stream_position()?;
+        }
+
         Ok(())
     }
 
@@ -1594,9 +1691,25 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Read the actual data of the image. This function is deliberately not public because it
-    /// cannot be called multiple times without seeking back the underlying reader in between.
-    pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    /// Read the actual pixel data of the image.
+    ///
+    /// Must be called after `read_metadata()` succeeds. On `UnexpectedEof`, the reader
+    /// is seeked back to allow retry on the same decoder. Buffer contents are undefined
+    /// after an error.
+    pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        match self.read_image_data_impl(buf) {
+            Ok(()) => Ok(()),
+            Err(e) if Self::is_unexpected_eof(&e) => {
+                // Seek back to the start of image data for retry
+                let _ = self.reader.seek(SeekFrom::Start(self.data_offset));
+                Err(e)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Internal implementation of image data reading.
+    fn read_image_data_impl(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(buf),
             ImageType::RGB16 => self.read_16_bit_pixel_data(buf, Some(&R5_G5_B5_COLOR_MASK)),
@@ -1654,7 +1767,7 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
 
 #[cfg(test)]
 mod test {
-    use std::io::{BufReader, Cursor};
+    use std::io::{BufRead, BufReader, Cursor, Seek};
 
     use super::*;
 
@@ -1746,5 +1859,181 @@ mod test {
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_some());
         assert_eq!(profile.unwrap().len(), 540);
+    }
+
+    /// A reader that simulates partial data availability for testing resumable decoding.
+    /// It wraps a byte slice and limits how many bytes can be read before returning UnexpectedEof.
+    struct PartialReader {
+        data: Vec<u8>,
+        position: u64,
+        available_bytes: usize,
+    }
+
+    impl PartialReader {
+        fn new(data: Vec<u8>) -> Self {
+            Self {
+                data,
+                position: 0,
+                available_bytes: 0,
+            }
+        }
+
+        /// Set the number of bytes available for reading (absolute, not additive).
+        fn set_available(&mut self, bytes: usize) {
+            self.available_bytes = bytes.min(self.data.len());
+        }
+    }
+
+    impl io::Read for PartialReader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.position as usize >= self.available_bytes {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "simulated partial data",
+                ));
+            }
+
+            let available = self.available_bytes - self.position as usize;
+            let to_read = buf.len().min(available);
+            let start = self.position as usize;
+            buf[..to_read].copy_from_slice(&self.data[start..start + to_read]);
+            self.position += to_read as u64;
+            Ok(to_read)
+        }
+    }
+
+    impl BufRead for PartialReader {
+        fn fill_buf(&mut self) -> io::Result<&[u8]> {
+            if self.position as usize >= self.available_bytes {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "simulated partial data",
+                ));
+            }
+
+            let start = self.position as usize;
+            Ok(&self.data[start..self.available_bytes])
+        }
+
+        fn consume(&mut self, amt: usize) {
+            self.position += amt as u64;
+        }
+    }
+
+    impl Seek for PartialReader {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            let new_pos = match pos {
+                SeekFrom::Start(offset) => offset as i64,
+                SeekFrom::End(offset) => self.data.len() as i64 + offset,
+                SeekFrom::Current(offset) => self.position as i64 + offset,
+            };
+
+            if new_pos < 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "seek to negative position",
+                ));
+            }
+
+            self.position = new_pos as u64;
+            Ok(self.position)
+        }
+    }
+
+    /// Helper to check if an error is UnexpectedEof
+    fn is_unexpected_eof(err: &ImageError) -> bool {
+        matches!(err, ImageError::IoError(e) if e.kind() == io::ErrorKind::UnexpectedEof)
+    }
+
+    /// Test resumable decoding with various BMP formats.
+    /// Verifies that read_metadata() and read_image_data() can be retried after
+    /// UnexpectedEof and produce identical results to normal decoding.
+    #[test]
+    fn test_resumable_decoding() {
+        use crate::ImageDecoder;
+
+        // Test multiple BMP formats to ensure resumable decoding works across variants
+        let test_files = [
+            "tests/images/bmp/images/Info_R8_G8_B8.bmp", // 24-bit RGB
+            "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp", // 32-bit RGBA
+            "tests/images/bmp/images/Info_8_Bit.bmp",    // 8-bit palette
+            "tests/images/bmp/images/Core_8_Bit.bmp",    // Core header + palette
+            "tests/images/bmp/images/pal8rle.bmp",       // 8-bit RLE
+            "tests/images/bmp/images/pal4rle.bmp",       // 4-bit RLE
+            "tests/images/bmp/images/rgb24prof.bmp",     // 24-bit with ICC profile
+        ];
+
+        for path in test_files {
+            let data = std::fs::read(path).unwrap();
+            let file_size = data.len();
+
+            // Get reference result from normal decoding
+            let ref_decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
+            let expected_bytes = ref_decoder.total_bytes() as usize;
+            let mut ref_buf = vec![0u8; expected_bytes];
+            ref_decoder.read_image(&mut ref_buf).unwrap();
+
+            // Test resumable decoding with simulated streaming
+            let reader = PartialReader::new(data);
+            let mut decoder = BmpDecoder::new_resumable(reader);
+
+            // Phase 1: Stream bytes until metadata succeeds
+            let mut bytes_available = 0;
+            loop {
+                decoder.reader.set_available(bytes_available);
+                match decoder.read_metadata() {
+                    Ok(()) => break,
+                    Err(ref e) if is_unexpected_eof(e) => {
+                        // Simulate more data arriving (add 10 bytes at a time)
+                        bytes_available += 10;
+                        assert!(
+                            bytes_available <= file_size,
+                            "{}: metadata should succeed before EOF",
+                            path
+                        );
+                    }
+                    Err(e) => {
+                        assert!(false, "{}: unexpected error during metadata: {:?}", path, e);
+                    }
+                }
+            }
+
+            // Verify dimensions are available after metadata
+            let (width, height) = decoder.dimensions();
+            assert!(width > 0 && height > 0, "{}: invalid dimensions", path);
+            assert_eq!(
+                decoder.total_bytes() as usize,
+                expected_bytes,
+                "{}: total_bytes mismatch",
+                path
+            );
+
+            // Phase 2: Stream bytes until image data succeeds
+            let mut buf = vec![0u8; expected_bytes];
+            loop {
+                decoder.reader.set_available(bytes_available);
+                match decoder.read_image_data(&mut buf) {
+                    Ok(()) => break,
+                    Err(ref e) if is_unexpected_eof(e) => {
+                        bytes_available += 100;
+                        assert!(
+                            bytes_available <= file_size + 100, // Allow small overshoot due to chunk size
+                            "{}: image data should succeed before EOF",
+                            path
+                        );
+                    }
+                    Err(e) => {
+                        assert!(
+                            false,
+                            "{}: unexpected error during image data: {:?}",
+                            path, e
+                        );
+                    }
+                }
+            }
+
+            // Verify decoded data matches reference
+            assert_eq!(buf, ref_buf, "{}: decoded data mismatch", path);
+        }
     }
 }

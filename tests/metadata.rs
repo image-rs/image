@@ -135,7 +135,7 @@ fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
 }
 
 #[test]
-#[cfg(feature = "avif")]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
 fn test_read_avif_compatible_brands() -> Result<(), image::ImageError> {
     use image::{DynamicImage, RgbImage};
     use std::io::Cursor;

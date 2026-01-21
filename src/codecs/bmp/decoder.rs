@@ -1098,7 +1098,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 // Seek back to the start for retry
                 // Note: For no_file_header mode, this seeks to position 0 which is where
                 // the DIB header starts (no file header to skip)
-                let _ = self.reader.seek(SeekFrom::Start(0));
+                self.reader.seek(SeekFrom::Start(0))?;
                 Err(e)
             }
             Err(e) => Err(e),
@@ -1701,7 +1701,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             Ok(()) => Ok(()),
             Err(e) if Self::is_unexpected_eof(&e) => {
                 // Seek back to the start of image data for retry
-                let _ = self.reader.seek(SeekFrom::Start(self.data_offset));
+                self.reader.seek(SeekFrom::Start(self.data_offset))?;
                 Err(e)
             }
             Err(e) => Err(e),

@@ -425,6 +425,21 @@ fn calculate_row_padding(bytes_per_row: usize) -> usize {
     (4 - (bytes_per_row % 4)) % 4
 }
 
+/// Allocate a row buffer with OOM protection.
+fn allocate_row_buffer(size: usize) -> ImageResult<Vec<u8>> {
+    let mut buffer = vec_try_with_capacity(size).map_err(|_| {
+        ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+            ImageFormat::Bmp.into(),
+            UnsupportedErrorKind::GenericFeature(format!(
+                "Row buffer allocation ({} bytes) too large",
+                size
+            )),
+        ))
+    })?;
+    buffer.resize(size, 0);
+    Ok(buffer)
+}
+
 /// Convenience function to check if the combination of width, length and number of
 /// channels would result in a buffer that would overflow.
 fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
@@ -660,22 +675,19 @@ impl Bitfields {
     }
 }
 
-/// Helper to read RLE data with buffering to minimize system calls.
-struct RleReader<R> {
-    buf_reader: io::BufReader<R>,
+/// Helper to read RLE data using the already-buffered reader.
+/// Avoids double-buffering since BmpDecoder already requires BufRead.
+struct RleReader<'a, R> {
+    reader: &'a mut R,
 }
 
-impl<R: io::Read> RleReader<R> {
-    const RLE_BUFFER_SIZE: usize = 8192;
-
-    fn new(reader: R) -> Self {
-        Self {
-            buf_reader: io::BufReader::with_capacity(Self::RLE_BUFFER_SIZE, reader),
-        }
+impl<'a, R: BufRead> RleReader<'a, R> {
+    fn new(reader: &'a mut R) -> Self {
+        Self { reader }
     }
 
     fn read_byte(&mut self) -> io::Result<u8> {
-        let buf = self.buf_reader.fill_buf()?;
+        let buf = self.reader.fill_buf()?;
         if buf.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
@@ -683,35 +695,31 @@ impl<R: io::Read> RleReader<R> {
             ));
         }
         let byte = buf[0];
-        self.buf_reader.consume(1);
+        self.reader.consume(1);
         Ok(byte)
     }
 
-    fn read_bytes(&mut self, count: usize) -> io::Result<Vec<u8>> {
-        let mut output = vec_try_with_capacity(count).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::OutOfMemory,
-                "failed to allocate buffer for RLE data",
-            )
-        })?;
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        let mut remaining = buf.len();
+        let mut offset = 0;
 
-        let mut remaining = count;
         while remaining > 0 {
-            let buf = self.buf_reader.fill_buf()?;
-            if buf.is_empty() {
+            let available = self.reader.fill_buf()?;
+            if available.is_empty() {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "unexpected end of RLE data",
                 ));
             }
 
-            let to_read = remaining.min(buf.len());
-            output.extend_from_slice(&buf[..to_read]);
-            self.buf_reader.consume(to_read);
+            let to_read = remaining.min(available.len());
+            buf[offset..offset + to_read].copy_from_slice(&available[..to_read]);
+            self.reader.consume(to_read);
+            offset += to_read;
             remaining -= to_read;
         }
 
-        Ok(output)
+        Ok(())
     }
 }
 
@@ -738,11 +746,11 @@ pub struct BmpDecoder<R> {
     icc_profile: Option<Vec<u8>>,
 }
 
-enum RLEInsn {
+enum RLEInsn<'a> {
     EndOfFile,
     EndOfRow,
     Delta(u8, u8),
-    Absolute(u8, Vec<u8>),
+    Absolute(u8, &'a [u8]),
     PixelRun(u8, u8),
 }
 
@@ -1270,7 +1278,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let row_data_len = self.width as usize * 2;
         let row_padding_len = calculate_row_padding(row_data_len);
         let total_row_len = row_data_len + row_padding_len;
-        let mut row_buffer = vec![0u8; total_row_len];
+
+        let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
         with_rows(
             buf,
@@ -1281,11 +1290,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             |row| {
                 reader.read_exact(&mut row_buffer)?;
 
-                for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
-                    let offset = i * 2;
-                    let data = u32::from(u16::from_le_bytes(
-                        row_buffer[offset..offset + 2].try_into().unwrap(),
-                    ));
+                for (row_data, pixel) in row_buffer
+                    .chunks_exact(2)
+                    .zip(row.chunks_exact_mut(num_channels))
+                {
+                    let data = u32::from(u16::from_le_bytes(row_data.try_into().unwrap()));
 
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
@@ -1316,7 +1325,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         // Calculate row size in bytes (4 bytes per pixel, no padding for 32-bit)
         let row_data_len = self.width as usize * 4;
-        let mut row_buffer = vec![0u8; row_data_len];
+
+        let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
         with_rows(
             buf,
@@ -1327,10 +1337,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             |row| {
                 reader.read_exact(&mut row_buffer)?;
 
-                for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
-                    let offset = i * 4;
-                    let data =
-                        u32::from_le_bytes(row_buffer[offset..offset + 4].try_into().unwrap());
+                for (row_data, pixel) in row_buffer
+                    .chunks_exact(4)
+                    .zip(row.chunks_exact_mut(num_channels))
+                {
+                    let data = u32::from_le_bytes(row_data.try_into().unwrap());
 
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
@@ -1371,7 +1382,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.reader.seek(SeekFrom::Start(self.data_offset))?;
 
         let reader = &mut self.reader;
-        let mut row_buffer = vec![0u8; total_row_len];
+
+        let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
         with_rows(
             buf,
@@ -1427,6 +1439,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Wrap reader in buffered RLE reader for efficient byte-by-byte access
         let mut rle_reader = RleReader::new(&mut self.reader);
 
+        // Pre-allocate buffer for RLE absolute mode (max 256 bytes)
+        let mut rle_indices_buffer = [0u8; 256];
+
         while let Some(row) = row_iter.next() {
             let mut pixel_iter = row.chunks_exact_mut(num_channels);
 
@@ -1453,8 +1468,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         length = length.div_ceil(2);
                                     }
                                     length += length & 1;
-                                    let indices = rle_reader.read_bytes(length)?;
-                                    RLEInsn::Absolute(op, indices)
+                                    rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
+                                    RLEInsn::Absolute(op, &rle_indices_buffer[..length])
                                 }
                             }
                         }

@@ -45,6 +45,59 @@ where
     }
 }
 
+#[cfg(feature = "tiff")]
+#[test]
+fn tiff_compress_deflate() {
+    use image::codecs::tiff::{CompressionType, TiffDeflateLevel, TiffEncoder};
+
+    process_images(IMAGE_DIR, Some("tiff"), |_base, path, _| {
+        println!("compress_images {}", path.display());
+        let img = match image::open(&path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(e)) => {
+                println!("UNSUPPORTED {}: {e}", path.display());
+                return;
+            }
+            Err(err) => panic!("decoding of {path:?} failed with: {err}"),
+        };
+
+        let encoder = TiffEncoder::new_with_compression(
+            std::io::Cursor::new(vec![]),
+            CompressionType::Deflate(TiffDeflateLevel::Balanced),
+        );
+
+        img.write_with_encoder(encoder).unwrap();
+    })
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+fn tiff_compress_lzw() {
+    use image::codecs::tiff::{CompressionType, TiffEncoder};
+
+    process_images(IMAGE_DIR, Some("tiff"), |_base, path, _| {
+        println!("compress_images {}", path.display());
+        let img = match image::open(&path) {
+            Ok(img) => img,
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::Unsupported(e)) => {
+                println!("UNSUPPORTED {}: {e}", path.display());
+                return;
+            }
+            Err(err) => panic!("decoding of {path:?} failed with: {err}"),
+        };
+
+        let encoder =
+            TiffEncoder::new_with_compression(std::io::Cursor::new(vec![]), CompressionType::Lzw);
+        img.write_with_encoder(encoder).unwrap();
+    })
+}
+
 #[cfg(feature = "png")]
 #[test]
 fn render_images() {

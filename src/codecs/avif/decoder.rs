@@ -76,7 +76,7 @@ impl Error for AvifDecoderError {}
 impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
-        let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
+        let ctx = read_avif(&mut r, ParseStrictness::Permissive).map_err(error_map)?;
         let coded = ctx.primary_item_coded_data().unwrap_or_default();
 
         let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;

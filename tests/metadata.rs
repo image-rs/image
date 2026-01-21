@@ -4,6 +4,8 @@ use std::str::FromStr;
 
 use image::ImageDecoder;
 
+#[cfg(all(feature = "avif", feature = "avif-native"))]
+use image::codecs::avif::AvifDecoder;
 #[cfg(feature = "jpeg")]
 use image::codecs::jpeg::JpegDecoder;
 #[cfg(feature = "png")]
@@ -128,6 +130,32 @@ fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
     let metadata = tiff_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, &metadata.unwrap());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
+fn test_read_avif_compatible_brands() -> Result<(), image::ImageError> {
+    use image::{DynamicImage, RgbImage};
+    use std::io::Cursor;
+    // See details at:
+    // https://source.chromium.org/chromium/chromium/src/+/823926119c0be100cc814c5e04bc4aa672785265:third_party/blink/renderer/platform/image-decoders/image_decoder_test.cc;l=349-366
+    // This test verifies the edge case of that the decoder can handle AVIF files with major_brand "mif1" or the other
+
+    // Generate a minimal 1x1 pixel AVIF image
+    let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(1, 1, image::Rgb([255, 0, 0])));
+    let mut data = Vec::new();
+    image.write_to(&mut Cursor::new(&mut data), image::ImageFormat::Avif)?;
+
+    assert_eq!(&data[4..8], b"ftyp");
+
+    // Modify the major_brand to "mif1" at offset 8-11 in the ftyp box
+    data[8..12].copy_from_slice(b"mif1");
+
+    // Verify decoder can successfully parse the file even though major_brand is "mif1"
+    let decoder = AvifDecoder::new(Cursor::new(&data));
+    assert!(decoder.is_ok());
 
     Ok(())
 }

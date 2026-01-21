@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use image::ImageDecoder;
 
-#[cfg(feature = "avif")]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
 use image::codecs::avif::AvifDecoder;
 #[cfg(feature = "jpeg")]
 use image::codecs::jpeg::JpegDecoder;

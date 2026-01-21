@@ -1993,7 +1993,7 @@ mod test {
                         );
                     }
                     Err(e) => {
-                        assert!(false, "{}: unexpected error during metadata: {:?}", path, e);
+                        panic!("{}: unexpected error during metadata: {:?}", path, e);
                     }
                 }
             }
@@ -2023,11 +2023,7 @@ mod test {
                         );
                     }
                     Err(e) => {
-                        assert!(
-                            false,
-                            "{}: unexpected error during image data: {:?}",
-                            path, e
-                        );
+                        panic!("{}: unexpected error during image data: {:?}", path, e);
                     }
                 }
             }

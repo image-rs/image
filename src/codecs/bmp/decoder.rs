@@ -261,17 +261,23 @@ enum ImageType {
     Bitfields32,
 }
 
-/// Decoder state for coarse-grained resumable decoding.
+/// Decoder state for resumable decoding.
 ///
-/// This allows the decoder to recover from `UnexpectedEof` errors by
-/// restarting from the beginning of the current phase (metadata or image data).
+/// This allows the decoder to recover from `UnexpectedEof` errors.
+/// For row-based formats, decoding can resume from the last successfully
+/// decoded row. For RLE formats, decoding restarts from the beginning.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
     /// Initial state, ready to read metadata.
     #[default]
     ReadingMetadata,
-    /// Metadata has been read, ready to read image data.
-    ReadingImageData,
+    /// Currently reading row-based (non-RLE) image data.
+    /// Stores the number of rows successfully decoded.
+    ReadingRowData { rows_decoded: u32 },
+    /// Currently reading RLE-compressed data.
+    /// RLE cannot be resumed at row boundaries due to its sequential nature,
+    /// so we restart from the beginning on UnexpectedEof.
+    ReadingRleData,
     /// Image data has been fully decoded.
     ImageDecoded,
 }
@@ -483,35 +489,59 @@ fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
     }
 }
 
-/// Call the provided function on each row of the provided buffer, returning Err if the provided
-/// function returns an error, extends the buffer if it's not large enough.
-fn with_rows<F>(
+/// Process rows with resumability support.
+///
+/// Calls `func` for each row from `start_row` to `height`, passing the output row slice.
+/// On success, returns the total number of rows (height).
+/// On error, returns the number of rows successfully completed before the error.
+///
+/// The caller is responsible for seeking to the correct file position before calling.
+fn with_rows_resumable<F>(
     buffer: &mut [u8],
     width: i32,
     height: i32,
     channels: usize,
     top_down: bool,
+    start_row: u32,
     mut func: F,
-) -> io::Result<()>
+) -> Result<u32, (u32, io::Error)>
 where
     F: FnMut(&mut [u8]) -> io::Result<()>,
 {
     // An overflow should already have been checked for when this is called,
     // though we check anyhow, as it somehow seems to increase performance slightly.
     let row_width = channels.checked_mul(width as usize).unwrap();
-    let full_image_size = row_width.checked_mul(height as usize).unwrap();
-    assert_eq!(buffer.len(), full_image_size);
+    let height = height as u32;
 
-    if !top_down {
-        for row in buffer.chunks_mut(row_width).rev() {
-            func(row)?;
-        }
-    } else {
-        for row in buffer.chunks_mut(row_width) {
-            func(row)?;
+    /// Get the index of a row in the output buffer given the file row index.
+    /// For top-down images, row 0 in the file is row 0 in the buffer.
+    /// For bottom-up images, row 0 in the file is the last row in the buffer.
+    #[inline]
+    fn output_row_index(file_row: u32, height: u32, top_down: bool) -> usize {
+        if top_down {
+            file_row as usize
+        } else {
+            (height - 1 - file_row) as usize
         }
     }
-    Ok(())
+
+    /// Get a mutable reference to a specific row in the output buffer.
+    #[inline]
+    fn get_row_mut(buf: &mut [u8], row_index: usize, row_stride: usize) -> &mut [u8] {
+        let start = row_index * row_stride;
+        let end = start + row_stride;
+        &mut buf[start..end]
+    }
+
+    for file_row in start_row..height {
+        let out_row_idx = output_row_index(file_row, height, top_down);
+        let row = get_row_mut(buffer, out_row_idx, row_width);
+
+        if let Err(e) = func(row) {
+            return Err((file_row, e));
+        }
+    }
+    Ok(height)
 }
 
 fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
@@ -1092,7 +1122,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         match self.read_metadata_impl() {
             Ok(()) => {
-                self.state = DecoderState::ReadingImageData;
+                // Transition directly to the appropriate image reading state
+                self.state = if self.is_rle() {
+                    DecoderState::ReadingRleData
+                } else {
+                    DecoderState::ReadingRowData { rows_decoded: 0 }
+                };
                 Ok(())
             }
             Err(e) => Err(e),
@@ -1318,22 +1353,27 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut indices = vec![0; row_byte_length];
         let palette = self.palette.as_ref().unwrap();
         let bit_count = self.bit_count;
-        let reader = &mut self.reader;
         let width = self.width as usize;
         let skip_palette = self.indexed_color;
 
-        reader.seek(SeekFrom::Start(self.data_offset))?;
+        let start_row = self.rows_decoded();
 
-        if num_channels == 4 {
+        let file_offset = self.data_offset + (start_row as u64 * row_byte_length as u64);
+        self.reader.seek(SeekFrom::Start(file_offset))?;
+
+        // Set alpha to opaque for all pixels if needed (only on first call)
+        if start_row == 0 && num_channels == 4 {
             buf.chunks_exact_mut(4).for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
-        with_rows(
+        let reader = &mut self.reader;
+        let result = with_rows_resumable(
             buf,
             self.width,
             self.height,
             num_channels,
             self.top_down,
+            start_row,
             |row| {
                 reader.read_exact(&mut indices)?;
                 if skip_palette {
@@ -1358,9 +1398,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
                 Ok(())
             },
-        )?;
+        );
 
-        Ok(())
+        self.finish_row_decode(result)
     }
 
     fn read_16_bit_pixel_data(
@@ -1373,95 +1413,102 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap(),
         };
-        let reader = &mut self.reader;
 
-        reader.seek(SeekFrom::Start(self.data_offset))?;
-
-        // Calculate row size in bytes (2 bytes per pixel + padding)
         let row_data_len = self.width as usize * 2;
         let row_padding_len = calculate_row_padding(row_data_len);
         let total_row_len = row_data_len + row_padding_len;
 
+        let start_row = self.rows_decoded();
+        let width = self.width;
+        let height = self.height;
+        let top_down = self.top_down;
+
+        let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
+        self.reader.seek(SeekFrom::Start(file_offset))?;
+
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
-        with_rows(
+        let reader = &mut self.reader;
+        let result = with_rows_resumable(
             buf,
-            self.width,
-            self.height,
+            width,
+            height,
             num_channels,
-            self.top_down,
+            top_down,
+            start_row,
             |row| {
                 reader.read_exact(&mut row_buffer)?;
-
                 for (row_data, pixel) in row_buffer
                     .chunks_exact(2)
                     .zip(row.chunks_exact_mut(num_channels))
                 {
                     let data = u32::from(u16::from_le_bytes(row_data.try_into().unwrap()));
-
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
                     if num_channels == 4 {
-                        if bitfields.a.len != 0 {
-                            pixel[3] = bitfields.a.read(data);
+                        pixel[3] = if bitfields.a.len != 0 {
+                            bitfields.a.read(data)
                         } else {
-                            pixel[3] = ALPHA_OPAQUE;
-                        }
+                            ALPHA_OPAQUE
+                        };
                     }
                 }
                 Ok(())
             },
-        )?;
+        );
 
-        Ok(())
+        self.finish_row_decode(result)
     }
 
     /// Read image data from a reader in 32-bit formats that use bitfields.
     fn read_32_bit_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         let num_channels = self.num_channels();
-
         let bitfields = self.bitfields.as_ref().unwrap();
 
-        let reader = &mut self.reader;
-        reader.seek(SeekFrom::Start(self.data_offset))?;
-
-        // Calculate row size in bytes (4 bytes per pixel, no padding for 32-bit)
         let row_data_len = self.width as usize * 4;
+
+        let start_row = self.rows_decoded();
+        let width = self.width;
+        let height = self.height;
+        let top_down = self.top_down;
+
+        let file_offset = self.data_offset + (start_row as u64 * row_data_len as u64);
+        self.reader.seek(SeekFrom::Start(file_offset))?;
 
         let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
-        with_rows(
+        let reader = &mut self.reader;
+        let result = with_rows_resumable(
             buf,
-            self.width,
-            self.height,
+            width,
+            height,
             num_channels,
-            self.top_down,
+            top_down,
+            start_row,
             |row| {
                 reader.read_exact(&mut row_buffer)?;
-
                 for (row_data, pixel) in row_buffer
                     .chunks_exact(4)
                     .zip(row.chunks_exact_mut(num_channels))
                 {
                     let data = u32::from_le_bytes(row_data.try_into().unwrap());
-
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
                     if num_channels == 4 {
-                        if bitfields.a.len != 0 {
-                            pixel[3] = bitfields.a.read(data);
+                        pixel[3] = if bitfields.a.len != 0 {
+                            bitfields.a.read(data)
                         } else {
-                            pixel[3] = ALPHA_OPAQUE;
-                        }
+                            ALPHA_OPAQUE
+                        };
                     }
                 }
                 Ok(())
             },
-        )?;
+        );
 
-        Ok(())
+        self.finish_row_decode(result)
     }
 
     /// Read image data from a reader where the colours are stored as 8-bit values (24 or 32-bit).
@@ -1482,18 +1529,24 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         };
         let total_row_len = row_data_len + row_padding_len;
 
-        self.reader.seek(SeekFrom::Start(self.data_offset))?;
+        let start_row = self.rows_decoded();
+        let width = self.width;
+        let height = self.height;
+        let top_down = self.top_down;
 
-        let reader = &mut self.reader;
+        let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
+        self.reader.seek(SeekFrom::Start(file_offset))?;
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
-        with_rows(
+        let reader = &mut self.reader;
+        let result = with_rows_resumable(
             buf,
-            self.width,
-            self.height,
+            width,
+            height,
             num_channels,
-            self.top_down,
+            top_down,
+            start_row,
             |row| {
                 reader.read_exact(&mut row_buffer)?;
 
@@ -1521,9 +1574,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
                 Ok(())
             },
-        )?;
+        );
 
-        Ok(())
+        self.finish_row_decode(result)
     }
 
     fn read_rle_data(&mut self, buf: &mut [u8], image_type: ImageType) -> ImageResult<()> {
@@ -1697,12 +1750,38 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Determine if the current image type is RLE-compressed.
+    fn is_rle(&self) -> bool {
+        matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8)
+    }
+
+    /// Get the current number of rows decoded from the state.
+    /// Returns 0 for non-row-based states.
+    fn rows_decoded(&self) -> u32 {
+        match self.state {
+            DecoderState::ReadingRowData { rows_decoded } => rows_decoded,
+            _ => 0,
+        }
+    }
+
+    /// Handle the result of a row-based decode operation, updating state accordingly.
+    fn finish_row_decode(&mut self, result: Result<u32, (u32, io::Error)>) -> ImageResult<()> {
+        let rows = match &result {
+            Ok(r) => *r,
+            Err((r, _)) => *r,
+        };
+        self.state = DecoderState::ReadingRowData { rows_decoded: rows };
+        result.map(|_| ()).map_err(|(_, e)| e.into())
+    }
+
     /// Read the actual pixel data of the image.
     ///
     /// Must be called after `read_metadata()` succeeds. On `UnexpectedEof`, the decoder
     /// can be retried - each format reader seeks to the correct position at the start.
-    /// Buffer contents are undefined after an error. Once successful, subsequent calls
-    /// are no-ops.
+    ///
+    /// For row-based formats (non-RLE), already-decoded rows are preserved in the buffer
+    /// and decoding resumes from the next row. For RLE formats, decoding restarts from
+    /// the beginning and buffer contents are undefined after an error.
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         if self.state == DecoderState::ImageDecoded {
             // Already decoded, nothing to do
@@ -1958,22 +2037,23 @@ mod test {
     /// Test resumable decoding with various BMP formats.
     /// Verifies that read_metadata() and read_image_data() can be retried after
     /// UnexpectedEof and produce identical results to normal decoding.
+    /// Also verifies row-level progress for non-RLE formats.
     #[test]
     fn test_resumable_decoding() {
         use crate::ImageDecoder;
 
         // Test multiple BMP formats to ensure resumable decoding works across variants
         let test_files = [
-            "tests/images/bmp/images/Info_R8_G8_B8.bmp", // 24-bit RGB
-            "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp", // 32-bit RGBA
-            "tests/images/bmp/images/Info_8_Bit.bmp",    // 8-bit palette
-            "tests/images/bmp/images/Core_8_Bit.bmp",    // Core header + palette
-            "tests/images/bmp/images/pal8rle.bmp",       // 8-bit RLE
-            "tests/images/bmp/images/pal4rle.bmp",       // 4-bit RLE
-            "tests/images/bmp/images/rgb24prof.bmp",     // 24-bit with ICC profile
+            ("tests/images/bmp/images/Info_R8_G8_B8.bmp", false), // 24-bit RGB
+            ("tests/images/bmp/images/Info_A8_R8_G8_B8.bmp", false), // 32-bit RGBA
+            ("tests/images/bmp/images/Info_8_Bit.bmp", false),    // 8-bit palette
+            ("tests/images/bmp/images/Core_8_Bit.bmp", false),    // Core header + palette
+            ("tests/images/bmp/images/pal8rle.bmp", true),        // 8-bit RLE
+            ("tests/images/bmp/images/pal4rle.bmp", true),        // 4-bit RLE
+            ("tests/images/bmp/images/rgb24prof.bmp", false),     // 24-bit with ICC profile
         ];
 
-        for path in test_files {
+        for (path, is_rle) in test_files {
             let data = std::fs::read(path).unwrap();
             let file_size = data.len();
 
@@ -2025,6 +2105,24 @@ mod test {
                 match decoder.read_image_data(&mut buf) {
                     Ok(()) => break,
                     Err(ref e) if is_unexpected_eof(e) => {
+                        // For non-RLE formats, verify state tracks row progress
+                        if !is_rle {
+                            match decoder.state {
+                                DecoderState::ReadingRowData { rows_decoded } => {
+                                    // rows_decoded should be less than height (not complete)
+                                    assert!(
+                                        rows_decoded < height,
+                                        "{}: completed {}/{} rows but expected incomplete on partial data",
+                                        path, rows_decoded, height
+                                    );
+                                }
+                                _ => panic!(
+                                    "{}: expected ReadingRowData state for non-RLE format, got {:?}",
+                                    path, decoder.state
+                                ),
+                            }
+                        }
+
                         bytes_available += 100;
                         assert!(
                             bytes_available <= file_size + 100, // Allow small overshoot due to chunk size

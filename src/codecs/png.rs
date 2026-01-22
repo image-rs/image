@@ -179,6 +179,36 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         self.color_type
     }
 
+    fn original_color_type(&self) -> ExtendedColorType {
+        match (self.reader.info().color_type, self.reader.info().bit_depth) {
+            (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
+            (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
+            (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
+            (png::ColorType::Grayscale, png::BitDepth::Eight) => ExtendedColorType::L8,
+            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ExtendedColorType::L16,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => ExtendedColorType::La1,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => ExtendedColorType::La2,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => ExtendedColorType::La4,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ExtendedColorType::La8,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ExtendedColorType::La16,
+            (png::ColorType::Rgb, png::BitDepth::One) => ExtendedColorType::Rgb1,
+            (png::ColorType::Rgb, png::BitDepth::Two) => ExtendedColorType::Rgb2,
+            (png::ColorType::Rgb, png::BitDepth::Four) => ExtendedColorType::Rgb4,
+            (png::ColorType::Rgb, png::BitDepth::Eight) => ExtendedColorType::Rgb8,
+            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ExtendedColorType::Rgb16,
+            (png::ColorType::Rgba, png::BitDepth::One) => ExtendedColorType::Rgba1,
+            (png::ColorType::Rgba, png::BitDepth::Two) => ExtendedColorType::Rgba2,
+            (png::ColorType::Rgba, png::BitDepth::Four) => ExtendedColorType::Rgba4,
+            (png::ColorType::Rgba, png::BitDepth::Eight) => ExtendedColorType::Rgba8,
+            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ExtendedColorType::Rgba16,
+            (png::ColorType::Indexed, png::BitDepth::One) => ExtendedColorType::Unknown(1),
+            (png::ColorType::Indexed, png::BitDepth::Two) => ExtendedColorType::Unknown(2),
+            (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
+            (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
+            (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
+        }
+    }
+
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }

@@ -6,11 +6,14 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::io;
+use std::fs::File;
+use std::io::{self, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
 
 use crc32fast::Hasher as Crc32;
+use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+use image::codecs::tiff::TiffEncoder;
 use image::ColorType;
 use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -201,7 +204,19 @@ fn main() {
             };
             let output_filename = format!("{}.{test_crc_actual:08x}.{ext}", case.orig_filename);
             let output_path = output_dir.join(output_filename);
-            match test_img.save(&output_path) {
+            fs::create_dir_all(output_dir).unwrap();
+
+            let ret = if ext == "png" {
+                test_img.write_with_encoder(PngEncoder::new_with_quality(
+                    BufWriter::new(File::create(&output_path).unwrap()),
+                    CompressionType::Best,
+                    FilterType::Adaptive,
+                ))
+            } else {
+                test_img.save(&output_path)
+            };
+
+            match ret {
                 Ok(()) => error.push_str(&format!(
                     "\n\n    New reference saved to: {}",
                     output_path.display()

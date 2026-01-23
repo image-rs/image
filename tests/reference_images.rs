@@ -4,7 +4,6 @@
 //! `tests/reference/...` and compares them to the associated file in
 //! `tests/images/...`.
 
-use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufWriter};
@@ -13,7 +12,6 @@ use std::str::FromStr;
 
 use crc32fast::Hasher as Crc32;
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
-use image::codecs::tiff::TiffEncoder;
 use image::ColorType;
 use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -31,14 +29,6 @@ fn main() {
     let output_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("output");
-
-    let mut images = BTreeSet::new();
-    for entry in WalkDir::new(&image_dir) {
-        let entry = entry.unwrap();
-        if entry.file_type().is_file() {
-            images.insert(entry.into_path());
-        }
-    }
 
     for entry in WalkDir::new(&reference_dir) {
         let entry = entry.unwrap();
@@ -62,8 +52,6 @@ fn main() {
 
         let original_relative_path = relative_path.parent().unwrap().join(&case.orig_filename);
         let img_path = image_dir.join(&original_relative_path);
-
-        images.remove(&img_path);
 
         let test_name = match case.kind {
             ReferenceTestKind::AnimatedFrame { frame } => format!(

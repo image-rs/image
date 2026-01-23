@@ -11,7 +11,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crc32fast::Hasher as Crc32;
-use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::ColorType;
 use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -194,14 +193,19 @@ fn main() {
             let output_path = output_dir.join(output_filename);
             fs::create_dir_all(output_dir).unwrap();
 
-            let ret = if ext == "png" {
-                test_img.write_with_encoder(PngEncoder::new_with_quality(
-                    BufWriter::new(File::create(&output_path).unwrap()),
-                    CompressionType::Best,
-                    FilterType::Adaptive,
-                ))
-            } else {
-                test_img.save(&output_path)
+            let ret = match test_img.color() {
+                ColorType::Rgb32F | ColorType::Rgba32F => test_img.save(&output_path),
+                #[cfg(feature = "png")]
+                _ => {
+                    use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+                    test_img.write_with_encoder(PngEncoder::new_with_quality(
+                        BufWriter::new(File::create(&output_path).unwrap()),
+                        CompressionType::Best,
+                        FilterType::Adaptive,
+                    ))
+                }
+                #[cfg(not(feature = "png"))]
+                _ => unreachable!(),
             };
 
             match ret {

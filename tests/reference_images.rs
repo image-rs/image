@@ -66,12 +66,10 @@ fn main() {
             }
         };
 
-        let image_format = img_path
-            .extension()
-            .and_then(|ext| ImageFormat::from_extension(ext));
+        let image_format = img_path.extension().and_then(ImageFormat::from_extension);
         let reference_format = relative_path
             .extension()
-            .and_then(|ext| ImageFormat::from_extension(ext))
+            .and_then(ImageFormat::from_extension)
             .expect("reference image with unknown extension");
 
         if image_format.is_none() {

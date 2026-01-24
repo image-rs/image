@@ -70,6 +70,8 @@ num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
 criterion = "0.5.0"
+libtest-mimic = "0.8.1"
+walkdir = "2.5.0"
 
 [features]
 default = ["rayon", "default-formats"]
@@ -124,6 +126,11 @@ harness = false
 [[bench]]
 path = "benches/blur.rs"
 name = "blur"
+harness = false
+
+[[test]]
+path = "tests/reference_images.rs"
+name = "reference_images"
 harness = false
 
 # because of https://github.com/image-rs/image/pull/2583

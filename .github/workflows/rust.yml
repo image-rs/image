@@ -39,14 +39,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.85.0", nightly, beta]
+        rust: ["1.88.0", nightly, beta]
     steps:
     - uses: actions/checkout@v4
 
     - uses: dtolnay/rust-toolchain@nightly
-      if: ${{ matrix.rust == '1.85.0' }}
+      if: ${{ matrix.rust == '1.88.0' }}
     - name: Generate Cargo.lock with minimal-version dependencies
-      if: ${{ matrix.rust == '1.85.0' }}
+      if: ${{ matrix.rust == '1.88.0' }}
       run: |
         cargo -Zminimal-versions generate-lockfile
         cargo update --offline num-bigint --precise 0.4.2
@@ -61,7 +61,7 @@ jobs:
     - name: build
       run: cargo build -v
     - name: test
-      if: ${{ matrix.rust != '1.85.0' }}
+      if: ${{ matrix.rust != '1.88.0' }}
       run: cargo test -v && cargo doc -v
 
   test_other_archs:

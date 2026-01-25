@@ -33,6 +33,7 @@ where
 
     // We only use an Option here so we can call with_limits on the decoder without moving.
     inner: Option<Decoder<R>>,
+    buffer: DecodingResult,
 }
 
 impl<R> TiffDecoder<R>
@@ -54,21 +55,6 @@ where
             }
             Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
-        }
-
-        let planar_config = inner
-            .find_tag(Tag::PlanarConfiguration)
-            .map(|res| res.and_then(|r| r.into_u16().ok()).unwrap_or_default())
-            .unwrap_or_default();
-
-        // Decode not supported for non Chunky Planar Configuration
-        if planar_config > 1 {
-            Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tiff.into(),
-                    UnsupportedErrorKind::GenericFeature(String::from("PlanarConfiguration = 2")),
-                ),
-            ))?;
         }
 
         let color_type = match tiff_color_type {
@@ -118,6 +104,7 @@ where
             color_type,
             original_color_type,
             inner: Some(inner),
+            buffer: DecodingResult::U8(vec![]),
         })
     }
 
@@ -132,6 +119,66 @@ where
             _ => u64::from(self.color_type().bytes_per_pixel()),
         };
         total_pixels.saturating_mul(bytes_per_pixel)
+    }
+
+    /// Interleave planes in our `buffer` into `output`.
+    fn interleave_planes(
+        &mut self,
+        layout: tiff::decoder::BufferLayoutPreference,
+        output: &mut [u8],
+    ) -> ImageResult<()> {
+        if self.original_color_type != self.color_type.into() {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Planar TIFF with CMYK color type is not supported".to_string(),
+                    ),
+                ),
+            ));
+        }
+
+        // This only works if we and `tiff` agree on the layout, including the color type, of
+        // the sample matrix.
+        //
+        // TODO: triple buffer in the other case and fixup the planar layout independent of
+        // sample type. Problem description follows:
+        //
+        // That will suck since we can't call `interleave_planes` with a `ColorType` argument,
+        // Changing that parameter to `ExtendedColorType` is a can of worms, and exposing the
+        // underlying generic function is an optimization killer (we may want to help LLVM
+        // optimize this interleaving by SIMD). For LumaAlpha(1) colors we should do the bit
+        // expansion at the same time as interleaving to avoid wasting the memory traversal but
+        // expand-then-interleave is at least clear, albeit an extra buffer required. Meanwhile
+        // for `Cmyk8`/`Cmyk16` our output is smaller than the tiff buffer (4 samples to 3, or
+        // 5 to 4 if we had alpha) and not wanting multiple conversion function implementations
+        // we should interleave-then-expand?
+        //
+        // The hard part of the solution will be managing complexity.
+        let plane_stride = layout.plane_stride.map_or(0, |n| n.get());
+        let bytes = self.buffer.as_buffer(0);
+
+        let planes = bytes
+            .as_bytes()
+            .chunks_exact(plane_stride)
+            .collect::<Vec<_>>();
+
+        // Gracefully handle a mismatch of expectations. This should not occur in practice as we
+        // check that all planes have been read (see note on `read_image_to_buffer` usage below).
+        if planes.len() < usize::from(self.color_type.channel_count()) {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Tiff.into(),
+                "Not enough planes read from TIFF image".to_string(),
+            )));
+        }
+
+        utils::interleave_planes(
+            output,
+            self.color_type,
+            &planes[..usize::from(self.color_type.channel_count())],
+        );
+
+        Ok(())
     }
 }
 
@@ -319,15 +366,30 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        match self
+        let layout = self
             .inner
+            .as_mut()
             .unwrap()
-            .read_image()
-            .map_err(ImageError::from_tiff_decode)?
-        {
+            .read_image_to_buffer(&mut self.buffer)
+            .map_err(ImageError::from_tiff_decode)?;
+
+        // Check if we have all of the planes. Otherwise we ran into the allocation limit.
+        if self.buffer.as_buffer(0).as_bytes().len() < layout.complete_len {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
+        }
+
+        if layout.planes > 1 {
+            // Note that we do not support planar layouts if we have to do conversion. Yet. See a
+            // more detailed comment in the implementation.
+            return self.interleave_planes(layout, buf);
+        }
+
+        match self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
                 for cmyk in v.chunks_exact(4) {
@@ -383,6 +445,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             }
             DecodingResult::F16(_) => unreachable!(),
         }
+
         Ok(())
     }
 

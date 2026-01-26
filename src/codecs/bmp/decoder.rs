@@ -529,8 +529,7 @@ where
     #[inline]
     fn get_row_mut(buf: &mut [u8], row_index: usize, row_stride: usize) -> &mut [u8] {
         let start = row_index * row_stride;
-        let end = start + row_stride;
-        &mut buf[start..end]
+        &mut buf[start..][..row_stride]
     }
 
     for file_row in start_row..height {

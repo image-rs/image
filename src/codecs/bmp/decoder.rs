@@ -1765,12 +1765,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     /// Handle the result of a row-based decode operation, updating state accordingly.
     fn finish_row_decode(&mut self, result: Result<u32, (u32, io::Error)>) -> ImageResult<()> {
- 
-    let (Ok(rows) | Err((rows, _))) = result;
-    self.state = DecoderState::ReadingRowData { rows_decoded: rows };
-    match result {
-        Ok(_) => Ok(()),
-        Err((_, e)) => Err(e)?,
+        let (Ok(rows) | Err((rows, _))) = result;
+        self.state = DecoderState::ReadingRowData { rows_decoded: rows };
+        match result {
+            Ok(_) => Ok(()),
+            Err((_, e)) => Err(e)?,
+        }
     }
 
     /// Read the actual pixel data of the image.

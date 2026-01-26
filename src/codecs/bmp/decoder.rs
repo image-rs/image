@@ -272,6 +272,8 @@ enum DecoderState {
     ReadingMetadata,
     /// Metadata has been read, ready to read image data.
     ReadingImageData,
+    /// Image data has been fully decoded.
+    ImageDecoded,
 }
 
 #[derive(PartialEq)]
@@ -759,6 +761,9 @@ pub struct BmpDecoder<R> {
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
+
+    /// Stream position to seek to on retry.
+    seek_position: Option<u64>,
 }
 
 enum RLEInsn<'a> {
@@ -792,6 +797,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             icc_profile: None,
 
             state: DecoderState::ReadingMetadata,
+            seek_position: None,
         }
     }
 
@@ -1074,15 +1080,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Check if an error is an `UnexpectedEof` I/O error.
-    fn is_unexpected_eof(err: &ImageError) -> bool {
-        matches!(err, ImageError::IoError(e) if e.kind() == io::ErrorKind::UnexpectedEof)
-    }
-
     /// Read BMP metadata (headers, palette, etc.).
     ///
-    /// On `UnexpectedEof`, the reader is seeked back to allow retry on the same decoder.
-    /// Once successful, subsequent calls are no-ops.
+    /// On `UnexpectedEof`, the decoder can be retried - the implementation seeks to
+    /// the correct position at the start. Once successful, subsequent calls are no-ops.
     pub fn read_metadata(&mut self) -> ImageResult<()> {
         if self.state != DecoderState::ReadingMetadata {
             // Already read metadata, nothing to do
@@ -1094,19 +1095,24 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 self.state = DecoderState::ReadingImageData;
                 Ok(())
             }
-            Err(e) if Self::is_unexpected_eof(&e) => {
-                // Seek back to the start for retry
-                // Note: For no_file_header mode, this seeks to position 0 which is where
-                // the DIB header starts (no file header to skip)
-                self.reader.seek(SeekFrom::Start(0))?;
-                Err(e)
-            }
             Err(e) => Err(e),
         }
     }
 
     /// Internal implementation of metadata reading.
     fn read_metadata_impl(&mut self) -> ImageResult<()> {
+        // On first call, record the current position.
+        // On retry, seek back to the recorded position.
+        // This is needed for no_file_header mode where the BMP data may start mid-file.
+        match self.seek_position {
+            Some(pos) => {
+                self.reader.seek(SeekFrom::Start(pos))?;
+            }
+            None => {
+                self.seek_position = Some(self.reader.stream_position()?);
+            }
+        }
+
         self.read_file_header()?;
         let bmp_header_offset = self.reader.stream_position()?;
 
@@ -1693,16 +1699,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     /// Read the actual pixel data of the image.
     ///
-    /// Must be called after `read_metadata()` succeeds. On `UnexpectedEof`, the reader
-    /// is seeked back to allow retry on the same decoder. Buffer contents are undefined
-    /// after an error.
+    /// Must be called after `read_metadata()` succeeds. On `UnexpectedEof`, the decoder
+    /// can be retried - each format reader seeks to the correct position at the start.
+    /// Buffer contents are undefined after an error. Once successful, subsequent calls
+    /// are no-ops.
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        if self.state == DecoderState::ImageDecoded {
+            // Already decoded, nothing to do
+            return Ok(());
+        }
+
         match self.read_image_data_impl(buf) {
-            Ok(()) => Ok(()),
-            Err(e) if Self::is_unexpected_eof(&e) => {
-                // Seek back to the start of image data for retry
-                self.reader.seek(SeekFrom::Start(self.data_offset))?;
-                Err(e)
+            Ok(()) => {
+                self.state = DecoderState::ImageDecoded;
+                Ok(())
             }
             Err(e) => Err(e),
         }

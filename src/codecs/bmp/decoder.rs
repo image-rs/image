@@ -273,14 +273,27 @@ enum MetadataProgress {
     /// Initial state, nothing read yet.
     #[default]
     NotStarted,
-    /// Headers have been read; now reading palette (if needed).
-    /// Stores the ICC profile metadata (offset, size) for use after palette is read.
-    ReadingPalette { icc_meta: Option<(u32, u32)> },
-    /// Headers and palette (if any) have been read; now reading ICC profile (if needed).
-    /// Stores the ICC profile size for the read operation.
-    ReadingIccProfile { size: u32 },
+    /// Reading main headers (file header, DIB header, bitmasks).
+    /// Stores the start offset for seeking on retry.
+    ReadingMainHeader { start_offset: u64 },
+    /// Headers have been read; now reading palette.
+    /// Stores header offsets for subsequent phases.
+    ReadingPalette { offsets: HeaderOffsets },
+    /// Headers and palette (if any) have been read; now reading ICC profile.
+    /// Stores header offsets for the ICC profile read.
+    ReadingIccProfile { offsets: HeaderOffsets },
     /// All metadata has been read successfully.
     Complete,
+}
+
+/// Offsets and sizes discovered during header parsing.
+/// Carried through metadata phases to avoid redundant state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HeaderOffsets {
+    /// Offset where palette data starts (after headers).
+    palette_offset: u64,
+    /// ICC profile metadata (file offset, size) if present.
+    icc_profile: Option<(u64, u32)>,
 }
 
 /// Decoder state for resumable decoding.
@@ -819,9 +832,6 @@ pub struct BmpDecoder<R> {
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
-
-    /// Stream position to seek to on retry.
-    seek_position: Option<u64>,
 }
 
 enum RLEInsn<'a> {
@@ -854,10 +864,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             bitfields: None,
             icc_profile: None,
 
-            state: DecoderState::ReadingMetadata {
-                progress: MetadataProgress::NotStarted,
-            },
-            seek_position: None,
+            state: DecoderState::default(),
         }
     }
 
@@ -1145,9 +1152,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// 3. ICC profile: Variable size, can be several KB (V5 headers only).
     pub fn read_metadata(&mut self) -> ImageResult<()> {
         // Check if we're in a metadata reading state
-        let progress = match self.state {
-            DecoderState::ReadingMetadata { progress } => progress,
-            _ => return Ok(()), // Already past metadata phase
+        let DecoderState::ReadingMetadata { progress } = self.state else {
+            return Ok(()); // Already past metadata phase
         };
 
         match self.read_metadata_impl(progress) {
@@ -1170,48 +1176,54 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// - Succeeds and calls the next phase
     /// - Fails with an error (which may be retryable like UnexpectedEof)
     ///
-    /// Recursion depth is bounded (max 4): NotStarted → ReadingPalette → ReadingIccProfile → Complete
+    /// Recursion depth is bounded (max 4): NotStarted → ReadingMainHeader → ReadingPalette → ReadingIccProfile → Complete
     fn read_metadata_impl(&mut self, progress: MetadataProgress) -> ImageResult<()> {
         match progress {
             MetadataProgress::NotStarted => {
-                let icc_meta = self.read_headers()?;
-                // Headers complete, determine next phase based on what's needed
+                // Record current position and transition to ReadingMainHeader
+                let start_offset = self.reader.stream_position()?;
+                let next = MetadataProgress::ReadingMainHeader { start_offset };
+                self.state = DecoderState::ReadingMetadata { progress: next };
+                self.read_metadata_impl(next)
+            }
+            MetadataProgress::ReadingMainHeader { start_offset } => {
+                // Seek to start position (for retry support)
+                self.reader.seek(SeekFrom::Start(start_offset))?;
+
+                // Read headers and get offsets for subsequent phases
+                let offsets = self.read_headers()?;
+
+                // Determine next phase based on what's needed
                 let needs_palette = matches!(
                     self.image_type,
                     ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
                 );
                 let next = if needs_palette {
-                    self.seek_position = Some(self.reader.stream_position()?);
-                    MetadataProgress::ReadingPalette { icc_meta }
-                } else if let Some((offset, size)) = icc_meta {
-                    self.seek_position = Some(u64::from(offset));
-                    MetadataProgress::ReadingIccProfile { size }
+                    MetadataProgress::ReadingPalette { offsets }
+                } else if offsets.icc_profile.is_some() {
+                    MetadataProgress::ReadingIccProfile { offsets }
                 } else {
-                    self.seek_position = None;
                     MetadataProgress::Complete
                 };
                 self.state = DecoderState::ReadingMetadata { progress: next };
                 self.read_metadata_impl(next)
             }
-            MetadataProgress::ReadingPalette { icc_meta } => {
-                // Seek to palette position (stored in seek_position after headers phase)
-                if let Some(pos) = self.seek_position {
-                    self.reader.seek(SeekFrom::Start(pos))?;
-                }
+            MetadataProgress::ReadingPalette { offsets } => {
+                // Seek to palette position
+                self.reader.seek(SeekFrom::Start(offsets.palette_offset))?;
                 self.read_palette()?;
-                // Palette complete, prepare for ICC profile phase
-                let next = if let Some((offset, size)) = icc_meta {
-                    self.seek_position = Some(u64::from(offset));
-                    MetadataProgress::ReadingIccProfile { size }
+
+                // Palette complete, determine next phase
+                let next = if offsets.icc_profile.is_some() {
+                    MetadataProgress::ReadingIccProfile { offsets }
                 } else {
-                    self.seek_position = None;
                     MetadataProgress::Complete
                 };
                 self.state = DecoderState::ReadingMetadata { progress: next };
                 self.read_metadata_impl(next)
             }
-            MetadataProgress::ReadingIccProfile { size } => {
-                if let Some(offset) = self.seek_position {
+            MetadataProgress::ReadingIccProfile { offsets } => {
+                if let Some((offset, size)) = offsets.icc_profile {
                     self.read_icc_profile(offset, size)?;
                 }
                 self.state = DecoderState::ReadingMetadata {
@@ -1230,21 +1242,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     /// Read headers phase: file header, DIB header, and bitmasks.
-    /// On retry, this re-reads everything since headers are small (~30-150 bytes).
-    /// Returns ICC profile metadata (offset, size) if present in V5 header.
-    fn read_headers(&mut self) -> ImageResult<Option<(u32, u32)>> {
-        // On first call, record the current position.
-        // On retry, seek back to the recorded position.
-        // This is needed for no_file_header mode where the BMP data may start mid-file.
-        match self.seek_position {
-            Some(pos) => {
-                self.reader.seek(SeekFrom::Start(pos))?;
-            }
-            None => {
-                self.seek_position = Some(self.reader.stream_position()?);
-            }
-        }
-
+    /// Returns HeaderOffsets containing positions for subsequent phases.
+    fn read_headers(&mut self) -> ImageResult<HeaderOffsets> {
         self.read_file_header()?;
         let bmp_header_offset = self.reader.stream_position()?;
 
@@ -1311,7 +1310,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         };
 
         // Parse ICC profile metadata from V5 header (but don't read the profile data yet)
-        let mut icc_meta = None;
+        let mut icc_profile = None;
         if bmp_header_size >= BITMAPV5HEADER_SIZE {
             // Read the full V5 header into a buffer for ICC profile metadata parsing
             // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
@@ -1320,20 +1319,25 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
             self.reader.read_exact(&mut header_buffer)?;
 
-            // Extract ICC profile metadata for later reading (in phase 3)
+            // Extract ICC profile metadata for later reading
             if let Some(parsed) = ParsedIccProfile::parse(&header_buffer) {
-                icc_meta = Some((parsed.profile_offset, parsed.profile_size));
+                icc_profile = Some((u64::from(parsed.profile_offset), parsed.profile_size));
             }
 
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
         }
 
-        // Seek to position after headers (where palette or image data starts)
-        self.reader
-            .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
+        // Calculate palette offset (position after headers)
+        let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
-        Ok(icc_meta)
+        // Seek to position after headers (where palette or image data starts)
+        self.reader.seek(SeekFrom::Start(palette_offset))?;
+
+        Ok(HeaderOffsets {
+            palette_offset,
+            icc_profile,
+        })
     }
 
     #[cfg(feature = "ico")]

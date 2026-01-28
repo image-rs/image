@@ -639,6 +639,5 @@ where
         let ifd_encoder = img_encoder.encoder(); // low-level TIFF directory encoder
         ifd_encoder.write_tag(Tag::IccProfile, icc_profile.as_slice())?
     }
-    img_encoder.write_data(data)?;
-    Ok(())
+    img_encoder.write_data(data)
 }

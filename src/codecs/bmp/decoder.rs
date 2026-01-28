@@ -284,8 +284,7 @@ enum MetadataProgress {
     /// Stores header offsets for the ICC profile read.
     ReadingIccProfile { offsets: HeaderOffsets },
     /// All metadata has been read successfully.
-    /// Stores header offsets for setting data_offset in no_file_header mode.
-    Complete { offsets: HeaderOffsets },
+    Complete,
 }
 
 /// Offsets and sizes discovered during header parsing.
@@ -1212,6 +1211,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     self.read_palette()?;
                 }
 
+                // For no_file_header mode, capture data_offset now (after palette read)
+                // before ICC profile reading potentially changes reader position
+                if self.no_file_header {
+                    self.data_offset = self.reader.stream_position()?;
+                }
+
                 // Always progress to ReadingIccProfile next
                 let next = MetadataProgress::ReadingIccProfile { offsets };
                 self.state = DecoderState::ReadingMetadata { progress: next };
@@ -1224,18 +1229,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
 
                 // Always progress to Complete next
-                let next = MetadataProgress::Complete { offsets };
-                self.state = DecoderState::ReadingMetadata { progress: next };
-                self.read_metadata_impl(next)
+                self.state = DecoderState::ReadingMetadata {
+                    progress: MetadataProgress::Complete,
+                };
+                self.read_metadata_impl(MetadataProgress::Complete)
             }
-            MetadataProgress::Complete { offsets: _ } => {
-                if self.no_file_header {
-                    // Use current position as data offset (reader is positioned after
-                    // headers/palette, which is where image data starts)
-                    self.data_offset = self.reader.stream_position()?;
-                }
-                Ok(())
-            }
+            MetadataProgress::Complete => Ok(()),
         }
     }
 
@@ -2133,29 +2132,66 @@ mod test {
     fn test_resumable_decoding() {
         use crate::ImageDecoder;
 
+        struct TestCase {
+            path: &'static str,
+            is_rle: bool,
+            has_palette: bool,
+            has_icc_profile: bool,
+        }
+
         // Test multiple BMP formats to ensure resumable decoding works across variants
-        // (path, is_rle, has_palette, has_icc_profile)
         let test_files = [
-            (
-                "tests/images/bmp/images/Info_R8_G8_B8.bmp",
-                false,
-                false,
-                false,
-            ), // 24-bit RGB
-            (
-                "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp",
-                false,
-                false,
-                false,
-            ), // 32-bit RGBA
-            ("tests/images/bmp/images/Info_8_Bit.bmp", false, true, false), // 8-bit palette
-            ("tests/images/bmp/images/Core_8_Bit.bmp", false, true, false), // Core header + palette
-            ("tests/images/bmp/images/pal8rle.bmp", true, true, false),     // 8-bit RLE
-            ("tests/images/bmp/images/pal4rle.bmp", true, true, false),     // 4-bit RLE
-            ("tests/images/bmp/images/rgb24prof.bmp", false, false, true), // 24-bit with ICC profile
+            TestCase {
+                path: "tests/images/bmp/images/Info_R8_G8_B8.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Info_8_Bit.bmp",
+                is_rle: false,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Core_8_Bit.bmp",
+                is_rle: false,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/pal8rle.bmp",
+                is_rle: true,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/pal4rle.bmp",
+                is_rle: true,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/rgb24prof.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: true,
+            },
         ];
 
-        for (path, is_rle, has_palette, has_icc_profile) in test_files {
+        for TestCase {
+            path,
+            is_rle,
+            has_palette,
+            has_icc_profile,
+        } in test_files
+        {
             let data = std::fs::read(path).unwrap();
             let file_size = data.len();
 

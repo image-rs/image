@@ -457,6 +457,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
+    icc: Option<Vec<u8>>,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
@@ -514,7 +515,7 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w }
+        TiffEncoder { w, icc: None }
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.

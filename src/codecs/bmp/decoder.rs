@@ -284,7 +284,8 @@ enum MetadataProgress {
     /// Stores header offsets for the ICC profile read.
     ReadingIccProfile { offsets: HeaderOffsets },
     /// All metadata has been read successfully.
-    Complete,
+    /// Stores header offsets for setting data_offset in no_file_header mode.
+    Complete { offsets: HeaderOffsets },
 }
 
 /// Offsets and sizes discovered during header parsing.
@@ -1199,12 +1200,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 self.read_metadata_impl(next)
             }
             MetadataProgress::ReadingPalette { offsets } => {
+                // Always seek to palette position (this is also where image data starts
+                // for non-palette formats)
+                self.reader.seek(SeekFrom::Start(offsets.palette_offset))?;
+
                 // Read palette if needed for this image type
                 if matches!(
                     self.image_type,
                     ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
                 ) {
-                    self.reader.seek(SeekFrom::Start(offsets.palette_offset))?;
                     self.read_palette()?;
                 }
 
@@ -1220,14 +1224,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
 
                 // Always progress to Complete next
-                self.state = DecoderState::ReadingMetadata {
-                    progress: MetadataProgress::Complete,
-                };
-                self.read_metadata_impl(MetadataProgress::Complete)
+                let next = MetadataProgress::Complete { offsets };
+                self.state = DecoderState::ReadingMetadata { progress: next };
+                self.read_metadata_impl(next)
             }
-            MetadataProgress::Complete => {
+            MetadataProgress::Complete { offsets: _ } => {
                 if self.no_file_header {
-                    // Use the offset of the end of metadata instead of reading a BMP file header.
+                    // Use current position as data offset (reader is positioned after
+                    // headers/palette, which is where image data starts)
                     self.data_offset = self.reader.stream_position()?;
                 }
                 Ok(())

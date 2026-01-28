@@ -526,7 +526,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(
+    fn encode(
         self,
         buf: &[u8],
         width: u32,

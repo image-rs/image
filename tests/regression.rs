@@ -99,6 +99,28 @@ fn bad_bmps() {
     }
 }
 
+/// Regression test for ICO files containing BMP V5 images with embedded ICC profiles.
+/// The ICC profile offset in BITMAPV5HEADER is relative to the DIB header start, so it
+/// should work correctly when embedded in ICO files (which don't have a BITMAPFILEHEADER).
+/// This test verifies the image can be fully decoded without errors.
+#[cfg(feature = "ico")]
+#[test]
+fn ico_bmp_v5_with_icc_profile() {
+    let path = BASE_PATH
+        .iter()
+        .collect::<PathBuf>()
+        .join(IMAGE_DIR)
+        .join("ico/images")
+        .join("bmp_v5_with_icc.ico");
+
+    // Verify the image can be opened and decoded without errors
+    let img = image::open(&path).expect("Failed to open ICO with BMP V5 ICC profile");
+
+    // Verify the image has expected dimensions (127x64 from rgb24prof.bmp)
+    assert_eq!(img.width(), 127);
+    assert_eq!(img.height(), 64);
+}
+
 // Test that BMP bitmaps with extra `BI_BITFIELD` values are parsed correctly.
 //
 // The test data comes from a `CF_DIBV5` bitmap on the Windows clipboard. It is a screenshot

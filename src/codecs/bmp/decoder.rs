@@ -212,6 +212,7 @@ impl ParsedBitfields {
 }
 
 /// Parsed ICC profile metadata from V5 header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ParsedIccProfile {
     profile_offset: u32,
     profile_size: u32,
@@ -261,16 +262,50 @@ enum ImageType {
     Bitfields32,
 }
 
+/// Progress within the metadata reading phase.
+///
+/// The metadata is split into phases:
+/// 1. Headers: File header, DIB header, and bitmasks (~30-150 bytes total).
+///    These are always re-read together on retry since they're small.
+/// 2. Optional data: Palette (up to 1KB) and ICC profile (variable, can be several KB).
+///    These are tracked separately since they can be larger.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum MetadataProgress {
+    /// Initial state, nothing read yet.
+    #[default]
+    NotStarted,
+    /// Reading main headers (file header, DIB header, bitmasks).
+    /// Stores the start offset for seeking on retry.
+    ReadingMainHeader { start_offset: u64 },
+    /// Headers have been read; now reading palette.
+    /// Stores header offsets for subsequent phases.
+    ReadingPalette { offsets: HeaderOffsets },
+    /// Headers and palette (if any) have been read; now reading ICC profile.
+    /// Stores header offsets for the ICC profile read.
+    ReadingIccProfile { offsets: HeaderOffsets },
+    /// All metadata has been read successfully.
+    Complete,
+}
+
+/// Offsets and sizes discovered during header parsing.
+/// Carried through metadata phases to avoid redundant state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HeaderOffsets {
+    /// Offset where palette data starts (after headers).
+    palette_offset: u64,
+    /// ICC profile metadata if present.
+    icc_profile: Option<ParsedIccProfile>,
+}
+
 /// Decoder state for resumable decoding.
 ///
 /// This allows the decoder to recover from `UnexpectedEof` errors.
 /// For row-based formats, decoding can resume from the last successfully
 /// decoded row. For RLE formats, decoding restarts from the beginning.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
-    /// Initial state, ready to read metadata.
-    #[default]
-    ReadingMetadata,
+    /// Currently reading metadata (headers, palette, ICC profile).
+    ReadingMetadata { progress: MetadataProgress },
     /// Currently reading row-based (non-RLE) image data.
     /// Stores the number of rows successfully decoded.
     ReadingRowData { rows_decoded: u32 },
@@ -280,6 +315,14 @@ enum DecoderState {
     ReadingRleData,
     /// Image data has been fully decoded.
     ImageDecoded,
+}
+
+impl Default for DecoderState {
+    fn default() -> Self {
+        DecoderState::ReadingMetadata {
+            progress: MetadataProgress::default(),
+        }
+    }
 }
 
 #[derive(PartialEq)]
@@ -790,9 +833,6 @@ pub struct BmpDecoder<R> {
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
-
-    /// Stream position to seek to on retry.
-    seek_position: Option<u64>,
 }
 
 enum RLEInsn<'a> {
@@ -825,8 +865,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             bitfields: None,
             icc_profile: None,
 
-            state: DecoderState::ReadingMetadata,
-            seek_position: None,
+            state: DecoderState::default(),
         }
     }
 
@@ -1090,36 +1129,34 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Read ICC profile data from BITMAPV5HEADER if present.
-    /// header_buffer should contain the full DIB header (after the size field).
-    fn read_icc_profile(&mut self, header_buffer: &[u8]) -> ImageResult<()> {
-        // Parse ICC profile metadata from the header buffer
-        let parsed = ParsedIccProfile::parse(header_buffer);
-
-        if let Some(profile_info) = parsed {
-            // Profile offset is from the beginning of the file
-            self.reader
-                .seek(SeekFrom::Start(u64::from(profile_info.profile_offset)))?;
-            let mut profile_data = vec![0u8; profile_info.profile_size as usize];
-            self.reader.read_exact(&mut profile_data)?;
-
-            self.icc_profile = Some(profile_data);
-        }
-
+    /// Read ICC profile data from the file.
+    fn read_icc_profile(&mut self, icc: &ParsedIccProfile) -> ImageResult<()> {
+        self.reader
+            .seek(SeekFrom::Start(u64::from(icc.profile_offset)))?;
+        let mut profile_data = vec![0u8; icc.profile_size as usize];
+        self.reader.read_exact(&mut profile_data)?;
+        self.icc_profile = Some(profile_data);
         Ok(())
     }
 
     /// Read BMP metadata (headers, palette, etc.).
     ///
-    /// On `UnexpectedEof`, the decoder can be retried - the implementation seeks to
-    /// the correct position at the start. Once successful, subsequent calls are no-ops.
+    /// On `UnexpectedEof`, the decoder can be retried - the implementation tracks
+    /// progress and resumes from where it left off. Once successful, subsequent
+    /// calls are no-ops.
+    ///
+    /// Metadata reading is divided into phases:
+    /// 1. Headers: File header, DIB header, and bitmasks (~30-150 bytes).
+    ///    These are re-read together on retry since they're small.
+    /// 2. Palette: Up to 1KB for indexed color images.
+    /// 3. ICC profile: Variable size, can be several KB (V5 headers only).
     pub fn read_metadata(&mut self) -> ImageResult<()> {
-        if self.state != DecoderState::ReadingMetadata {
-            // Already read metadata, nothing to do
-            return Ok(());
-        }
+        // Check if we're in a metadata reading state
+        let DecoderState::ReadingMetadata { progress } = self.state else {
+            return Ok(()); // Already past metadata phase
+        };
 
-        match self.read_metadata_impl() {
+        match self.read_metadata_impl(progress) {
             Ok(()) => {
                 // Transition directly to the appropriate image reading state
                 self.state = if self.is_rle() {
@@ -1133,20 +1170,77 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
     }
 
-    /// Internal implementation of metadata reading.
-    fn read_metadata_impl(&mut self) -> ImageResult<()> {
-        // On first call, record the current position.
-        // On retry, seek back to the recorded position.
-        // This is needed for no_file_header mode where the BMP data may start mid-file.
-        match self.seek_position {
-            Some(pos) => {
-                self.reader.seek(SeekFrom::Start(pos))?;
+    /// Internal implementation of metadata reading with phased resumability.
+    ///
+    /// Uses recursive calls to progress through phases. Each phase either:
+    /// - Succeeds and calls the next phase
+    /// - Fails with an error (which may be retryable like UnexpectedEof)
+    ///
+    /// Recursion depth is bounded (max 4): NotStarted → ReadingMainHeader → ReadingPalette → ReadingIccProfile → Complete
+    fn read_metadata_impl(&mut self, progress: MetadataProgress) -> ImageResult<()> {
+        match progress {
+            MetadataProgress::NotStarted => {
+                // Record current position and transition to ReadingMainHeader
+                let start_offset = self.reader.stream_position()?;
+                let next = MetadataProgress::ReadingMainHeader { start_offset };
+                self.state = DecoderState::ReadingMetadata { progress: next };
+                self.read_metadata_impl(next)
             }
-            None => {
-                self.seek_position = Some(self.reader.stream_position()?);
-            }
-        }
+            MetadataProgress::ReadingMainHeader { start_offset } => {
+                // Seek to start position (for retry support)
+                self.reader.seek(SeekFrom::Start(start_offset))?;
 
+                // Read headers and get offsets for subsequent phases
+                let offsets = self.read_headers()?;
+
+                // Always progress to ReadingPalette next
+                let next = MetadataProgress::ReadingPalette { offsets };
+                self.state = DecoderState::ReadingMetadata { progress: next };
+                self.read_metadata_impl(next)
+            }
+            MetadataProgress::ReadingPalette { offsets } => {
+                // Always seek to palette position (this is also where image data starts
+                // for non-palette formats)
+                self.reader.seek(SeekFrom::Start(offsets.palette_offset))?;
+
+                // Read palette if needed for this image type
+                if matches!(
+                    self.image_type,
+                    ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
+                ) {
+                    self.read_palette()?;
+                }
+
+                // For no_file_header mode, capture data_offset now (after palette read)
+                // before ICC profile reading potentially changes reader position
+                if self.no_file_header {
+                    self.data_offset = self.reader.stream_position()?;
+                }
+
+                // Always progress to ReadingIccProfile next
+                let next = MetadataProgress::ReadingIccProfile { offsets };
+                self.state = DecoderState::ReadingMetadata { progress: next };
+                self.read_metadata_impl(next)
+            }
+            MetadataProgress::ReadingIccProfile { offsets } => {
+                // Read ICC profile if present
+                if let Some(ref icc) = offsets.icc_profile {
+                    self.read_icc_profile(icc)?;
+                }
+
+                // Always progress to Complete next
+                self.state = DecoderState::ReadingMetadata {
+                    progress: MetadataProgress::Complete,
+                };
+                self.read_metadata_impl(MetadataProgress::Complete)
+            }
+            MetadataProgress::Complete => Ok(()),
+        }
+    }
+
+    /// Read headers phase: file header, DIB header, and bitmasks.
+    /// Returns HeaderOffsets containing positions for subsequent phases.
+    fn read_headers(&mut self) -> ImageResult<HeaderOffsets> {
         self.read_file_header()?;
         let bmp_header_offset = self.reader.stream_position()?;
 
@@ -1212,33 +1306,30 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             }
         };
 
-        // Read ICC profile if present (V5 header or later)
+        // Parse ICC profile metadata from V5 header (but don't read the profile data yet)
+        let mut icc_profile = None;
         if bmp_header_size >= BITMAPV5HEADER_SIZE {
-            // Read the full V5 header into a buffer for ICC profile parsing
+            // Read the full V5 header into a buffer for ICC profile metadata parsing
             // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
             let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
             let current_pos = self.reader.stream_position()?;
             self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
             self.reader.read_exact(&mut header_buffer)?;
-            self.read_icc_profile(&header_buffer)?;
+
+            // Extract ICC profile metadata for later reading
+            icc_profile = ParsedIccProfile::parse(&header_buffer);
+
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
         }
 
-        self.reader
-            .seek(SeekFrom::Start(bmp_header_end + bitmask_bytes_offset))?;
+        // Calculate palette offset (position after headers)
+        let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
-        match self.image_type {
-            ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
-            _ => {}
-        }
-
-        if self.no_file_header {
-            // Use the offset of the end of metadata instead of reading a BMP file header.
-            self.data_offset = self.reader.stream_position()?;
-        }
-
-        Ok(())
+        Ok(HeaderOffsets {
+            palette_offset,
+            icc_profile,
+        })
     }
 
     #[cfg(feature = "ico")]
@@ -2036,35 +2127,88 @@ mod test {
     /// Test resumable decoding with various BMP formats.
     /// Verifies that read_metadata() and read_image_data() can be retried after
     /// UnexpectedEof and produce identical results to normal decoding.
-    /// Also verifies row-level progress for non-RLE formats.
+    /// Also verifies metadata phase progress and row-level progress for non-RLE formats.
     #[test]
     fn test_resumable_decoding() {
         use crate::ImageDecoder;
 
+        struct TestCase {
+            path: &'static str,
+            is_rle: bool,
+            has_palette: bool,
+            has_icc_profile: bool,
+        }
+
         // Test multiple BMP formats to ensure resumable decoding works across variants
         let test_files = [
-            ("tests/images/bmp/images/Info_R8_G8_B8.bmp", false), // 24-bit RGB
-            ("tests/images/bmp/images/Info_A8_R8_G8_B8.bmp", false), // 32-bit RGBA
-            ("tests/images/bmp/images/Info_8_Bit.bmp", false),    // 8-bit palette
-            ("tests/images/bmp/images/Core_8_Bit.bmp", false),    // Core header + palette
-            ("tests/images/bmp/images/pal8rle.bmp", true),        // 8-bit RLE
-            ("tests/images/bmp/images/pal4rle.bmp", true),        // 4-bit RLE
-            ("tests/images/bmp/images/rgb24prof.bmp", false),     // 24-bit with ICC profile
+            TestCase {
+                path: "tests/images/bmp/images/Info_R8_G8_B8.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Info_8_Bit.bmp",
+                is_rle: false,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Core_8_Bit.bmp",
+                is_rle: false,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/pal8rle.bmp",
+                is_rle: true,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/pal4rle.bmp",
+                is_rle: true,
+                has_palette: true,
+                has_icc_profile: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/rgb24prof.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: true,
+            },
         ];
 
-        for (path, is_rle) in test_files {
+        for TestCase {
+            path,
+            is_rle,
+            has_palette,
+            has_icc_profile,
+        } in test_files
+        {
             let data = std::fs::read(path).unwrap();
             let file_size = data.len();
 
             // Get reference result from normal decoding
-            let ref_decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
+            let mut ref_decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
             let expected_bytes = ref_decoder.total_bytes() as usize;
             let mut ref_buf = vec![0u8; expected_bytes];
+            let ref_icc_len = ref_decoder.icc_profile().unwrap().map(|p| p.len());
             ref_decoder.read_image(&mut ref_buf).unwrap();
 
             // Test resumable decoding with simulated streaming
             let reader = PartialReader::new(data);
             let mut decoder = BmpDecoder::new_resumable(reader);
+
+            // Track metadata phase transitions
+            let mut saw_reading_palette = false;
+            let mut saw_reading_icc = false;
 
             // Phase 1: Stream bytes until metadata succeeds
             let mut bytes_available = 0;
@@ -2073,6 +2217,19 @@ mod test {
                 match decoder.read_metadata() {
                     Ok(()) => break,
                     Err(ref e) if is_unexpected_eof(e) => {
+                        // Track metadata phase transitions
+                        if let DecoderState::ReadingMetadata { progress } = decoder.state {
+                            match progress {
+                                MetadataProgress::ReadingPalette { .. } => {
+                                    saw_reading_palette = true
+                                }
+                                MetadataProgress::ReadingIccProfile { .. } => {
+                                    saw_reading_icc = true
+                                }
+                                _ => {}
+                            }
+                        }
+
                         // Simulate more data arriving (add 10 bytes at a time)
                         bytes_available += 10;
                         assert!(
@@ -2085,6 +2242,30 @@ mod test {
                         panic!("{}: unexpected error during metadata: {:?}", path, e);
                     }
                 }
+            }
+
+            // Verify metadata phase transitions occurred as expected
+            if has_palette {
+                assert!(
+                    saw_reading_palette,
+                    "{}: should have seen ReadingPalette phase for palette image",
+                    path
+                );
+            }
+            if has_icc_profile {
+                assert!(
+                    saw_reading_icc,
+                    "{}: should have seen ReadingIccProfile phase for ICC profile image",
+                    path
+                );
+                // Verify ICC profile was read correctly
+                let icc = decoder.icc_profile().unwrap();
+                assert_eq!(
+                    icc.map(|p| p.len()),
+                    ref_icc_len,
+                    "{}: ICC profile length mismatch",
+                    path
+                );
             }
 
             // Verify dimensions are available after metadata

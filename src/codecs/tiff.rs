@@ -616,6 +616,11 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
+
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.icc = Some(icc_profile);
+        Ok(())
+    }
 }
 
 /// Private wrapper function to conveniently write an ICC profile the same Image File Directory (IFD) as the image data

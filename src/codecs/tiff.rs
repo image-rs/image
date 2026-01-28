@@ -310,7 +310,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         if let Some(decoder) = &mut self.inner {
-            Ok(decoder.get_tag_u8_vec(Tag::Unknown(34675)).ok())
+            Ok(decoder.get_tag_u8_vec(Tag::IccProfile).ok())
         } else {
             Ok(None)
         }
@@ -457,6 +457,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
+    icc: Option<Vec<u8>>,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
@@ -514,7 +515,7 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w }
+        TiffEncoder { w, icc: None }
     }
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
@@ -525,7 +526,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
     #[track_caller]
-    pub fn encode(
+    fn encode(
         self,
         buf: &[u8],
         width: u32,
@@ -545,27 +546,49 @@ impl<W: Write + Seek> TiffEncoder<W> {
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color_type {
-            ExtendedColorType::L8 => encoder.write_image::<Gray8>(width, height, buf),
-            ExtendedColorType::Rgb8 => encoder.write_image::<RGB8>(width, height, buf),
-            ExtendedColorType::Rgba8 => encoder.write_image::<RGBA8>(width, height, buf),
-            ExtendedColorType::L16 => {
-                encoder.write_image::<Gray16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
+            ExtendedColorType::L8 => {
+                write_tiff::<Gray8, _, _>(&mut encoder, width, height, buf, self.icc)
             }
-            ExtendedColorType::Rgb16 => {
-                encoder.write_image::<RGB16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
+            ExtendedColorType::Rgb8 => {
+                write_tiff::<RGB8, _, _>(&mut encoder, width, height, buf, self.icc)
             }
-            ExtendedColorType::Rgba16 => {
-                encoder.write_image::<RGBA16>(width, height, u8_slice_as_pod::<u16>(buf)?.as_ref())
+            ExtendedColorType::Rgba8 => {
+                write_tiff::<RGBA8, _, _>(&mut encoder, width, height, buf, self.icc)
             }
-            ExtendedColorType::Rgb32F => encoder.write_image::<RGB32Float>(
+            ExtendedColorType::L16 => write_tiff::<Gray16, _, _>(
+                &mut encoder,
                 width,
                 height,
-                u8_slice_as_pod::<f32>(buf)?.as_ref(),
+                u8_slice_as_pod::<u16>(buf)?.as_ref(),
+                None,
             ),
-            ExtendedColorType::Rgba32F => encoder.write_image::<RGBA32Float>(
+            ExtendedColorType::Rgb16 => write_tiff::<RGB16, _, _>(
+                &mut encoder,
+                width,
+                height,
+                u8_slice_as_pod::<u16>(buf)?.as_ref(),
+                self.icc,
+            ),
+            ExtendedColorType::Rgba16 => write_tiff::<RGBA16, _, _>(
+                &mut encoder,
+                width,
+                height,
+                u8_slice_as_pod::<u16>(buf)?.as_ref(),
+                self.icc,
+            ),
+            ExtendedColorType::Rgb32F => write_tiff::<RGB32Float, _, _>(
+                &mut encoder,
                 width,
                 height,
                 u8_slice_as_pod::<f32>(buf)?.as_ref(),
+                self.icc,
+            ),
+            ExtendedColorType::Rgba32F => write_tiff::<RGBA32Float, _, _>(
+                &mut encoder,
+                width,
+                height,
+                u8_slice_as_pod::<f32>(buf)?.as_ref(),
+                self.icc,
             ),
             _ => {
                 return Err(ImageError::Unsupported(
@@ -593,4 +616,33 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
+
+    fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.icc = Some(icc_profile);
+        Ok(())
+    }
+}
+
+/// Private wrapper function to conveniently write an ICC profile the same Image File Directory (IFD) as the image data
+fn write_tiff<C: tiff::encoder::colortype::ColorType, W: Write + Seek, K: tiff::encoder::TiffKind>(
+    encoder: &mut tiff::encoder::TiffEncoder<W, K>,
+    width: u32,
+    height: u32,
+    data: &[<C as tiff::encoder::colortype::ColorType>::Inner],
+    icc: Option<Vec<u8>>,
+) -> Result<(), tiff::TiffError>
+where
+    [<C as tiff::encoder::colortype::ColorType>::Inner]: tiff::encoder::TiffValue,
+{
+    let mut img_encoder = encoder.new_image::<C>(width, height)?;
+    if let Some(icc_profile) = icc {
+        // An ICC device profile is embedded, in its entirety, as a single TIFF field or Image File Directory (IFD) entry in
+        // the IFD containing the corresponding image data. An IFD should contain no more than one embedded profile.
+        // A TIFF file may contain more than one image, and so, more than one IFD. Each IFD may have its own
+        // embedded profile.
+        // -- Specification ICC.1:2004-10 (Profile version 4.2.0.0), https://www.color.org/icc1V42.pdf
+        let ifd_encoder = img_encoder.encoder(); // low-level TIFF directory encoder
+        ifd_encoder.write_tag(Tag::IccProfile, icc_profile.as_slice())?
+    }
+    img_encoder.write_data(data)
 }

@@ -629,6 +629,16 @@ fn write_tiff<C: tiff::encoder::colortype::ColorType, W: Write + Seek, K: tiff::
 where
     [<C as tiff::encoder::colortype::ColorType>::Inner]: tiff::encoder::TiffValue,
 {
-    encoder.write_image::<C>(width, height, data)
-    // TODO: write ICC
+    let mut img_encoder = encoder.new_image::<C>(width, height)?;
+    if let Some(icc_profile) = icc {
+        // An ICC device profile is embedded, in its entirety, as a single TIFF field or Image File Directory (IFD) entry in
+        // the IFD containing the corresponding image data. An IFD should contain no more than one embedded profile.
+        // A TIFF file may contain more than one image, and so, more than one IFD. Each IFD may have its own
+        // embedded profile.
+        // -- Specification ICC.1:2004-10 (Profile version 4.2.0.0), https://www.color.org/icc1V42.pdf
+        let ifd_encoder = img_encoder.encoder(); // low-level TIFF directory encoder
+        ifd_encoder.write_tag(Tag::IccProfile, icc_profile.as_slice())?
+    }
+    img_encoder.write_data(data)?;
+    Ok(())
 }

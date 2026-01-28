@@ -310,7 +310,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         if let Some(decoder) = &mut self.inner {
-            Ok(decoder.get_tag_u8_vec(Tag::Unknown(34675)).ok())
+            Ok(decoder.get_tag_u8_vec(Tag::IccProfile).ok())
         } else {
             Ok(None)
         }

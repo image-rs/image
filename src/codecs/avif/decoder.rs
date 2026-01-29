@@ -140,6 +140,7 @@ impl<R: Read> AvifDecoder<R> {
 }
 
 fn convert_orientation(rotation: ImageRotation, mirror: Option<ImageMirror>) -> Orientation {
+    // Order of operations: rotate then mirror
     match mirror {
         None => match rotation {
             ImageRotation::D0 => Orientation::NoTransforms,

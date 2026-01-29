@@ -21,7 +21,7 @@ use crate::codecs::avif::ycgco::{
 };
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
-use mp4parse::{read_avif, ImageRotation, ParseStrictness};
+use mp4parse::{read_avif, ImageMirror, ImageRotation, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -115,6 +115,19 @@ impl<R: Read> AvifDecoder<R> {
             }
         };
         let rotation = ctx.image_rotation().map_err(error_map)?;
+        // mp4parse does not expose a safe wrapper around the pointer :(
+        let mirror_ptr = ctx.image_mirror_ptr();
+        let mirror: Option<ImageMirror> = if mirror_ptr.is_null() {
+            None
+        } else {
+            // SAFETY: we have verified above that the pointer is non-null.
+            // `ImageMirror` has no alignment invariants, verified by assert!() below.
+            // We trust mp4parse to return a pointer that is not dangling.
+            // We dereference the pointer and copy/move the value, so no issues with lifetimes.
+            assert!(std::mem::align_of::<ImageMirror>() == 1);
+            Some(*mirror_ptr)
+        };
+
         let orientation = convert_orientation(rotation);
         Ok(AvifDecoder {
             inner: PhantomData,

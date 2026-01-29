@@ -128,7 +128,7 @@ impl<R: Read> AvifDecoder<R> {
             Some(*mirror_ptr)
         };
 
-        let orientation = convert_orientation(rotation);
+        let orientation = convert_orientation(rotation, mirror);
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,
@@ -139,13 +139,28 @@ impl<R: Read> AvifDecoder<R> {
     }
 }
 
-fn convert_orientation(orig: ImageRotation) -> Orientation {
-    match orig {
-        ImageRotation::D0 => Orientation::NoTransforms,
-        // AVIF rotations are counter-clockwise (clocksilly)
-        ImageRotation::D90 => Orientation::Rotate270,
-        ImageRotation::D180 => Orientation::Rotate180,
-        ImageRotation::D270 => Orientation::Rotate90,
+fn convert_orientation(rotation: ImageRotation, mirror: Option<ImageMirror>) -> Orientation {
+    match mirror {
+        None => match rotation {
+            ImageRotation::D0 => Orientation::NoTransforms,
+            // AVIF rotations are counter-clockwise (clocksilly)
+            ImageRotation::D90 => Orientation::Rotate270,
+            ImageRotation::D180 => Orientation::Rotate180,
+            ImageRotation::D270 => Orientation::Rotate90,
+        },
+        Some(ImageMirror::LeftRight) => match rotation {
+            ImageRotation::D0 => Orientation::FlipHorizontal,
+            ImageRotation::D90 => Orientation::Rotate270FlipH,
+            ImageRotation::D180 => Orientation::FlipVertical,
+            ImageRotation::D270 => Orientation::Rotate90FlipH,
+        },
+        Some(ImageMirror::TopBottom) => match rotation {
+            ImageRotation::D0 => Orientation::FlipVertical,
+            // FlipV is equivalent to Rotate180FlipH, we use that for conversions below
+            ImageRotation::D90 => Orientation::Rotate90FlipH,
+            ImageRotation::D180 => Orientation::FlipHorizontal,
+            ImageRotation::D270 => Orientation::Rotate270FlipH,
+        },
     }
 }
 

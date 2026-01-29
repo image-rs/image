@@ -114,7 +114,7 @@ impl<R: Read> AvifDecoder<R> {
                 )))
             }
         };
-        let rotation = ctx.image_rotation()?;
+        let rotation = ctx.image_rotation().map_err(error_map)?;
         let orientation = convert_orientation(rotation);
         Ok(AvifDecoder {
             inner: PhantomData,

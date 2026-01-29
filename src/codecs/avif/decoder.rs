@@ -357,6 +357,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        Ok(self.orientation)
+    }
+
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 

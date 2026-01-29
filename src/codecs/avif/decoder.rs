@@ -116,7 +116,7 @@ impl<R: Read> AvifDecoder<R> {
         };
         let rotation = ctx.image_rotation().map_err(error_map)?;
         // mp4parse does not expose a safe wrapper around the pointer :(
-        let mirror_ptr = ctx.image_mirror_ptr();
+        let mirror_ptr = ctx.image_mirror_ptr().map_err(error_map)?;
         let mirror: Option<ImageMirror> = if mirror_ptr.is_null() {
             None
         } else {
@@ -125,7 +125,7 @@ impl<R: Read> AvifDecoder<R> {
             // We trust mp4parse to return a pointer that is not dangling.
             // We dereference the pointer and copy/move the value, so no issues with lifetimes.
             assert!(std::mem::align_of::<ImageMirror>() == 1);
-            Some(*mirror_ptr)
+            unsafe { Some(*mirror_ptr) }
         };
 
         let orientation = convert_orientation(rotation, mirror);

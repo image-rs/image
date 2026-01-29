@@ -314,8 +314,7 @@ enum RleProgress {
 /// Decoder state for resumable decoding.
 ///
 /// This allows the decoder to recover from `UnexpectedEof` errors.
-/// For row-based formats, decoding can resume from the last successfully
-/// decoded row. For RLE formats, decoding resumes from the last completed row.
+/// Decoding can resume from the last succesfilly decoded row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
     /// Currently reading metadata (headers, palette, ICC profile).
@@ -777,21 +776,31 @@ impl Bitfields {
 
 /// Helper to read RLE data using the already-buffered reader.
 /// Avoids double-buffering since BmpDecoder already requires BufRead.
-struct RleReader {
-    bytes_read: u64,
+struct RleReader<'a, R> {
+    reader: &'a mut R,
+    bytes_read_in_row: u64,
 }
 
-impl RleReader {
-    fn new() -> Self {
-        Self { bytes_read: 0 }
+impl<'a, R: BufRead> RleReader<'a, R> {
+    fn new(reader: &'a mut R) -> Self {
+        Self {
+            reader,
+            bytes_read_in_row: 0,
+        }
     }
 
-    fn bytes_read(&self) -> u64 {
-        self.bytes_read
+    /// Bytes consumed since the start of the current row.
+    fn bytes_read_in_row(&self) -> u64 {
+        self.bytes_read_in_row
     }
 
-    fn read_byte<R: BufRead>(&mut self, reader: &mut R) -> io::Result<u8> {
-        let buf = reader.fill_buf()?;
+    /// Reset the row byte counter. Call this at the end of each row.
+    fn next_row(&mut self) {
+        self.bytes_read_in_row = 0;
+    }
+
+    fn read_byte(&mut self) -> io::Result<u8> {
+        let buf = self.reader.fill_buf()?;
         if buf.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
@@ -799,17 +808,17 @@ impl RleReader {
             ));
         }
         let byte = buf[0];
-        reader.consume(1);
-        self.bytes_read += 1;
+        self.reader.consume(1);
+        self.bytes_read_in_row += 1;
         Ok(byte)
     }
 
-    fn read_exact<R: BufRead>(&mut self, reader: &mut R, buf: &mut [u8]) -> io::Result<()> {
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         let mut remaining = buf.len();
         let mut offset = 0;
 
         while remaining > 0 {
-            let available = reader.fill_buf()?;
+            let available = self.reader.fill_buf()?;
             if available.is_empty() {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
@@ -819,22 +828,14 @@ impl RleReader {
 
             let to_read = remaining.min(available.len());
             buf[offset..offset + to_read].copy_from_slice(&available[..to_read]);
-            reader.consume(to_read);
-            self.bytes_read += to_read as u64;
+            self.reader.consume(to_read);
+            self.bytes_read_in_row += to_read as u64;
             offset += to_read;
             remaining -= to_read;
         }
 
         Ok(())
     }
-}
-
-enum RLEInsn<'a> {
-    EndOfFile,
-    EndOfRow,
-    Delta(u8, u8),
-    Absolute(u8, &'a [u8]),
-    PixelRun(u8, u8),
 }
 
 /// A bmp decoder
@@ -860,6 +861,14 @@ pub struct BmpDecoder<R> {
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
+}
+
+enum RLEInsn<'a> {
+    EndOfFile,
+    EndOfRow,
+    Delta(u8, u8),
+    Absolute(u8, &'a [u8]),
+    PixelRun(u8, u8),
 }
 
 impl<R: BufRead + Seek> BmpDecoder<R> {
@@ -1737,51 +1746,28 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Pre-allocate buffer for RLE absolute mode (max 256 bytes)
         let mut rle_indices_buffer = [0u8; 256];
 
+        // Wrap reader in buffered RLE reader for efficient byte-by-byte access
+        let mut rle_reader = RleReader::new(&mut self.reader);
+
         while let Some(row) = row_iter.next() {
             let mut pixel_iter = row.chunks_exact_mut(num_channels);
             let mut x = 0;
-
             let row_start_pos = next_row_pos;
-            let mut rle_reader = RleReader::new();
 
             loop {
                 let instruction = {
-                    let control_byte = match rle_reader.read_byte(&mut self.reader) {
-                        Ok(byte) => byte,
-                        Err(e) => {
-                            self.save_rle_checkpoint(current_row, row_start_pos);
-                            return Err(e.into());
-                        }
-                    };
+                    let control_byte = rle_reader.read_byte()?;
 
                     match control_byte {
                         RLE_ESCAPE => {
-                            let op = match rle_reader.read_byte(&mut self.reader) {
-                                Ok(byte) => byte,
-                                Err(e) => {
-                                    self.save_rle_checkpoint(current_row, row_start_pos);
-                                    return Err(e.into());
-                                }
-                            };
+                            let op = rle_reader.read_byte()?;
 
                             match op {
                                 RLE_ESCAPE_EOL => RLEInsn::EndOfRow,
                                 RLE_ESCAPE_EOF => RLEInsn::EndOfFile,
                                 RLE_ESCAPE_DELTA => {
-                                    let xdelta = match rle_reader.read_byte(&mut self.reader) {
-                                        Ok(byte) => byte,
-                                        Err(e) => {
-                                            self.save_rle_checkpoint(current_row, row_start_pos);
-                                            return Err(e.into());
-                                        }
-                                    };
-                                    let ydelta = match rle_reader.read_byte(&mut self.reader) {
-                                        Ok(byte) => byte,
-                                        Err(e) => {
-                                            self.save_rle_checkpoint(current_row, row_start_pos);
-                                            return Err(e.into());
-                                        }
-                                    };
+                                    let xdelta = rle_reader.read_byte()?;
+                                    let ydelta = rle_reader.read_byte()?;
                                     RLEInsn::Delta(xdelta, ydelta)
                                 }
                                 _ => {
@@ -1791,25 +1777,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                     }
                                     length += length & 1;
 
-                                    if let Err(e) = rle_reader.read_exact(
-                                        &mut self.reader,
-                                        &mut rle_indices_buffer[..length],
-                                    ) {
-                                        self.save_rle_checkpoint(current_row, row_start_pos);
-                                        return Err(e.into());
-                                    }
+                                    rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
                                     RLEInsn::Absolute(op, &rle_indices_buffer[..length])
                                 }
                             }
                         }
                         _ => {
-                            let palette_index = match rle_reader.read_byte(&mut self.reader) {
-                                Ok(byte) => byte,
-                                Err(e) => {
-                                    self.save_rle_checkpoint(current_row, row_start_pos);
-                                    return Err(e.into());
-                                }
-                            };
+                            let palette_index = rle_reader.read_byte()?;
                             RLEInsn::PixelRun(control_byte, palette_index)
                         }
                     }
@@ -1824,9 +1798,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     RLEInsn::EndOfRow => {
                         pixel_iter.for_each(|p| p.fill(0));
                         current_row += 1;
-                        next_row_pos = row_start_pos + rle_reader.bytes_read();
-                        // Save checkpoint in case next fill fails.
-                        // Set state directly (not via save_rle_checkpoint) to avoid borrow conflict with palette.
+                        next_row_pos = row_start_pos + rle_reader.bytes_read_in_row();
+                        rle_reader.next_row();
                         self.state = DecoderState::ReadingRleData {
                             progress: RleProgress::AfterRow {
                                 row: current_row - 1,
@@ -1919,16 +1892,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 //
                                 // This is like set_8bit_pixel_run() but doesn't fail when `n_pixels` is too large
                                 let repeat_pixel: [u8; 3] = p[palette_index as usize];
-                                // Use a simple loop instead of iterator combinators to keep this hot path
-                                // as lean as possible (measurably faster in benchmarks).
-                                for _ in 0..n_pixels {
-                                    let Some(pixel) = pixel_iter.next() else {
-                                        break;
-                                    };
-                                    pixel[2] = repeat_pixel[2];
-                                    pixel[1] = repeat_pixel[1];
-                                    pixel[0] = repeat_pixel[0];
-                                }
+                                (&mut pixel_iter).take(n_pixels as usize).for_each(|p| {
+                                    p[2] = repeat_pixel[2];
+                                    p[1] = repeat_pixel[1];
+                                    p[0] = repeat_pixel[0];
+                                });
                             }
                             ImageType::RLE4 => {
                                 if !set_4bit_pixel_run(
@@ -1949,18 +1917,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         Ok(())
-    }
-
-    /// Save RLE checkpoint state for resumability.
-    /// If we haven't completed any rows yet, keep NotStarted state.
-    fn save_rle_checkpoint(&mut self, current_row: u32, row_start_pos: u64) {
-        let progress = current_row
-            .checked_sub(1)
-            .map_or(RleProgress::NotStarted, |row| RleProgress::AfterRow {
-                row,
-                next_row_pos: row_start_pos,
-            });
-        self.state = DecoderState::ReadingRleData { progress };
     }
 
     /// Determine if the current image type is RLE-compressed.

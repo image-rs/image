@@ -420,6 +420,9 @@ enum DecoderError {
         colors_used: u32,
         bit_count: u16,
     },
+
+    /// read_image_data was called before read_metadata completed
+    MetadataNotRead,
 }
 
 impl fmt::Display for DecoderError {
@@ -459,6 +462,9 @@ impl fmt::Display for DecoderError {
             } => f.write_fmt(format_args!(
                 "Palette size {colors_used} exceeds maximum size for BMP with bit count of {bit_count}"
             )),
+            DecoderError::MetadataNotRead => {
+                f.write_str("read_image_data called before read_metadata completed")
+            }
         }
     }
 }
@@ -1707,15 +1713,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             DecoderState::ReadingRleData {
                 progress: RleProgress::AfterRow { row, next_row_pos },
             } => (row + 1, next_row_pos),
-            _ => {
-                // read_rle_data called in invalid state - this is a bug
-                debug_assert!(
-                    false,
-                    "read_rle_data called in unexpected state: {:?}",
-                    self.state
-                );
-                (0, self.data_offset)
-            }
+            _ => unreachable!("read_rle_data called in unexpected state: {:?}", self.state),
         };
 
         self.reader.seek(SeekFrom::Start(start_pos))?;
@@ -1727,14 +1725,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // iterate through rows and pixels.  Even if we didn't have to handle
         // deltas, we have to ensure that a single runlength doesn't straddle
         // two rows.
-        let mut row_iter = self.rows(buf);
-
-        // Skip already-decoded rows (resuming from checkpoint)
-        for _ in 0..start_row {
-            if row_iter.next().is_none() {
-                return Ok(());
-            }
-        }
+        // Skip already-decoded rows when resuming from checkpoint.
+        let mut row_iter = self.rows(buf).skip(start_row as usize);
 
         // Track current row for checkpoint updates
         let mut current_row = start_row;
@@ -1953,17 +1945,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// - For RLE formats: decoding resumes from the last completed row (after EndOfRow marker).
     ///   Rows completed before the error are preserved in `buf`.
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        if self.state == DecoderState::ImageDecoded {
-            // Already decoded, nothing to do
-            return Ok(());
-        }
-
-        match self.read_image_data_impl(buf) {
-            Ok(()) => {
-                self.state = DecoderState::ImageDecoded;
-                Ok(())
-            }
-            Err(e) => Err(e),
+        match self.state {
+            DecoderState::ImageDecoded => Ok(()),
+            DecoderState::ReadingRowData { .. } | DecoderState::ReadingRleData { .. } => self
+                .read_image_data_impl(buf)
+                .map(|()| self.state = DecoderState::ImageDecoded),
+            DecoderState::ReadingMetadata { .. } => Err(DecoderError::MetadataNotRead.into()),
         }
     }
 

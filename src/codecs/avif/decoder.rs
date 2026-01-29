@@ -117,6 +117,7 @@ impl<R: Read> AvifDecoder<R> {
         let rotation = ctx.image_rotation().map_err(error_map)?;
         // mp4parse does not expose a safe wrapper around the pointer :(
         let mirror_ptr = ctx.image_mirror_ptr().map_err(error_map)?;
+        dbg!(mirror_ptr);
         let mirror: Option<ImageMirror> = if mirror_ptr.is_null() {
             None
         } else {

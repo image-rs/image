@@ -3,6 +3,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
 /// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
@@ -20,7 +21,7 @@ use crate::codecs::avif::ycgco::{
 };
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
-use mp4parse::{read_avif, ParseStrictness};
+use mp4parse::{read_avif, ImageRotation, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -34,6 +35,7 @@ pub struct AvifDecoder<R> {
     picture: dav1d::Picture,
     alpha_picture: Option<dav1d::Picture>,
     icc_profile: Option<Vec<u8>>,
+    orientation: Orientation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,12 +114,24 @@ impl<R: Read> AvifDecoder<R> {
                 )))
             }
         };
+        let rotation = ctx.image_rotation()?;
+        let rientation = convert_orientation(rotation);
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,
             alpha_picture,
             icc_profile,
+            orientation,
         })
+    }
+}
+
+fn convert_orientation(orig: ImageRotation) -> Orientation {
+    match orig {
+        ImageRotation::D0 => Orientation::NoTransforms,
+        ImageRotation::D90 => Orientation::Rotate90,
+        ImageRotation::D180 => Orientation::Rotate180,
+        ImageRotation::D270 => Orientation::Rotate270,
     }
 }
 

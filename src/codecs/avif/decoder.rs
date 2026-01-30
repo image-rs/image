@@ -3,6 +3,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
 /// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
@@ -20,7 +21,7 @@ use crate::codecs::avif::ycgco::{
 };
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
-use mp4parse::{read_avif, ParseStrictness};
+use mp4parse::{read_avif, ImageMirror, ImageRotation, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -34,6 +35,7 @@ pub struct AvifDecoder<R> {
     picture: dav1d::Picture,
     alpha_picture: Option<dav1d::Picture>,
     icc_profile: Option<Vec<u8>>,
+    orientation: Orientation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,12 +114,52 @@ impl<R: Read> AvifDecoder<R> {
                 )))
             }
         };
+        let rotation = ctx.image_rotation().map_err(error_map)?;
+        // mp4parse does not expose a safe wrapper around the pointer :(
+        let mirror_ptr = ctx.image_mirror_ptr().map_err(error_map)?;
+        let mirror: Option<ImageMirror> = if mirror_ptr.is_null() {
+            None
+        } else {
+            // SAFETY: we have verified above that the pointer is non-null.
+            // We trust mp4parse to return a pointer that is not dangling.
+            // We immediately copy/move the value, so no issues with lifetimes.
+            unsafe { Some(std::ptr::read_unaligned(mirror_ptr)) }
+        };
+
+        let orientation = convert_orientation(rotation, mirror);
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,
             alpha_picture,
             icc_profile,
+            orientation,
         })
+    }
+}
+
+fn convert_orientation(rotation: ImageRotation, mirror: Option<ImageMirror>) -> Orientation {
+    // Order of operations: rotate then mirror
+    match mirror {
+        None => match rotation {
+            ImageRotation::D0 => Orientation::NoTransforms,
+            // AVIF rotations are counter-clockwise (clocksilly)
+            ImageRotation::D90 => Orientation::Rotate270,
+            ImageRotation::D180 => Orientation::Rotate180,
+            ImageRotation::D270 => Orientation::Rotate90,
+        },
+        Some(ImageMirror::LeftRight) => match rotation {
+            ImageRotation::D0 => Orientation::FlipHorizontal,
+            ImageRotation::D90 => Orientation::Rotate270FlipH,
+            ImageRotation::D180 => Orientation::FlipVertical,
+            ImageRotation::D270 => Orientation::Rotate90FlipH,
+        },
+        Some(ImageMirror::TopBottom) => match rotation {
+            ImageRotation::D0 => Orientation::FlipVertical,
+            // FlipV is equivalent to Rotate180FlipH, we use that for conversions below
+            ImageRotation::D90 => Orientation::Rotate90FlipH,
+            ImageRotation::D180 => Orientation::FlipHorizontal,
+            ImageRotation::D270 => Orientation::Rotate270FlipH,
+        },
     }
 }
 
@@ -341,6 +383,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.icc_profile.clone())
+    }
+
+    fn orientation(&mut self) -> ImageResult<Orientation> {
+        Ok(self.orientation)
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

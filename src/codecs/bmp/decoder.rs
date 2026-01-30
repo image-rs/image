@@ -299,8 +299,9 @@ struct HeaderOffsets {
 
 /// Progress within the RLE decoding phase.
 ///
-/// RLE decoding checkpoints at row boundaries (after EndOfRow markers).
-/// On UnexpectedEof, decoding resumes from the last completed row.
+/// RLE decoding checkpoints at row boundaries (after EndOfRow markers) and
+/// after Delta instructions to avoid quadratic time with malformed files.
+/// On UnexpectedEof, decoding resumes from the last stored checkpoint.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum RleProgress {
     /// Not started yet.
@@ -309,6 +310,10 @@ enum RleProgress {
     /// Completed through row `row` (0-indexed).
     /// `next_row_pos` is the stream position where the next row's data begins.
     AfterRow { row: u32, next_row_pos: u64 },
+    /// Processing a Delta instruction.
+    /// `row` is the current row (0-indexed), `x` is the pixel position within the row,
+    /// `stream_pos` is the stream position immediately after the Delta instruction.
+    InDelta { row: u32, x: u32, stream_pos: u64 },
 }
 
 /// Decoder state for resumable decoding.
@@ -1706,13 +1711,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     fn read_rle_data(&mut self, buf: &mut [u8], image_type: ImageType) -> ImageResult<()> {
-        let (start_row, start_pos) = match self.state {
+        let (start_row, start_x, start_pos) = match self.state {
             DecoderState::ReadingRleData {
                 progress: RleProgress::NotStarted,
-            } => (0u32, self.data_offset),
+            } => (0u32, 0u32, self.data_offset),
             DecoderState::ReadingRleData {
                 progress: RleProgress::AfterRow { row, next_row_pos },
-            } => (row + 1, next_row_pos),
+            } => (row + 1, 0, next_row_pos),
+            DecoderState::ReadingRleData {
+                progress: RleProgress::InDelta { row, x, stream_pos },
+            } => (row, x, stream_pos),
             _ => unreachable!("read_rle_data called in unexpected state: {:?}", self.state),
         };
 
@@ -1731,9 +1739,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Track current row for checkpoint updates
         let mut current_row = start_row;
 
-        // Track stream position at the start of each row.
+        // Track stream position at the start of each row (or after Delta when resuming mid-row).
         // When we successfully complete a row, we update this based on consumed bytes.
         let mut next_row_pos = start_pos;
+
+        // Track if this is the first iteration (for InDelta resume handling)
+        let mut first_row_iteration = true;
 
         // Pre-allocate buffer for RLE absolute mode (max 256 bytes)
         let mut rle_indices_buffer = [0u8; 256];
@@ -1743,7 +1754,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         while let Some(row) = row_iter.next() {
             let mut pixel_iter = row.chunks_exact_mut(num_channels);
-            let mut x = 0;
+
+            // When resuming from InDelta, skip to the saved x position on the first row.
+            let mut x = if first_row_iteration && start_x > 0 {
+                pixel_iter.nth(start_x as usize - 1); // nth(n) consumes n+1 elements
+                start_x as usize
+            } else {
+                0
+            };
+            first_row_iteration = false;
+
             let row_start_pos = next_row_pos;
 
             loop {
@@ -1806,10 +1826,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         // a delta code, however IE and the windows image
                         // preview seems to replace them with black pixels,
                         // so we stick to that.
-                        //
-                        // Note: We don't save a checkpoint here. If an error occurs after
-                        // a delta, we resume from the last EndOfRow and re-zero the skipped
-                        // rows, which is idempotent and correct.
 
                         if y_delta > 0 {
                             // Zero out the remainder of the current row.
@@ -1844,6 +1860,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             pixel.fill(0);
                         }
                         x += x_delta as usize;
+
+                        // Checkpoint after Delta to avoid quadratic time with many
+                        // Delta instructions before the next EndOfRow.
+                        let stream_pos = row_start_pos + rle_reader.bytes_read_in_row();
+                        self.state = DecoderState::ReadingRleData {
+                            progress: RleProgress::InDelta {
+                                row: current_row,
+                                x: x as u32,
+                                stream_pos,
+                            },
+                        };
                     }
                     RLEInsn::Absolute(length, indices) => {
                         // Absolute mode cannot span rows, so if we run
@@ -1942,8 +1969,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ///
     /// - For non-RLE formats: decoding resumes from the last successfully decoded row.
     ///   Already-decoded rows are preserved in `buf`.
-    /// - For RLE formats: decoding resumes from the last completed row (after EndOfRow marker).
-    ///   Rows completed before the error are preserved in `buf`.
+    /// - For RLE formats: decoding resumes from the last checkpoint (after EndOfRow or Delta).
+    ///   Rows and pixels completed before the error are preserved in `buf`.
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.state {
             DecoderState::ImageDecoded => Ok(()),
@@ -2382,6 +2409,15 @@ mod test {
                                             "{}: RLE completed {}/{} rows but expected incomplete",
                                             path,
                                             row + 1,
+                                            height
+                                        );
+                                    }
+                                    RleProgress::InDelta { row, .. } => {
+                                        assert!(
+                                            row < height,
+                                            "{}: RLE in Delta at row {}/{} but expected incomplete",
+                                            path,
+                                            row,
                                             height
                                         );
                                     }

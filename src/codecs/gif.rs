@@ -245,9 +245,10 @@ struct GifFrameIterator<R: Read> {
 }
 
 impl<R: BufRead + Seek> GifFrameIterator<R> {
-    fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
+    fn new(mut decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
-        let limits = decoder.limits.clone();
+        let alloc = decoder.limits.max_alloc.unwrap_or(u64::MAX);
+        let limits = decoder.limits.split(alloc);
 
         // intentionally ignore the background color for web compatibility
 
@@ -321,7 +322,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // Therefore, do not count them towards the persistent limits.
         // Instead, create a local instance of `Limits` for this function alone
         // which will be dropped along with all the buffers when they go out of scope.
-        let mut local_limits = self.limits.clone();
+        let mut local_limits = self.limits.duplicate_allocation_budget();
 
         // Check the allocation we're about to perform against the limits
         if let Err(e) = local_limits.reserve_buffer(frame.width, frame.height, COLOR_TYPE) {

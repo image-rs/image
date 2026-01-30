@@ -1792,14 +1792,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     RLEInsn::EndOfRow => {
                         pixel_iter.for_each(|p| p.fill(0));
                         current_row += 1;
-                        let stream_pos = start_pos + rle_reader.bytes_read();
-                        self.state = DecoderState::ReadingRleData {
-                            progress: RleProgress::Checkpoint {
-                                row: current_row,
-                                x: 0,
-                                stream_pos,
-                            },
-                        };
+                        x = 0;
                         break;
                     }
                     RLEInsn::Delta(x_delta, y_delta) => {
@@ -1842,17 +1835,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             pixel.fill(0);
                         }
                         x += x_delta as usize;
-
-                        // Checkpoint after Delta to avoid quadratic time with many
-                        // Delta instructions before the next EndOfRow.
-                        let stream_pos = start_pos + rle_reader.bytes_read();
-                        self.state = DecoderState::ReadingRleData {
-                            progress: RleProgress::Checkpoint {
-                                row: current_row,
-                                x: x as u32,
-                                stream_pos,
-                            },
-                        };
                     }
                     RLEInsn::Absolute(length, indices) => {
                         // Absolute mode cannot span rows, so if we run
@@ -1914,7 +1896,26 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                         x += n_pixels as usize;
                     }
                 }
+
+                // Checkpoint after every instruction to avoid potential quadratic
+                // time complexity when the decoder is given data one byte at a time.
+                self.state = DecoderState::ReadingRleData {
+                    progress: RleProgress::Checkpoint {
+                        row: current_row,
+                        x: x as u32,
+                        stream_pos: start_pos + rle_reader.bytes_read(),
+                    },
+                };
             }
+
+            // Checkpoint after EndOfRow (which breaks out of the inner loop).
+            self.state = DecoderState::ReadingRleData {
+                progress: RleProgress::Checkpoint {
+                    row: current_row,
+                    x: x as u32,
+                    stream_pos: start_pos + rle_reader.bytes_read(),
+                },
+            };
         }
 
         Ok(())

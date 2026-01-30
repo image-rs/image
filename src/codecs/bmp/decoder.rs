@@ -307,13 +307,9 @@ enum RleProgress {
     /// Not started yet.
     #[default]
     NotStarted,
-    /// Completed through row `row` (0-indexed).
-    /// `next_row_pos` is the stream position where the next row's data begins.
-    AfterRow { row: u32, next_row_pos: u64 },
-    /// Processing a Delta instruction.
-    /// `row` is the current row (0-indexed), `x` is the pixel position within the row,
-    /// `stream_pos` is the stream position immediately after the Delta instruction.
-    InDelta { row: u32, x: u32, stream_pos: u64 },
+    /// Checkpoint at position (row, x) with stream at stream_pos.
+    /// On resume, decoding continues from this exact pixel position.
+    Checkpoint { row: u32, x: u32, stream_pos: u64 },
 }
 
 /// Decoder state for resumable decoding.
@@ -789,25 +785,20 @@ impl Bitfields {
 /// Avoids double-buffering since BmpDecoder already requires BufRead.
 struct RleReader<'a, R> {
     reader: &'a mut R,
-    bytes_read_in_row: u64,
+    bytes_read: u64,
 }
 
 impl<'a, R: BufRead> RleReader<'a, R> {
     fn new(reader: &'a mut R) -> Self {
         Self {
             reader,
-            bytes_read_in_row: 0,
+            bytes_read: 0,
         }
     }
 
-    /// Bytes consumed since the start of the current row.
-    fn bytes_read_in_row(&self) -> u64 {
-        self.bytes_read_in_row
-    }
-
-    /// Reset the row byte counter. Call this at the end of each row.
-    fn next_row(&mut self) {
-        self.bytes_read_in_row = 0;
+    /// Total bytes consumed since this reader was created.
+    fn bytes_read(&self) -> u64 {
+        self.bytes_read
     }
 
     fn read_byte(&mut self) -> io::Result<u8> {
@@ -820,7 +811,7 @@ impl<'a, R: BufRead> RleReader<'a, R> {
         }
         let byte = buf[0];
         self.reader.consume(1);
-        self.bytes_read_in_row += 1;
+        self.bytes_read += 1;
         Ok(byte)
     }
 
@@ -840,7 +831,7 @@ impl<'a, R: BufRead> RleReader<'a, R> {
             let to_read = remaining.min(available.len());
             buf[offset..offset + to_read].copy_from_slice(&available[..to_read]);
             self.reader.consume(to_read);
-            self.bytes_read_in_row += to_read as u64;
+            self.bytes_read += to_read as u64;
             offset += to_read;
             remaining -= to_read;
         }
@@ -1716,10 +1707,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 progress: RleProgress::NotStarted,
             } => (0u32, 0u32, self.data_offset),
             DecoderState::ReadingRleData {
-                progress: RleProgress::AfterRow { row, next_row_pos },
-            } => (row + 1, 0, next_row_pos),
-            DecoderState::ReadingRleData {
-                progress: RleProgress::InDelta { row, x, stream_pos },
+                progress: RleProgress::Checkpoint { row, x, stream_pos },
             } => (row, x, stream_pos),
             _ => unreachable!("read_rle_data called in unexpected state: {:?}", self.state),
         };
@@ -1739,11 +1727,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Track current row for checkpoint updates
         let mut current_row = start_row;
 
-        // Track stream position at the start of each row (or after Delta when resuming mid-row).
-        // When we successfully complete a row, we update this based on consumed bytes.
-        let mut next_row_pos = start_pos;
-
-        // Track if this is the first iteration (for InDelta resume handling)
+        // Track if this is the first row iteration (for mid-row resume handling)
         let mut first_row_iteration = true;
 
         // Pre-allocate buffer for RLE absolute mode (max 256 bytes)
@@ -1755,7 +1739,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         while let Some(row) = row_iter.next() {
             let mut pixel_iter = row.chunks_exact_mut(num_channels);
 
-            // When resuming from InDelta, skip to the saved x position on the first row.
+            // When resuming mid-row, skip to the saved x position on the first row.
             let mut x = if first_row_iteration && start_x > 0 {
                 pixel_iter.nth(start_x as usize - 1); // nth(n) consumes n+1 elements
                 start_x as usize
@@ -1763,8 +1747,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 0
             };
             first_row_iteration = false;
-
-            let row_start_pos = next_row_pos;
 
             loop {
                 let instruction = {
@@ -1810,12 +1792,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     RLEInsn::EndOfRow => {
                         pixel_iter.for_each(|p| p.fill(0));
                         current_row += 1;
-                        next_row_pos = row_start_pos + rle_reader.bytes_read_in_row();
-                        rle_reader.next_row();
+                        let stream_pos = start_pos + rle_reader.bytes_read();
                         self.state = DecoderState::ReadingRleData {
-                            progress: RleProgress::AfterRow {
-                                row: current_row - 1,
-                                next_row_pos,
+                            progress: RleProgress::Checkpoint {
+                                row: current_row,
+                                x: 0,
+                                stream_pos,
                             },
                         };
                         break;
@@ -1863,9 +1845,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
                         // Checkpoint after Delta to avoid quadratic time with many
                         // Delta instructions before the next EndOfRow.
-                        let stream_pos = row_start_pos + rle_reader.bytes_read_in_row();
+                        let stream_pos = start_pos + rle_reader.bytes_read();
                         self.state = DecoderState::ReadingRleData {
-                            progress: RleProgress::InDelta {
+                            progress: RleProgress::Checkpoint {
                                 row: current_row,
                                 x: x as u32,
                                 stream_pos,
@@ -2403,19 +2385,10 @@ mod test {
                                 // RLE progress should track rows completed
                                 match progress {
                                     RleProgress::NotStarted => { /* ok, no rows completed yet */ }
-                                    RleProgress::AfterRow { row, .. } => {
-                                        assert!(
-                                            row < height - 1,
-                                            "{}: RLE completed {}/{} rows but expected incomplete",
-                                            path,
-                                            row + 1,
-                                            height
-                                        );
-                                    }
-                                    RleProgress::InDelta { row, .. } => {
+                                    RleProgress::Checkpoint { row, .. } => {
                                         assert!(
                                             row < height,
-                                            "{}: RLE in Delta at row {}/{} but expected incomplete",
+                                            "{}: RLE at row {}/{} but expected incomplete",
                                             path,
                                             row,
                                             height

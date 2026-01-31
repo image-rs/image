@@ -315,7 +315,7 @@ enum RleProgress {
 /// Decoder state for resumable decoding.
 ///
 /// This allows the decoder to recover from `UnexpectedEof` errors.
-/// Decoding can resume from the last succesfilly decoded row.
+/// Decoding can resume from the last successfully decoded row or RLE symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
     /// Currently reading metadata (headers, palette, ICC profile).
@@ -324,7 +324,7 @@ enum DecoderState {
     /// Stores the number of rows successfully decoded.
     ReadingRowData { rows_decoded: u32 },
     /// Currently reading RLE-compressed data.
-    /// Tracks progress at row boundaries for resumability.
+    /// Tracks progress at symbol boundaries for resumability.
     ReadingRleData { progress: RleProgress },
     /// Image data has been fully decoded.
     ImageDecoded,
@@ -1742,7 +1742,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             // When resuming mid-row, skip to the saved x position on the first row.
             let mut x = if first_row_iteration && start_x > 0 {
                 pixel_iter.nth(start_x as usize - 1); // nth(n) consumes n+1 elements
-                start_x as usize
+                start_x
             } else {
                 0
             };
@@ -1834,7 +1834,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             let pixel = pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
                             pixel.fill(0);
                         }
-                        x += x_delta as usize;
+                        x += x_delta as u32;
                     }
                     RLEInsn::Absolute(length, indices) => {
                         // Absolute mode cannot span rows, so if we run
@@ -1863,7 +1863,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             }
                             _ => unreachable!(),
                         }
-                        x += length as usize;
+                        x += length as u32;
                     }
                     RLEInsn::PixelRun(n_pixels, palette_index) => {
                         match image_type {
@@ -1893,7 +1893,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             }
                             _ => unreachable!(),
                         }
-                        x += n_pixels as usize;
+                        x += n_pixels as u32;
                     }
                 }
 
@@ -1902,7 +1902,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 self.state = DecoderState::ReadingRleData {
                     progress: RleProgress::Checkpoint {
                         row: current_row,
-                        x: x as u32,
+                        x,
                         stream_pos: start_pos + rle_reader.bytes_read(),
                     },
                 };
@@ -1912,7 +1912,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.state = DecoderState::ReadingRleData {
                 progress: RleProgress::Checkpoint {
                     row: current_row,
-                    x: x as u32,
+                    x,
                     stream_pos: start_pos + rle_reader.bytes_read(),
                 },
             };
@@ -1952,7 +1952,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ///
     /// - For non-RLE formats: decoding resumes from the last successfully decoded row.
     ///   Already-decoded rows are preserved in `buf`.
-    /// - For RLE formats: decoding resumes from the last checkpoint (after EndOfRow or Delta).
+    /// - For RLE formats: decoding resumes from the last checkpoint (completed instruction symbol).
     ///   Rows and pixels completed before the error are preserved in `buf`.
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.state {

@@ -1,4 +1,3 @@
-use byteorder_lite::ReadBytesExt;
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::{error, fmt};
 
@@ -155,7 +154,6 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
 }
 
 fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
-    // Read 6-byte ICO header atomically
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
     // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
@@ -164,7 +162,6 @@ fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
 }
 
 fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
-    // Read all 16 bytes at once
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -352,11 +349,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
                     // If there's an AND mask following the image, read and apply it.
+                    let mut mask_row = vec![0u8; mask_row_bytes as usize];
                     for y in 0..height {
+                        r.read_exact(&mut mask_row)?;
                         let mut x = 0;
-                        for _ in 0..mask_row_bytes {
+                        for &mask_byte in &mask_row {
                             // Apply the bits of each byte until we reach the end of the row.
-                            let mask_byte = r.read_u8()?;
                             for bit in (0..8).rev() {
                                 if x >= width {
                                     break;

@@ -171,6 +171,14 @@ impl<W: Write> JpegEncoder<W> {
         self.encoder.set_optimized_huffman_tables(optimize);
     }
 
+    /// Progressive files allow showing a low-resolution view of the entire image before it's fully downloaded.
+    /// Useful for large images that will be displayed on the web.
+    ///
+    /// Defaults to **false**.
+    pub fn set_progressive(&mut self, progressive: bool) {
+        self.encoder.set_progressive(progressive);
+    }
+
     /// Set the pixel density of the images the encoder will encode.
     /// If this method is not called, then a default pixel aspect ratio of 1x1 will be applied,
     /// and no DPI information will be stored in the image.

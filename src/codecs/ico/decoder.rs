@@ -1,3 +1,4 @@
+use byteorder_lite::ReadBytesExt;
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::{error, fmt};
 
@@ -349,12 +350,11 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
                     // If there's an AND mask following the image, read and apply it.
-                    let mut mask_row = vec![0u8; mask_row_bytes as usize];
                     for y in 0..height {
-                        r.read_exact(&mut mask_row)?;
                         let mut x = 0;
-                        for &mask_byte in &mask_row {
+                        for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
+                            let mask_byte = r.read_u8()?;
                             for bit in (0..8).rev() {
                                 if x >= width {
                                     break;

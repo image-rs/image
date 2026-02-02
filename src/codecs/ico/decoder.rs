@@ -1,4 +1,4 @@
-use byteorder_lite::{LittleEndian, ReadBytesExt};
+use byteorder_lite::ReadBytesExt;
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::{error, fmt};
 
@@ -155,38 +155,39 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
 }
 
 fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
-    let _reserved = r.read_u16::<LittleEndian>()?;
-    let _type = r.read_u16::<LittleEndian>()?;
-    let count = r.read_u16::<LittleEndian>()?;
+    let mut header = [0u8; 6];
+    r.read_exact(&mut header)?;
+    // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
+    let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
     (0..count).map(|_| read_entry(r)).collect()
 }
 
 fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+    let mut buf = [0u8; 16];
+    r.read_exact(&mut buf)?;
+
+    // Parse fields from buffer
+    // buf[4..6]: may be color planes (0 or 1) or horizontal hotspot for CUR files
+    let num_color_planes = u16::from_le_bytes(buf[4..6].try_into().unwrap());
+    if num_color_planes > 256 {
+        return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
+    }
+
+    // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
+    let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
+    if bits_per_pixel > 256 {
+        return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+    }
+
     Ok(DirEntry {
-        width: r.read_u8()?,
-        height: r.read_u8()?,
-        color_count: r.read_u8()?,
-        reserved: r.read_u8()?,
-        num_color_planes: {
-            // This may be either the number of color planes (0 or 1), or the horizontal coordinate
-            // of the hotspot for CUR files.
-            let num = r.read_u16::<LittleEndian>()?;
-            if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
-            }
-            num
-        },
-        bits_per_pixel: {
-            // This may be either the bit depth (may be 0 meaning unspecified),
-            // or the vertical coordinate of the hotspot for CUR files.
-            let num = r.read_u16::<LittleEndian>()?;
-            if num > 256 {
-                return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
-            }
-            num
-        },
-        image_length: r.read_u32::<LittleEndian>()?,
-        image_offset: r.read_u32::<LittleEndian>()?,
+        width: buf[0],
+        height: buf[1],
+        color_count: buf[2],
+        reserved: buf[3],
+        num_color_planes,
+        bits_per_pixel,
+        image_length: u32::from_le_bytes(buf[8..12].try_into().unwrap()),
+        image_offset: u32::from_le_bytes(buf[12..16].try_into().unwrap()),
     })
 }
 

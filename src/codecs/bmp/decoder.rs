@@ -2098,7 +2098,12 @@ mod test {
 
     /// Validates that the given ICC profile data can be parsed by moxcms and contains
     /// the expected properties for an RGB display profile.
-    fn validate_icc_profile(profile_data: &[u8], source_file: &str) {
+    fn validate_icc_profile(
+        profile_data: &[u8],
+        source_file: &str,
+        expected_color_space: moxcms::DataColorSpace,
+        expected_profile_class: moxcms::ProfileClass,
+    ) {
         let parsed_profile = moxcms::ColorProfile::new_from_slice(profile_data);
         assert!(
             parsed_profile.is_ok(),
@@ -2108,14 +2113,12 @@ mod test {
         );
         let parsed_profile = parsed_profile.unwrap();
         assert_eq!(
-            parsed_profile.color_space,
-            moxcms::DataColorSpace::Rgb,
+            parsed_profile.color_space, expected_color_space,
             "ICC profile from {} should have RGB color space",
             source_file
         );
         assert_eq!(
-            parsed_profile.profile_class,
-            moxcms::ProfileClass::DisplayDevice,
+            parsed_profile.profile_class, expected_profile_class,
             "ICC profile from {} should be a display/monitor profile",
             source_file
         );
@@ -2138,7 +2141,12 @@ mod test {
         assert!(profile.is_some());
         let profile_data = profile.unwrap();
         assert_eq!(profile_data.len(), 3048);
-        validate_icc_profile(&profile_data, "rgb24prof.bmp");
+        validate_icc_profile(
+            &profile_data,
+            "rgb24prof.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
 
         let f =
             BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof2.bmp").unwrap());
@@ -2147,7 +2155,12 @@ mod test {
         assert!(profile.is_some());
         let profile_data = profile.unwrap();
         assert_eq!(profile_data.len(), 540);
-        validate_icc_profile(&profile_data, "rgb24prof2.bmp");
+        validate_icc_profile(
+            &profile_data,
+            "rgb24prof2.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
     }
 
     /// A reader that simulates partial data availability for testing resumable decoding.

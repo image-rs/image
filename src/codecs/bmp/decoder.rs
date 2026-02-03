@@ -215,7 +215,7 @@ impl ParsedBitfields {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ParsedIccProfile {
     /// Absolute file offset where the ICC profile data starts.
-    profile_offset: u32,
+    profile_offset: u64,
     profile_size: u32,
 }
 
@@ -244,7 +244,7 @@ impl ParsedIccProfile {
         }
 
         // Compute the absolute file offset by adding the header's position to the relative offset
-        let profile_offset = bmp_header_offset as u32 + profile_offset_from_header;
+        let profile_offset = bmp_header_offset + u64::from(profile_offset_from_header);
 
         Some(ParsedIccProfile {
             profile_offset,
@@ -1165,8 +1165,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     /// Read ICC profile data from the file.
     fn read_icc_profile(&mut self, icc: &ParsedIccProfile) -> ImageResult<()> {
-        self.reader
-            .seek(SeekFrom::Start(u64::from(icc.profile_offset)))?;
+        self.reader.seek(SeekFrom::Start(icc.profile_offset))?;
         let mut profile_data = vec![0u8; icc.profile_size as usize];
         self.reader.read_exact(&mut profile_data)?;
         self.icc_profile = Some(profile_data);

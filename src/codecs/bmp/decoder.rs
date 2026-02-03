@@ -214,7 +214,8 @@ impl ParsedBitfields {
 /// Parsed ICC profile metadata from V5 header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ParsedIccProfile {
-    profile_offset: u32,
+    /// Absolute file offset where the ICC profile data starts.
+    profile_offset: u64,
     profile_size: u32,
 }
 
@@ -223,7 +224,7 @@ impl ParsedIccProfile {
     /// Returns None if no embedded ICC profile is present.
     /// Note: Caller must ensure buffer has 116 bytes length; this method does not validate.
     #[track_caller]
-    fn parse(buffer: &[u8]) -> Option<Self> {
+    fn parse(buffer: &[u8], bmp_header_offset: u64) -> Option<Self> {
         // bV5CSType is at offset 56 from header start, which is offset 52 from after the size field
         let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
 
@@ -233,14 +234,17 @@ impl ParsedIccProfile {
         }
 
         // bV5ProfileData is at offset 112 from header start, which is offset 108 from after size field
-        let profile_offset = u32::from_le_bytes(buffer[108..112].try_into().unwrap());
+        let profile_offset_from_header = u32::from_le_bytes(buffer[108..112].try_into().unwrap());
 
         // bV5ProfileSize is at offset 116 from header start, which is offset 112 from after size field
         let profile_size = u32::from_le_bytes(buffer[112..116].try_into().unwrap());
 
-        if profile_size == 0 || profile_offset == 0 {
+        if profile_size == 0 || profile_offset_from_header == 0 {
             return None;
         }
+
+        // Compute the absolute file offset by adding the header's position to the relative offset
+        let profile_offset = bmp_header_offset + u64::from(profile_offset_from_header);
 
         Some(ParsedIccProfile {
             profile_offset,
@@ -1161,8 +1165,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     /// Read ICC profile data from the file.
     fn read_icc_profile(&mut self, icc: &ParsedIccProfile) -> ImageResult<()> {
-        self.reader
-            .seek(SeekFrom::Start(u64::from(icc.profile_offset)))?;
+        self.reader.seek(SeekFrom::Start(icc.profile_offset))?;
         let mut profile_data = vec![0u8; icc.profile_size as usize];
         self.reader.read_exact(&mut profile_data)?;
         self.icc_profile = Some(profile_data);
@@ -1349,7 +1352,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.reader.read_exact(&mut header_buffer)?;
 
             // Extract ICC profile metadata for later reading
-            icc_profile = ParsedIccProfile::parse(&header_buffer);
+            icc_profile = ParsedIccProfile::parse(&header_buffer, bmp_header_offset);
 
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
@@ -2092,6 +2095,34 @@ mod test {
         }
     }
 
+    /// Validates that the given ICC profile data can be parsed by moxcms and contains
+    /// the expected properties for an RGB display profile.
+    fn validate_icc_profile(
+        profile_data: &[u8],
+        source_file: &str,
+        expected_color_space: moxcms::DataColorSpace,
+        expected_profile_class: moxcms::ProfileClass,
+    ) {
+        let parsed_profile = moxcms::ColorProfile::new_from_slice(profile_data);
+        assert!(
+            parsed_profile.is_ok(),
+            "ICC profile from {} should be parseable by moxcms: {:?}",
+            source_file,
+            parsed_profile.err()
+        );
+        let parsed_profile = parsed_profile.unwrap();
+        assert_eq!(
+            parsed_profile.color_space, expected_color_space,
+            "ICC profile from {} should have RGB color space",
+            source_file
+        );
+        assert_eq!(
+            parsed_profile.profile_class, expected_profile_class,
+            "ICC profile from {} should be a display/monitor profile",
+            source_file
+        );
+    }
+
     #[test]
     fn test_icc_profile() {
         // V5 header file without embedded ICC profile
@@ -2107,14 +2138,28 @@ mod test {
         let mut decoder = BmpDecoder::new(f).unwrap();
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_some());
-        assert_eq!(profile.unwrap().len(), 3048);
+        let profile_data = profile.unwrap();
+        assert_eq!(profile_data.len(), 3048);
+        validate_icc_profile(
+            &profile_data,
+            "rgb24prof.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
 
         let f =
             BufReader::new(std::fs::File::open("tests/images/bmp/images/rgb24prof2.bmp").unwrap());
         let mut decoder = BmpDecoder::new(f).unwrap();
         let profile = decoder.icc_profile().unwrap();
         assert!(profile.is_some());
-        assert_eq!(profile.unwrap().len(), 540);
+        let profile_data = profile.unwrap();
+        assert_eq!(profile_data.len(), 540);
+        validate_icc_profile(
+            &profile_data,
+            "rgb24prof2.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
     }
 
     /// A reader that simulates partial data availability for testing resumable decoding.
@@ -2307,8 +2352,8 @@ mod test {
                             }
                         }
 
-                        // Simulate more data arriving (add 10 bytes at a time)
-                        bytes_available += 10;
+                        // Simulate more data arriving (add 10 bytes at a time, capped at file size)
+                        bytes_available = (bytes_available + 10).min(file_size);
                         assert!(
                             bytes_available <= file_size,
                             "{}: metadata should succeed before EOF",

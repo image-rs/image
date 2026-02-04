@@ -1929,12 +1929,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8)
     }
 
-    /// Get the current number of rows decoded from the state.
-    /// Returns 0 for non-row-based states.
-    fn rows_decoded(&self) -> u32 {
+    /// Returns the number of fully decoded rows currently available in the buffer.
+    pub fn rows_decoded(&self) -> u32 {
         match self.state {
             DecoderState::ReadingRowData { rows_decoded } => rows_decoded,
-            _ => 0,
+            DecoderState::ReadingRleData { progress } => match progress {
+                RleProgress::NotStarted => 0,
+                // row is 0-indexed current row; rows 0..row are complete
+                RleProgress::Checkpoint { row, .. } => row,
+            },
+            DecoderState::ImageDecoded => self.height as u32,
+            DecoderState::ReadingMetadata { .. } => 0,
         }
     }
 
@@ -2339,7 +2344,6 @@ mod test {
                 match decoder.read_metadata() {
                     Ok(()) => break,
                     Err(ref e) if is_unexpected_eof(e) => {
-                        // Track metadata phase transitions
                         if let DecoderState::ReadingMetadata { progress } = decoder.state {
                             match progress {
                                 MetadataProgress::ReadingPalette { .. } => {
@@ -2356,13 +2360,10 @@ mod test {
                         bytes_available = (bytes_available + 10).min(file_size);
                         assert!(
                             bytes_available <= file_size,
-                            "{}: metadata should succeed before EOF",
-                            path
+                            "{path}: metadata should succeed before EOF"
                         );
                     }
-                    Err(e) => {
-                        panic!("{}: unexpected error during metadata: {:?}", path, e);
-                    }
+                    Err(e) => panic!("{path}: unexpected error during metadata: {e:?}"),
                 }
             }
 
@@ -2370,99 +2371,108 @@ mod test {
             if has_palette {
                 assert!(
                     saw_reading_palette,
-                    "{}: should have seen ReadingPalette phase for palette image",
-                    path
+                    "{path}: should have seen ReadingPalette phase"
                 );
             }
             if has_icc_profile {
                 assert!(
                     saw_reading_icc,
-                    "{}: should have seen ReadingIccProfile phase for ICC profile image",
-                    path
+                    "{path}: should have seen ReadingIccProfile phase"
                 );
-                // Verify ICC profile was read correctly
                 let icc = decoder.icc_profile().unwrap();
                 assert_eq!(
                     icc.map(|p| p.len()),
                     ref_icc_len,
-                    "{}: ICC profile length mismatch",
-                    path
+                    "{path}: ICC profile length mismatch"
                 );
             }
 
             // Verify dimensions are available after metadata
             let (width, height) = decoder.dimensions();
-            assert!(width > 0 && height > 0, "{}: invalid dimensions", path);
+            assert!(width > 0 && height > 0, "{path}: invalid dimensions");
             assert_eq!(
                 decoder.total_bytes() as usize,
                 expected_bytes,
-                "{}: total_bytes mismatch",
-                path
+                "{path}: total_bytes mismatch"
             );
 
             // Phase 2: Stream bytes until image data succeeds
             let mut buf = vec![0u8; expected_bytes];
+            let mut prev_decoded_rows = 0u32;
             loop {
                 decoder.reader.set_available(bytes_available);
                 match decoder.read_image_data(&mut buf) {
-                    Ok(()) => break,
+                    Ok(()) => {
+                        // After successful decode, rows_decoded() should return full height
+                        assert_eq!(
+                            decoder.rows_decoded(),
+                            height,
+                            "{path}: rows_decoded() should equal height after complete decode"
+                        );
+                        break;
+                    }
                     Err(ref e) if is_unexpected_eof(e) => {
+                        // Validate rows_decoded() returns correct count
+                        let decoded_rows = decoder.rows_decoded();
+                        assert!(
+                            decoded_rows <= height,
+                            "{path}: rows_decoded() {decoded_rows} exceeds height {height}"
+                        );
+                        assert!(decoded_rows >= prev_decoded_rows, "{path}: rows_decoded() decreased from {prev_decoded_rows} to {decoded_rows}");
+                        prev_decoded_rows = decoded_rows;
+
                         // Verify state tracks progress appropriately
                         match decoder.state {
                             DecoderState::ReadingRowData { rows_decoded } => {
-                                // rows_decoded should be less than height (not complete)
-                                assert!(
-                                    !is_rle,
-                                    "{}: expected ReadingRleData for RLE format, got ReadingRowData",
-                                    path
-                                );
+                                assert!(!is_rle, "{path}: expected ReadingRleData for RLE format");
                                 assert!(
                                     rows_decoded < height,
-                                    "{}: completed {}/{} rows but expected incomplete on partial data",
-                                    path, rows_decoded, height
+                                    "{path}: rows_decoded {rows_decoded} >= height {height}"
+                                );
+                                assert_eq!(
+                                    decoded_rows, rows_decoded,
+                                    "{path}: rows_decoded() mismatch"
                                 );
                             }
                             DecoderState::ReadingRleData { progress } => {
                                 assert!(
                                     is_rle,
-                                    "{}: expected ReadingRowData for non-RLE format, got ReadingRleData",
-                                    path
+                                    "{path}: expected ReadingRowData for non-RLE format"
                                 );
-                                // RLE progress should track rows completed
                                 match progress {
-                                    RleProgress::NotStarted => { /* ok, no rows completed yet */ }
+                                    RleProgress::NotStarted => {
+                                        assert_eq!(
+                                            decoded_rows, 0,
+                                            "{path}: should be 0 for NotStarted"
+                                        );
+                                    }
                                     RleProgress::Checkpoint { row, .. } => {
                                         assert!(
                                             row < height,
-                                            "{}: RLE at row {}/{} but expected incomplete",
-                                            path,
-                                            row,
-                                            height
+                                            "{path}: RLE row {row} >= height {height}"
+                                        );
+                                        assert_eq!(
+                                            decoded_rows, row,
+                                            "{path}: rows_decoded() mismatch with RLE row"
                                         );
                                     }
                                 }
                             }
-                            _ => panic!(
-                                "{}: unexpected state during image data: {:?}",
-                                path, decoder.state
-                            ),
+                            _ => panic!("{path}: unexpected state: {:?}", decoder.state),
                         }
 
                         bytes_available += 100;
                         assert!(
-                            bytes_available <= file_size + 100, // Allow small overshoot due to chunk size
-                            "{}: image data should succeed before EOF",
-                            path
+                            bytes_available <= file_size + 100,
+                            "{path}: image data should succeed before EOF"
                         );
                     }
-                    Err(e) => {
-                        panic!("{}: unexpected error during image data: {:?}", path, e);
-                    }
+                    Err(e) => panic!("{path}: unexpected error during image data: {e:?}"),
                 }
             }
 
             // Verify decoded data matches reference
-            assert_eq!(buf, ref_buf, "{}: decoded data mismatch", path);
+            assert_eq!(buf, ref_buf, "{path}: decoded data mismatch");
         }
     }
 }

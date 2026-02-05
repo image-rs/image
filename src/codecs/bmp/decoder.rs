@@ -1098,8 +1098,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// Read BITMAPINFOHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx>
     /// or BITMAPV{2|3|4|5}HEADER.
     ///
-    /// returns Err if any of the values are invalid.
-    fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
+    /// Returns the compression type on success, or Err if any values are invalid.
+    fn read_bitmap_info_header(&mut self) -> ImageResult<u32> {
         // Info header (after size field): 36 bytes minimum
         let mut buffer = [0u8; 36];
         self.reader.read_exact(&mut buffer)?;
@@ -1119,15 +1119,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
-        Ok(())
+        Ok(parsed.compression)
     }
 
-    fn read_bitmasks(&mut self) -> ImageResult<()> {
-        // Determine if we need to read alpha mask
+    fn read_bitmasks(&mut self, compression: u32) -> ImageResult<()> {
+        // Determine if we need to read alpha mask.
+        // V3/V4/V5 headers have room for an alpha mask, and BI_ALPHABITFIELDS
+        // compression type (6) explicitly indicates an alpha channel is present.
         let has_alpha = matches!(
             self.bmp_header_type,
             BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5
-        );
+        ) || compression == BI_ALPHABITFIELDS;
 
         // Read bitfield masks into buffer
         let buffer_size = if has_alpha { 16 } else { 12 };
@@ -1309,26 +1311,27 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             }
         };
 
-        match self.bmp_header_type {
+        // Read header and get compression type (Core header has no compression)
+        let compression = match self.bmp_header_type {
             BMPHeaderType::Core => {
                 self.read_bitmap_core_header()?;
+                BI_RGB // Core headers are always uncompressed
             }
             BMPHeaderType::Info
             | BMPHeaderType::V2
             | BMPHeaderType::V3
             | BMPHeaderType::V4
-            | BMPHeaderType::V5 => {
-                self.read_bitmap_info_header()?;
-            }
-        }
+            | BMPHeaderType::V5 => self.read_bitmap_info_header()?,
+        };
 
         let mut bitmask_bytes_offset = 0;
         if self.image_type == ImageType::Bitfields16 || self.image_type == ImageType::Bitfields32 {
-            self.read_bitmasks()?;
+            self.read_bitmasks(compression)?;
 
             // Per https://learn.microsoft.com/en-us/windows/win32/gdi/bitmap-header-types, bitmaps
             // using the `BITMAPINFOHEADER`, `BITMAPV4HEADER`, or `BITMAPV5HEADER` structures with
             // an image type of `BI_BITFIELD` contain RGB bitfield masks immediately after the header.
+            // For BI_ALPHABITFIELDS, there's also an alpha mask (4 DWORDs total instead of 3).
             //
             // `read_bitmasks` correctly reads these from earlier in the header itself but we must
             // ensure the reader starts on the image data itself, not these extra mask bytes.
@@ -1336,8 +1339,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 self.bmp_header_type,
                 BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5
             ) {
-                // This is `size_of::<u32>() * 3` (a red, green, and blue mask), but with less noise.
-                bitmask_bytes_offset = 12;
+                // RGB masks: 3 DWORDs = 12 bytes
+                // RGBA masks (BI_ALPHABITFIELDS): 4 DWORDs = 16 bytes
+                bitmask_bytes_offset = if compression == BI_ALPHABITFIELDS {
+                    16
+                } else {
+                    12
+                };
             }
         };
 

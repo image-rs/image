@@ -388,6 +388,15 @@ enum FormatFullBytes {
     Format888,
 }
 
+/// Compression type for bitfield-based formats.
+#[derive(PartialEq, Copy, Clone)]
+enum BitfieldCompression {
+    /// BI_BITFIELDS: RGB masks only (3 masks, 12 bytes after header).
+    Rgb,
+    /// BI_ALPHABITFIELDS: RGBA masks (4 masks, 16 bytes after header).
+    Rgba,
+}
+
 enum Chunker<'a> {
     FromTop(ChunksExactMut<'a, u8>),
     FromBottom(Rev<ChunksExactMut<'a, u8>>),
@@ -1126,12 +1135,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// Read BITMAPINFOHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx>
     /// or BITMAPV{2|3|4|5}HEADER.
     ///
-    /// returns Err if any of the values are invalid.
-    fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
+    /// Returns the bitfield compression type or Err if any of the values are invalid.
+    fn read_bitmap_info_header(&mut self) -> ImageResult<BitfieldCompression> {
         // Info header (after size field): 36 bytes minimum
         let mut buffer = [0u8; 36];
         self.reader.read_exact(&mut buffer)?;
-
         let parsed = ParsedInfoHeader::parse(&buffer)?;
 
         self.width = parsed.width;
@@ -1147,15 +1155,21 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
-        Ok(())
+        let compression = match parsed.compression {
+            BI_ALPHABITFIELDS => BitfieldCompression::Rgba,
+            _ => BitfieldCompression::Rgb,
+        };
+        Ok(compression)
     }
 
-    fn read_bitmasks(&mut self) -> ImageResult<()> {
-        // Determine if we need to read alpha mask
+    fn read_bitmasks(&mut self, compression: BitfieldCompression) -> ImageResult<()> {
+        // Determine if we need to read alpha mask:
+        // - V3/V4/V5 headers have the alpha mask embedded in the header
+        // - BI_ALPHABITFIELDS compression has a 4th mask after the header
         let has_alpha = matches!(
             self.bmp_header_type,
             BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5
-        );
+        ) || compression == BitfieldCompression::Rgba;
 
         // Read bitfield masks into buffer
         let buffer_size = if has_alpha { 16 } else { 12 };
@@ -1337,26 +1351,29 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             }
         };
 
-        match self.bmp_header_type {
+        let bitfield_compression = match self.bmp_header_type {
             BMPHeaderType::Core => {
                 self.read_bitmap_core_header()?;
+                BitfieldCompression::Rgb
             }
             BMPHeaderType::Info
             | BMPHeaderType::V2
             | BMPHeaderType::V3
             | BMPHeaderType::V4
-            | BMPHeaderType::V5 => {
-                self.read_bitmap_info_header()?;
-            }
-        }
+            | BMPHeaderType::V5 => self.read_bitmap_info_header()?,
+        };
 
         let mut bitmask_bytes_offset = 0;
-        if self.image_type == ImageType::Bitfields16 || self.image_type == ImageType::Bitfields32 {
-            self.read_bitmasks()?;
+        if matches!(
+            self.image_type,
+            ImageType::Bitfields16 | ImageType::Bitfields32
+        ) {
+            self.read_bitmasks(bitfield_compression)?;
 
             // Per https://learn.microsoft.com/en-us/windows/win32/gdi/bitmap-header-types, bitmaps
             // using the `BITMAPINFOHEADER`, `BITMAPV4HEADER`, or `BITMAPV5HEADER` structures with
-            // an image type of `BI_BITFIELD` contain RGB bitfield masks immediately after the header.
+            // an image type of `BI_BITFIELD` or `BI_ALPHABITFIELDS` contain bitfield masks
+            // immediately after the header.
             //
             // `read_bitmasks` correctly reads these from earlier in the header itself but we must
             // ensure the reader starts on the image data itself, not these extra mask bytes.
@@ -1364,8 +1381,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 self.bmp_header_type,
                 BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5
             ) {
-                // This is `size_of::<u32>() * 3` (a red, green, and blue mask), but with less noise.
-                bitmask_bytes_offset = 12;
+                bitmask_bytes_offset = match bitfield_compression {
+                    BitfieldCompression::Rgba => 16, // 4 masks * 4 bytes
+                    BitfieldCompression::Rgb => 12,  // 3 masks * 4 bytes
+                };
             }
         };
 

@@ -1943,6 +1943,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
     }
 
+    /// Returns whether this BMP is stored top-down (true) or bottom-up (false)..
+    pub fn is_top_down(&self) -> bool {
+        self.top_down
+    }
+
     /// Handle the result of a row-based decode operation, updating state accordingly.
     fn finish_row_decode(&mut self, result: Result<u32, (u32, io::Error)>) -> ImageResult<()> {
         let (Ok(rows) | Err((rows, _))) = result;

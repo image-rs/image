@@ -1481,7 +1481,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let width = self.width as usize;
         let skip_palette = self.indexed_color;
 
-        let start_row = self.rows_decoded();
+        let (start_row, top_down) = self.rows_decoded();
 
         let file_offset = self.data_offset + (start_row as u64 * row_byte_length as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1497,7 +1497,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.width,
             self.height,
             num_channels,
-            self.top_down,
+            top_down,
             start_row,
             |row| {
                 reader.read_exact(&mut indices)?;
@@ -1543,10 +1543,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let row_padding_len = calculate_row_padding(row_data_len);
         let total_row_len = row_data_len + row_padding_len;
 
-        let start_row = self.rows_decoded();
+        let (start_row, top_down) = self.rows_decoded();
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1593,10 +1592,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let row_data_len = self.width as usize * 4;
 
-        let start_row = self.rows_decoded();
+        let (start_row, top_down) = self.rows_decoded();
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * row_data_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1654,10 +1652,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         };
         let total_row_len = row_data_len + row_padding_len;
 
-        let start_row = self.rows_decoded();
+        let (start_row, top_down) = self.rows_decoded();
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1929,9 +1926,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8)
     }
 
-    /// Returns the number of fully decoded rows currently available in the buffer.
-    pub fn rows_decoded(&self) -> u32 {
-        match self.state {
+    /// Returns the number of fully decoded rows and the image orientation.
+    ///
+    /// The returned tuple contains:
+    /// - `rows`: The number of rows that have been fully decoded and are available in the buffer.
+    /// - `top_down`: Whether the BMP is stored top-down (`true`) or bottom-up (`false`).
+    pub fn rows_decoded(&self) -> (u32, bool) {
+        let rows = match self.state {
             DecoderState::ReadingRowData { rows_decoded } => rows_decoded,
             DecoderState::ReadingRleData { progress } => match progress {
                 RleProgress::NotStarted => 0,
@@ -1940,12 +1941,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             },
             DecoderState::ImageDecoded => self.height as u32,
             DecoderState::ReadingMetadata { .. } => 0,
-        }
-    }
-
-    /// Returns whether this BMP is stored top-down (true) or bottom-up (false)..
-    pub fn is_top_down(&self) -> bool {
-        self.top_down
+        };
+        (rows, self.top_down)
     }
 
     /// Handle the result of a row-based decode operation, updating state accordingly.
@@ -2410,7 +2407,7 @@ mod test {
                     Ok(()) => {
                         // After successful decode, rows_decoded() should return full height
                         assert_eq!(
-                            decoder.rows_decoded(),
+                            decoder.rows_decoded().0,
                             height,
                             "{path}: rows_decoded() should equal height after complete decode"
                         );
@@ -2418,7 +2415,7 @@ mod test {
                     }
                     Err(ref e) if is_unexpected_eof(e) => {
                         // Validate rows_decoded() returns correct count
-                        let decoded_rows = decoder.rows_decoded();
+                        let (decoded_rows, _) = decoder.rows_decoded();
                         assert!(
                             decoded_rows <= height,
                             "{path}: rows_decoded() {decoded_rows} exceeds height {height}"

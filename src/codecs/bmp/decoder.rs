@@ -85,13 +85,13 @@ const PROFILE_EMBEDDED: u32 = 0x4D424544;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowsDecoded {
     /// Rows were decoded sequentially from the top of the image.
-    Sequential {
-        /// Number of rows decoded so far.
+    TopDown {
+        /// Number of top rows decoded so far.
         rows: u32,
     },
-    /// Rows were decoded with a vertical flip (bottom-up to top-down).
-    FlippedVertically {
-        /// Number of rows decoded so far.
+    /// Rows were decoded from the bottom of the image (vertical flip).
+    BottomUp {
+        /// Number of bottom rows decoded so far.
         rows: u32,
     },
 }
@@ -101,7 +101,7 @@ impl RowsDecoded {
     #[inline]
     pub fn rows(&self) -> u32 {
         match *self {
-            RowsDecoded::Sequential { rows } | RowsDecoded::FlippedVertically { rows } => rows,
+            RowsDecoded::TopDown { rows } | RowsDecoded::BottomUp { rows } => rows,
         }
     }
 }
@@ -1511,7 +1511,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let rows_decoded = self.rows_decoded();
         let start_row = rows_decoded.rows();
-        let top_down = matches!(rows_decoded, RowsDecoded::Sequential { .. });
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
 
         let file_offset = self.data_offset + (start_row as u64 * row_byte_length as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1575,7 +1575,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let rows_decoded = self.rows_decoded();
         let start_row = rows_decoded.rows();
-        let top_down = matches!(rows_decoded, RowsDecoded::Sequential { .. });
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
 
@@ -1626,7 +1626,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let rows_decoded = self.rows_decoded();
         let start_row = rows_decoded.rows();
-        let top_down = matches!(rows_decoded, RowsDecoded::Sequential { .. });
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
 
@@ -1688,7 +1688,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let rows_decoded = self.rows_decoded();
         let start_row = rows_decoded.rows();
-        let top_down = matches!(rows_decoded, RowsDecoded::Sequential { .. });
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
 
@@ -1977,9 +1977,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             DecoderState::ReadingMetadata { .. } => 0,
         };
         if self.top_down {
-            RowsDecoded::Sequential { rows }
+            RowsDecoded::TopDown { rows }
         } else {
-            RowsDecoded::FlippedVertically { rows }
+            RowsDecoded::BottomUp { rows }
         }
     }
 
@@ -2468,13 +2468,13 @@ mod test {
                         );
                         if top_down {
                             assert!(
-                                matches!(progress, RowsDecoded::Sequential { .. }),
-                                "{path}: top-down file should produce Sequential, got {progress:?}"
+                                matches!(progress, RowsDecoded::TopDown { .. }),
+                                "{path}: top-down file should produce TopDown, got {progress:?}"
                             );
                         } else {
                             assert!(
-                                matches!(progress, RowsDecoded::FlippedVertically { .. }),
-                                "{path}: bottom-up file should produce FlippedVertically, got {progress:?}"
+                                matches!(progress, RowsDecoded::BottomUp { .. }),
+                                "{path}: bottom-up file should produce BottomUp, got {progress:?}"
                             );
                         }
                         break;

@@ -78,6 +78,34 @@ const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 /// The value of the V5 header field indicating an embedded ICC profile ("MBED").
 const PROFILE_EMBEDDED: u32 = 0x4D424544;
 
+/// During progressive decoding, the decoder applies transforms (e.g. a vertical
+/// flip for bottom-up BMP files) as it writes rows into the output buffer.
+/// This enum describes which rows contain valid pixel data by indicating the
+/// transform that was applied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowsDecoded {
+    /// Rows were decoded sequentially from the top of the image.
+    TopDown {
+        /// Number of top rows decoded so far.
+        rows: u32,
+    },
+    /// Rows were decoded from the bottom of the image (vertical flip).
+    BottomUp {
+        /// Number of bottom rows decoded so far.
+        rows: u32,
+    },
+}
+
+impl RowsDecoded {
+    /// Returns the number of decoded rows.
+    #[inline]
+    pub fn rows(&self) -> u32 {
+        match *self {
+            RowsDecoded::TopDown { rows } | RowsDecoded::BottomUp { rows } => rows,
+        }
+    }
+}
+
 /// Parsed BITMAPCOREHEADER fields (excludes 4-byte size field).
 struct ParsedCoreHeader {
     width: i32,
@@ -1481,7 +1509,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let width = self.width as usize;
         let skip_palette = self.indexed_color;
 
-        let start_row = self.rows_decoded();
+        let rows_decoded = self.rows_decoded();
+        let start_row = rows_decoded.rows();
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
 
         let file_offset = self.data_offset + (start_row as u64 * row_byte_length as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1497,7 +1527,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.width,
             self.height,
             num_channels,
-            self.top_down,
+            top_down,
             start_row,
             |row| {
                 reader.read_exact(&mut indices)?;
@@ -1543,10 +1573,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let row_padding_len = calculate_row_padding(row_data_len);
         let total_row_len = row_data_len + row_padding_len;
 
-        let start_row = self.rows_decoded();
+        let rows_decoded = self.rows_decoded();
+        let start_row = rows_decoded.rows();
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1593,10 +1624,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let row_data_len = self.width as usize * 4;
 
-        let start_row = self.rows_decoded();
+        let rows_decoded = self.rows_decoded();
+        let start_row = rows_decoded.rows();
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * row_data_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1654,10 +1686,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         };
         let total_row_len = row_data_len + row_padding_len;
 
-        let start_row = self.rows_decoded();
+        let rows_decoded = self.rows_decoded();
+        let start_row = rows_decoded.rows();
+        let top_down = matches!(rows_decoded, RowsDecoded::TopDown { .. });
         let width = self.width;
         let height = self.height;
-        let top_down = self.top_down;
 
         let file_offset = self.data_offset + (start_row as u64 * total_row_len as u64);
         self.reader.seek(SeekFrom::Start(file_offset))?;
@@ -1929,9 +1962,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8)
     }
 
-    /// Returns the number of fully decoded rows currently available in the buffer.
-    pub fn rows_decoded(&self) -> u32 {
-        match self.state {
+    /// Returns which rows in the output buffer contain valid decoded pixel data.
+    ///
+    /// See [`RowsDecoded`] for details on how to interpret the result.
+    pub fn rows_decoded(&self) -> RowsDecoded {
+        let rows = match self.state {
             DecoderState::ReadingRowData { rows_decoded } => rows_decoded,
             DecoderState::ReadingRleData { progress } => match progress {
                 RleProgress::NotStarted => 0,
@@ -1940,6 +1975,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             },
             DecoderState::ImageDecoded => self.height as u32,
             DecoderState::ReadingMetadata { .. } => 0,
+        };
+        if self.top_down {
+            RowsDecoded::TopDown { rows }
+        } else {
+            RowsDecoded::BottomUp { rows }
         }
     }
 
@@ -2264,6 +2304,7 @@ mod test {
             is_rle: bool,
             has_palette: bool,
             has_icc_profile: bool,
+            top_down: bool,
         }
 
         // Test multiple BMP formats to ensure resumable decoding works across variants
@@ -2273,42 +2314,56 @@ mod test {
                 is_rle: false,
                 has_palette: false,
                 has_icc_profile: false,
+                top_down: false,
             },
             TestCase {
                 path: "tests/images/bmp/images/Info_A8_R8_G8_B8.bmp",
                 is_rle: false,
                 has_palette: false,
                 has_icc_profile: false,
+                top_down: false,
+            },
+            TestCase {
+                path: "tests/images/bmp/images/Info_A8_R8_G8_B8_Top_Down.bmp",
+                is_rle: false,
+                has_palette: false,
+                has_icc_profile: false,
+                top_down: true,
             },
             TestCase {
                 path: "tests/images/bmp/images/Info_8_Bit.bmp",
                 is_rle: false,
                 has_palette: true,
                 has_icc_profile: false,
+                top_down: false,
             },
             TestCase {
                 path: "tests/images/bmp/images/Core_8_Bit.bmp",
                 is_rle: false,
                 has_palette: true,
                 has_icc_profile: false,
+                top_down: false,
             },
             TestCase {
                 path: "tests/images/bmp/images/pal8rle.bmp",
                 is_rle: true,
                 has_palette: true,
                 has_icc_profile: false,
+                top_down: false,
             },
             TestCase {
                 path: "tests/images/bmp/images/pal4rle.bmp",
                 is_rle: true,
                 has_palette: true,
                 has_icc_profile: false,
+                top_down: false,
             },
             TestCase {
                 path: "tests/images/bmp/images/rgb24prof.bmp",
                 is_rle: false,
                 has_palette: false,
                 has_icc_profile: true,
+                top_down: false,
             },
         ];
 
@@ -2317,6 +2372,7 @@ mod test {
             is_rle,
             has_palette,
             has_icc_profile,
+            top_down,
         } in test_files
         {
             let data = std::fs::read(path).unwrap();
@@ -2404,16 +2460,29 @@ mod test {
                 match decoder.read_image_data(&mut buf) {
                     Ok(()) => {
                         // After successful decode, rows_decoded() should return full height
+                        let progress = decoder.rows_decoded();
                         assert_eq!(
-                            decoder.rows_decoded(),
+                            progress.rows(),
                             height,
                             "{path}: rows_decoded() should equal height after complete decode"
                         );
+                        if top_down {
+                            assert!(
+                                matches!(progress, RowsDecoded::TopDown { .. }),
+                                "{path}: top-down file should produce TopDown, got {progress:?}"
+                            );
+                        } else {
+                            assert!(
+                                matches!(progress, RowsDecoded::BottomUp { .. }),
+                                "{path}: bottom-up file should produce BottomUp, got {progress:?}"
+                            );
+                        }
                         break;
                     }
                     Err(ref e) if is_unexpected_eof(e) => {
-                        // Validate rows_decoded() returns correct count
-                        let decoded_rows = decoder.rows_decoded();
+                        // Validate rows_decoded() returns correct count and variant
+                        let progress = decoder.rows_decoded();
+                        let decoded_rows = progress.rows();
                         assert!(
                             decoded_rows <= height,
                             "{path}: rows_decoded() {decoded_rows} exceeds height {height}"

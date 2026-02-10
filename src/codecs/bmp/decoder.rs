@@ -11,6 +11,18 @@ use crate::error::{
 };
 use crate::{ImageDecoder, ImageFormat};
 
+/// Controls how strictly the BMP decoder adheres to the specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BmpSpec {
+    /// Strictly follow the BMP specification.
+    /// Rejects files that violate spec constraints (e.g., RLE with top-down).
+    #[default]
+    Strict,
+    /// Allow some non-conformant files that violate some spec constraints
+    /// but still can be decoded at best effort.
+    Lenient,
+}
+
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
 const BITMAPV2HEADER_SIZE: u32 = 52;
@@ -116,12 +128,12 @@ struct ParsedCoreHeader {
 
 impl ParsedCoreHeader {
     /// Parse BITMAPCOREHEADER fields from an 8-byte buffer.
-    fn parse(buffer: &[u8; 8]) -> ImageResult<Self> {
+    fn parse(buffer: &[u8; 8], spec_strictness: BmpSpec) -> ImageResult<Self> {
         let width = i32::from(u16::from_le_bytes(buffer[0..2].try_into().unwrap()));
         let height = i32::from(u16::from_le_bytes(buffer[2..4].try_into().unwrap()));
 
         let planes = u16::from_le_bytes(buffer[4..6].try_into().unwrap());
-        if planes != 1 {
+        if spec_strictness == BmpSpec::Strict && planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
@@ -157,7 +169,7 @@ struct ParsedInfoHeader {
 
 impl ParsedInfoHeader {
     /// Parse BITMAPINFOHEADER fields from a 36-byte buffer.
-    fn parse(buffer: &[u8; 36]) -> ImageResult<Self> {
+    fn parse(buffer: &[u8; 36], spec_strictness: BmpSpec) -> ImageResult<Self> {
         let width = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let mut height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
@@ -181,15 +193,21 @@ impl ParsedInfoHeader {
         };
 
         let planes = u16::from_le_bytes(buffer[8..10].try_into().unwrap());
-        if planes != 1 {
+        if spec_strictness == BmpSpec::Strict && planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
         let bit_count = u16::from_le_bytes(buffer[10..12].try_into().unwrap());
         let compression = u32::from_le_bytes(buffer[12..16].try_into().unwrap());
 
-        // Top-down DIBs cannot be compressed
-        if top_down && compression != BI_RGB && compression != BI_BITFIELDS {
+        // Top-down DIBs cannot be compressed (per BMP specification).
+        // In lenient mode, we allow this for compatibility with other decoders.
+        if spec_strictness == BmpSpec::Strict
+            && top_down
+            && compression != BI_RGB
+            && compression != BI_BITFIELDS
+            && compression != BI_ALPHABITFIELDS
+        {
             return Err(DecoderError::ImageTypeInvalidForTopDown(compression).into());
         }
 
@@ -892,6 +910,7 @@ pub struct BmpDecoder<R> {
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
+    spec_strictness: BmpSpec,
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
@@ -926,7 +945,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             palette: None,
             bitfields: None,
             icc_profile: None,
-
+            spec_strictness: BmpSpec::default(),
             state: DecoderState::default(),
         }
     }
@@ -1013,6 +1032,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// In other words, the output image is the indexed color.
     pub fn set_indexed_color(&mut self, indexed_color: bool) {
         self.indexed_color = indexed_color;
+    }
+
+    /// Set the BMP specification strictness mode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called after metadata has already been parsed, since the
+    /// strictness setting only affects metadata parsing.
+    pub fn set_spec_strictness(&mut self, strictness: BmpSpec) {
+        assert!(
+            matches!(self.state, DecoderState::ReadingMetadata { .. }),
+            "set_spec_strictness must be called before read_metadata"
+        );
+        self.spec_strictness = strictness;
     }
 
     #[cfg(feature = "ico")]
@@ -1111,7 +1144,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut buffer = [0u8; 8];
         self.reader.read_exact(&mut buffer)?;
 
-        let parsed = ParsedCoreHeader::parse(&buffer)?;
+        let parsed = ParsedCoreHeader::parse(&buffer, self.spec_strictness)?;
 
         self.width = parsed.width;
         self.height = parsed.height;
@@ -1132,7 +1165,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut buffer = [0u8; 36];
         self.reader.read_exact(&mut buffer)?;
 
-        let parsed = ParsedInfoHeader::parse(&buffer)?;
+        let parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
 
         self.width = parsed.width;
         self.height = parsed.height;
@@ -1412,14 +1445,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         match self.colors_used {
             0 => Ok(1 << self.bit_count),
             _ => {
-                if self.colors_used > 1 << self.bit_count {
+                if self.spec_strictness == BmpSpec::Strict && self.colors_used > 1 << self.bit_count
+                {
                     return Err(DecoderError::PaletteSizeExceeded {
                         colors_used: self.colors_used,
                         bit_count: self.bit_count,
                     }
                     .into());
                 }
-                Ok(self.colors_used as usize)
+                // In lenient mode, clamp to max palette size for the bit depth
+                let max_size = 1usize << self.bit_count;
+                Ok((self.colors_used as usize).min(max_size))
             }
         }
     }
@@ -2542,6 +2578,56 @@ mod test {
 
             // Verify decoded data matches reference
             assert_eq!(buf, ref_buf, "{path}: decoded data mismatch");
+        }
+    }
+
+    /// Test that BMP files with known spec violations are rejected in strict mode
+    /// but accepted in lenient mode.
+    ///
+    /// These files come from the Chromium BMP test suite ("bad/" category):
+    /// - `rletopdown`: RLE compression with top-down orientation (spec forbids this)
+    /// - `badplanes`: planes field != 1 (spec requires exactly 1)
+    /// - `badpalettesize`: colors_used exceeds max for the bit depth
+    #[test]
+    fn test_strict_vs_lenient_spec_validation() {
+        let bad_files = [
+            (
+                "tests/images/bmp/images/lenient/rletopdown.bmp",
+                "rletopdown: RLE with top-down should be rejected in strict mode",
+            ),
+            (
+                "tests/images/bmp/images/lenient/badplanes.bmp",
+                "badplanes: planes != 1 should be rejected in strict mode",
+            ),
+            (
+                "tests/images/bmp/images/lenient/badpalettesize.bmp",
+                "badpalettesize: palette size exceeding bit depth should be rejected in strict mode",
+            ),
+        ];
+
+        for (path, description) in &bad_files {
+            let data = std::fs::read(path)
+                .unwrap_or_else(|e| panic!("{description}: failed to read {path}: {e}"));
+
+            // Strict mode (default): these files must be rejected
+            let strict_result = BmpDecoder::new(Cursor::new(&data));
+            assert!(
+                strict_result.is_err(),
+                "{description}: expected error in strict mode, but got Ok"
+            );
+
+            // Lenient mode: these files should be accepted
+            let mut lenient_decoder = BmpDecoder::new_resumable(Cursor::new(&data));
+            lenient_decoder.set_spec_strictness(BmpSpec::Lenient);
+            lenient_decoder.read_metadata().unwrap_or_else(|e| {
+                panic!("{description}: lenient metadata failed: {e:?}");
+            });
+            let mut buf = vec![0u8; lenient_decoder.total_bytes() as usize];
+            lenient_decoder
+                .read_image_data(&mut buf)
+                .unwrap_or_else(|e| {
+                    panic!("{description}: lenient image data failed: {e:?}");
+                });
         }
     }
 }

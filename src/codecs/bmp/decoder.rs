@@ -789,6 +789,7 @@ impl Bitfield {
     fn read(&self, data: u32) -> u8 {
         let data = data >> self.shift;
         match self.len {
+            0 => 0,
             1 => ((data & 0b1) * 0xff) as u8,
             2 => ((data & 0b11) * 0x55) as u8,
             3 => LOOKUP_TABLE_3_BIT_TO_8_BIT[(data & 0b00_0111) as usize],
@@ -817,6 +818,7 @@ impl Bitfields {
         b_mask: u32,
         a_mask: u32,
         max_len: u32,
+        spec_strictness: BmpSpec,
     ) -> ImageResult<Bitfields> {
         let bitfields = Bitfields {
             r: Bitfield::from_mask(r_mask, max_len)?,
@@ -824,7 +826,11 @@ impl Bitfields {
             b: Bitfield::from_mask(b_mask, max_len)?,
             a: Bitfield::from_mask(a_mask, max_len)?,
         };
-        if bitfields.r.len == 0 || bitfields.g.len == 0 || bitfields.b.len == 0 {
+        // In strict mode, all RGB channels must have non-zero masks.
+        // In lenient mode, allow zero masks (the channel will read as 0).
+        if spec_strictness == BmpSpec::Strict
+            && (bitfields.r.len == 0 || bitfields.g.len == 0 || bitfields.b.len == 0)
+        {
             return Err(DecoderError::BitfieldMaskMissing(max_len).into());
         }
         Ok(bitfields)
@@ -1212,6 +1218,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     parsed.b_mask,
                     parsed.a_mask,
                     max_len,
+                    self.spec_strictness,
                 )?)
             }
             _ => None,
@@ -2588,6 +2595,7 @@ mod test {
     /// - `rletopdown`: RLE compression with top-down orientation (spec forbids this)
     /// - `badplanes`: planes field != 1 (spec requires exactly 1)
     /// - `badpalettesize`: colors_used exceeds max for the bit depth
+    /// - `rgb16-880`: 16-bit bitfields with 8-8-0 channel widths (blue mask is zero)
     #[test]
     fn test_strict_vs_lenient_spec_validation() {
         let bad_files = [
@@ -2602,6 +2610,10 @@ mod test {
             (
                 "tests/images/bmp/images/lenient/badpalettesize.bmp",
                 "badpalettesize: palette size exceeding bit depth should be rejected in strict mode",
+            ),
+            (
+                "tests/images/bmp/images/lenient/rgb16-880.bmp",
+                "rgb16-880: zero blue mask should be rejected in strict mode",
             ),
         ];
 

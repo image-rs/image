@@ -392,13 +392,13 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         match self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
-                for cmyk in v.chunks_exact(4) {
+                for cmyk in v.as_chunks::<4>().0 {
                     out_cur.write_all(&cmyk_to_rgb(cmyk))?;
                 }
             }
             DecodingResult::U16(v) if self.original_color_type == ExtendedColorType::Cmyk16 => {
                 let mut out_cur = Cursor::new(buf);
-                for cmyk in v.chunks_exact(4) {
+                for cmyk in v.as_chunks::<4>().0 {
                     out_cur.write_all(bytemuck::cast_slice(&cmyk_to_rgb16(cmyk)))?;
                 }
             }
@@ -460,7 +460,7 @@ pub struct TiffEncoder<W> {
     icc: Option<Vec<u8>>,
 }
 
-fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
+fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
     let c = f32::from(cmyk[0]);
     let m = f32::from(cmyk[1]);
     let y = f32::from(cmyk[2]);
@@ -472,7 +472,7 @@ fn cmyk_to_rgb(cmyk: &[u8]) -> [u8; 3] {
     ]
 }
 
-fn cmyk_to_rgb16(cmyk: &[u16]) -> [u16; 3] {
+fn cmyk_to_rgb16(cmyk: &[u16; 4]) -> [u16; 3] {
     let c = f32::from(cmyk[0]);
     let m = f32::from(cmyk[1]);
     let y = f32::from(cmyk[2]);

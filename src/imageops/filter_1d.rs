@@ -88,7 +88,7 @@ where
         *dst = *src;
     }
 
-    for (x, dst) in (0..pad_w).zip(row_buffer.chunks_exact_mut(N)) {
+    for (x, dst) in (0..pad_w).zip(row_buffer.as_chunks_mut::<N>().0.iter_mut()) {
         let old_x = x.saturating_sub(pad_w).min(image_size.width - 1);
         let old_px = old_x * N;
         let src_iter = &source_row[old_px..(old_px + N)];
@@ -97,8 +97,8 @@ where
         }
     }
 
-    for (x, dst) in
-        (image_size.width..(image_size.width + pad_w)).zip(row_buffer.chunks_exact_mut(N).rev())
+    for (x, dst) in (image_size.width..(image_size.width + pad_w))
+        .zip(row_buffer.as_chunks_mut::<N>().0.iter_mut().rev())
     {
         let old_x = x.max(0).min(image_size.width - 1);
         let old_px = old_x * N;
@@ -141,7 +141,7 @@ where
     let top_pad_stride = image_size.width * N;
 
     for (ky, dst) in (0..pad_h).zip(top_pad.chunks_exact_mut(top_pad_stride)) {
-        for (kx, dst) in (0..image_size.width).zip(dst.chunks_exact_mut(N)) {
+        for (kx, dst) in (0..image_size.width).zip(dst.as_chunks_mut::<N>().0.iter_mut()) {
             let y = ky.saturating_sub(pad_h).min(image_size.height - 1);
             let v_src = y * top_pad_stride + kx * N;
 
@@ -155,7 +155,7 @@ where
     let bottom_iter_dst = bottom_pad.chunks_exact_mut(top_pad_stride);
 
     for (ky, dst) in (0..pad_h).zip(bottom_iter_dst) {
-        for (kx, dst) in (0..image_size.width).zip(dst.chunks_exact_mut(N)) {
+        for (kx, dst) in (0..image_size.width).zip(dst.as_chunks_mut::<N>().0.iter_mut()) {
             let y = (ky + image_size.height).min(image_size.height - 1);
             let v_src = y * top_pad_stride + kx * N;
             let src_iter = &image[v_src..(v_src + N)];
@@ -237,7 +237,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
     let mut dst_rem = dst_row;
 
     if size_of::<T>() == 1 {
-        for chunk in dst_rem.chunks_exact_mut(32) {
+        for chunk in dst_rem.as_chunks_mut::<32>().0.iter_mut() {
             let mut store0: [F; 16] = [F::default(); 16];
             let mut store1: [F; 16] = [F::default(); 16];
 
@@ -284,10 +284,10 @@ fn filter_symmetric_column<T, F, const N: usize>(
             cx += 32;
         }
 
-        dst_rem = dst_rem.chunks_exact_mut(32).into_remainder();
+        dst_rem = dst_rem.as_chunks_mut::<32>().1;
     }
 
-    for chunk in dst_rem.chunks_exact_mut(16) {
+    for chunk in dst_rem.as_chunks_mut::<16>().0.iter_mut() {
         let mut store: [F; 16] = [F::default(); 16];
 
         let v_src = &arena_src[half_len][cx..(cx + 16)];
@@ -313,9 +313,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
         cx += 16;
     }
 
-    dst_rem = dst_rem.chunks_exact_mut(16).into_remainder();
+    dst_rem = dst_rem.as_chunks_mut::<16>().1;
 
-    for chunk in dst_rem.chunks_exact_mut(4) {
+    for chunk in dst_rem.as_chunks_mut::<4>().0.iter_mut() {
         let v_src = &arena_src[half_len][cx..(cx + 4)];
 
         let mut k0 = v_src[0].as_().mul(coeff);
@@ -340,7 +340,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
         cx += 4;
     }
 
-    dst_rem = dst_rem.chunks_exact_mut(4).into_remainder();
+    dst_rem = dst_rem.as_chunks_mut::<4>().1;
 
     for (chunk, x) in dst_rem.iter_mut().zip(cx..dst_stride) {
         let v_src = &arena_src[half_len][x..(x + 1)];
@@ -382,7 +382,9 @@ where
 
     let hc = scanned_kernel[half_len];
 
-    for (x, dst) in dst_row.chunks_exact_mut(4).enumerate() {
+    let (dst_row_chunks, remainder) = dst_row.as_chunks_mut::<4>();
+
+    for (x, dst) in dst_row_chunks.iter_mut().enumerate() {
         let v_cx = x * 4;
         let src = &src[v_cx..];
 
@@ -411,8 +413,7 @@ where
         dst[3] = k3.to_();
     }
 
-    let dzx = dst_row.chunks_exact_mut(4).len() * 4;
-    let remainder = dst_row.chunks_exact_mut(4).into_remainder();
+    let dzx = dst_row_chunks.len() * 4;
 
     for (x, dst) in remainder.iter_mut().enumerate() {
         let v_cx = x + dzx;

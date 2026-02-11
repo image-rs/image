@@ -295,7 +295,8 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
             // read_scanline overwrites the entire buffer or returns an Err,
             // so not resetting the buffer here is ok.
             read_scanline(&mut self.r, &mut scanline[..])?;
-            for (dst, &pix) in chunk.chunks_exact_mut(PIXEL_SIZE).zip(scanline.iter()) {
+            let dst_chunks = chunk.as_chunks_mut::<PIXEL_SIZE>().0.iter_mut();
+            for (dst, &pix) in dst_chunks.zip(scanline.iter()) {
                 dst.copy_from_slice(bytemuck::cast_slice(&pix.to_hdr().0));
             }
         }

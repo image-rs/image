@@ -270,8 +270,6 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
-
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.reader.next_frame(buf).map_err(ImageError::from_png)?;
         // PNG images are big endian. For 16 bit per channel and larger types,
@@ -282,9 +280,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
 
         match bpc {
             1 => (), // No reodering necessary for u8
-            2 => buf.chunks_exact_mut(2).for_each(|c| {
-                let v = BigEndian::read_u16(c);
-                NativeEndian::write_u16(c, v);
+            2 => buf.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
+                *c = u16::from_be_bytes(*c).to_ne_bytes();
             }),
             _ => unreachable!(),
         }
@@ -800,7 +797,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 let mut reordered;
                 let buf = if cfg!(target_endian = "little") {
                     reordered = vec_try_with_capacity(buf.len())?;
-                    reordered.extend(buf.chunks_exact(2).flat_map(|le| [le[1], le[0]]));
+                    reordered.extend(buf.as_chunks::<2>().0.iter().flat_map(|le| [le[1], le[0]]));
                     &reordered
                 } else {
                     buf

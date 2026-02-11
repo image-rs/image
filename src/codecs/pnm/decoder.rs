@@ -14,8 +14,6 @@ use crate::error::{
 use crate::io::ReadExt;
 use crate::{utils, ImageDecoder, ImageFormat};
 
-use byteorder_lite::{BigEndian, ByteOrder, NativeEndian};
-
 /// All errors that can occur when attempting to parse a PNM
 #[derive(Debug, Clone)]
 enum DecoderError {
@@ -689,9 +687,9 @@ impl<R: Read> PnmDecoder<R> {
                     *v = (f32::from(*v) * factor).round() as u8;
                 }
             } else if S::sample_size() == 2 {
-                for chunk in buf.chunks_exact_mut(2) {
-                    let v = NativeEndian::read_u16(chunk);
-                    NativeEndian::write_u16(chunk, (f32::from(v) * factor).round() as u16);
+                for chunk in buf.as_chunks_mut::<2>().0.iter_mut() {
+                    let v = (f32::from(u16::from_ne_bytes(*chunk)) * factor).round() as u16;
+                    chunk.copy_from_slice(&v.to_ne_bytes());
                 }
             }
         }
@@ -762,17 +760,17 @@ impl Sample for U16 {
 
     fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
-        for chunk in output_buf.chunks_exact_mut(2) {
-            let v = BigEndian::read_u16(chunk);
-            NativeEndian::write_u16(chunk, v);
+        for chunk in output_buf.as_chunks_mut::<2>().0.iter_mut() {
+            let v = u16::from_be_bytes(*chunk);
+            chunk.copy_from_slice(&v.to_ne_bytes());
         }
         Ok(())
     }
 
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
-        for chunk in output_buf.chunks_exact_mut(2) {
+        for chunk in output_buf.as_chunks_mut::<2>().0.iter_mut() {
             let v = read_separated_ascii::<u16>(reader)?;
-            NativeEndian::write_u16(chunk, v);
+            chunk.copy_from_slice(&v.to_ne_bytes());
         }
         Ok(())
     }

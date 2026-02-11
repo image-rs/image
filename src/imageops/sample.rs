@@ -1423,7 +1423,8 @@ where
     I::Pixel: 'static,
 {
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
-    for (pixel, dst) in image.pixels().zip(transient.chunks_exact_mut(CN)) {
+    let transient_chunks = transient.as_chunks_mut::<CN>().0.iter_mut();
+    for (pixel, dst) in image.pixels().zip(transient_chunks) {
         let px = pixel.2.channels();
         match CN {
             1 => {
@@ -1509,38 +1510,9 @@ where
     }
 
     let mut out = image.buffer_like();
-    for (dst, src) in out.pixels_mut().zip(transient_dst.chunks_exact_mut(CN)) {
-        match CN {
-            1 => {
-                let channels = <[_; 1]>::try_from(src)
-                    .unwrap()
-                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
-
-                *dst = *Pixel::from_slice(&channels);
-            }
-            2 => {
-                let channels = <[_; 2]>::try_from(src)
-                    .unwrap()
-                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
-
-                *dst = *Pixel::from_slice(&channels);
-            }
-            3 => {
-                let channels = <[_; 3]>::try_from(src)
-                    .unwrap()
-                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
-
-                *dst = *Pixel::from_slice(&channels);
-            }
-            4 => {
-                let channels = <[_; 4]>::try_from(src)
-                    .unwrap()
-                    .map(|v| NumCast::from(FloatNearest(v)).unwrap());
-
-                *dst = *Pixel::from_slice(&channels);
-            }
-            _ => unreachable!(),
-        }
+    let transient_dst_chunks = transient_dst.as_chunks_mut::<CN>().0.iter_mut();
+    for (dst, src) in out.pixels_mut().zip(transient_dst_chunks) {
+        *dst = *Pixel::from_slice(&src.map(|v| NumCast::from(FloatNearest(v)).unwrap()))
     }
 
     out

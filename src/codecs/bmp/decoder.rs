@@ -1537,7 +1537,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         // Set alpha to opaque for all pixels if needed (only on first call)
         if start_row == 0 && num_channels == 4 {
-            buf.chunks_exact_mut(4).for_each(|c| c[3] = ALPHA_OPAQUE);
+            buf.as_chunks_mut::<4>()
+                .0
+                .iter_mut()
+                .for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
         let reader = &mut self.reader;
@@ -1613,11 +1616,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             start_row,
             |row| {
                 reader.read_exact(&mut row_buffer)?;
-                for (row_data, pixel) in row_buffer
-                    .chunks_exact(2)
-                    .zip(row.chunks_exact_mut(num_channels))
+                let row_buffer_chunks = row_buffer.as_chunks::<2>().0.iter();
+                for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
-                    let data = u32::from(u16::from_le_bytes(row_data.try_into().unwrap()));
+                    let data = u32::from(u16::from_le_bytes(row_data));
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
@@ -1664,11 +1666,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             start_row,
             |row| {
                 reader.read_exact(&mut row_buffer)?;
-                for (row_data, pixel) in row_buffer
-                    .chunks_exact(4)
-                    .zip(row.chunks_exact_mut(num_channels))
+                let row_buffer_chunks = row_buffer.as_chunks::<4>().0.iter();
+                for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
-                    let data = u32::from_le_bytes(row_data.try_into().unwrap());
+                    let data = u32::from_le_bytes(row_data);
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);

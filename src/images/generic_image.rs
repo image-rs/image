@@ -1,4 +1,4 @@
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageResult};
 use crate::flat::{View, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
@@ -95,13 +95,8 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        if !rect.test_in_bounds(self) {
-            Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )))
-        } else {
-            Ok(SubImage::new(self, rect))
-        }
+        rect.test_in_bounds(self)?;
+        Ok(SubImage::new(self, rect))
     }
 
     /// Create an empty [`ImageBuffer`] with the same pixel type as this image.
@@ -251,11 +246,7 @@ pub trait GenericImage: GenericImageView {
 
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
-        if self.width() < other.width() + x || self.height() < other.height() + y {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
-        }
+        Rect::from_image_at(other, x, y).test_in_bounds(self)?;
 
         for k in 0..other.height() {
             for i in 0..other.width() {
@@ -276,11 +267,7 @@ pub trait GenericImage: GenericImageView {
     ) -> ImageResult<()> {
         // Even though the implementation is the same, do not just call `Self::copy_from` here to
         // avoid circular dependencies in careless implementations.
-        if self.width() < samples.width() + x || self.height() < samples.height() + y {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
-        }
+        Rect::from_image_at(&samples, x, y).test_in_bounds(self)?;
 
         for k in 0..samples.height() {
             for i in 0..samples.width() {

@@ -1382,19 +1382,7 @@ where
     ) -> ImageResult<()> {
         let (width, height) = view.dimensions();
         let pix_stride = usize::from(<Self::Pixel as Pixel>::CHANNEL_COUNT);
-
-        let rect = Rect {
-            x,
-            y,
-            width,
-            height,
-        };
-
-        if !rect.test_in_bounds(self) {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
-        }
+        Rect::from_image_at(&view, x, y).test_in_bounds(self)?;
 
         if width == 0 || height == 0 || pix_stride == 0 {
             return Ok(());

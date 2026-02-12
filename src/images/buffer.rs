@@ -10,7 +10,7 @@ use crate::color::{FromColor, FromPrimitive, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::flat::{FlatSamples, SampleLayout, View};
+use crate::flat::{FlatSamples, SampleLayout, ViewOfPixel};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
@@ -1322,7 +1322,7 @@ where
         *self.get_pixel(x, y)
     }
 
-    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         let samples = FlatSamples {
             samples: &*self.data,
             layout: self.sample_layout(),
@@ -1376,7 +1376,7 @@ where
 
     fn copy_from_samples(
         &mut self,
-        view: View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>,
+        view: ViewOfPixel<'_, Self::Pixel>,
         x: u32,
         y: u32,
     ) -> ImageResult<()> {

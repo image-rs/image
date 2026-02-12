@@ -94,7 +94,8 @@ fn bad_bmps() {
         // Manually reading the file so we can use load() instead of open()
         // We have to use load() so we can override the format
         let im_file = BufReader::new(File::open(path).unwrap());
-        let im = image::load(im_file, image::ImageFormat::Bmp);
+        let im: Result<image::DynamicImage, image::ImageError> =
+            image::load(im_file, image::ImageFormat::Bmp);
         assert!(im.is_err());
     }
 }

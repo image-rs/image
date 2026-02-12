@@ -1,5 +1,5 @@
 use crate::error::{ImageError, ImageResult};
-use crate::flat::{View, ViewOfPixel};
+use crate::flat::ViewOfPixel;
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -140,8 +140,17 @@ pub trait GenericImageView {
         ImageBuffer::new(width, height)
     }
 
-    /// If the buffer has a fitting layout, return a view of the samples descriptor.
-    fn as_samples(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
+    /// If the buffer has a fitting layout, return a canonical view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of
+    /// generic images access the sample data through a canonical descriptor of its layout directly
+    /// instead of pixel-by-pixel. This provides more efficient forms of access that the
+    /// [`GenericImageView`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         None
     }
 }
@@ -254,7 +263,7 @@ pub trait GenericImage: GenericImageView {
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
-        if let Some(flat) = other.as_samples() {
+        if let Some(flat) = other.to_pixel_view() {
             return self.copy_from_samples(flat, x, y);
         }
 
@@ -275,7 +284,7 @@ pub trait GenericImage: GenericImageView {
     /// Copy pixels from a regular strided matrix of pixels.
     fn copy_from_samples(
         &mut self,
-        samples: View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>,
+        samples: ViewOfPixel<'_, Self::Pixel>,
         x: u32,
         y: u32,
     ) -> ImageResult<()> {

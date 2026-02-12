@@ -1437,7 +1437,7 @@ where
         *P::from_slice(&buffer[..channels])
     }
 
-    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         Some(View {
             inner: FlatSamples {
                 samples: self.inner.samples.as_ref(),
@@ -1481,7 +1481,7 @@ where
         *P::from_slice(&buffer[..channels])
     }
 
-    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         Some(View {
             inner: FlatSamples {
                 samples: self.inner.samples.as_ref(),

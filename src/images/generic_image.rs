@@ -1,4 +1,5 @@
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::flat::View;
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -129,6 +130,11 @@ pub trait GenericImageView {
     ) -> ImageBuffer<Self::Pixel, Vec<<Self::Pixel as Pixel>::Subpixel>> {
         ImageBuffer::new(width, height)
     }
+
+    /// If the buffer has a fitting layout, return a view of the samples descriptor.
+    fn as_samples(&self) -> Option<View<&'_ [<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+        None
+    }
 }
 
 /// Immutable pixel iterator
@@ -239,6 +245,10 @@ pub trait GenericImage: GenericImageView {
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
+        if let Some(flat) = other.as_samples() {
+            return self.copy_from_samples(flat, x, y);
+        }
+
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
@@ -253,6 +263,32 @@ pub trait GenericImage: GenericImageView {
                 self.put_pixel(i + x, k + y, p);
             }
         }
+
+        Ok(())
+    }
+
+    /// Copy pixels from a regular strided matrix of pixels.
+    fn copy_from_samples(
+        &mut self,
+        samples: View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>,
+        x: u32,
+        y: u32,
+    ) -> ImageResult<()> {
+        // Even though the implementation is the same, do not just call `Self::copy_from` here to
+        // avoid circular dependencies in careless implementations.
+        if self.width() < samples.width() + x || self.height() < samples.height() + y {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        for k in 0..samples.height() {
+            for i in 0..samples.width() {
+                let p = samples.get_pixel(i, k);
+                self.put_pixel(i + x, k + y, p);
+            }
+        }
+
         Ok(())
     }
 

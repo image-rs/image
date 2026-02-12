@@ -55,7 +55,7 @@ impl Rect {
         }
     }
 
-    pub(crate) fn test_in_bounds(&self, image: &impl GenericImageView) -> bool {
+    pub(crate) fn test_in_bounds(&self, image: &(impl GenericImageView + ?Sized)) -> bool {
         image.width().checked_sub(self.width) >= Some(self.x)
             && image.height().checked_sub(self.height) >= Some(self.y)
     }

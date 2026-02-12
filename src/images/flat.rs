@@ -1005,6 +1005,9 @@ where
     phantom: PhantomData<P>,
 }
 
+/// Type alias for a view based on a pixel's channels.
+pub type ViewOfPixel<'lt, P> = View<&'lt [<P as Pixel>::Subpixel], P>;
+
 /// A mutable owning version of a flat buffer.
 ///
 /// While this wraps a buffer similar to `ImageBuffer`, this is mostly intended as a utility. The
@@ -1026,6 +1029,9 @@ where
     inner: FlatSamples<Buffer>,
     phantom: PhantomData<P>,
 }
+
+/// Type alias for a mutable view based on a pixel's channels.
+pub type ViewMutOfPixel<'lt, P> = ViewMut<&'lt mut [<P as Pixel>::Subpixel], P>;
 
 /// Denotes invalid flat sample buffers when trying to convert to stricter types.
 ///

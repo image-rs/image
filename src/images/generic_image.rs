@@ -1,5 +1,5 @@
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::flat::View;
+use crate::flat::{View, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -141,7 +141,7 @@ pub trait GenericImageView {
     }
 
     /// If the buffer has a fitting layout, return a view of the samples descriptor.
-    fn as_samples(&self) -> Option<View<&'_ [<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+    fn as_samples(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         None
     }
 }

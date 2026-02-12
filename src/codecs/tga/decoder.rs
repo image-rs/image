@@ -212,9 +212,8 @@ impl<R: Read> TgaDecoder<R> {
                 // Pre-expand 5-bit-per-primary values to simplify later decoding
                 if [15, 16].contains(&header.map_entry_size) {
                     let mut expanded = Vec::new();
-                    for entry in bytes.chunks_exact(2) {
-                        expanded
-                            .extend_from_slice(&expand_rgb15_to_rgb24(entry.try_into().unwrap()));
+                    for &entry in bytes.as_chunks::<2>().0.iter() {
+                        expanded.extend_from_slice(&expand_rgb15_to_rgb24(entry));
                     }
                     bytes = expanded;
                     entry_size = 3;
@@ -304,11 +303,9 @@ impl<R: Read> TgaDecoder<R> {
                 }
             }
         } else if self.raw_bytes_per_pixel == 2 {
-            for (index, chunk) in input
-                .chunks_exact(2)
-                .zip(output.chunks_exact_mut(color_map.entry_size))
-            {
-                let index = u16::from_le_bytes(index.try_into().unwrap());
+            let input_chunks = input.as_chunks::<2>().0.iter();
+            for (&index, chunk) in input_chunks.zip(output.chunks_exact_mut(color_map.entry_size)) {
+                let index = u16::from_le_bytes(index);
                 if let Some(color) = color_map.get(index as usize) {
                     chunk.copy_from_slice(color);
                 } else {
@@ -446,8 +443,10 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             let mut rawbuf = vec_try_with_capacity(num_raw_bytes)?;
             rawbuf.extend_from_slice(&buf[..num_raw_bytes]);
 
-            for (src, dst) in rawbuf.chunks_exact(2).zip(buf.chunks_exact_mut(3)) {
-                dst.copy_from_slice(&expand_rgb15_to_rgb24(src.try_into().unwrap()));
+            let rawbuf_chunks = rawbuf.as_chunks::<2>().0.iter();
+            let buf_chunks = buf.as_chunks_mut::<3>().0.iter_mut();
+            for (&src, dst) in rawbuf_chunks.zip(buf_chunks) {
+                *dst = expand_rgb15_to_rgb24(src);
             }
         }
 

@@ -898,7 +898,7 @@ impl CicpTransform {
     ];
 
     pub(crate) fn expand_luma_rgb<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
-        for (&pix, rgb) in luma.iter().zip(rgb.chunks_exact_mut(3)) {
+        for (&pix, rgb) in luma.iter().zip(rgb.as_chunks_mut::<3>().0.iter_mut()) {
             let luma = pix.expand_to_f32();
             rgb[0] = luma;
             rgb[1] = luma;
@@ -907,7 +907,9 @@ impl CicpTransform {
     }
 
     pub(crate) fn expand_luma_rgba<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
-        for (pix, rgb) in luma.chunks_exact(2).zip(rgb.chunks_exact_mut(4)) {
+        let luma_chunks = luma.as_chunks::<2>().0.iter();
+        let rgb_chunks = rgb.as_chunks_mut::<4>().0.iter_mut();
+        for (pix, rgb) in luma_chunks.zip(rgb_chunks) {
             let luma = pix[0].expand_to_f32();
             rgb[0] = luma;
             rgb[1] = luma;
@@ -946,7 +948,7 @@ impl CicpTransform {
         output: &mut [P],
         coef: [f32; 3],
     ) {
-        for (rgb, pix) in input.chunks_exact(3).zip(output) {
+        for (rgb, pix) in input.as_chunks::<3>().0.iter().zip(output) {
             let mut luma = 0.0;
 
             for (&component, coef) in rgb.iter().zip(coef) {
@@ -962,7 +964,9 @@ impl CicpTransform {
         output: &mut [P],
         coef: [f32; 3],
     ) {
-        for (rgba, pix) in input.chunks_exact(4).zip(output.chunks_exact_mut(2)) {
+        let input_chunks = input.as_chunks::<4>().0.iter();
+        let output_chunks = output.as_chunks_mut::<2>().0.iter_mut();
+        for (rgba, pix) in input_chunks.zip(output_chunks) {
             let mut luma = 0.0;
 
             for (&component, coef) in rgba[..3].iter().zip(coef) {
@@ -1084,11 +1088,9 @@ impl CicpRgb {
             // for a full conversion.
             let obuffer = match (ibuf_step, obuf_step) {
                 (3, 4) => {
-                    for (rgb, rgba) in ibuffer
-                        .chunks_exact(3)
-                        .zip(obuffer.chunks_exact_mut(4))
-                        .take(count)
-                    {
+                    let ibuffer_chunks = ibuffer.as_chunks::<3>().0.iter();
+                    let obuffer_chunks = obuffer.as_chunks_mut::<4>().0.iter_mut();
+                    for (rgb, rgba) in ibuffer_chunks.zip(obuffer_chunks).take(count) {
                         rgba[0] = rgb[0];
                         rgba[1] = rgb[1];
                         rgba[2] = rgb[2];
@@ -1098,11 +1100,9 @@ impl CicpRgb {
                     &obuffer[..4 * count]
                 }
                 (4, 3) => {
-                    for (rgba, rgb) in ibuffer
-                        .chunks_exact(4)
-                        .zip(obuffer.chunks_exact_mut(3))
-                        .take(count)
-                    {
+                    let ibuffer_chunks = ibuffer.as_chunks::<4>().0.iter();
+                    let obuffer_chunks = obuffer.as_chunks_mut::<3>().0.iter_mut();
+                    for (rgba, rgb) in ibuffer_chunks.zip(obuffer_chunks).take(count) {
                         rgb[0] = rgba[0];
                         rgb[1] = rgba[1];
                         rgb[2] = rgba[2];
@@ -1173,17 +1173,17 @@ impl CicpRgb {
                 output.extend(buffer.iter().copied().map(map_channel));
             }
             (Layout::Rgb, Layout::Rgba) => {
-                // Use `as_chunks` with Rust 1.88
-                output.extend(buffer.chunks_exact(3).flat_map(|rgb| {
-                    let &rgb: &[_; 3] = rgb.try_into().unwrap();
+                let buffer_chunks = buffer.as_chunks::<3>().0.iter();
+                output.extend(buffer_chunks.flat_map(|rgb| {
                     let [r, g, b] = rgb.map(map_channel);
                     let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
                     [r, g, b, a]
                 }));
             }
             (Layout::Rgba, Layout::Rgb) => {
-                output.extend(buffer.chunks_exact(4).flat_map(|rgb| {
-                    let &[r, g, b, _]: &[_; 4] = rgb.try_into().unwrap();
+                let buffer_chunks = buffer.as_chunks::<4>().0.iter();
+                output.extend(buffer_chunks.flat_map(|rgb| {
+                    let &[r, g, b, _] = rgb;
                     [r, g, b].map(map_channel)
                 }));
             }
@@ -1195,8 +1195,9 @@ impl CicpRgb {
                 }));
             }
             (Layout::LumaAlpha, Layout::Luma) => {
-                output.extend(buffer.chunks_exact(2).map(|rgb| {
-                    let &[luma, _]: &[_; 2] = rgb.try_into().unwrap();
+                let buffer_chunks = buffer.as_chunks::<2>().0.iter();
+                output.extend(buffer_chunks.map(|rgb| {
+                    let &[luma, _] = rgb;
                     map_channel(luma)
                 }));
             }

@@ -144,13 +144,14 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
     /// Makes a decoder.
     ///
-    /// For all formats except PNG, the limits are ignored and can be set with
-    /// `ImageDecoder::set_limits` after calling this function. PNG is handled specially because that
-    /// decoder has a different API which does not allow setting limits after construction.
+    /// For all formats except PNG and HDR, the limits are ignored and can be set
+    /// with `ImageDecoder::set_limits` after calling this function. PNG and HDR
+    /// are handled specially because memory limits are needed for them before
+    /// reading the image file header.
     fn make_decoder(
         format: Format,
         reader: R,
-        limits_for_png: Limits,
+        limits_for_header: Limits,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         #[allow(unused)]
         use crate::codecs::*;
@@ -174,7 +175,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "avif-native")]
             ImageFormat::Avif => Box::new(avif::AvifDecoder::new(reader)?),
             #[cfg(feature = "png")]
-            ImageFormat::Png => Box::new(png::PngDecoder::with_limits(reader, limits_for_png)?),
+            ImageFormat::Png => Box::new(png::PngDecoder::with_limits(reader, limits_for_header)?),
             #[cfg(feature = "gif")]
             ImageFormat::Gif => Box::new(gif::GifDecoder::new(reader)?),
             #[cfg(feature = "jpeg")]
@@ -192,7 +193,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "ico")]
             ImageFormat::Ico => Box::new(ico::IcoDecoder::new(reader)?),
             #[cfg(feature = "hdr")]
-            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
+            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::with_strictness_and_limits(
+                reader,
+                true,
+                limits_for_header.max_alloc.unwrap_or(u64::MAX),
+            )?),
             #[cfg(feature = "exr")]
             ImageFormat::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
             #[cfg(feature = "pnm")]

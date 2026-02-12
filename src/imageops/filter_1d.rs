@@ -270,13 +270,11 @@ fn filter_symmetric_column<T, F>(
                 }
             }
 
-            let shaped_dst0 = &mut chunk[..16];
+            let (shaped_dst0, shaped_dst1) = chunk.split_at_mut(16);
 
             for (src, dst) in store0.iter().zip(shaped_dst0.iter_mut()) {
                 *dst = src.to_();
             }
-
-            let shaped_dst1 = &mut chunk[16..32];
 
             for (src, dst) in store1.iter().zip(shaped_dst1.iter_mut()) {
                 *dst = src.to_();

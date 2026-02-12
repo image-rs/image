@@ -9,19 +9,8 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::image_reader_type::SpecCompliance;
 use crate::{ImageDecoder, ImageFormat};
-
-/// Controls how strictly the BMP decoder adheres to the specification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum BmpSpec {
-    /// Strictly follow the BMP specification.
-    /// Rejects files that violate spec constraints (e.g., RLE with top-down).
-    Strict,
-    /// Allow some non-conformant files that violate some spec constraints
-    /// but still can be decoded at best effort.
-    #[default]
-    Lenient,
-}
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -128,12 +117,12 @@ struct ParsedCoreHeader {
 
 impl ParsedCoreHeader {
     /// Parse BITMAPCOREHEADER fields from an 8-byte buffer.
-    fn parse(buffer: &[u8; 8], spec_strictness: BmpSpec) -> ImageResult<Self> {
+    fn parse(buffer: &[u8; 8], spec_strictness: SpecCompliance) -> ImageResult<Self> {
         let width = i32::from(u16::from_le_bytes(buffer[0..2].try_into().unwrap()));
         let height = i32::from(u16::from_le_bytes(buffer[2..4].try_into().unwrap()));
 
         let planes = u16::from_le_bytes(buffer[4..6].try_into().unwrap());
-        if spec_strictness == BmpSpec::Strict && planes != 1 {
+        if spec_strictness == SpecCompliance::Strict && planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
@@ -169,7 +158,7 @@ struct ParsedInfoHeader {
 
 impl ParsedInfoHeader {
     /// Parse BITMAPINFOHEADER fields from a 36-byte buffer.
-    fn parse(buffer: &[u8; 36], spec_strictness: BmpSpec) -> ImageResult<Self> {
+    fn parse(buffer: &[u8; 36], spec_strictness: SpecCompliance) -> ImageResult<Self> {
         let width = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let mut height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
@@ -193,7 +182,7 @@ impl ParsedInfoHeader {
         };
 
         let planes = u16::from_le_bytes(buffer[8..10].try_into().unwrap());
-        if spec_strictness == BmpSpec::Strict && planes != 1 {
+        if spec_strictness == SpecCompliance::Strict && planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
         }
 
@@ -202,7 +191,7 @@ impl ParsedInfoHeader {
 
         // Top-down DIBs cannot be compressed (per BMP specification).
         // In lenient mode, we allow this for compatibility with other decoders.
-        if spec_strictness == BmpSpec::Strict
+        if spec_strictness == SpecCompliance::Strict
             && top_down
             && compression != BI_RGB
             && compression != BI_BITFIELDS
@@ -827,7 +816,7 @@ impl Bitfields {
         b_mask: u32,
         a_mask: u32,
         max_len: u32,
-        spec_strictness: BmpSpec,
+        spec_strictness: SpecCompliance,
     ) -> ImageResult<Bitfields> {
         let bitfields = Bitfields {
             r: Bitfield::from_mask(r_mask, max_len)?,
@@ -837,7 +826,7 @@ impl Bitfields {
         };
         // In strict mode, all RGB channels must have non-zero masks.
         // In lenient mode, allow zero masks (the channel will read as 0).
-        if spec_strictness == BmpSpec::Strict
+        if spec_strictness == SpecCompliance::Strict
             && (bitfields.r.len == 0 || bitfields.g.len == 0 || bitfields.b.len == 0)
         {
             return Err(DecoderError::BitfieldMaskMissing(max_len).into());
@@ -925,7 +914,7 @@ pub struct BmpDecoder<R> {
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
-    spec_strictness: BmpSpec,
+    spec_strictness: SpecCompliance,
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
@@ -960,7 +949,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             palette: None,
             bitfields: None,
             icc_profile: None,
-            spec_strictness: BmpSpec::default(),
+            spec_strictness: SpecCompliance::default(),
             state: DecoderState::default(),
         }
     }
@@ -968,6 +957,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = Self::new_decoder(reader);
+        decoder.read_metadata()?;
+        Ok(decoder)
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn new_with_spec_compliance(
+        reader: R,
+        spec: SpecCompliance,
+    ) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = Self::new_decoder(reader);
+        decoder.spec_strictness = spec;
         decoder.read_metadata()?;
         Ok(decoder)
     }
@@ -1458,7 +1458,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         match self.colors_used {
             0 => Ok(1 << self.bit_count),
             _ => {
-                if self.spec_strictness == BmpSpec::Strict && self.colors_used > 1 << self.bit_count
+                if self.spec_strictness == SpecCompliance::Strict
+                    && self.colors_used > 1 << self.bit_count
                 {
                     return Err(DecoderError::PaletteSizeExceeded {
                         colors_used: self.colors_used,
@@ -2643,11 +2644,10 @@ mod test {
                 panic!("{description}: read_image failed: {e:?}");
             });
 
-            // Strict mode (internal): these files should be rejected
-            let mut strict_decoder = BmpDecoder::new_resumable(Cursor::new(&data));
-            strict_decoder.spec_strictness = BmpSpec::Strict;
+            // Strict mode: these files should be rejected
             assert!(
-                strict_decoder.read_metadata().is_err(),
+                BmpDecoder::new_with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                    .is_err(),
                 "{description}: expected error in strict mode, but got Ok"
             );
         }

@@ -10,6 +10,17 @@ use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
 
 use super::free_functions;
 
+/// Controls how strictly an image decoder adheres to the format specification.
+/// The default is [`SpecCompliance::Lenient`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpecCompliance {
+    /// Strictly follow the format specification.
+    Strict,
+    /// Allow non-conformant files that can still be decoded at best effort.
+    #[default]
+    Lenient,
+}
+
 #[derive(Clone)]
 enum Format {
     BuiltIn(ImageFormat),
@@ -72,6 +83,8 @@ pub struct ImageReader<R: Read + Seek> {
     format: Option<Format>,
     /// Decoding limits
     limits: Limits,
+    /// Spec compliance mode
+    spec_compliance: SpecCompliance,
 }
 
 impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
@@ -90,6 +103,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             inner: buffered_reader,
             format: None,
             limits: Limits::default(),
+            spec_compliance: SpecCompliance::default(),
         }
     }
 
@@ -102,6 +116,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             inner: buffered_reader,
             format: Some(Format::BuiltIn(format)),
             limits: Limits::default(),
+            spec_compliance: SpecCompliance::default(),
         }
     }
 
@@ -137,6 +152,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         self.limits = limits;
     }
 
+    /// Set the spec compliance mode for decoding.
+    pub fn set_spec_compliance(&mut self, spec: SpecCompliance) {
+        self.spec_compliance = spec;
+    }
+
     /// Unwrap the reader.
     pub fn into_inner(self) -> R {
         self.inner
@@ -151,6 +171,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         format: Format,
         reader: R,
         limits_for_png: Limits,
+        spec_compliance: SpecCompliance,
     ) -> ImageResult<Box<dyn ImageDecoder + 'a>> {
         #[allow(unused)]
         use crate::codecs::*;
@@ -178,7 +199,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "gif")]
             ImageFormat::Gif => Box::new(gif::GifDecoder::new(reader)?),
             #[cfg(feature = "jpeg")]
-            ImageFormat::Jpeg => Box::new(jpeg::JpegDecoder::new(reader)?),
+            ImageFormat::Jpeg => Box::new(jpeg::JpegDecoder::new_with_spec_compliance(
+                reader,
+                spec_compliance,
+            )?),
             #[cfg(feature = "webp")]
             ImageFormat::WebP => Box::new(webp::WebPDecoder::new(reader)?),
             #[cfg(feature = "tiff")]
@@ -188,7 +212,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "dds")]
             ImageFormat::Dds => Box::new(dds::DdsDecoder::new(reader)?),
             #[cfg(feature = "bmp")]
-            ImageFormat::Bmp => Box::new(bmp::BmpDecoder::new(reader)?),
+            ImageFormat::Bmp => Box::new(bmp::BmpDecoder::new_with_spec_compliance(
+                reader,
+                spec_compliance,
+            )?),
             #[cfg(feature = "ico")]
             ImageFormat::Ico => Box::new(ico::IcoDecoder::new(reader)?),
             #[cfg(feature = "hdr")]
@@ -211,8 +238,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
 
     /// Convert the reader into a decoder.
     pub fn into_decoder(mut self) -> ImageResult<impl ImageDecoder + 'a> {
-        let mut decoder =
-            Self::make_decoder(self.require_format()?, self.inner, self.limits.clone())?;
+        let mut decoder = Self::make_decoder(
+            self.require_format()?,
+            self.inner,
+            self.limits.clone(),
+            self.spec_compliance,
+        )?;
         decoder.set_limits(self.limits)?;
         Ok(decoder)
     }
@@ -294,7 +325,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
         let format = self.require_format()?;
 
         let mut limits = self.limits;
-        let mut decoder = Self::make_decoder(format, self.inner, limits.clone())?;
+        let mut decoder =
+            Self::make_decoder(format, self.inner, limits.clone(), self.spec_compliance)?;
 
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
@@ -340,6 +372,7 @@ impl ImageReader<BufReader<File>> {
             inner: BufReader::new(File::open(path)?),
             format,
             limits: Limits::default(),
+            spec_compliance: SpecCompliance::default(),
         })
     }
 }

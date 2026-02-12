@@ -1430,6 +1430,17 @@ where
 
         *P::from_slice(&buffer[..channels])
     }
+
+    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+        Some(View {
+            inner: FlatSamples {
+                samples: self.inner.samples.as_ref(),
+                layout: self.inner.layout,
+                color_hint: None,
+            },
+            phantom: PhantomData,
+        })
+    }
 }
 
 impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
@@ -1462,6 +1473,17 @@ where
             });
 
         *P::from_slice(&buffer[..channels])
+    }
+
+    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+        Some(View {
+            inner: FlatSamples {
+                samples: self.inner.samples.as_ref(),
+                layout: self.inner.layout,
+                color_hint: None,
+            },
+            phantom: PhantomData,
+        })
     }
 }
 

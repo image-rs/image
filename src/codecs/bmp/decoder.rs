@@ -13,13 +13,13 @@ use crate::{ImageDecoder, ImageFormat};
 
 /// Controls how strictly the BMP decoder adheres to the specification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum BmpSpec {
+pub(crate) enum BmpSpec {
     /// Strictly follow the BMP specification.
     /// Rejects files that violate spec constraints (e.g., RLE with top-down).
-    #[default]
     Strict,
     /// Allow some non-conformant files that violate some spec constraints
     /// but still can be decoded at best effort.
+    #[default]
     Lenient,
 }
 
@@ -1047,20 +1047,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// In other words, the output image is the indexed color.
     pub fn set_indexed_color(&mut self, indexed_color: bool) {
         self.indexed_color = indexed_color;
-    }
-
-    /// Set the BMP specification strictness mode.
-    ///
-    /// # Panics
-    ///
-    /// Panics if called after metadata has already been parsed, since the
-    /// strictness setting only affects metadata parsing.
-    pub fn set_spec_strictness(&mut self, strictness: BmpSpec) {
-        assert!(
-            matches!(self.state, DecoderState::ReadingMetadata { .. }),
-            "set_spec_strictness must be called before read_metadata"
-        );
-        self.spec_strictness = strictness;
     }
 
     #[cfg(feature = "ico")]
@@ -2608,8 +2594,9 @@ mod test {
         }
     }
 
-    /// Test that BMP files with known spec violations are rejected in strict mode
-    /// but accepted in lenient mode.
+    /// Test that BMP files with known spec violations are accepted by the
+    /// decoder (which defaults to lenient mode), and that strict mode still
+    /// detects the violations internally.
     ///
     /// These files come from the Chromium BMP test suite ("bad/" category):
     /// - `rletopdown`: RLE compression with top-down orientation (spec forbids this)
@@ -2618,7 +2605,7 @@ mod test {
     /// - `rgb16-880`: 16-bit bitfields with 8-8-0 channel widths (blue mask is zero)
     #[test]
     fn test_strict_vs_lenient_spec_validation() {
-        let bad_files = [
+        let questionable_files = [
             (
                 "tests/images/bmp/images/lenient/rletopdown.bmp",
                 "rletopdown: RLE with top-down should be rejected in strict mode",
@@ -2637,29 +2624,26 @@ mod test {
             ),
         ];
 
-        for (path, description) in &bad_files {
+        for (path, description) in &questionable_files {
             let data = std::fs::read(path)
                 .unwrap_or_else(|e| panic!("{description}: failed to read {path}: {e}"));
 
-            // Strict mode (default): these files must be rejected
-            let strict_result = BmpDecoder::new(Cursor::new(&data));
+            // Default (lenient) mode: these files should be accepted
+            let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap_or_else(|e| {
+                panic!("{description}: decoding failed: {e:?}");
+            });
+            let mut buf = vec![0u8; decoder.total_bytes() as usize];
+            decoder.read_image(buf.as_mut_slice()).unwrap_or_else(|e| {
+                panic!("{description}: read_image failed: {e:?}");
+            });
+
+            // Strict mode (internal): these files should be rejected
+            let mut strict_decoder = BmpDecoder::new_resumable(Cursor::new(&data));
+            strict_decoder.spec_strictness = BmpSpec::Strict;
             assert!(
-                strict_result.is_err(),
+                strict_decoder.read_metadata().is_err(),
                 "{description}: expected error in strict mode, but got Ok"
             );
-
-            // Lenient mode: these files should be accepted
-            let mut lenient_decoder = BmpDecoder::new_resumable(Cursor::new(&data));
-            lenient_decoder.set_spec_strictness(BmpSpec::Lenient);
-            lenient_decoder.read_metadata().unwrap_or_else(|e| {
-                panic!("{description}: lenient metadata failed: {e:?}");
-            });
-            let mut buf = vec![0u8; lenient_decoder.total_bytes() as usize];
-            lenient_decoder
-                .read_image_data(&mut buf)
-                .unwrap_or_else(|e| {
-                    panic!("{description}: lenient image data failed: {e:?}");
-                });
         }
     }
 }

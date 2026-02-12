@@ -1,4 +1,4 @@
-use crate::{GenericImage, GenericImageView, ImageBuffer, Pixel};
+use crate::{flat::View, GenericImage, GenericImageView, ImageBuffer, Pixel};
 use std::ops::{Deref, DerefMut};
 
 /// A View into another image
@@ -207,6 +207,20 @@ where
         Vec<<<I::Target as GenericImageView>::Pixel as Pixel>::Subpixel>,
     > {
         self.image.buffer_with_dimensions(width, height)
+    }
+
+    fn as_samples(&self) -> Option<View<&'_ [<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+        let inner = self.image.as_samples()?;
+
+        // Now pivot the inner descriptor.
+        let mut descriptor = inner.into_inner();
+
+        let offset = descriptor.index(0, self.xoffset, self.yoffset)?;
+        descriptor.samples = descriptor.samples.get(offset..)?;
+        descriptor.layout.width = self.xstride;
+        descriptor.layout.height = self.ystride;
+
+        descriptor.into_view().ok()
     }
 }
 

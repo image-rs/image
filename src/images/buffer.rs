@@ -10,7 +10,7 @@ use crate::color::{FromColor, FromPrimitive, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::flat::{FlatSamples, SampleLayout};
+use crate::flat::{FlatSamples, SampleLayout, View};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
@@ -1238,6 +1238,16 @@ where
         *self.get_pixel(x, y)
     }
 
+    fn as_samples(&self) -> Option<View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>> {
+        let samples = FlatSamples {
+            samples: &*self.data,
+            layout: self.sample_layout(),
+            color_hint: None,
+        };
+
+        samples.into_view().ok()
+    }
+
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
@@ -1278,6 +1288,73 @@ where
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
         self.get_pixel_mut(x, y).blend(&p);
+    }
+
+    fn copy_from_samples(
+        &mut self,
+        view: View<&[<Self::Pixel as Pixel>::Subpixel], Self::Pixel>,
+        x: u32,
+        y: u32,
+    ) -> ImageResult<()> {
+        let (width, height) = view.dimensions();
+        let pix_stride = usize::from(<Self::Pixel as Pixel>::CHANNEL_COUNT);
+
+        let rect = Rect {
+            x,
+            y,
+            width,
+            height,
+        };
+
+        if !rect.test_in_bounds(self) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        if width == 0 || height == 0 || pix_stride == 0 {
+            return Ok(());
+        }
+
+        // Since this image is not empty, all its indices fit into `usize` as they address the
+        // memory resident buffer of `self`.
+        let row_len = width as usize * pix_stride;
+        let img_sh = self.width as usize;
+
+        let (sw, sh) = view.strides_wh();
+        let view_samples: &[_] = view.samples();
+        let inner = self.inner_pixels_mut();
+
+        let img_pixel_indices_unchecked =
+            |x: u32, y: u32| (y as usize * img_sh + x as usize) * pix_stride;
+
+        // Can we use row-by-row byte copy?
+        if sw == pix_stride {
+            for j in 0..height {
+                let start = img_pixel_indices_unchecked(x, j + y);
+                let img_row = &mut inner[start..][..row_len];
+                let view_row = &view_samples[j as usize * sh..][..row_len];
+                img_row.copy_from_slice(view_row);
+            }
+
+            return Ok(());
+        }
+
+        // Fallback behavior.
+        for j in 0..height {
+            let img_start = img_pixel_indices_unchecked(x, j + y);
+            let img_row = &mut inner[img_start..][..row_len];
+            let pixels = img_row.chunks_exact_mut(pix_stride);
+
+            let view_start = j as usize * sh;
+
+            for (i, sp) in pixels.enumerate() {
+                let view_pixel = &view_samples[i * sw + view_start..][..pix_stride];
+                sp.copy_from_slice(view_pixel);
+            }
+        }
+
+        Ok(())
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {

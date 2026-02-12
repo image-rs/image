@@ -332,11 +332,10 @@ fn box_blur_horizontal_pass_impl<T, const CN: usize>(
             let dst_chunks = dst.as_chunks_mut::<CN>().0.iter_mut();
             let data_section_chunks = data_section.as_chunks::<CN>().0.iter();
             let advanced_kernel_part_chunks = advanced_kernel_part.as_chunks::<CN>().0.iter();
-            for ((dst, src_previous), src_next) in dst_chunks
+            for ((dst_chunk, src_previous), src_next) in dst_chunks
                 .zip(data_section_chunks)
                 .zip(advanced_kernel_part_chunks)
             {
-                let dst_chunk = &mut dst[..CN];
                 dst_chunk[0] = rounding_saturating_mul(weight0, weight);
                 if CN > 1 {
                     dst_chunk[1] = rounding_saturating_mul(weight1, weight);

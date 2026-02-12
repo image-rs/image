@@ -1512,7 +1512,8 @@ where
     let mut out = image.buffer_like();
     let transient_dst_chunks = transient_dst.as_chunks_mut::<CN>().0.iter_mut();
     for (dst, src) in out.pixels_mut().zip(transient_dst_chunks) {
-        *dst = *Pixel::from_slice(&src.map(|v| NumCast::from(FloatNearest(v)).unwrap()))
+        let pix = src.map(|v| NumCast::from(FloatNearest(v)).unwrap());
+        *dst = *Pixel::from_slice(&pix);
     }
 
     out

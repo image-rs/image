@@ -516,9 +516,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 self.process_16bit_picture(&mut aligned_store, yuv_range, matrix_strategy)?;
                 let buf_chunks = buf.as_chunks_mut::<2>().0.iter_mut();
                 for (dst, src) in buf_chunks.zip(aligned_store.iter()) {
-                    let bytes = src.to_ne_bytes();
-                    dst[0] = bytes[0];
-                    dst[1] = bytes[1];
+                    *dst = src.to_ne_bytes();
                 }
             }
         }

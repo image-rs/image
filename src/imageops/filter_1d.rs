@@ -100,7 +100,7 @@ where
     for (x, dst) in (image_size.width..(image_size.width + pad_w))
         .zip(row_buffer.as_chunks_mut::<N>().0.iter_mut().rev())
     {
-        let old_x = x.max(0).min(image_size.width - 1);
+        let old_x = x.min(image_size.width - 1);
         let old_px = old_x * N;
         let src_iter = &source_row[old_px..(old_px + N)];
         for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {
@@ -269,13 +269,11 @@ fn filter_symmetric_column<T, F, const N: usize>(
                 }
             }
 
-            let shaped_dst0 = &mut chunk[..16];
+            let (shaped_dst0, shaped_dst1) = chunk.split_at_mut(16);
 
             for (src, dst) in store0.iter().zip(shaped_dst0.iter_mut()) {
                 *dst = src.to_();
             }
-
-            let shaped_dst1 = &mut chunk[16..32];
 
             for (src, dst) in store1.iter().zip(shaped_dst1.iter_mut()) {
                 *dst = src.to_();

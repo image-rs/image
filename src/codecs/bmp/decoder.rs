@@ -2602,6 +2602,7 @@ mod test {
     /// - `rletopdown`: RLE compression with top-down orientation (spec forbids this)
     /// - `badplanes`: planes field != 1 (spec requires exactly 1)
     /// - `badpalettesize`: colors_used exceeds max for the bit depth
+    /// - `pal8oversizepal`: 8-bit palette with colors_used=300 (max is 256)
     /// - `rgb16-880`: 16-bit bitfields with 8-8-0 channel widths (blue mask is zero)
     #[test]
     fn test_strict_vs_lenient_spec_validation() {
@@ -2617,6 +2618,10 @@ mod test {
             (
                 "tests/images/bmp/images/lenient/badpalettesize.bmp",
                 "badpalettesize: palette size exceeding bit depth should be rejected in strict mode",
+            ),
+            (
+                "tests/images/bmp/images/lenient/pal8oversizepal.bmp",
+                "pal8oversizepal: colors_used=300 exceeds max 256 for 8-bit",
             ),
             (
                 "tests/images/bmp/images/lenient/rgb16-880.bmp",

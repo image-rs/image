@@ -80,11 +80,7 @@ fn check_webp_frames_regressions() {
 /// Check that BMP files with large values could cause OOM issues are rejected.
 ///
 /// The images are postfixed with `bad_bmp` to not be loaded by the other test.
-///
-/// NOTE: Disabled because the BMP decoder now defaults to lenient mode, which
-/// accepts these files. Re-enable when a public API for strict validation is exposed.
 #[test]
-#[ignore]
 fn bad_bmps() {
     let path: PathBuf = BASE_PATH
         .iter()

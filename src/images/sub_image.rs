@@ -1,4 +1,4 @@
-use crate::{flat::ViewOfPixel, GenericImage, GenericImageView, ImageBuffer, Pixel};
+use crate::{flat::ViewOfPixel, math::Rect, GenericImage, GenericImageView, ImageBuffer, Pixel};
 use std::ops::{Deref, DerefMut};
 
 /// A View into another image
@@ -243,6 +243,17 @@ where
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
+    }
+
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> Result<(), crate::ImageError>
+    where
+        O: GenericImageView<Pixel = Self::Pixel>,
+    {
+        Rect::from_image_at(other, x, y).test_in_bounds(self)?;
+        // Dispatch the inner images `copy_from` method with adjusted offsets. this ensures its
+        // potentially optimized implementation gets used.
+        self.image
+            .copy_from(other, x + self.xoffset, y + self.yoffset)
     }
 }
 

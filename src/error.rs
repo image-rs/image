@@ -171,19 +171,11 @@ pub struct LimitError {
 /// detailed information or to incorporate other resources types.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 #[non_exhaustive]
-#[allow(missing_copy_implementations)] // Might be non-Copy in the future.
 pub enum LimitErrorKind {
     /// The resulting image exceed dimension limits in either direction.
     DimensionError,
     /// The operation would have performed an allocation larger than allowed.
     InsufficientMemory,
-    /// The specified strict limits are not supported for this operation
-    Unsupported {
-        /// The given limits
-        limits: crate::Limits,
-        /// The supported strict limits
-        supported: crate::LimitSupport,
-    },
 }
 
 /// A best effort representation for image formats.
@@ -519,10 +511,6 @@ impl fmt::Display for LimitError {
         match self.kind {
             LimitErrorKind::InsufficientMemory => write!(fmt, "Memory limit exceeded"),
             LimitErrorKind::DimensionError => write!(fmt, "Image size exceeds limit"),
-            LimitErrorKind::Unsupported { .. } => {
-                write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
-                Ok(())
-            }
         }
     }
 }

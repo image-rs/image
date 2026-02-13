@@ -254,6 +254,7 @@ impl DirEntry {
                 max_image_width: Some(self.real_width().into()),
                 max_image_height: Some(self.real_height().into()),
                 max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
+                ..Default::default()
             };
             Ok(Png(Box::new(PngDecoder::with_limits(r, limits)?)))
         } else {

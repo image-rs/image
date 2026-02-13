@@ -384,7 +384,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // Skip the thumbnail that is not part of the animation.
         if self.has_thumbnail {
             // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
-            let mut limits = self.inner.limits.clone();
+            let mut limits = self.inner.limits.duplicate_allocation_budget();
 
             let buffer_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
@@ -445,7 +445,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // The allocations from now on are not going to persist,
         // and will be destroyed at the end of the scope.
         // Clone the limits so that any changes to them die with the allocations.
-        let mut limits = self.inner.limits.clone();
+        let mut limits = self.inner.limits.duplicate_allocation_budget();
 
         // Read next frame data.
         let raw_frame_size = self.inner.reader.output_buffer_size().ok_or_else(|| {

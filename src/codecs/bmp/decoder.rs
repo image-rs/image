@@ -2474,6 +2474,13 @@ mod test {
                 has_icc_profile: true,
                 top_down: false,
             },
+            TestCase {
+                path: "tests/images/bmp/images/rgb24rle24.bmp",
+                is_rle: true,
+                has_palette: false,
+                has_icc_profile: false,
+                top_down: false,
+            },
         ];
 
         for TestCase {

@@ -30,12 +30,15 @@ const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
 
+const OS2_V2_MAX_HEADER_SIZE: u32 = 64;
+const OS2_V2_MIN_HEADER_SIZE: u32 = 16;
+
 // Compression method constants
 const BI_RGB: u32 = 0;
 const BI_RLE8: u32 = 1;
 const BI_RLE4: u32 = 2;
 const BI_BITFIELDS: u32 = 3;
-const BI_JPEG: u32 = 4; // Used in legacy Windows pass-through printing path - not supported
+const BI_JPEG: u32 = 4; // Used in legacy Windows pass-through printing path (not supported) and for RLE24
 const BI_PNG: u32 = 5; // Used in legacy Windows pass-through printing path - not supported
 const BI_ALPHABITFIELDS: u32 = 6;
 const BI_CMYK: u32 = 11;
@@ -308,6 +311,7 @@ enum ImageType {
     RGBA32,
     RLE8,
     RLE4,
+    RLE24,
     Bitfields16,
     Bitfields32,
 }
@@ -396,6 +400,7 @@ enum BMPHeaderType {
     V3,
     V4,
     V5,
+    Os2V2,
 }
 
 #[derive(PartialEq)]
@@ -546,6 +551,8 @@ enum ChannelWidthError {
     Rle8,
     /// 4-bit run length encoding
     Rle4,
+    /// 24-bit run length encoding (OS/2)
+    Rle24,
     /// Bitfields (16- or 32-bit)
     Bitfields,
 }
@@ -556,6 +563,7 @@ impl fmt::Display for ChannelWidthError {
             ChannelWidthError::Rgb => "RGB",
             ChannelWidthError::Rle8 => "RLE8",
             ChannelWidthError::Rle4 => "RLE4",
+            ChannelWidthError::Rle24 => "RLE24",
             ChannelWidthError::Bitfields => "bitfields",
         })
     }
@@ -1077,11 +1085,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Determine the image type from the compression method and bit count.
+    /// Determine the image type from the compression method, bit count, and header type.
     fn image_type_from_compression(
         compression: u32,
         bit_count: u16,
         add_alpha_channel: bool,
+        header_type: &BMPHeaderType,
     ) -> ImageResult<ImageType> {
         match compression {
             BI_RGB => match bit_count {
@@ -1115,6 +1124,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 )
                 .into()),
             },
+            BI_JPEG if *header_type == BMPHeaderType::Os2V2 && bit_count == 24 => {
+                Ok(ImageType::RLE24)
+            }
+            BI_JPEG if *header_type == BMPHeaderType::Os2V2 => {
+                Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rle24, bit_count).into())
+            }
             BI_JPEG => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Bmp.into(),
@@ -1157,6 +1172,42 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Read OS/2 BITMAPCOREHEADER2 (variable size 16-64 bytes, layout-compatible
+    /// with BITMAPINFOHEADER). Fields beyond the header size default to 0.
+    fn read_bitmap_os2v2_header(&mut self, header_size: u32) -> ImageResult<()> {
+        let remaining = (header_size - 4) as usize;
+
+        // Zero-pad to 36 bytes for ParsedInfoHeader::parse.
+        let mut buffer = [0u8; 36];
+        let to_read = remaining.min(36);
+        self.reader.read_exact(&mut buffer[..to_read])?;
+
+        // Skip OS/2-specific fields beyond the BITMAPINFOHEADER portion (max 28 bytes).
+        if remaining > 36 {
+            let skip = remaining - 36;
+            let mut discard = [0u8; 28];
+            self.reader.read_exact(&mut discard[..skip])?;
+        }
+
+        let parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
+
+        self.width = parsed.width;
+        self.height = parsed.height;
+        self.top_down = parsed.top_down;
+        self.bit_count = parsed.bit_count;
+        self.colors_used = parsed.colors_used;
+        self.image_type = Self::image_type_from_compression(
+            parsed.compression,
+            parsed.bit_count,
+            self.add_alpha_channel,
+            &self.bmp_header_type,
+        )?;
+
+        check_for_overflow(self.width, self.height, self.num_channels())?;
+
+        Ok(())
+    }
+
     /// Read BITMAPINFOHEADER <https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx>
     /// or BITMAPV{2|3|4|5}HEADER.
     ///
@@ -1177,6 +1228,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             parsed.compression,
             parsed.bit_count,
             self.add_alpha_channel,
+            &self.bmp_header_type,
         )?;
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
@@ -1366,6 +1418,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 // Size of any valid header types won't be smaller than core header type.
                 return Err(DecoderError::HeaderTooSmall(bmp_header_size).into());
             }
+            // OS/2 BITMAPCOREHEADER2 (OS22XBITMAPHEADER): 16-64 bytes, 4-byte aligned
+            // (plus special sizes 42 and 46). Sizes 40/52/56 are caught by exact arms
+            // above and decoded as Windows headers (layout-compatible, so this is fine;
+            // the only difference is that a 40-byte OS/2 header with RLE24 won't trigger
+            // the Os2V2 path, but that combination is effectively nonexistent).
+            _ if (OS2_V2_MIN_HEADER_SIZE..=OS2_V2_MAX_HEADER_SIZE).contains(&bmp_header_size)
+                && (bmp_header_size % 4 == 0 || bmp_header_size == 42 || bmp_header_size == 46) =>
+            {
+                BMPHeaderType::Os2V2
+            }
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -1381,6 +1443,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let bitfield_compression = match self.bmp_header_type {
             BMPHeaderType::Core => {
                 self.read_bitmap_core_header()?;
+                BitfieldCompression::Rgb
+            }
+            BMPHeaderType::Os2V2 => {
+                self.read_bitmap_os2v2_header(bmp_header_size)?;
                 BitfieldCompression::Rgb
             }
             BMPHeaderType::Info
@@ -2007,9 +2073,160 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Read OS/2 24-bit RLE data (BI_RLE24). Like RLE8 but with inline BGR triples.
+    fn read_rle24_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let (start_row, start_x, start_pos) = match self.state {
+            DecoderState::ReadingRleData {
+                progress: RleProgress::NotStarted,
+            } => (0u32, 0u32, self.data_offset),
+            DecoderState::ReadingRleData {
+                progress: RleProgress::Checkpoint { row, x, stream_pos },
+            } => (row, x, stream_pos),
+            _ => unreachable!(
+                "read_rle24_data called in unexpected state: {:?}",
+                self.state
+            ),
+        };
+
+        self.reader.seek(SeekFrom::Start(start_pos))?;
+
+        let num_channels = self.num_channels();
+
+        let mut row_iter = self.rows(buf).skip(start_row as usize);
+        let mut current_row = start_row;
+        let mut first_row_iteration = true;
+        let mut rle_reader = RleReader::new(&mut self.reader);
+
+        while let Some(row) = row_iter.next() {
+            let mut pixel_iter = row.chunks_exact_mut(num_channels);
+
+            let mut x = if first_row_iteration && start_x > 0 {
+                pixel_iter.nth(start_x as usize - 1);
+                start_x
+            } else {
+                0
+            };
+            first_row_iteration = false;
+
+            loop {
+                let control_byte = rle_reader.read_byte()?;
+
+                match control_byte {
+                    RLE_ESCAPE => {
+                        let op = rle_reader.read_byte()?;
+                        match op {
+                            RLE_ESCAPE_EOL => break,
+                            RLE_ESCAPE_EOF => {
+                                pixel_iter.for_each(|p| p.fill(0));
+                                row_iter.for_each(|r| r.fill(0));
+                                return Ok(());
+                            }
+                            RLE_ESCAPE_DELTA => {
+                                let x_delta = rle_reader.read_byte()?;
+                                let y_delta = rle_reader.read_byte()?;
+
+                                if y_delta > 0 {
+                                    // Zero out the remainder of the current row.
+                                    pixel_iter.for_each(|p| p.fill(0));
+
+                                    // If any full rows are skipped, zero them out.
+                                    for _ in 1..y_delta {
+                                        let row =
+                                            row_iter.next().ok_or(DecoderError::CorruptRleData)?;
+                                        row.fill(0);
+                                    }
+
+                                    current_row += y_delta as u32;
+
+                                    // Set the pixel iterator to the start of the next row.
+                                    pixel_iter = row_iter
+                                        .next()
+                                        .ok_or(DecoderError::CorruptRleData)?
+                                        .chunks_exact_mut(num_channels);
+
+                                    // Zero out the pixels up to the current point in the row.
+                                    for _ in 0..x {
+                                        pixel_iter
+                                            .next()
+                                            .ok_or(DecoderError::CorruptRleData)?
+                                            .fill(0);
+                                    }
+                                }
+
+                                for _ in 0..x_delta {
+                                    let pixel =
+                                        pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
+                                    pixel.fill(0);
+                                }
+                                x += x_delta as u32;
+                            }
+                            _ => {
+                                // Absolute mode: `op` inline BGR triples, padded to word boundary
+                                let count = op as usize;
+                                for _ in 0..count {
+                                    let b = rle_reader.read_byte()?;
+                                    let g = rle_reader.read_byte()?;
+                                    let r = rle_reader.read_byte()?;
+                                    if let Some(pixel) = pixel_iter.next() {
+                                        pixel[0] = r;
+                                        pixel[1] = g;
+                                        pixel[2] = b;
+                                    }
+                                }
+                                if (count * 3) % 2 != 0 {
+                                    rle_reader.read_byte()?; // skip padding byte
+                                }
+                                x += count as u32;
+                            }
+                        }
+                    }
+                    _ => {
+                        // Encoded run: repeat one BGR color for `count` pixels
+                        let count = control_byte as usize;
+                        let b = rle_reader.read_byte()?;
+                        let g = rle_reader.read_byte()?;
+                        let r = rle_reader.read_byte()?;
+                        for _ in 0..count {
+                            if let Some(pixel) = pixel_iter.next() {
+                                pixel[0] = r;
+                                pixel[1] = g;
+                                pixel[2] = b;
+                            }
+                        }
+                        x += count as u32;
+                    }
+                }
+
+                // Checkpoint after every instruction
+                self.state = DecoderState::ReadingRleData {
+                    progress: RleProgress::Checkpoint {
+                        row: current_row,
+                        x,
+                        stream_pos: start_pos + rle_reader.bytes_read(),
+                    },
+                };
+            }
+
+            // Checkpoint after EndOfRow
+            self.state = DecoderState::ReadingRleData {
+                progress: RleProgress::Checkpoint {
+                    row: current_row,
+                    x: 0,
+                    stream_pos: start_pos + rle_reader.bytes_read(),
+                },
+            };
+            current_row += 1;
+        }
+
+        Ok(())
+    }
+
     /// Determine if the current image type is RLE-compressed.
     fn is_rle(&self) -> bool {
-        matches!(self.image_type, ImageType::RLE4 | ImageType::RLE8)
+        matches!(
+            self.image_type,
+            ImageType::RLE4 | ImageType::RLE8 | ImageType::RLE24
+        )
     }
 
     /// Returns which rows in the output buffer contain valid decoded pixel data.
@@ -2072,6 +2289,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             ImageType::RGBA32 => self.read_full_byte_pixel_data(buf, &FormatFullBytes::RGBA32),
             ImageType::RLE8 => self.read_rle_data(buf, ImageType::RLE8),
             ImageType::RLE4 => self.read_rle_data(buf, ImageType::RLE4),
+            ImageType::RLE24 => self.read_rle24_data(buf),
             ImageType::Bitfields16 => match self.bitfields {
                 Some(_) => self.read_16_bit_pixel_data(buf, None),
                 None => Err(DecoderError::BitfieldMasksMissing(16).into()),

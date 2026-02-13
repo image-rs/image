@@ -9,6 +9,10 @@
 ### Version 0.25.10 (unreleased)
 
 Features:
+- Added `GenericImage::copy_from_samples` that can be implemented for images
+  that can be efficiently filled from a matrix-layout of samples. Its default
+  implementation will *not* defer to `copy_from`, consider implementing this if
+  you specialized the latter.
 - Added `GenericImageView::to_pixel_view` that can be implemented to describe
   the buffer in terms our `FlatSamples` matrix layout, if applicable. This
   allows algorithms over generic images to run a specialized version where they
@@ -22,8 +26,13 @@ Features:
 Structural changes:
 - Various changes that reduce the compile time of `image` on codegen by
   reducing the number of monomorphizations (#2804, #2800, #2807).
-- `GenericImage::copy_from` is now must faster for `ImageBuffer` when the
-  source implements `GenericImageView::to_pixel_view`.
+- `GenericImage::copy_from`'s default implementation tries `copy_from_samples`
+  first if the source can be successfully cast with `to_pixel_view`.
+- `<ImageBuffer as GenericImage>::copy_from` is now must faster for
+  `ImageBuffer` when the source implements `GenericImageView::to_pixel_view`.
+- `<SubImage<_> as GenericImage>::copy_from` inherits the previously mentioned
+  optimizations for pixel sources when the inner type provides them. It also
+  provides `to_pixel_view` based on the inner type.
 - `ImageBuffer::as_flat_samples` no longer requires `AsRef<[P::Subpixel]>` for
   the underlying container, just `Deref` (#2777).
 - Bump `tiff` to `0.11`, supporting planar layout images.

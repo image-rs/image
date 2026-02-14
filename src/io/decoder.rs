@@ -1,4 +1,3 @@
-use crate::color::ExtendedColorType;
 use crate::error::ImageResult;
 use crate::metadata::{LoopCount, Orientation};
 use crate::Delay;
@@ -67,11 +66,6 @@ pub trait ImageDecoder {
     /// The layout returned by an implementation of [`ImageDecoder::peek_layout`] must match the
     /// buffer expected in [`ImageDecoder::read_image`].
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout>;
-
-    /// Returns the color type of the image file before decoding
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        Ok(self.peek_layout()?.color.into())
-    }
 
     /// Read all the bytes in the image into a buffer.
     ///
@@ -260,9 +254,6 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
         (**self).animation_attributes()
     }
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        (**self).original_color_type()
-    }
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).icc_profile()
     }
@@ -300,11 +291,11 @@ mod tests {
 
         impl ImageDecoder for D {
             fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-                Ok(crate::ImageLayout {
-                    width: 0xffff_ffff,
-                    height: 0xffff_ffff,
-                    color: ColorType::Rgb8,
-                })
+                Ok(crate::ImageLayout::new(
+                    0xffff_ffff,
+                    0xffff_ffff,
+                    ColorType::Rgb8,
+                ))
             }
 
             fn read_image(&mut self, _buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

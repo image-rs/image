@@ -388,13 +388,6 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn original_color_type(&mut self) -> ImageResult<crate::ExtendedColorType> {
-        match &mut self.inner_decoder {
-            Bmp(decoder) => decoder.original_color_type(),
-            Png(decoder) => decoder.original_color_type(),
-        }
-    }
-
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.icc_profile(),

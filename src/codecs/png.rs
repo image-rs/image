@@ -239,33 +239,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         let reader = self.ensure_reader_and_header()?;
         let (width, height) = reader.info().size();
 
-        Ok(ImageLayout {
-            width,
-            height,
-            color: self.color_type,
-        })
-    }
-
-    fn attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
-            // is any sort of iTXT chunk.
-            xmp: DecodedMetadataHint::AfterFinish,
-            // is any sort of iTXT chunk.
-            iptc: DecodedMetadataHint::AfterFinish,
-            // see iCCP chunk order.
-            icc: DecodedMetadataHint::InHeader,
-            // see eXIf chunk order.
-            exif: DecodedMetadataHint::InHeader,
-            ..DecoderAttributes::default()
-        }
-    }
-
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        let Some(reader) = &self.reader else {
-            return Err(reader_finished_already());
-        };
-
-        Ok(match (reader.info().color_type, reader.info().bit_depth) {
+        let original = match (reader.info().color_type, reader.info().bit_depth) {
             (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
             (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
             (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
@@ -291,7 +265,26 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
             (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
+        };
+
+        Ok(ImageLayout {
+            original_color_type: Some(original),
+            ..ImageLayout::new(width, height, self.color_type)
         })
+    }
+
+    fn attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // is any sort of iTXT chunk.
+            xmp: DecodedMetadataHint::AfterFinish,
+            // is any sort of iTXT chunk.
+            iptc: DecodedMetadataHint::AfterFinish,
+            // see iCCP chunk order.
+            icc: DecodedMetadataHint::InHeader,
+            // see eXIf chunk order.
+            exif: DecodedMetadataHint::InHeader,
+            ..DecoderAttributes::default()
+        }
     }
 
     /// Only for [`ApngDecoder`].

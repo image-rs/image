@@ -394,16 +394,13 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
                 .map_err(ImageError::Limits)
         }
 
-        Ok(crate::ImageLayout {
-            width: try_dimensions(self.width)?,
-            height: try_dimensions(self.height)?,
-            color: self.color_type,
-        })
-    }
+        let width = try_dimensions(self.width)?;
+        let height = try_dimensions(self.height)?;
 
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        let fallback = self.peek_layout()?.color;
-        Ok(self.original_color_type.unwrap_or_else(|| fallback.into()))
+        Ok(crate::ImageLayout {
+            original_color_type: self.original_color_type,
+            ..crate::ImageLayout::new(width, height, self.color_type)
+        })
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

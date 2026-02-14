@@ -49,6 +49,10 @@ impl<R: io::Read> ReadExt for R {
 /// Describes a packed rectangular layout with given bit-depth in [`ImageDecoder::init`]. Layouts
 /// from `image` are row-major with no padding between rows and pixels packed by consecutive
 /// channels.
+///
+/// For external crates constructing an instance, use [`ImageLayout::empty`] with the intended
+/// color type and then fill in all applicable fields. (It will become more convenient when Rust
+/// lets you use record update syntax but that won't work for now).
 #[non_exhaustive]
 pub struct ImageLayout {
     /// The color model of each pixel.
@@ -57,9 +61,26 @@ pub struct ImageLayout {
     pub width: u32,
     /// The number of pixels in the vertical direction.
     pub height: u32,
+    /// Is the underlying data converted into a different pixel format or color model?
+    ///
+    /// This field is currently an optional hint. The authoritative source for the memory size
+    /// required for [`ImageDecoder::read_image`][`crate::ImageDecoder`] remains the
+    /// [`color`][`ImageLayout::color`] field even if this information is present.
+    pub original_color_type: Option<crate::ExtendedColorType>,
 }
 
 impl ImageLayout {
+    /// A layout matching a [`DynamicImage`][`crate::DynamicImage`] of the given dimensions and
+    /// color type.
+    pub fn new(w: u32, h: u32, color: crate::ColorType) -> ImageLayout {
+        #[allow(deprecated)]
+        ImageLayout {
+            width: w,
+            height: h,
+            ..ImageLayout::empty(color)
+        }
+    }
+
     /// Return width and height as a tuple, consistent with
     /// [`GenericImageView::dimensions`][`crate::GenericImageView::dimensions`].
     ///
@@ -75,6 +96,7 @@ impl ImageLayout {
             color,
             width: 0,
             height: 0,
+            original_color_type: None,
         }
     }
 

@@ -163,7 +163,7 @@ pub use crate::io::{
     decoder::{AnimationDecoder, ImageDecoder},
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::ImageReader,
+    image_reader_type::{ImageReader, SpecCompliance},
     limits::{LimitSupport, Limits},
 };
 

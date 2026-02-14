@@ -395,11 +395,11 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         let info = self.peek_info()?;
+        let (width, height) = info.dimensions;
 
         Ok(crate::ImageLayout {
-            width: info.dimensions.0,
-            height: info.dimensions.1,
-            color: info.color_type,
+            original_color_type: Some(info.original_color_type),
+            ..crate::ImageLayout::new(width, height, info.color_type)
         })
     }
 
@@ -556,10 +556,6 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             orientation,
             ..DecodedImageAttributes::default()
         })
-    }
-
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        Ok(self.peek_info()?.original_color_type)
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

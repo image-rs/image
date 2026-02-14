@@ -371,14 +371,16 @@ fn get_matrix(
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let color = if self.picture.bit_depth() == 8 {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgba16
+        };
+
         Ok(crate::ImageLayout {
             width: self.picture.width(),
             height: self.picture.height(),
-            color: if self.picture.bit_depth() == 8 {
-                ColorType::Rgba8
-            } else {
-                ColorType::Rgba16
-            },
+            ..crate::ImageLayout::empty(color)
         })
     }
 

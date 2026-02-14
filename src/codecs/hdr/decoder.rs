@@ -303,11 +303,8 @@ impl<R: Read> HdrDecoder<R> {
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        Ok(crate::ImageLayout {
-            width: self.meta.width,
-            height: self.meta.height,
-            color: ColorType::Rgb32F,
-        })
+        let HdrMetadata { width, height, .. } = self.meta;
+        Ok(crate::ImageLayout::new(width, height, ColorType::Rgb32F))
     }
 
     fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {

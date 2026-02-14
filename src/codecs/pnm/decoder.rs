@@ -632,14 +632,11 @@ impl<R> HeaderReader for R where R: Read {}
 impl<R: Read> ImageDecoder for PnmDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::io::ImageLayout> {
         Ok(crate::io::ImageLayout {
-            color: self.tuple.expanded_color(),
             width: self.header.width(),
             height: self.header.height(),
+            original_color_type: Some(self.tuple.original_color()),
+            ..crate::io::ImageLayout::empty(self.tuple.expanded_color())
         })
-    }
-
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        Ok(self.tuple.original_color())
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

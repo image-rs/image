@@ -200,7 +200,7 @@ impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
         Ok(crate::ImageLayout {
             width: self.reader.width,
             height: self.reader.height,
-            color: ColorType::Rgba16,
+            ..crate::ImageLayout::empty(ColorType::Rgba16)
         })
     }
 

@@ -126,20 +126,18 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             ColorType::Rgb32F
         };
 
-        Ok(crate::ImageLayout {
-            width,
-            height,
-            color,
-        })
-    }
-
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        let _ = self.peek_layout()?;
-
-        Ok(if self.alpha_present_in_file {
+        // We may have discarded the alpha channel.
+        let original = if self.alpha_present_in_file {
             ExtendedColorType::Rgba32F
         } else {
             ExtendedColorType::Rgb32F
+        };
+
+        Ok(crate::ImageLayout {
+            width,
+            height,
+            original_color_type: Some(original),
+            ..crate::ImageLayout::empty(color)
         })
     }
 

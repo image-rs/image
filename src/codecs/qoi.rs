@@ -26,14 +26,15 @@ where
 impl<R: Read> ImageDecoder for QoiDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         let header = self.decoder.header();
+        let color = match header.channels {
+            qoi::Channels::Rgb => ColorType::Rgb8,
+            qoi::Channels::Rgba => ColorType::Rgba8,
+        };
 
         Ok(crate::ImageLayout {
             width: header.width,
             height: header.height,
-            color: match header.channels {
-                qoi::Channels::Rgb => ColorType::Rgb8,
-                qoi::Channels::Rgba => ColorType::Rgba8,
-            },
+            ..crate::ImageLayout::empty(color)
         })
     }
 

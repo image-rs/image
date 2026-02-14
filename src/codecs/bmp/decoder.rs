@@ -1918,16 +1918,18 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let color = if self.indexed_color {
+            ColorType::L8
+        } else if self.add_alpha_channel {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
+        };
+
         Ok(crate::ImageLayout {
             width: self.width as u32,
             height: self.height as u32,
-            color: if self.indexed_color {
-                ColorType::L8
-            } else if self.add_alpha_channel {
-                ColorType::Rgba8
-            } else {
-                ColorType::Rgb8
-            },
+            ..crate::ImageLayout::empty(color)
         })
     }
 

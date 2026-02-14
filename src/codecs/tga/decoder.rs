@@ -400,13 +400,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         Ok(crate::ImageLayout {
             width: try_dimensions(self.width)?,
             height: try_dimensions(self.height)?,
-            color: self.color_type,
+            original_color_type: self.original_color_type,
+            ..crate::ImageLayout::empty(self.color_type)
         })
-    }
-
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        let fallback = self.peek_layout()?.color;
-        Ok(self.original_color_type.unwrap_or_else(|| fallback.into()))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

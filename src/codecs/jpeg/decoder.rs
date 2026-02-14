@@ -91,7 +91,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(crate::ImageLayout {
             width: u32::from(self.width),
             height: u32::from(self.height),
-            color: ColorType::from_jpeg(self.orig_color_space),
+            ..crate::ImageLayout::empty(ColorType::from_jpeg(self.orig_color_space))
         })
     }
 

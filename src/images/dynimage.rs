@@ -1583,6 +1583,7 @@ pub(crate) fn decoder_to_image(
         width: w,
         height: h,
         color: color_type,
+        ..
     } = layout;
 
     let attr;

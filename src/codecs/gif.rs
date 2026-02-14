@@ -107,7 +107,7 @@ impl<R: Read> GifDecoder<R> {
         crate::ImageLayout {
             width: u32::from(decoder.width()),
             height: u32::from(decoder.height()),
-            color: ColorType::Rgba8,
+            ..crate::ImageLayout::empty(ColorType::Rgba8)
         }
     }
 }

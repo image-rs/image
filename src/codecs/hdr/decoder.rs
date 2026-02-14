@@ -274,7 +274,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         Ok(crate::ImageLayout {
             width: self.meta.width,
             height: self.meta.height,
-            color: ColorType::Rgb32F,
+            ..crate::ImageLayout::empty(ColorType::Rgb32F)
         })
     }
 

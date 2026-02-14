@@ -65,15 +65,16 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
 
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
         let (width, height) = self.inner.dimensions();
+        let color = if self.inner.has_alpha() {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
+        };
 
         Ok(crate::ImageLayout {
             width,
             height,
-            color: if self.inner.has_alpha() {
-                ColorType::Rgba8
-            } else {
-                ColorType::Rgb8
-            },
+            ..crate::ImageLayout::empty(color)
         })
     }
 

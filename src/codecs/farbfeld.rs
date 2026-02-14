@@ -197,11 +197,8 @@ impl<R: Read> FarbfeldDecoder<R> {
 
 impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        Ok(crate::ImageLayout {
-            width: self.reader.width,
-            height: self.reader.height,
-            color: ColorType::Rgba16,
-        })
+        let FarbfeldReader { width, height, .. } = self.reader;
+        Ok(crate::ImageLayout::new(width, height, ColorType::Rgba16))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

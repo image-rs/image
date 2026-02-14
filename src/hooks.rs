@@ -197,7 +197,7 @@ mod tests {
             Ok(crate::ImageLayout {
                 width: (MOCK_IMAGE_OUTPUT.len() / 3) as u32,
                 height: 1,
-                color: ColorType::Rgb8,
+                ..crate::ImageLayout::empty(ColorType::Rgb8)
             })
         }
 

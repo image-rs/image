@@ -131,11 +131,12 @@ impl<R: Read> DxtDecoder<R> {
 // 4 lines of pixels.
 impl<R: Read> ImageDecoder for DxtDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        Ok(crate::ImageLayout {
-            width: self.width_blocks * 4,
-            height: self.height_blocks * 4,
-            color: self.variant.color_type(),
-        })
+        // Note: derived from an underlying size divided by 4 during parsing.
+        Ok(crate::ImageLayout::new(
+            self.width_blocks * 4,
+            self.height_blocks * 4,
+            self.variant.color_type(),
+        ))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

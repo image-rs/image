@@ -104,11 +104,11 @@ impl<R: Read> GifDecoder<R> {
     }
 
     fn layout_from_decoder(decoder: &gif::Decoder<R>) -> crate::ImageLayout {
-        crate::ImageLayout {
-            width: u32::from(decoder.width()),
-            height: u32::from(decoder.height()),
-            color: ColorType::Rgba8,
-        }
+        crate::ImageLayout::new(
+            decoder.width().into(),
+            decoder.height().into(),
+            ColorType::Rgba8,
+        )
     }
 }
 

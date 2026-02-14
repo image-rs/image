@@ -629,15 +629,13 @@ impl<R> HeaderReader for R where R: Read {}
 
 impl<R: Read> ImageDecoder for PnmDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<crate::io::ImageLayout> {
-        Ok(crate::io::ImageLayout {
-            color: self.tuple.expanded_color(),
-            width: self.header.width(),
-            height: self.header.height(),
-        })
-    }
+        let width = self.header.width();
+        let height = self.header.height();
 
-    fn original_color_type(&mut self) -> ImageResult<ExtendedColorType> {
-        Ok(self.tuple.original_color())
+        Ok(crate::io::ImageLayout {
+            original_color_type: Some(self.tuple.original_color()),
+            ..crate::io::ImageLayout::new(width, height, self.tuple.expanded_color())
+        })
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -986,11 +984,9 @@ TUPLTYPE BLACKANDWHITE
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::L1
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::L8);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::L1);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
@@ -1036,11 +1032,9 @@ TUPLTYPE BLACKANDWHITE_ALPHA
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::La8);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::La1
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::La8);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::La1);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
@@ -1126,11 +1120,9 @@ TUPLTYPE GRAYSCALE_ALPHA
 ENDHDR
 \xdc\xba\x32\x10\xdc\xba\x32\x10";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::La16);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::La16
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::La16);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::La16);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (2, 1));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
@@ -1222,9 +1214,10 @@ TUPLTYPE RGB_ALPHA
 ENDHDR
 \x00\x01\x02\x03\x0a\x0b\x0c\x0d\x05\x06\x07\x08";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::Rgba8);
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::Rgba8);
         assert_eq!(
-            decoder.original_color_type().unwrap(),
+            layout.original_color_type.unwrap(),
             ExtendedColorType::Rgba8
         );
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (1, 3));
@@ -1259,11 +1252,9 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = [&b"P4 6 2\n"[..], &[0b0110_1100_u8, 0b1011_0111]].concat();
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::L1
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::L8);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::L1);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
         assert_eq!(
             decoder.subtype(),
@@ -1326,11 +1317,9 @@ ENDHDR
         // whitespace characters that should be allowed (the 6 characters according to POSIX).
         let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0\t\n\x0b\x0c\r1";
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::L1
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::L8);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::L1);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
@@ -1362,11 +1351,9 @@ ENDHDR
         // whitespace for the pbm format or any mix.
         let pbmbinary = b"P1 6 2\n011011101101";
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(
-            decoder.original_color_type().unwrap(),
-            ExtendedColorType::L1
-        );
+        let layout = decoder.peek_layout().unwrap();
+        assert_eq!(layout.color, ColorType::L8);
+        assert_eq!(layout.original_color_type.unwrap(), ExtendedColorType::L1);
         assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 

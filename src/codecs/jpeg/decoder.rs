@@ -88,11 +88,11 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        Ok(crate::ImageLayout {
-            width: u32::from(self.width),
-            height: u32::from(self.height),
-            color: ColorType::from_jpeg(self.orig_color_space),
-        })
+        Ok(crate::ImageLayout::new(
+            self.width.into(),
+            self.height.into(),
+            ColorType::from_jpeg(self.orig_color_space),
+        ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {

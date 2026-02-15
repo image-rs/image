@@ -672,6 +672,16 @@ where
     Ok(height)
 }
 
+/// Write an RGB pixel to a slice that may be 3 (RGB) or 4 (RGBA) bytes.
+/// When the slice is 4 bytes the alpha channel is set to fully opaque.
+#[inline(always)]
+fn set_pixel_rgb(pixel: &mut [u8], rgb: [u8; 3]) {
+    pixel[0..3].copy_from_slice(&rgb);
+    if pixel.len() > 3 {
+        pixel[3] = ALPHA_OPAQUE;
+    }
+}
+
 fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksExactMut<u8>,
     palette: &[[u8; 3]],
@@ -680,10 +690,7 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 ) -> bool {
     for idx in indices.take(n_pixels) {
         if let Some(pixel) = pixel_iter.next() {
-            let rgb = palette[*idx as usize];
-            pixel[0] = rgb[0];
-            pixel[1] = rgb[1];
-            pixel[2] = rgb[2];
+            set_pixel_rgb(pixel, palette[*idx as usize]);
         } else {
             return false;
         }
@@ -704,10 +711,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     break;
                 }
                 if let Some(pixel) = pixel_iter.next() {
-                    let rgb = palette[$i as usize];
-                    pixel[0] = rgb[0];
-                    pixel[1] = rgb[1];
-                    pixel[2] = rgb[2];
+                    set_pixel_rgb(pixel, palette[$i as usize]);
                 } else {
                     return false;
                 }
@@ -1195,6 +1199,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             &self.bmp_header_type,
         )?;
 
+        // RLE-compressed images use RGBA output so that pixels skipped by
+        // EOL, EOF, or Delta commands are transparent.
+        if self.is_rle() {
+            self.add_alpha_channel = true;
+        }
+
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
         Ok(())
@@ -1222,6 +1232,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.add_alpha_channel,
             &self.bmp_header_type,
         )?;
+
+        // RLE-compressed images use RGBA output so that pixels skipped by
+        // EOL, EOF, or Delta commands are transparent.
+        if self.is_rle() {
+            self.add_alpha_channel = true;
+        }
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
@@ -1909,8 +1925,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 let x_delta = rle_reader.read_byte()?;
                                 let y_delta = rle_reader.read_byte()?;
 
-                                // IE and Windows image preview replace skipped pixels
-                                // with black, so we stick to that.
+                                // Pixels skipped by a Delta are left as zero
+                                // (transparent in RGBA), matching Chromium's behavior.
                                 if y_delta > 0 {
                                     pixel_iter.for_each(|p| p.fill(0));
 
@@ -1978,9 +1994,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                             let g = rle_reader.read_byte()?;
                                             let r = rle_reader.read_byte()?;
                                             if let Some(pixel) = pixel_iter.next() {
-                                                pixel[0] = r;
-                                                pixel[1] = g;
-                                                pixel[2] = b;
+                                                set_pixel_rgb(pixel, [r, g, b]);
                                             }
                                         }
                                         // RLE24 absolute mode pads to word (2-byte) boundary.
@@ -2002,11 +2016,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 // Clamp to row length for compat with imagemagick:
                                 // https://github.com/image-rs/image/issues/2321
                                 let palette_index = rle_reader.read_byte()?;
-                                let repeat_pixel: [u8; 3] = p.unwrap()[palette_index as usize];
+                                let repeat_pixel = p.unwrap()[palette_index as usize];
                                 (&mut pixel_iter).take(n_pixels).for_each(|p| {
-                                    p[0] = repeat_pixel[0];
-                                    p[1] = repeat_pixel[1];
-                                    p[2] = repeat_pixel[2];
+                                    set_pixel_rgb(p, repeat_pixel);
                                 });
                             }
                             ImageType::RLE4 => {
@@ -2026,9 +2038,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                 let r = rle_reader.read_byte()?;
                                 for _ in 0..n_pixels {
                                     if let Some(pixel) = pixel_iter.next() {
-                                        pixel[0] = r;
-                                        pixel[1] = g;
-                                        pixel[2] = b;
+                                        set_pixel_rgb(pixel, [r, g, b]);
                                     }
                                 }
                             }

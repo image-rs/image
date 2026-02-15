@@ -266,10 +266,10 @@ impl DirEntry {
 // We forward everything to png or bmp decoder.
 #[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         match &self.inner_decoder {
-            Bmp(decoder) => decoder.attributes(),
-            Png(decoder) => decoder.attributes(),
+            Bmp(decoder) => decoder.format_attributes(),
+            Png(decoder) => decoder.format_attributes(),
         }
     }
 

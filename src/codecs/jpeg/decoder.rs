@@ -277,11 +277,12 @@ mod tests {
         let data = fs::read("tests/images/jpg/portrait_2.jpg").unwrap();
         let decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
 
+        let mut image = crate::DynamicImage::new_luma8(0, 0);
         let mut reader = crate::ImageReader::from_decoder(Box::new(decoder));
-        reader.decode().unwrap();
+        let meta = reader.decode_into(&mut image).unwrap();
 
         assert_eq!(
-            reader.last_attributes().orientation.unwrap(),
+            meta.attributes().orientation.unwrap(),
             crate::metadata::Orientation::FlipHorizontal
         );
     }

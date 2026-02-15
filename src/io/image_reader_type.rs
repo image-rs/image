@@ -7,8 +7,8 @@ use crate::error::{
     ImageFormatHint, ImageResult, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::limits::Limits;
-use crate::io::SequenceControl;
 use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes};
+use crate::io::{DecodedMetadataHint, SequenceControl};
 use crate::metadata::Orientation;
 use crate::{hooks, Delay, Frame, Frames};
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
@@ -365,6 +365,24 @@ pub struct ImageReader<'lt> {
     limits: Limits,
     /// A buffered cache of the last image attributes.
     last_attributes: DecodedImageAttributes,
+    /// The metadata of formats is stored in varying places.
+    metadata_buffers: MetadataBuffers,
+}
+
+/// Result of [`ImageReader::decode_into`] that provides access to metadata.
+pub struct DecodedImageMetadata<'reader> {
+    inner: &'reader mut (dyn ImageDecoder + 'reader),
+    attributes: &'reader DecodedImageAttributes,
+    metadata_buffers: &'reader MetadataBuffers,
+}
+
+#[derive(Default)]
+struct MetadataBuffers {
+    exif: Option<Vec<u8>>,
+    icc: Option<Vec<u8>>,
+    xmp: Option<Vec<u8>>,
+    iptc: Option<Vec<u8>>,
+    first_meta_retrieved: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -418,8 +436,24 @@ impl ImageReader<'_> {
     }
 
     /// Decode the next image into a `DynamicImage`.
+    ///
+    /// If you need to also access the metadata, which may become available during decoding, then
+    /// you should use [`Self::decode_into`] instead which will also reuse the buffer where
+    /// possible.
     pub fn decode(&mut self) -> ImageResult<DynamicImage> {
+        let mut empty = DynamicImage::new_luma8(0, 0);
+        self.decode_into(&mut empty)?;
+        Ok(empty)
+    }
+
+    /// Decode an image into a provided buffer and retrieve metadata.
+    pub fn decode_into(
+        &mut self,
+        image: &mut DynamicImage,
+    ) -> ImageResult<DecodedImageMetadata<'_>> {
         let layout = self.inner.peek_layout()?;
+        self.fill_header_metadata_if_any()?;
+
         // This is technically redundant but it's also cheap.
         self.limits.check_dimensions(layout.width, layout.height)?;
         // Check that we do not allocate a bigger buffer than we are allowed to
@@ -431,7 +465,6 @@ impl ImageReader<'_> {
         let exif = self.inner.exif_metadata()?;
 
         // Retrieve the raw image data as indicated by the layout.
-        let mut image = DynamicImage::new_luma8(0, 0);
         let mut attr = image.decode_raw(self.inner.as_mut(), layout)?;
 
         // Apply the profile. If the profile itself is not valid or not present you get the default
@@ -466,7 +499,12 @@ impl ImageReader<'_> {
         }
 
         self.last_attributes = attr;
-        Ok(image)
+
+        Ok(DecodedImageMetadata {
+            inner: self.inner.as_mut(),
+            attributes: &self.last_attributes,
+            metadata_buffers: &self.metadata_buffers,
+        })
     }
 
     /// Skip the next image, discard its image data.
@@ -481,6 +519,8 @@ impl ImageReader<'_> {
 
         // Some decoders may still want a buffer, so we can't fully ignore it.
         let layout = self.inner.peek_layout()?;
+        self.fill_header_metadata_if_any()?;
+
         // This is technically redundant but it's also cheap.
         self.limits.check_dimensions(layout.width, layout.height)?;
         let bytes = layout.total_bytes();
@@ -501,39 +541,123 @@ impl ImageReader<'_> {
         Ok(())
     }
 
-    /// Get the EXIF metadata of the pending image if any.
-    pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let _ = self.inner.peek_layout();
-        self.inner.exif_metadata()
-    }
-
-    /// Get the ICC profile of the pending image if any.
-    pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let _ = self.inner.peek_layout();
-        self.inner.icc_profile()
-    }
-
-    /// Get the XMP metadata of the pending image if any.
-    pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let _ = self.inner.peek_layout();
-        self.inner.xmp_metadata()
-    }
-
-    /// Get the IPTC metadata of the pending image if any.
-    pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let _ = self.inner.peek_layout();
-        self.inner.iptc_metadata()
-    }
-
     /// Get the animation attributes of the file if any.
     pub fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
         let _ = self.inner.peek_layout();
         self.inner.animation_attributes()
     }
 
-    /// Get auxiliary attributes of the last image.
-    pub fn last_attributes(&self) -> DecodedImageAttributes {
-        self.last_attributes.clone()
+    /// Must be called after `peek_layout`.
+    ///
+    /// Polls the underlying decoder for any `InHeader` metadata that is constant across a file,
+    /// applicable to all images, and appears early.
+    fn fill_header_metadata_if_any(&mut self) -> Result<(), ImageError> {
+        type MetadataFn<'a> =
+            fn(&mut (dyn ImageDecoder + 'a)) -> Result<Option<Vec<u8>>, ImageError>;
+
+        // We retrieve `InHeader` metadata only once, before reading any our images.
+        let first_meta_retrieved = self.metadata_buffers.first_meta_retrieved;
+        let format_attrs = self.inner.format_attributes();
+
+        let attributes = [
+            (
+                format_attrs.exif,
+                &mut self.metadata_buffers.exif,
+                <dyn ImageDecoder + '_>::exif_metadata as MetadataFn,
+            ),
+            (
+                format_attrs.icc,
+                &mut self.metadata_buffers.icc,
+                <dyn ImageDecoder + '_>::icc_profile as MetadataFn,
+            ),
+            (
+                format_attrs.xmp,
+                &mut self.metadata_buffers.xmp,
+                <dyn ImageDecoder + '_>::xmp_metadata as MetadataFn,
+            ),
+            (
+                format_attrs.iptc,
+                &mut self.metadata_buffers.iptc,
+                <dyn ImageDecoder + '_>::iptc_metadata as MetadataFn,
+            ),
+        ];
+
+        for (hint, buffer, getter) in attributes {
+            let should_buffer_now = match hint {
+                DecodedMetadataHint::InHeader => !first_meta_retrieved,
+                DecodedMetadataHint::PerImage => true,
+                DecodedMetadataHint::None
+                | DecodedMetadataHint::Unknown
+                // NOTE: we could retrieve this if `!more_images´; but after reading the image. We
+                // probably want the same code path. TBD.
+                | DecodedMetadataHint::AfterFinish => false,
+            };
+
+            if !should_buffer_now {
+                continue;
+            }
+
+            // We might have already tried this and succeeded. Expect the same result as last time
+            // but avoids the allocation associated with that. A repeated `None` should be cheap,
+            // most probably. This holds for variants that retrieve it once.
+            if matches!(hint, DecodedMetadataHint::InHeader) && buffer.is_some() {
+                continue;
+            }
+
+            match getter(self.inner.as_mut()) {
+                Ok(metadata) => *buffer = metadata,
+                Err(err) => {
+                    if let ImageError::Unsupported(_) = err {
+                        // This is not a problem, we just won't have this metadata.
+                        *buffer = None;
+                        continue;
+                    }
+
+                    return Err(err);
+                }
+            }
+        }
+
+        // Note: on error we do not set this flag. You can try again.
+        self.metadata_buffers.first_meta_retrieved = true;
+
+        Ok(())
+    }
+}
+
+impl<'lt> DecodedImageMetadata<'lt> {
+    /// Get the EXIF metadata of the previous image if any.
+    pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match self.inner.format_attributes().exif {
+            DecodedMetadataHint::Unknown | DecodedMetadataHint::AfterFinish => {
+                let _ = self.inner.peek_layout();
+                self.inner.exif_metadata()
+            }
+            DecodedMetadataHint::InHeader | DecodedMetadataHint::PerImage => {
+                Ok(self.metadata_buffers.exif.clone())
+            }
+            DecodedMetadataHint::None => Ok(None),
+        }
+    }
+
+    /// Get the ICC profile of the previous image if any.
+    pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.icc_profile()
+    }
+
+    /// Get the XMP metadata of the previous image if any.
+    pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.xmp_metadata()
+    }
+
+    /// Get the IPTC metadata of the previous image if any.
+    pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        self.inner.iptc_metadata()
+    }
+
+    /// Get auxiliary attributes of the previous image.
+    pub fn attributes(&self) -> &DecodedImageAttributes {
+        self.attributes
     }
 }
 
@@ -577,6 +701,7 @@ impl<'stream> ImageReader<'stream> {
             settings: ImageReaderSettings::default(),
             limits: Limits::default(),
             last_attributes: Default::default(),
+            metadata_buffers: MetadataBuffers::default(),
         }
     }
 
@@ -617,15 +742,16 @@ impl<'stream> ImageReader<'stream> {
 
             let no_delay = Delay::from_saturating_duration(Default::default());
 
-            let frame = match self.decode() {
+            let mut frame = DynamicImage::new_luma8(0, 0);
+            let frame_decoded = match self.decode_into(&mut frame) {
                 Ok(frame) => frame,
                 Err(ref err) if is_end_reached(err) => return None,
                 Err(err) => return Some(Err(err)),
             };
 
-            let x = self.last_attributes.x;
-            let y = self.last_attributes.y;
-            let delay = self.last_attributes.delay.unwrap_or(no_delay);
+            let x = frame_decoded.attributes().x;
+            let y = frame_decoded.attributes().y;
+            let delay = frame_decoded.attributes().delay.unwrap_or(no_delay);
             let frame = frame.into_rgba8();
 
             let frame = Frame::from_parts(frame, x, y, delay);

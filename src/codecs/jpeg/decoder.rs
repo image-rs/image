@@ -74,7 +74,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             // As per specification, once we start with MCUs we can only have restarts. Also all
             // our methods currently seek of their own accord anyways, it's just important to

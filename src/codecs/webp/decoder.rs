@@ -41,7 +41,7 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             // As per extended file format description:
             // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>

@@ -273,7 +273,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         })
     }
 
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             // is any sort of iTXT chunk.
             xmp: DecodedMetadataHint::AfterFinish,
@@ -636,10 +636,10 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
-            is_animated: true,
-            ..self.inner.attributes()
+            supports_animation: true,
+            ..self.inner.format_attributes()
         }
     }
 

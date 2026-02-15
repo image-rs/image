@@ -380,7 +380,7 @@ impl<R> Read for TiffReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             // is any sort of iTXT chunk.
             xmp: DecodedMetadataHint::PerImage,
@@ -388,7 +388,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             exif: DecodedMetadataHint::PerImage,
             // not provided above.
             iptc: DecodedMetadataHint::None,
-            is_sequence: true,
+            supports_sequence: true,
             ..DecoderAttributes::default()
         }
     }

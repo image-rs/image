@@ -134,13 +134,13 @@ impl<R> Read for GifReader<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
-    fn attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> DecoderAttributes {
         DecoderAttributes {
             xmp: DecodedMetadataHint::AfterFinish,
             icc: DecodedMetadataHint::AfterFinish,
             iptc: DecodedMetadataHint::None,
             exif: DecodedMetadataHint::None,
-            is_animated: true,
+            supports_animation: true,
             ..DecoderAttributes::default()
         }
     }

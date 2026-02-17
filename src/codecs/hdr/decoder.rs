@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -269,20 +270,18 @@ impl<R: Read> HdrDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.meta.width, self.meta.height)
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let HdrMetadata { width, height, .. } = self.meta;
+        Ok(crate::ImageLayout::new(width, height, ColorType::Rgb32F))
     }
 
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgb32F
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Don't read anything if image is empty
         if self.meta.width == 0 || self.meta.height == 0 {
-            return Ok(());
+            return Ok(DecodedImageAttributes::default());
         }
 
         let mut scanline = vec![Default::default(); self.meta.width as usize];
@@ -301,11 +300,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
             }
         }
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

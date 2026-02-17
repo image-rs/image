@@ -11,6 +11,7 @@ use std::io::{self, Read};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::io::DecodedImageAttributes;
 use crate::io::ReadExt;
 use crate::ImageDecoder;
 
@@ -129,26 +130,25 @@ impl<R: Read> DxtDecoder<R> {
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
 impl<R: Read> ImageDecoder for DxtDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width_blocks * 4, self.height_blocks * 4)
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        // Note: derived from an underlying size divided by 4 during parsing.
+        Ok(crate::ImageLayout::new(
+            self.width_blocks * 4,
+            self.height_blocks * 4,
+            self.variant.color_type(),
+        ))
     }
 
-    fn color_type(&self) -> ColorType {
-        self.variant.color_type()
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         #[allow(deprecated)]
         for chunk in buf.chunks_mut(self.scanline_bytes().max(1) as usize) {
             self.read_scanline(chunk)?;
         }
-        Ok(())
-    }
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

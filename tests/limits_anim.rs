@@ -1,6 +1,6 @@
 //! Test enforcement of size and memory limits for animation decoding APIs.
 
-use image::{AnimationDecoder, ImageDecoder, ImageResult, Limits};
+use image::{ImageResult, Limits};
 
 #[cfg(feature = "gif")]
 use image::codecs::gif::GifDecoder;
@@ -9,10 +9,12 @@ use image::codecs::gif::GifDecoder;
 fn gif_decode(data: &[u8], limits: Limits) -> ImageResult<()> {
     use std::io::Cursor;
 
-    let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
-    decoder.set_limits(limits)?;
+    let decoder = GifDecoder::new(Cursor::new(data)).unwrap();
+    let mut reader = image::ImageReader::from_decoder(Box::new(decoder));
+    reader.set_limits(limits)?;
+
     {
-        let frames = decoder.into_frames();
+        let frames = reader.into_frames();
         for result in frames {
             result?;
         }
@@ -60,7 +62,9 @@ fn animated_full_frame_discard() {
     let mut limits_just_enough = Limits::default();
     limits_just_enough.max_image_height = Some(1000);
     limits_just_enough.max_image_width = Some(1000);
-    limits_just_enough.max_alloc = Some(1000 * 1000 * 4 * 2); // 4 for RGBA, 2 for 2 buffers kept in memory simultaneously
+    // 4 for RGBA, 2 for 2 buffers kept in memory simultaneously. The reader will take half of this
+    // for internal use.
+    limits_just_enough.max_alloc = Some(1000 * 1000 * 4 * 6);
 
     gif_decode(&data, limits_just_enough)
         .expect("With these limits it should have decoded successfully");
@@ -94,7 +98,10 @@ fn animated_frame_combine() {
     let mut limits_enough = Limits::default();
     limits_enough.max_image_height = Some(1000);
     limits_enough.max_image_width = Some(1000);
-    limits_enough.max_alloc = Some(1000 * 1000 * 4 * 3); // 4 for RGBA, 2 for 2 buffers kept in memory simultaneously
+    // See above. In addition to the internal frames, the reader will also allocate so some safety
+    // margin is given. Two full images, a small frame, plus the read-out buffer will take half the
+    // allocation. The smaller one also accounts for the extra margin if we make it a full frame.
+    limits_enough.max_alloc = Some(1000 * 1000 * 4 * 6);
 
     gif_decode(&data, limits_enough)
         .expect("With these limits it should have decoded successfully");

@@ -16,7 +16,7 @@
 use std::io::Cursor;
 
 use image::{
-    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReader, Limits, RgbImage,
+    load_from_memory_with_format, ImageDecoder, ImageFormat, ImageReaderOptions, Limits, RgbImage,
 };
 
 const WIDTH: u32 = 256;
@@ -51,7 +51,10 @@ fn permissive_limits() -> Limits {
     let mut limits = Limits::no_limits();
     limits.max_image_width = Some(WIDTH);
     limits.max_image_height = Some(HEIGHT);
-    limits.max_alloc = Some((WIDTH * HEIGHT * 5).into()); // `* 3`` would be an exact fit for RGB; `* 5`` allows some slack space
+    // `* 3`` would be an exact fit for RGB;
+    // `* 6` allows a duplicate buffer (ImageReader and internal)
+    // `* 8` gives some slack for reserving half in ImageReader
+    limits.max_alloc = Some((WIDTH * HEIGHT * 8).into());
     limits
 }
 
@@ -60,7 +63,7 @@ fn load_through_reader(
     format: ImageFormat,
     limits: Limits,
 ) -> Result<image::DynamicImage, image::ImageError> {
-    let mut reader = ImageReader::new(Cursor::new(input));
+    let mut reader = ImageReaderOptions::new(Cursor::new(input));
     reader.set_format(format);
     reader.limits(limits);
     reader.decode()
@@ -69,8 +72,6 @@ fn load_through_reader(
 #[test]
 #[cfg(feature = "gif")]
 fn gif() {
-    use image::codecs::gif::GifDecoder;
-
     let image = test_image(ImageFormat::Gif);
     // sanity check that our image loads successfully without limits
     assert!(load_from_memory_with_format(&image, ImageFormat::Gif).is_ok());
@@ -78,22 +79,7 @@ fn gif() {
     assert!(load_through_reader(&image, ImageFormat::Gif, permissive_limits()).is_ok());
     // image::ImageReader
     assert!(load_through_reader(&image, ImageFormat::Gif, width_height_limits()).is_err());
-    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err()); // BROKEN!
-
-    // GifDecoder
-    let mut decoder = GifDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-
-    // Custom constructor on GifDecoder
-    #[allow(deprecated)]
-    {
-        assert!(GifDecoder::new(Cursor::new(&image))
-            .unwrap()
-            .set_limits(width_height_limits())
-            .is_err());
-        // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-    }
+    assert!(load_through_reader(&image, ImageFormat::Gif, allocation_limits()).is_err());
 }
 
 #[test]
@@ -111,16 +97,9 @@ fn png() {
     assert!(load_through_reader(&image, ImageFormat::Png, allocation_limits()).is_err());
 
     // PngDecoder
-    let mut decoder = PngDecoder::new(Cursor::new(&image)).unwrap();
-    assert!(decoder.set_limits(width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
-    // Unlike many others, the `png` crate does natively support memory limits for auxiliary buffers,
-    // but they are not passed down from `set_limits` - only from the `with_limits` constructor.
-    // The proper fix is known to require an API break: https://github.com/image-rs/image/issues/2084
-
-    // Custom constructor on PngDecoder
-    assert!(PngDecoder::with_limits(Cursor::new(&image), width_height_limits()).is_err());
-    // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
+    let mut decoder = PngDecoder::new(Cursor::new(&image));
+    decoder.set_limits(width_height_limits()).unwrap();
+    assert!(decoder.peek_layout().is_err());
 }
 
 #[test]
@@ -177,7 +156,8 @@ fn tiff() {
     // so there is a copy from the buffer allocated by `tiff` to a buffer allocated by `image`.
     // This results in memory usage overhead the size of the output buffer.
     let mut tiff_permissive_limits = permissive_limits();
-    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 10).into()); // `* 9` would be exactly three output buffers, `* 10`` has some slack space
+    // `* 6` would be exactly two output buffers, `* 12`` accounts for ImageReader taking half.
+    tiff_permissive_limits.max_alloc = Some((WIDTH * HEIGHT * 12).into());
     load_through_reader(&image, ImageFormat::Tiff, tiff_permissive_limits).unwrap();
 
     // image::ImageReader
@@ -186,6 +166,7 @@ fn tiff() {
 
     // TiffDecoder
     let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
+    decoder.peek_layout().unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
     // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

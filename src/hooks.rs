@@ -184,7 +184,8 @@ pub(crate) fn guess_format_extension(start: &[u8]) -> Option<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ColorType, DynamicImage, ImageReader};
+    use crate::io::DecodedImageAttributes;
+    use crate::{ColorType, DynamicImage, ImageReaderOptions};
     use std::io::Cursor;
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
@@ -192,18 +193,17 @@ mod tests {
     const MOCK_IMAGE_OUTPUT: [u8; 9] = [255, 0, 0, 0, 255, 0, 0, 0, 255];
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
-        fn dimensions(&self) -> (u32, u32) {
-            ((&MOCK_IMAGE_OUTPUT.len() / 3) as u32, 1)
+        fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+            Ok(crate::ImageLayout {
+                width: (MOCK_IMAGE_OUTPUT.len() / 3) as u32,
+                height: 1,
+                ..crate::ImageLayout::empty(ColorType::Rgb8)
+            })
         }
-        fn color_type(&self) -> ColorType {
-            ColorType::Rgb8
-        }
-        fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+
+        fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
             buf[..MOCK_IMAGE_OUTPUT.len()].copy_from_slice(&MOCK_IMAGE_OUTPUT);
-            Ok(())
-        }
-        fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-            (*self).read_image(buf)
+            Ok(DecodedImageAttributes::default())
         }
     }
     fn is_mock_decoder_output(image: DynamicImage) -> bool {
@@ -220,7 +220,7 @@ mod tests {
         assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
         assert!(get_decoding_hook(OsStr::new(MOCK_HOOK_EXTENSION)).is_some());
 
-        let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
+        let image = ImageReaderOptions::open("tests/images/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
             .unwrap();
@@ -250,7 +250,7 @@ mod tests {
             Some(OsStr::new(MOCK_HOOK_EXTENSION).to_ascii_lowercase())
         );
 
-        let image = ImageReader::new(Cursor::new(TEST_INPUT_IMAGE))
+        let image = ImageReaderOptions::new(Cursor::new(TEST_INPUT_IMAGE))
             .with_guessed_format()
             .unwrap()
             .decode()

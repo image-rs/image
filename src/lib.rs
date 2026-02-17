@@ -22,7 +22,7 @@
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes))?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -49,7 +49,6 @@
 //!
 //! [`save`]: enum.DynamicImage.html#method.save
 //! [`write_to`]: enum.DynamicImage.html#method.write_to
-//! [`ImageReader`]: struct.Reader.html
 //!
 //! # Image buffers
 //!
@@ -99,7 +98,9 @@
 //! # use image::codecs::png::PngDecoder;
 //! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
-//! let decoder = PngDecoder::new(&mut reader)?;
+//! let mut decoder = PngDecoder::new(&mut reader);
+//! let layout = decoder.peek_layout()?;
+//!
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;
 //! # Ok(())
@@ -157,14 +158,16 @@ pub use crate::images::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open,
     write_buffer_with_format,
 };
+
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder},
+    decoder::ImageDecoder,
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::ImageReader,
+    image_reader_type::{ImageReader, ImageReaderOptions},
     limits::{LimitSupport, Limits},
+    ImageLayout,
 };
 
 pub use crate::images::dynimage::DynamicImage;

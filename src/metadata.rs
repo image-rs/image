@@ -1,5 +1,6 @@
 //! Types describing image metadata
 pub(crate) mod cicp;
+mod moxcms;
 
 use std::{
     io::{Cursor, Read},
@@ -12,6 +13,15 @@ pub use self::cicp::{
     Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics, CicpTransform,
     CicpVideoFullRangeFlag,
 };
+
+pub(crate) trait CmsProvider {
+    fn transform(&self, from: Cicp, to: Cicp) -> Option<CicpTransform>;
+    fn parse_icc(&self, icc: &[u8]) -> Option<Cicp>;
+}
+
+pub(crate) fn cms_provider() -> &'static dyn CmsProvider {
+    &moxcms::Moxcms
+}
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
@@ -162,7 +172,7 @@ enum ExifEndian {
 }
 
 /// The number of times animated image should loop over.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LoopCount {
     /// Loop the image Infinitely
     Infinite,

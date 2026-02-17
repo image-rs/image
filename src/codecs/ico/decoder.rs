@@ -6,6 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes};
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -255,38 +256,46 @@ impl DirEntry {
                 max_image_height: Some(self.real_height().into()),
                 max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
             };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits)?)))
+            Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
     }
 }
 
+// We forward everything to png or bmp decoder.
+#[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        match self.inner_decoder {
-            Bmp(ref decoder) => decoder.dimensions(),
-            Png(ref decoder) => decoder.dimensions(),
+    fn format_attributes(&self) -> DecoderAttributes {
+        match &self.inner_decoder {
+            Bmp(decoder) => decoder.format_attributes(),
+            Png(decoder) => decoder.format_attributes(),
         }
     }
 
-    fn color_type(&self) -> ColorType {
-        match self.inner_decoder {
-            Bmp(ref decoder) => decoder.color_type(),
-            Png(ref decoder) => decoder.color_type(),
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.peek_layout(),
+            Png(decoder) => decoder.peek_layout(),
         }
     }
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner_decoder {
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.animation_attributes(),
+            Png(decoder) => decoder.animation_attributes(),
+        }
+    }
+
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        match &mut self.inner_decoder {
             Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(DecoderError::PngShorterThanHeader.into());
                 }
 
                 // Check if the image dimensions match the ones in the image data.
-                let (width, height) = decoder.dimensions();
+                let (width, height) = decoder.peek_layout()?.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Png,
@@ -301,14 +310,14 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if decoder.color_type() != ColorType::Rgba8 {
+                if decoder.peek_layout()?.color != ColorType::Rgba8 {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 
                 decoder.read_image(buf)
             }
-            Bmp(mut decoder) => {
-                let (width, height) = decoder.dimensions();
+            Bmp(decoder) => {
+                let (width, height) = decoder.peek_layout()?.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Bmp,
@@ -322,11 +331,11 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if decoder.color_type() != ColorType::Rgba8 {
+                if decoder.peek_layout()?.color != ColorType::Rgba8 {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Bmp.into(),
-                            UnsupportedErrorKind::Color(decoder.color_type().into()),
+                            UnsupportedErrorKind::Color(decoder.peek_layout()?.color.into()),
                         ),
                     ));
                 }
@@ -368,10 +377,10 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         }
                     }
 
-                    Ok(())
+                    Ok(DecodedImageAttributes::default())
                 } else if data_end == image_end {
                     // accept images with no mask data
-                    Ok(())
+                    Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
                 }
@@ -379,8 +388,55 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.icc_profile(),
+            Png(decoder) => decoder.icc_profile(),
+        }
+    }
+
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.exif_metadata(),
+            Png(decoder) => decoder.exif_metadata(),
+        }
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.xmp_metadata(),
+            Png(decoder) => decoder.xmp_metadata(),
+        }
+    }
+
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.iptc_metadata(),
+            Png(decoder) => decoder.iptc_metadata(),
+        }
+    }
+
+    fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.set_limits(limits),
+            Png(decoder) => decoder.set_limits(limits),
+        }
+    }
+
+    fn more_images(&self) -> crate::io::SequenceControl {
+        // ICO files only provide a single image for now. This may change in the future, we might
+        // want to yield the others as thumbnails.
+        match &self.inner_decoder {
+            Bmp(decoder) => decoder.more_images(),
+            Png(decoder) => decoder.more_images(),
+        }
+    }
+
+    fn finish(&mut self) -> ImageResult<()> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.finish(),
+            Png(decoder) => decoder.finish(),
+        }
     }
 }
 
@@ -442,8 +498,9 @@ mod test {
             0x50, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc7, 0x37, 0x61,
         ];
 
-        let decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let bytes = decoder.peek_layout().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }
 }

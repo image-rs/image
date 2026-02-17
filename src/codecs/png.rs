@@ -4,25 +4,28 @@
 //!
 //! # Related Links
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
-
+use core::num::NonZeroU32;
 use std::borrow::Cow;
 use std::io::{BufRead, Seek, Write};
-use std::num::NonZeroU32;
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
-use crate::animation::{Delay, Frame, Frames, Ratio};
-use crate::color::{Blend, ColorType, ExtendedColorType};
+use crate::animation::{Delay, Ratio};
+use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
     ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
+use crate::io::decoder::DecodedMetadataHint;
+use crate::io::{
+    DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes, SequenceControl,
 };
 use crate::math::Rect;
 use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    AnimationDecoder, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder,
-    ImageEncoder, ImageFormat, Limits, Luma, LumaA, Rgb, Rgba, RgbaImage,
+    DynamicImage, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
+    ImageLayout, Limits, Luma, LumaA, Rgb, Rgba,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -33,27 +36,48 @@ const IPTC_KEYS: &[&str] = &["Raw profile type iptc", "Raw profile type 8bim"];
 
 /// PNG decoder
 pub struct PngDecoder<R: BufRead + Seek> {
+    decoder: Option<png::Decoder<R>>,
+    reader: Option<png::Reader<R>>,
     color_type: ColorType,
-    reader: png::Reader<R>,
     limits: Limits,
 }
 
 impl<R: BufRead + Seek> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
+    pub fn new(r: R) -> PngDecoder<R> {
         Self::with_limits(r, Limits::no_limits())
     }
 
     /// Creates a new decoder that decodes from the stream ```r``` with the given limits.
-    pub fn with_limits(r: R, limits: Limits) -> ImageResult<PngDecoder<R>> {
-        limits.check_support(&crate::LimitSupport::default())?;
-
+    pub fn with_limits(r: R, limits: Limits) -> PngDecoder<R> {
         let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
         let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
         decoder.set_ignore_text_chunk(false);
 
+        PngDecoder {
+            decoder: Some(decoder),
+            // We'll replace this once we have a reader.
+            color_type: ColorType::L8,
+            reader: None,
+            limits,
+        }
+    }
+
+    fn ensure_reader_and_header(&mut self) -> ImageResult<&mut png::Reader<R>> {
+        if self.reader.is_some() {
+            // We do this for borrow-checking issues, do not borrow self outside the conditional
+            // branch. So the None/Err case here is not reachable.
+            return self.reader.as_mut().ok_or_else(|| unreachable!());
+        }
+
+        let Some(mut decoder) = self.decoder.take() else {
+            return Err(reader_finished_already());
+        };
+
+        self.limits.check_support(&crate::LimitSupport::default())?;
+
         let info = decoder.read_header_info().map_err(ImageError::from_png)?;
-        limits.check_dimensions(info.width, info.height)?;
+        self.limits.check_dimensions(info.width, info.height)?;
 
         // By default the PNG decoder will scale 16 bpc to 8 bpc, so custom
         // transformations must be set. EXPAND preserves the default behavior
@@ -61,6 +85,7 @@ impl<R: BufRead + Seek> PngDecoder<R> {
         decoder.set_transformations(png::Transformations::EXPAND);
         let reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
+
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
             (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
@@ -115,11 +140,8 @@ impl<R: BufRead + Seek> PngDecoder<R> {
             }
         };
 
-        Ok(PngDecoder {
-            color_type,
-            reader,
-            limits,
-        })
+        self.color_type = color_type;
+        Ok(self.reader.insert(reader))
     }
 
     /// Returns the gamma value of the image or None if no gamma value is indicated.
@@ -131,8 +153,11 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
     /// > the values given above as if they had appeared in gAMA and cHRM chunks.
     pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
-        Ok(self
-            .reader
+        let Some(reader) = &self.reader else {
+            return Err(decoding_not_yet_started());
+        };
+
+        Ok(reader
             .info()
             .source_gamma
             .map(|x| f64::from(x.into_scaled()) / 100_000.0))
@@ -149,7 +174,7 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// them will fail and an error will be returned instead of the frame. No further frames will
     /// be returned.
     pub fn apng(self) -> ImageResult<ApngDecoder<R>> {
-        Ok(ApngDecoder::new(self))
+        ApngDecoder::read_sequence_data(self)
     }
 
     /// Returns if the image contains an animation.
@@ -159,7 +184,34 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     ///
     /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
     pub fn is_apng(&self) -> ImageResult<bool> {
-        Ok(self.reader.info().animation_control.is_some())
+        let Some(reader) = &self.reader else {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            )));
+        };
+
+        Ok(reader.info().animation_control.is_some())
+    }
+}
+
+fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
+    let delay = info.frame_control().map(|fc| {
+        // PNG delays are rations in seconds.
+        let num = u32::from(fc.delay_num) * 1_000u32;
+        let denom = match fc.delay_den {
+            // The standard dictates to replace by 100 when the denominator is 0.
+            0 => 100,
+            d => u32::from(d),
+        };
+
+        Delay::from_ratio(Ratio::new(num, denom))
+    });
+
+    DecodedImageAttributes {
+        // We do not set x_offset and y_offset since the decoder performs composition according
+        // to Dispose and blend. For reading raw frames we'd pass the `fc.x_offset` here.
+        delay,
+        ..DecodedImageAttributes::default()
     }
 }
 
@@ -170,17 +222,24 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
     ))
 }
 
+fn decoding_not_yet_started() -> ImageError {
+    ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+}
+
+fn decoding_started_already() -> ImageError {
+    ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+}
+
+fn reader_finished_already() -> ImageError {
+    ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+}
+
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        self.reader.info().size()
-    }
+    fn peek_layout(&mut self) -> ImageResult<ImageLayout> {
+        let reader = self.ensure_reader_and_header()?;
+        let (width, height) = reader.info().size();
 
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        match (self.reader.info().color_type, self.reader.info().bit_depth) {
+        let original = match (reader.info().color_type, reader.info().bit_depth) {
             (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
             (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
             (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
@@ -206,25 +265,47 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
             (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
+        };
+
+        Ok(ImageLayout {
+            original_color_type: Some(original),
+            ..ImageLayout::new(width, height, self.color_type)
+        })
+    }
+
+    fn format_attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // is any sort of iTXT chunk.
+            xmp: DecodedMetadataHint::AfterFinish,
+            // is any sort of iTXT chunk.
+            iptc: DecodedMetadataHint::AfterFinish,
+            // see iCCP chunk order.
+            icc: DecodedMetadataHint::InHeader,
+            // see eXIf chunk order.
+            exif: DecodedMetadataHint::InHeader,
+            ..DecoderAttributes::default()
         }
     }
 
+    /// Only for [`ApngDecoder`].
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        None
+    }
+
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
+        let reader = self.ensure_reader_and_header()?;
+        Ok(reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        Ok(self
-            .reader
-            .info()
-            .exif_metadata
-            .as_ref()
-            .map(|x| x.to_vec()))
+        let reader = self.ensure_reader_and_header()?;
+        Ok(reader.info().exif_metadata.as_ref().map(|x| x.to_vec()))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        if let Some(mut itx_chunk) = self
-            .reader
+        let reader = self.ensure_reader_and_header()?;
+
+        if let Some(mut itx_chunk) = reader
             .info()
             .utf8_text
             .iter()
@@ -237,12 +318,14 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
                 .map(|text| Some(text.as_bytes().to_vec()))
                 .map_err(ImageError::from_png);
         }
+
         Ok(None)
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        if let Some(mut text_chunk) = self
-            .reader
+        let reader = self.ensure_reader_and_header()?;
+
+        if let Some(mut text_chunk) = reader
             .info()
             .compressed_latin1_text
             .iter()
@@ -256,8 +339,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
                 .map_err(ImageError::from_png);
         }
 
-        if let Some(text_chunk) = self
-            .reader
+        if let Some(text_chunk) = reader
             .info()
             .uncompressed_latin1_text
             .iter()
@@ -269,14 +351,17 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         Ok(None)
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        self.reader.next_frame(buf).map_err(ImageError::from_png)?;
-        // PNG images are big endian. For 16 bit per channel and larger types,
-        // the buffer may need to be reordered to native endianness per the
-        // contract of `read_image`.
-        // TODO: assumes equal channel bit depth.
-        let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+
+        let reader = self.ensure_reader_and_header()?;
+        reader.next_frame(buf).map_err(ImageError::from_png)?;
+
+        // PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
+        // to be reordered to native endianness per the contract of `read_image`. Assumes equal
+        // depth which is the only supported output from `png` with our options.
+        let bpc = layout.color.bytes_per_pixel() / layout.color.channel_count();
 
         match bpc {
             1 => (), // No reodering necessary for u8
@@ -285,39 +370,47 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             }),
             _ => unreachable!(),
         }
-        Ok(())
-    }
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let info = self.reader.info();
-        limits.check_dimensions(info.width, info.height)?;
-        self.limits = limits;
-        // TODO: add `png::Reader::change_limits()` and call it here
-        // to also constrain the internal buffer allocations in the PNG crate
-        Ok(())
+
+        if let Some(decoder) = &mut self.decoder {
+            decoder.set_limits(png::Limits {
+                bytes: match limits.max_alloc {
+                    None => usize::MAX,
+                    Some(limit) => limit.try_into().unwrap_or(usize::MAX),
+                },
+            });
+
+            self.limits = limits;
+            Ok(())
+        } else {
+            Err(decoding_started_already())
+        }
     }
 }
 
-/// An [`AnimationDecoder`] adapter of [`PngDecoder`].
+/// An animated adapter of [`PngDecoder`].
 ///
 /// See [`PngDecoder::apng`] for more information.
 ///
-/// [`AnimationDecoder`]: ../trait.AnimationDecoder.html
 /// [`PngDecoder`]: struct.PngDecoder.html
 /// [`PngDecoder::apng`]: struct.PngDecoder.html#method.apng
 pub struct ApngDecoder<R: BufRead + Seek> {
     inner: PngDecoder<R>,
     /// The current output buffer.
-    current: Option<RgbaImage>,
+    current: Option<DynamicImage>,
     /// The previous output buffer, used for dispose op previous.
-    previous: Option<RgbaImage>,
+    previous: Option<DynamicImage>,
     /// The dispose op of the current frame.
     dispose: DisposeOp,
+    /// Buffer to put the frame data which is to be composed onto the current frame.
+    raw_frame_buffer: Vec<u8>,
 
     /// The region to dispose of the previous frame.
     dispose_region: Option<Rect>,
@@ -328,54 +421,50 @@ pub struct ApngDecoder<R: BufRead + Seek> {
 }
 
 impl<R: BufRead + Seek> ApngDecoder<R> {
-    fn new(inner: PngDecoder<R>) -> Self {
-        let info = inner.reader.info();
-        let remaining = match info.animation_control() {
+    fn read_sequence_data(mut inner: PngDecoder<R>) -> ImageResult<Self> {
+        let reader = inner.ensure_reader_and_header()?;
+        let remaining = match reader.info().animation_control() {
             // The expected number of fcTL in the remaining image.
             Some(actl) => actl.num_frames,
             None => 0,
         };
+
         // If the IDAT has no fcTL then it is not part of the animation counted by
         // num_frames. All following fdAT chunks must be preceded by an fcTL
-        let has_thumbnail = info.frame_control.is_none();
-        ApngDecoder {
+        let has_thumbnail = reader.info().frame_control.is_none();
+
+        Ok(ApngDecoder {
             inner,
             current: None,
             previous: None,
+            raw_frame_buffer: vec![],
             dispose: DisposeOp::Background,
             dispose_region: None,
             remaining,
             has_thumbnail,
-        }
+        })
     }
 
-    // TODO: thumbnail(&mut self) -> Option<impl ImageDecoder<'_>>
-
     /// Decode one subframe and overlay it on the canvas.
-    fn mix_next_frame(&mut self) -> Result<Option<&RgbaImage>, ImageError> {
-        // The iterator always produces RGBA8 images
-        const COLOR_TYPE: ColorType = ColorType::Rgba8;
-
-        // Allocate the buffers, honoring the memory limits
-        let (width, height) = self.inner.dimensions();
-        {
-            let limits = &mut self.inner.limits;
-            if self.previous.is_none() {
-                limits.reserve_buffer(width, height, COLOR_TYPE)?;
-                self.previous = Some(RgbaImage::new(width, height));
-            }
-
-            if self.current.is_none() {
-                limits.reserve_buffer(width, height, COLOR_TYPE)?;
-                self.current = Some(RgbaImage::new(width, height));
-            }
-        }
-
+    fn mix_next_frame(
+        &mut self,
+        buf: &mut [u8],
+    ) -> Result<Option<DecodedImageAttributes>, ImageError> {
         // Remove this image from remaining.
         self.remaining = match self.remaining.checked_sub(1) {
             None => return Ok(None),
             Some(next) => next,
         };
+
+        // Allocate the buffers, honoring the memory limits
+        let layout @ ImageLayout {
+            width,
+            height,
+            color,
+            ..
+        } = self.inner.peek_layout()?;
+
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Shorten ourselves to 0 in case of error.
         let remaining = self.remaining;
@@ -383,22 +472,23 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 
         // Skip the thumbnail that is not part of the animation.
         if self.has_thumbnail {
-            // Clone the limits so that our one-off allocation that's destroyed after this scope doesn't persist
-            let mut limits = self.inner.limits.clone();
-
-            let buffer_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
-                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
-            })?;
-
-            limits.reserve_usize(buffer_size)?;
-            let mut buffer = vec![0; buffer_size];
-            // TODO: add `png::Reader::change_limits()` and call it here
-            // to also constrain the internal buffer allocations in the PNG crate
-            self.inner
-                .reader
-                .next_frame(&mut buffer)
-                .map_err(ImageError::from_png)?;
+            let reader = self.inner.ensure_reader_and_header()?;
+            reader.next_frame(buf).map_err(ImageError::from_png)?;
             self.has_thumbnail = false;
+        }
+
+        {
+            let limits = &mut self.inner.limits;
+
+            if self.previous.is_none() {
+                limits.reserve_buffer(width, height, color)?;
+                self.previous = Some(DynamicImage::new(width, height, color));
+            }
+
+            if self.current.is_none() {
+                limits.reserve_buffer(width, height, color)?;
+                self.current = Some(DynamicImage::new(width, height, color));
+            }
         }
 
         self.animatable_color_type()?;
@@ -408,7 +498,6 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         let current = self.current.as_mut().unwrap();
 
         // Dispose of the previous frame.
-
         match self.dispose {
             DisposeOp::None => {
                 previous.clone_from(current);
@@ -426,9 +515,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                     }
                 } else {
                     // The first frame is always a background frame.
-                    current.pixels_mut().for_each(|pixel| {
-                        *pixel = Rgba::from([0, 0, 0, 0]);
-                    });
+                    current.as_mut_bytes().fill(0);
                 }
             }
             DisposeOp::Previous => {
@@ -446,146 +533,149 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // and will be destroyed at the end of the scope.
         // Clone the limits so that any changes to them die with the allocations.
         let mut limits = self.inner.limits.clone();
+        let reader = self.inner.ensure_reader_and_header()?;
 
         // Read next frame data.
-        let raw_frame_size = self.inner.reader.output_buffer_size().ok_or_else(|| {
+        let raw_frame_size = reader.output_buffer_size().ok_or_else(|| {
             ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
         })?;
 
-        limits.reserve_usize(raw_frame_size)?;
-        let mut buffer = vec![0; raw_frame_size];
+        // The frame size depends on frame control. If possible, we want to read it into the
+        // (temporary) output buffer that's been allocated for us anyways.
+        let buffer = if raw_frame_size <= buf.len() {
+            &mut buf[..raw_frame_size]
+        } else if raw_frame_size <= self.raw_frame_buffer.len() {
+            &mut self.raw_frame_buffer[..raw_frame_size]
+        } else {
+            limits.free_usize(self.raw_frame_buffer.len());
+            limits.reserve_usize(raw_frame_size)?;
+            self.raw_frame_buffer.resize(raw_frame_size, 0);
+            &mut self.raw_frame_buffer[..]
+        };
+
         // TODO: add `png::Reader::change_limits()` and call it here
         // to also constrain the internal buffer allocations in the PNG crate
-        self.inner
-            .reader
-            .next_frame(&mut buffer)
-            .map_err(ImageError::from_png)?;
-        let info = self.inner.reader.info();
+        reader.next_frame(buffer).map_err(ImageError::from_png)?;
 
         // Find out how to interpret the decoded frame.
-        let (width, height, px, py, blend);
+        let info = reader.info();
+        let attributes = attributes_from_info(info);
+
+        let (dispose_region, blend);
         match info.frame_control() {
             None => {
-                width = info.width;
-                height = info.height;
-                px = 0;
-                py = 0;
+                dispose_region = Rect {
+                    width: info.width,
+                    height: info.height,
+                    x: 0,
+                    y: 0,
+                };
+
                 blend = BlendOp::Source;
             }
             Some(fc) => {
-                width = fc.width;
-                height = fc.height;
-                px = fc.x_offset;
-                py = fc.y_offset;
+                dispose_region = Rect {
+                    width: fc.width,
+                    height: fc.height,
+                    x: fc.x_offset,
+                    y: fc.y_offset,
+                };
+
                 blend = fc.blend_op;
                 self.dispose = fc.dispose_op;
             }
         }
 
-        self.dispose_region = Some(Rect {
-            x: px,
-            y: py,
-            width,
-            height,
-        });
-
-        // Turn the data into an rgba image proper.
-        limits.reserve_buffer(width, height, COLOR_TYPE)?;
-        let source = match self.inner.color_type {
-            ColorType::L8 => {
-                let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLuma8(image).into_rgba8()
-            }
-            ColorType::La8 => {
-                let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLumaA8(image).into_rgba8()
-            }
-            ColorType::Rgb8 => {
-                let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageRgb8(image).into_rgba8()
-            }
-            ColorType::Rgba8 => ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap(),
-            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
-                // TODO: to enable remove restriction in `animatable_color_type` method.
-                unreachable!("16-bit apng not yet support")
-            }
-            _ => unreachable!("Invalid png color"),
-        };
-        // We've converted the raw frame to RGBA8 and disposed of the original allocation
-        limits.free_usize(raw_frame_size);
+        self.dispose_region = Some(dispose_region);
 
         match blend {
             BlendOp::Source => {
-                current
-                    .copy_from(&source, px, py)
-                    .expect("Invalid png image not detected in png");
+                copy_pixel_bytes(
+                    current.as_mut_bytes(),
+                    &layout,
+                    &buffer[..],
+                    &dispose_region,
+                );
             }
             BlendOp::Over => {
                 // TODO: investigate speed, speed-ups, and bounds-checks.
-                for (x, y, p) in source.enumerate_pixels() {
-                    current.get_pixel_mut(x + px, y + py).blend(p);
-                }
+                blend_pixel_bytes(
+                    current.as_mut_bytes(),
+                    &layout,
+                    &buffer[..],
+                    &dispose_region,
+                )
             }
         }
 
         // Ok, we can proceed with actually remaining images.
         self.remaining = remaining;
-        // Return composited output buffer.
 
-        Ok(Some(self.current.as_ref().unwrap()))
+        // Return composited output buffer.
+        buf.copy_from_slice(current.as_bytes());
+
+        Ok(Some(attributes))
     }
 
     fn animatable_color_type(&self) -> Result<(), ImageError> {
         match self.inner.color_type {
-            ColorType::L8 | ColorType::Rgb8 | ColorType::La8 | ColorType::Rgba8 => Ok(()),
-            // TODO: do not handle multi-byte colors. Remember to implement it in `mix_next_frame`.
-            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
+            ColorType::L8
+            | ColorType::Rgb8
+            | ColorType::La8
+            | ColorType::Rgba8
+            | ColorType::L16
+            | ColorType::Rgb16
+            | ColorType::La16
+            | ColorType::Rgba16 => Ok(()),
+            _ => {
+                debug_assert!(false, "{:?} not a valid png color", self.inner.color_type);
                 Err(unsupported_color(self.inner.color_type.into()))
             }
-            _ => unreachable!("{:?} not a valid png color", self.inner.color_type),
         }
     }
 }
 
-impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
-    fn loop_count(&self) -> LoopCount {
-        match self.inner.reader.info().animation_control() {
+impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
+    fn format_attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            supports_animation: true,
+            ..self.inner.format_attributes()
+        }
+    }
+
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        let count = if let Ok(reader) = self.inner.ensure_reader_and_header() {
+            reader.info().animation_control()
+        } else {
+            return None;
+        };
+
+        let loop_count = match count {
             None => LoopCount::Infinite,
             Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
             Some(actl) => LoopCount::Finite(
                 NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
             ),
-        }
+        };
+
+        Some(DecodedAnimationAttributes { loop_count })
     }
 
-    fn into_frames(self) -> Frames<'a> {
-        struct FrameIterator<R: BufRead + Seek>(ApngDecoder<R>);
+    fn peek_layout(&mut self) -> ImageResult<ImageLayout> {
+        self.inner.peek_layout()
+    }
 
-        impl<R: BufRead + Seek> Iterator for FrameIterator<R> {
-            type Item = ImageResult<Frame>;
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        self.mix_next_frame(buf)?
+            .ok_or_else(reader_finished_already)
+    }
 
-            fn next(&mut self) -> Option<Self::Item> {
-                let image = match self.0.mix_next_frame() {
-                    Ok(Some(image)) => image.clone(),
-                    Ok(None) => return None,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                let info = self.0.inner.reader.info();
-                let fc = info.frame_control().unwrap();
-                // PNG delays are rations in seconds.
-                let num = u32::from(fc.delay_num) * 1_000u32;
-                let denom = match fc.delay_den {
-                    // The standard dictates to replace by 100 when the denominator is 0.
-                    0 => 100,
-                    d => u32::from(d),
-                };
-                let delay = Delay::from_ratio(Ratio::new(num, denom));
-                Some(Ok(Frame::from_parts(image, 0, 0, delay)))
-            }
+    fn more_images(&self) -> SequenceControl {
+        if self.remaining > 0 {
+            SequenceControl::MaybeMore
+        } else {
+            SequenceControl::None
         }
-
-        Frames::new(Box::new(FrameIterator(self)))
     }
 }
 
@@ -847,6 +937,67 @@ impl ImageError {
     }
 }
 
+fn copy_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region: &Rect) {
+    let bpp = usize::from(layout.color.bytes_per_pixel());
+
+    let bytes_per_row = layout.width as usize * bpp;
+    let bytes_per_copy = region.width as usize * bpp;
+
+    let start = region.x as usize * bpp + region.y as usize * bytes_per_row;
+    let from = &from[..region.height as usize * bytes_per_copy];
+
+    for (target, src) in bytes[start..]
+        .chunks_exact_mut(bytes_per_row)
+        .zip(from.chunks_exact(bytes_per_copy))
+    {
+        target[..bytes_per_copy].copy_from_slice(src);
+    }
+}
+
+fn blend_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region: &Rect) {
+    fn inner<P: crate::Pixel>(bytes: &mut [u8], region: &[u8])
+    where
+        P::Subpixel: bytemuck::Pod,
+    {
+        let target = bytemuck::cast_slice_mut::<_, P::Subpixel>(bytes);
+        let source = bytemuck::cast_slice::<_, P::Subpixel>(region);
+
+        for (target, source) in target
+            .chunks_exact_mut(usize::from(P::CHANNEL_COUNT))
+            .zip(source.chunks_exact(usize::from(P::CHANNEL_COUNT)))
+        {
+            P::from_slice_mut(target).blend(P::from_slice(source));
+        }
+    }
+
+    let row_transformer = match layout.color {
+        ColorType::L8 => inner::<Luma<u8>>,
+        ColorType::La8 => inner::<LumaA<u8>>,
+        ColorType::Rgb8 => inner::<Rgb<u8>>,
+        ColorType::Rgba8 => inner::<Rgba<u8>>,
+        ColorType::L16 => inner::<Luma<u16>>,
+        ColorType::La16 => inner::<LumaA<u16>>,
+        ColorType::Rgb16 => inner::<Rgb<u16>>,
+        ColorType::Rgba16 => inner::<Rgba<u16>>,
+        ColorType::Rgb32F | ColorType::Rgba32F => unreachable!("No floating point formats in PNG"),
+    };
+
+    let bpp = usize::from(layout.color.bytes_per_pixel());
+
+    let bytes_per_row = layout.width as usize * bpp;
+    let bytes_per_copy = region.width as usize * bpp;
+
+    let start = region.x as usize * bpp + region.y as usize * bytes_per_row;
+    let from = &from[..region.height as usize * bytes_per_copy];
+
+    for (target, src) in bytes[start..]
+        .chunks_exact_mut(bytes_per_row)
+        .zip(from.chunks_exact(bytes_per_copy))
+    {
+        row_transformer(&mut target[..bytes_per_copy], src);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -855,22 +1006,26 @@ mod tests {
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PngDecoder::new(BufReader::new(
+        let mut dec = PngDecoder::new(BufReader::new(
             std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
                 .unwrap(),
-        ))
-        .expect("Unable to read PNG file (does it exist?)");
+        ));
 
-        assert_eq![(2000, 1000), dec.dimensions()];
+        let layout = dec
+            .peek_layout()
+            .expect("Unable to read PNG file (does it exist?)");
+
+        assert_eq![(2000, 1000), layout.dimensions()];
 
         assert_eq![
             ColorType::Rgb8,
-            dec.color_type(),
+            layout.color,
             "Image MUST have the Rgb8 format"
         ];
 
-        let correct_bytes = decoder_to_vec(dec)
-            .expect("Unable to read file")
+        let (data, _) = decoder_to_vec(&mut dec).expect("Unable to read file");
+
+        let correct_bytes = data
             .bytes()
             .map(|x| x.expect("Unable to read byte"))
             .collect::<Vec<u8>>();
@@ -887,7 +1042,9 @@ mod tests {
                 .unwrap();
         not_png[0] = 0;
 
-        let error = PngDecoder::new(Cursor::new(&not_png)).err().unwrap();
+        let mut decoder = PngDecoder::new(Cursor::new(&not_png));
+        let error = decoder.peek_layout().err().unwrap();
+
         let _ = error
             .source()
             .unwrap()

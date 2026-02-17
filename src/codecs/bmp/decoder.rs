@@ -353,9 +353,9 @@ struct HeaderOffsets {
 
 /// Progress within the RLE decoding phase.
 ///
-/// RLE decoding checkpoints at row boundaries (after EndOfRow markers) and
-/// after Delta instructions to avoid quadratic time with malformed files.
-/// On UnexpectedEof, decoding resumes from the last stored checkpoint.
+/// RLE decoding checkpoints at any RLE instruction to avoid quadratic
+/// time with malformed files. On UnexpectedEof, decoding resumes from
+/// the last stored checkpoint.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum RleProgress {
     /// Not started yet.
@@ -1081,8 +1081,30 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         Ok(())
     }
 
-    /// Determine the image type from the compression method, bit count, and header type.
-    fn image_type_from_compression(
+    /// Determine and set `self.image_type` from the compression method, bit
+    /// count, and header type.
+    fn set_image_type_from_compression(
+        &mut self,
+        compression: u32,
+        bit_count: u16,
+    ) -> ImageResult<()> {
+        self.image_type = Self::image_type_from_compression_inner(
+            compression,
+            bit_count,
+            self.add_alpha_channel,
+            &self.bmp_header_type,
+        )?;
+
+        // RLE-compressed images use RGBA output so that pixels skipped by
+        // EOL, EOF, or Delta commands are transparent.
+        if self.is_rle() {
+            self.add_alpha_channel = true;
+        }
+
+        Ok(())
+    }
+
+    fn image_type_from_compression_inner(
         compression: u32,
         bit_count: u16,
         add_alpha_channel: bool,
@@ -1192,18 +1214,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.top_down = parsed.top_down;
         self.bit_count = parsed.bit_count;
         self.colors_used = parsed.colors_used;
-        self.image_type = Self::image_type_from_compression(
-            parsed.compression,
-            parsed.bit_count,
-            self.add_alpha_channel,
-            &self.bmp_header_type,
-        )?;
-
-        // RLE-compressed images use RGBA output so that pixels skipped by
-        // EOL, EOF, or Delta commands are transparent.
-        if self.is_rle() {
-            self.add_alpha_channel = true;
-        }
+        self.set_image_type_from_compression(parsed.compression, parsed.bit_count)?;
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
@@ -1226,18 +1237,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         self.top_down = parsed.top_down;
         self.bit_count = parsed.bit_count;
         self.colors_used = parsed.colors_used;
-        self.image_type = Self::image_type_from_compression(
-            parsed.compression,
-            parsed.bit_count,
-            self.add_alpha_channel,
-            &self.bmp_header_type,
-        )?;
-
-        // RLE-compressed images use RGBA output so that pixels skipped by
-        // EOL, EOF, or Delta commands are transparent.
-        if self.is_rle() {
-            self.add_alpha_channel = true;
-        }
+        self.set_image_type_from_compression(parsed.compression, parsed.bit_count)?;
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 

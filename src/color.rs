@@ -442,6 +442,24 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         }
     }
 
+    fn map2_with_alpha<F, G>(&self, other: &Self, f: F, g: G) -> $ident<T> where F: FnMut(T, T) -> T, G: FnMut(T, T) -> T {
+        let mut this = (*self).clone();
+        this.apply2_with_alpha(other, f, g);
+        this
+    }
+
+    fn apply2_with_alpha<F, G>(&mut self, other: &$ident<T>, mut f: F, mut g: G) where F: FnMut(T, T) -> T, G: FnMut(T, T) -> T {
+        const ALPHA: usize = $channels - $alphas;
+        for (a, &b) in self.0[..ALPHA].iter_mut().zip(other.0[..ALPHA].iter()) {
+            *a = f(*a, b)
+        }
+        // The branch of this match is `const`. This way ensures that no subexpression fails the
+        // `const_err` lint (the expression `self.0[ALPHA]` would).
+        if let (Some(a), Some(b)) = (self.0.get_mut(ALPHA), other.0.get(ALPHA)) {
+            *a = g(*a, *b)
+        }
+    }
+
     fn invert(&mut self) {
         Invert::invert(self)
     }
@@ -1016,6 +1034,63 @@ mod tests {
     fn test_map_with_alpha_rgb() {
         let rgb = Rgb([0, 0, 0]).map_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(rgb, Rgb([0, 0, 0]));
+    }
+
+    #[test]
+    fn test_apply2_with_alpha_rgba() {
+        let mut rgba = Rgba([1, 2, 3, 64]);
+        rgba.apply2_with_alpha(&Rgba([4, 5, 6, 128]), |s, o| s + o, |s, o| (s + o) / 2);
+        assert_eq!(rgba, Rgba([5, 7, 9, 96]));
+    }
+
+    #[test]
+    fn test_apply2_with_alpha_rgb() {
+        let mut rgb = Rgb([1, 2, 3]);
+        rgb.apply2_with_alpha(&Rgb([4, 5, 6]), |s, o| s + o, |_s, _o| panic!("bug"));
+        assert_eq!(rgb, Rgb([5, 7, 9]));
+    }
+
+    #[test]
+    fn test_map2_with_alpha_rgba() {
+        let rgba = Rgba([1, 2, 3, 64]).map2_with_alpha(
+            &Rgba([4, 5, 6, 128]),
+            |s, o| s + o,
+            |s, o| (s + o) / 2,
+        );
+        assert_eq!(rgba, Rgba([5, 7, 9, 96]));
+    }
+
+    #[test]
+    fn test_map2_with_alpha_rgb() {
+        let rgb =
+            Rgb([1, 2, 3]).map2_with_alpha(&Rgb([4, 5, 6]), |s, o| s + o, |_s, _o| panic!("bug"));
+        assert_eq!(rgb, Rgb([5, 7, 9]));
+    }
+
+    #[test]
+    fn test_apply2_without_alpha_rgba() {
+        let mut rgba = Rgba([1, 2, 3, 64]);
+        rgba.apply2_without_alpha(&Rgba([4, 5, 6, 128]), |s, o| s + o);
+        assert_eq!(rgba, Rgba([5, 7, 9, 64]));
+    }
+
+    #[test]
+    fn test_apply2_without_alpha_rgb() {
+        let mut rgb = Rgb([1, 2, 3]);
+        rgb.apply2_without_alpha(&Rgb([4, 5, 6]), |s, o| s + o);
+        assert_eq!(rgb, Rgb([5, 7, 9]));
+    }
+
+    #[test]
+    fn test_map2_without_alpha_rgba() {
+        let rgba = Rgba([1, 2, 3, 64]).map2_without_alpha(&Rgba([4, 5, 6, 128]), |s, o| s + o);
+        assert_eq!(rgba, Rgba([5, 7, 9, 64]));
+    }
+
+    #[test]
+    fn test_map2_without_alpha_rgb() {
+        let rgb = Rgb([1, 2, 3]).map2_without_alpha(&Rgb([4, 5, 6]), |s, o| s + o);
+        assert_eq!(rgb, Rgb([5, 7, 9]));
     }
 
     #[test]

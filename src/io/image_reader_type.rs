@@ -219,7 +219,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "ico")]
             ImageFormat::Ico => Box::new(ico::IcoDecoder::new(reader)?),
             #[cfg(feature = "hdr")]
-            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::new(reader)?),
+            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::new_with_spec_compliance(
+                reader,
+                spec_compliance,
+            )?),
             #[cfg(feature = "exr")]
             ImageFormat::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
             #[cfg(feature = "pnm")]

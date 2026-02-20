@@ -23,6 +23,18 @@ pub(crate) enum BmpSpec {
     Lenient,
 }
 
+/// Controls how skipped pixels in RLE-encoded BMP images are handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RleTransparency {
+    /// Skipped pixels are opaque black. RLE images are decoded as RGB.
+    /// This matches Windows and legacy IE behavior.
+    #[default]
+    Opaque,
+    /// Skipped pixels are fully transparent. RLE images are decoded as RGBA.
+    /// This matches Chromium and Firefox behavior.
+    Transparent,
+}
+
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
 const BITMAPV2HEADER_SIZE: u32 = 52;
@@ -938,6 +950,7 @@ pub struct BmpDecoder<R> {
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
     spec_strictness: BmpSpec,
+    rle_transparency: RleTransparency,
 
     /// Current decoder state for resumable decoding.
     state: DecoderState,
@@ -965,6 +978,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             bitfields: None,
             icc_profile: None,
             spec_strictness: BmpSpec::default(),
+            rle_transparency: RleTransparency::default(),
             state: DecoderState::default(),
         }
     }
@@ -974,6 +988,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut decoder = Self::new_decoder(reader);
         decoder.read_metadata()?;
         Ok(decoder)
+    }
+
+    /// Set how skipped pixels in RLE-encoded images are handled.
+    pub fn set_rle_transparency(&mut self, rle_transparency: RleTransparency) {
+        self.rle_transparency = rle_transparency;
     }
 
     /// Create a new decoder that decodes from the stream `r` without reading
@@ -1095,9 +1114,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             &self.bmp_header_type,
         )?;
 
-        // RLE-compressed images use RGBA output so that pixels skipped by
-        // EOL, EOF, or Delta commands are transparent.
-        if self.is_rle() {
+        // When RLE is configured for transparent RLE, use RGBA output so that
+        // pixels skipped by EOL, EOF, or Delta commands are transparent.
+        if self.is_rle() && self.rle_transparency == RleTransparency::Transparent {
             self.add_alpha_channel = true;
         }
 

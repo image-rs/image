@@ -862,10 +862,7 @@ where
     /// Return a view on the raw sample buffer.
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
-    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-    where
-        Container: AsRef<[P::Subpixel]>,
-    {
+    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]> {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),

@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::image_reader_type::SpecCompliance;
 use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -174,8 +175,14 @@ impl<R: Read> HdrDecoder<R> {
     }
 
     /// Allows reading old Radiance HDR images
+    #[deprecated(note = "Use `new_with_spec_compliance(reader, SpecCompliance::Lenient)` instead")]
     pub fn new_nonstrict(reader: R) -> ImageResult<Self> {
         Self::with_strictness(reader, false)
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn new_with_spec_compliance(reader: R, spec: SpecCompliance) -> ImageResult<Self> {
+        Self::with_strictness(reader, spec == SpecCompliance::Strict)
     }
 
     /// Reads Radiance HDR image header from stream `reader`,
@@ -746,6 +753,9 @@ mod tests {
         let data = b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n -Y 4294967295 +X 4294967295";
 
         assert!(HdrDecoder::new(Cursor::new(data)).is_err());
-        assert!(HdrDecoder::new_nonstrict(Cursor::new(data)).is_err());
+        assert!(
+            HdrDecoder::new_with_spec_compliance(Cursor::new(data), SpecCompliance::Lenient)
+                .is_err()
+        );
     }
 }

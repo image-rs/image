@@ -145,7 +145,7 @@ pub fn register_format_detection_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ColorType, DynamicImage, ImageReader};
+    use crate::{load_from_memory, ColorType, DynamicImage, ImageReader};
     use std::io::Cursor;
 
     const MOCK_HOOK_EXTENSION: &str = "MOCKHOOK";
@@ -210,5 +210,8 @@ mod tests {
             .unwrap();
 
         assert!(is_mock_decoder_output(image));
+
+        let image_via_free_function = load_from_memory(&TEST_INPUT_IMAGE).unwrap();
+        assert!(is_mock_decoder_output(image_via_free_function));
     }
 }

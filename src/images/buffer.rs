@@ -1236,13 +1236,7 @@ where
     }
 
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
-        let samples = FlatSamples {
-            samples: &*self.data,
-            layout: self.sample_layout(),
-            color_hint: None,
-        };
-
-        samples.into_view().ok()
+        self.as_flat_samples().into_view().ok()
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.

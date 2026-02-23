@@ -42,6 +42,7 @@ fn check_regressions() {
         let _ = image::open(path);
     });
 }
+
 /// Check that the WEBP frames iterator returns the right amount of frames.
 #[test]
 #[cfg(feature = "webp")]
@@ -172,4 +173,64 @@ fn bad_gif_oom() {
         matches!(error, image::ImageError::Limits(_))
             | matches!(error, image::ImageError::Unsupported(_))
     );
+}
+
+#[test]
+#[cfg(feature = "png")]
+fn resizing_with_alpha() {
+    use image::imageops::FilterType;
+    use image::GenericImageView as _;
+
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let image =
+        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
+            .unwrap()
+            .decode()
+            .unwrap();
+
+    let (w, h) = image.dimensions();
+    let mut resizable = image.clone();
+    resizable.resize_exact(2 * w, 2 * h, FilterType::Nearest);
+    resizable.resize_exact(w, h, FilterType::Nearest);
+
+    assert_eq!(image, resizable);
+}
+
+/// NOTE: this test is a little experimental. There's no reason to assume that the values should be
+/// exact but also we may want to know if they diverge. If that happens too often we should find a
+/// better (more visual) way to test this. For instance, `imagemagick` disagrees
+///
+/// ```bash
+/// magick convert regression/image/resize-with-alpha-original.png -filter CatmullRom -resize 50% \
+///   regression/image/resize-with-alpha-original-half-size-imagemagick.png
+/// ```
+///
+/// But also the output of magick appears noticeably darkened in the cursive `Image` part of the
+/// test whereas ours is closer to the original color. Not sure what causes this (might be
+/// difference in the color space used during interpolation) but ours seems good.
+#[test]
+#[cfg(feature = "png")]
+fn resizing_with_catmul() {
+    use image::imageops::FilterType;
+    use image::GenericImageView as _;
+
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let image =
+        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
+            .unwrap()
+            .decode()
+            .unwrap();
+
+    let expected = image::ImageReader::open(
+        base.join("regression/image/resize-with-alpha-original-half-size.png"),
+    )
+    .unwrap()
+    .decode()
+    .unwrap();
+
+    let (w, h) = image.dimensions();
+    let (nw, nh) = (w.div_ceil(2), h.div_ceil(2));
+    let mut resizable = image.clone();
+    resizable.resize_exact(nw, nh, FilterType::CatmullRom);
+    assert_eq!(resizable, expected);
 }

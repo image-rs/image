@@ -862,10 +862,7 @@ where
     /// Return a view on the raw sample buffer.
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
-    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-    where
-        Container: AsRef<[P::Subpixel]>,
-    {
+    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]> {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),
@@ -1323,13 +1320,7 @@ where
     }
 
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
-        let samples = FlatSamples {
-            samples: &*self.data,
-            layout: self.sample_layout(),
-            color_hint: None,
-        };
-
-        samples.into_view().ok()
+        self.as_flat_samples().into_view().ok()
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.

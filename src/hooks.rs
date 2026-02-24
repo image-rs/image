@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
     io::{BufRead, BufReader, Read, Seek},
-    sync::{Arc, RwLock},
+    sync::RwLock,
 };
 
 use crate::{ImageDecoder, ImageResult};
@@ -14,7 +14,7 @@ trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
 /// Stores ascii lowercase extension to hook mapping
-static DECODING_HOOKS: RwLock<Option<HashMap<OsString, Arc<DecodingHookFn>>>> = RwLock::new(None);
+static DECODING_HOOKS: RwLock<Option<HashMap<OsString, DecodingHook>>> = RwLock::new(None);
 
 type DetectionHook = (&'static [u8], &'static [u8], OsString);
 static GUESS_FORMAT_HOOKS: RwLock<Vec<DetectionHook>> = RwLock::new(Vec::new());
@@ -73,20 +73,20 @@ impl Seek for GenericReader<'_> {
 }
 
 /// A function to produce an [`ImageDecoder`] for a given image format.
-pub type DecodingHook = Box<DecodingHookFn>;
+pub type DecodingHook = &'static DecodingHookFn;
 pub(crate) type DecodingHookFn =
     dyn for<'a> Fn(GenericReader<'a>) -> ImageResult<Box<dyn ImageDecoder + 'a>> + Send + Sync;
 
 /// Register a new decoding hook or returns false if one already exists for the given format.
-pub fn register_decoding_hook(mut extension: OsString, hook: DecodingHook) -> bool {
+pub fn register_decoding_hook(mut extension: OsString, hook: Box<DecodingHookFn>) -> bool {
     extension.make_ascii_lowercase();
     let mut hooks = DECODING_HOOKS.write().unwrap();
-    if hooks.is_none() {
-        *hooks = Some(HashMap::new());
-    }
-    match hooks.as_mut().unwrap().entry(extension) {
+    match hooks.get_or_insert_default().entry(extension) {
         std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(Arc::new(hook));
+            // We're doing append-only registry, so it's safe to leak the hook function.
+            // In most cases the function won't actually borrow anything from the environment,
+            // so this is no-op as Box hasn't allocated anything in the first place.
+            entry.insert(Box::leak(hook));
             true
         }
         std::collections::hash_map::Entry::Occupied(_) => false,
@@ -95,25 +95,17 @@ pub fn register_decoding_hook(mut extension: OsString, hook: DecodingHook) -> bo
 
 /// Returns whether a decoding hook has been registered for the given format.
 pub fn decoding_hook_registered(extension: &OsStr) -> bool {
-    let extension = extension.to_ascii_lowercase();
-    DECODING_HOOKS
-        .read()
-        .unwrap()
-        .as_ref()
-        .map(|hooks| hooks.contains_key(&extension))
-        .unwrap_or(false)
+    get_decoding_hook(extension).is_some()
 }
 
 /// Returns the decoding hook for the given format, if one exists.
-pub(crate) fn get_decoding_hook(extension: &OsStr) -> Option<Arc<DecodingHookFn>> {
-    let extension = extension.to_ascii_lowercase();
-    let hooks = DECODING_HOOKS.read().unwrap();
-    if let Some(hooks) = hooks.as_ref() {
-        if let Some(hook) = hooks.get(&extension) {
-            return Some(hook.clone());
-        }
-    }
-    None
+pub(crate) fn get_decoding_hook(extension: &OsStr) -> Option<DecodingHook> {
+    DECODING_HOOKS
+        .read()
+        .unwrap()
+        .as_ref()?
+        .get(&extension.to_ascii_lowercase())
+        .copied()
 }
 
 /// Registers a format detection hook.

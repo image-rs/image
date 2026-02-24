@@ -549,6 +549,20 @@ impl<W: Write + Seek> TiffEncoder<W> {
             .write_data(&data)
             .map_err(ImageError::from_tiff_encode)
     }
+
+    /// See the trait method [`write_image`](#method.write_image) for more details.
+    #[track_caller]
+    #[deprecated = "Use the `write_image` method from the `ImageEncoder` trait directly."]
+    pub fn encode(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<()> {
+        // Preserved for API compatibility.
+        self.write_image(buf, width, height, color_type)
+    }
 }
 
 impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {

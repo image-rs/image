@@ -11,7 +11,6 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::ReadExt;
 use crate::{utils, ImageDecoder, ImageFormat};
 
 /// All errors that can occur when attempting to parse a PNM
@@ -782,7 +781,7 @@ impl Sample for PbmBit {
     type Representation = u8;
 
     fn from_bytes(
-        mut reader: &mut dyn Read,
+        reader: &mut dyn Read,
         output_buf: &mut [u8],
         width: u32,
         height: u32,
@@ -804,14 +803,19 @@ impl Sample for PbmBit {
             .filter(|l| *l <= output_buf.len())
             .expect("PBM packed data is never longer than unpacked");
 
-        let mut bytes = vec![];
-        reader.read_exact_vec(&mut bytes, bytecount)?;
+        reader.read_exact(&mut output_buf[..bytecount])?;
 
-        let mut expanded = utils::expand_bits(1, width.try_into().unwrap(), &bytes);
-        for b in &mut expanded {
-            *b = !*b;
+        // Expand the PBM data in place. This can be done byte by byte with a single
+        // backwards pass over the image. At all times, the position being read
+        // from will not be after the position being written to, so no data is lost.
+
+        for y in (0..height).rev() {
+            for x in (0..width).rev() {
+                let shift = 7 - (x % 8);
+                let v = (output_buf[y * linelen + x / 8] >> shift) & 0x1;
+                output_buf[y * width + x] = 1 - v;
+            }
         }
-        output_buf.copy_from_slice(&expanded);
         Ok(())
     }
 

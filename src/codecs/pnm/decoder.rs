@@ -239,10 +239,13 @@ trait Sample {
     fn sample_size() -> u32 {
         size_of::<Self::Representation>() as u32
     }
-    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
-        Ok((width * height * samples * Self::sample_size()) as usize)
-    }
-    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()>;
+    fn from_bytes(
+        reader: &mut dyn Read,
+        output_buf: &mut [u8],
+        width: u32,
+        height: u32,
+        components: u32,
+    ) -> ImageResult<()>;
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()>;
 }
 
@@ -651,24 +654,13 @@ impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
-                let width = self.header.width();
-                let height = self.header.height();
-                let bytecount = S::bytelen(width, height, components)?;
-
-                let mut bytes = vec![];
-                self.reader.read_exact_vec(&mut bytes, bytecount)?;
-
-                let width: usize = width
-                    .try_into()
-                    .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
-                let components: usize = components
-                    .try_into()
-                    .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
-                let row_size = width
-                    .checked_mul(components)
-                    .ok_or(DecoderError::Overflow(ErrorDataSource::Sample))?;
-
-                S::from_bytes(&bytes, row_size, buf)?;
+                S::from_bytes(
+                    &mut self.reader,
+                    buf,
+                    self.header.width(),
+                    self.header.height(),
+                    components,
+                )?;
             }
             SampleEncoding::Ascii => {
                 S::from_ascii(&mut self.reader, buf)?;
@@ -737,9 +729,14 @@ fn read_separated_ascii<T: TryFrom<u16>>(reader: &mut dyn Read) -> ImageResult<T
 
 impl Sample for U8 {
     type Representation = u8;
-
-    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
-        output_buf.copy_from_slice(bytes);
+    fn from_bytes(
+        reader: &mut dyn Read,
+        output_buf: &mut [u8],
+        _width: u32,
+        _height: u32,
+        _components: u32,
+    ) -> ImageResult<()> {
+        reader.read_exact(output_buf)?;
         Ok(())
     }
 
@@ -754,8 +751,14 @@ impl Sample for U8 {
 impl Sample for U16 {
     type Representation = u16;
 
-    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
-        output_buf.copy_from_slice(bytes);
+    fn from_bytes(
+        reader: &mut dyn Read,
+        output_buf: &mut [u8],
+        _width: u32,
+        _height: u32,
+        _components: u32,
+    ) -> ImageResult<()> {
+        reader.read_exact(output_buf)?;
         for chunk in output_buf.as_chunks_mut::<2>().0.iter_mut() {
             let v = u16::from_be_bytes(*chunk);
             chunk.copy_from_slice(&v.to_ne_bytes());
@@ -778,14 +781,33 @@ impl Sample for U16 {
 impl Sample for PbmBit {
     type Representation = u8;
 
-    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
-        let count = width * samples;
-        let linelen = (count / 8) + u32::from(!count.is_multiple_of(8));
-        Ok((linelen * height) as usize)
-    }
+    fn from_bytes(
+        mut reader: &mut dyn Read,
+        output_buf: &mut [u8],
+        width: u32,
+        height: u32,
+        components: u32,
+    ) -> ImageResult<()> {
+        assert!(components == 1);
 
-    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
-        let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
+        let width: usize = width
+            .try_into()
+            .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
+        let height: usize = height
+            .try_into()
+            .map_err(|_| DecoderError::Overflow(ErrorDataSource::Sample))?;
+        assert!(width.checked_mul(height) == Some(output_buf.len()));
+
+        let linelen = width.div_ceil(8);
+        let bytecount = height
+            .checked_mul(linelen)
+            .filter(|l| *l <= output_buf.len())
+            .expect("PBM packed data is never longer than unpacked");
+
+        let mut bytes = vec![];
+        reader.read_exact_vec(&mut bytes, bytecount)?;
+
+        let mut expanded = utils::expand_bits(1, width.try_into().unwrap(), &bytes);
         for b in &mut expanded {
             *b = !*b;
         }
@@ -819,8 +841,14 @@ impl Sample for PbmBit {
 impl Sample for BWBit {
     type Representation = u8;
 
-    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
-        U8::from_bytes(bytes, row_size, output_buf)?;
+    fn from_bytes(
+        reader: &mut dyn Read,
+        output_buf: &mut [u8],
+        width: u32,
+        height: u32,
+        components: u32,
+    ) -> ImageResult<()> {
+        U8::from_bytes(reader, output_buf, width, height, components)?;
         if let Some(val) = output_buf.iter().find(|&val| *val > 1) {
             return Err(DecoderError::SampleOutOfBounds(*val).into());
         }

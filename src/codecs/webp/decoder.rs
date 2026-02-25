@@ -1,5 +1,4 @@
 use std::io::{BufRead, Read, Seek};
-use std::num::NonZeroU32;
 
 use image_webp::LoopCount;
 
@@ -106,9 +105,7 @@ impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
     fn loop_count(&self) -> crate::metadata::LoopCount {
         match self.inner.loop_count() {
             LoopCount::Forever => crate::metadata::LoopCount::Infinite,
-            LoopCount::Times(n) => crate::metadata::LoopCount::Finite(
-                NonZeroU32::new(n.get().into()).expect("LoopCount::Times should be non-zero"),
-            ),
+            LoopCount::Times(n) => crate::metadata::LoopCount::Finite(n.into()),
         }
     }
 

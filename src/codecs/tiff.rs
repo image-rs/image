@@ -10,6 +10,8 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
+use tiff::encoder::compression::DeflateLevel;
+use tiff::encoder::{Compression, Predictor};
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -458,6 +460,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
+    compression: CompressionType,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
@@ -515,7 +518,16 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w, icc: None }
+        TiffEncoder {
+            w,
+            icc: None,
+            compression: Default::default(),
+        }
+    }
+
+    /// Change the compression settings for the encoder. See [CompressionType] for the available options.
+    pub fn set_compression(&mut self, compression: CompressionType) {
+        self.compression = compression
     }
 
     /// Private wrapper function to encode the image with a generic color type. This is used to reduce code duplication in the public `write_image` function.
@@ -530,6 +542,34 @@ impl<W: Write + Seek> TiffEncoder<W> {
     {
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
+
+        let predictor = if self.compression == CompressionType::Uncompressed {
+            // when compression is not in use, there's no point in using a predictor
+            Predictor::None
+        } else {
+            // different predictors are beneficial depending on the sample format
+            match C::SAMPLE_FORMAT[0] {
+                tiff::tags::SampleFormat::Uint => Predictor::Horizontal,
+                tiff::tags::SampleFormat::Int => Predictor::Horizontal,
+                // TODO: floating-point predictor not implemented in tiff crate, use Predictor::FloatingPoint once implemented.
+                tiff::tags::SampleFormat::IEEEFP => Predictor::None,
+                _ => Predictor::None, // catch-all arm for unforeseen additions
+            }
+        };
+
+        encoder = encoder.with_predictor(predictor);
+
+        let compression = match self.compression {
+            CompressionType::Uncompressed => Compression::Uncompressed,
+            CompressionType::PackBits => Compression::Packbits,
+            CompressionType::Lzw => Compression::Lzw,
+            CompressionType::Fast => Compression::Deflate(DeflateLevel::Fast),
+            CompressionType::Balanced => Compression::Deflate(DeflateLevel::Balanced),
+            CompressionType::Best => Compression::Deflate(DeflateLevel::Best),
+        };
+
+        encoder = encoder.with_compression(compression);
+
         let data = u8_slice_as_pod::<C::Inner>(data)?;
         let mut img_encoder = encoder
             .new_image::<C>(width, height)
@@ -599,4 +639,23 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         self.icc = Some(icc_profile);
         Ok(())
     }
+}
+
+/// Compression algorithm of a TIFF encoder. The default setting is `Balanced`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum CompressionType {
+    /// No compression whatsoever
+    Uncompressed,
+    /// [PackBits](https://en.wikipedia.org/wiki/PackBits) compression, a variant of RLE compression scheme. Fast, primitive compression with a poor compression ratio.
+    PackBits,
+    /// Legacy [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) algorithm. Not recommended.
+    Lzw,
+    /// Fast compression using DEFLATE algorithm
+    Fast,
+    /// Balance between speed and compression ratio using DEFLATE algorithm
+    #[default]
+    Balanced,
+    /// High compression using DEFLATE algorithm
+    Best,
 }

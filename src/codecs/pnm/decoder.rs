@@ -671,7 +671,7 @@ impl<R: Read> PnmDecoder<R> {
                 S::from_bytes(&bytes, row_size, buf)?;
             }
             SampleEncoding::Ascii => {
-                self.read_ascii::<S>(buf)?;
+                S::from_ascii(&mut self.reader, buf)?;
             }
         }
 
@@ -695,10 +695,6 @@ impl<R: Read> PnmDecoder<R> {
         }
 
         Ok(())
-    }
-
-    fn read_ascii<Basic: Sample>(&mut self, output_buf: &mut [u8]) -> ImageResult<()> {
-        Basic::from_ascii(&mut self.reader, output_buf)
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header

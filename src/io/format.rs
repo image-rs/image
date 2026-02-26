@@ -307,7 +307,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Pnm => cfg!(feature = "pnm"),
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
-            ImageFormat::Avif => cfg!(feature = "avif"),
+            ImageFormat::Avif => cfg!(feature = "avif-native"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
         }
     }

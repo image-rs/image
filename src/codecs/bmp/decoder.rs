@@ -415,12 +415,14 @@ impl CalibratedRgb {
         // Clear inherited CICP metadata from the sRGB base profile.
         profile.cicp = None;
 
-        // Use gamma directly as the TRC exponent.
-        // Guard against zero gamma (degenerate header) by falling back to 1.0.
+        // Use gamma directly as the TRC exponent via a parametric curve
+        // (ICC type 0: Y = X^gamma).  This preserves full s15Fixed16 precision
+        // when serialised to ICC bytes.
         let safe_gamma = |g: f32| if g > 0.0 { g } else { 1.0 };
-        profile.red_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_r)));
-        profile.green_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_g)));
-        profile.blue_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_b)));
+        let parametric_trc = |g: f32| moxcms::ToneReprCurve::Parametric(vec![safe_gamma(g)]);
+        profile.red_trc = Some(parametric_trc(self.gamma_r));
+        profile.green_trc = Some(parametric_trc(self.gamma_g));
+        profile.blue_trc = Some(parametric_trc(self.gamma_b));
         profile
     }
 }
@@ -2475,11 +2477,11 @@ mod test {
             profile.is_some(),
             "pal8v4: should have a synthesized ICC profile from calibrated RGB parameters"
         );
-        // The profile should be parseable.
-        let profile_bytes = profile.unwrap();
-        assert!(
-            moxcms::ColorProfile::new_from_slice(&profile_bytes).is_ok(),
-            "synthesized ICC profile should be valid"
+        validate_icc_profile(
+            &profile.unwrap(),
+            "pal8v4.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
         );
 
         // pal8v5.bmp uses LCS_sRGB — no ICC profile needed.

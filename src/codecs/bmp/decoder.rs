@@ -1056,10 +1056,6 @@ pub struct BmpDecoder<R> {
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
-    /// Pre-built 8-bit color transform from the source color space to sRGB.
-    /// Created when parsing `LCS_CALIBRATED_RGB` V4/V5 headers.
-    /// The layout (RGB or RGBA) matches `add_alpha_channel`.
-    color_transform: Option<Box<moxcms::Transform8BitExecutor>>,
     spec_strictness: SpecCompliance,
 
     /// Current decoder state for resumable decoding.
@@ -1087,7 +1083,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             palette: None,
             bitfields: None,
             icc_profile: None,
-            color_transform: None,
             spec_strictness: SpecCompliance::default(),
             state: DecoderState::default(),
         }
@@ -1625,20 +1620,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             // Extract color space info and handle non-Copy variants immediately
             match ColorSpaceInfo::parse(&header_buffer, bmp_header_size, bmp_header_offset) {
                 Some(ColorSpaceInfo::CalibratedRgb(params)) => {
-                    let source_profile = params.to_color_profile();
-                    let srgb = moxcms::ColorProfile::new_srgb();
-                    let opts = moxcms::TransformOptions {
-                        prefer_fixed_point: false,
-                        ..moxcms::TransformOptions::default()
-                    };
-                    let layout = if self.add_alpha_channel {
-                        moxcms::Layout::Rgba
-                    } else {
-                        moxcms::Layout::Rgb
-                    };
-                    self.color_transform = source_profile
-                        .create_transform_8bit(layout, &srgb, layout, opts)
-                        .ok();
+                    // Synthesize an ICC profile from the calibrated RGB parameters
+                    // and store it directly — no file read needed.
+                    if let Ok(encoded) = params.to_color_profile().encode() {
+                        self.icc_profile = Some(encoded);
+                    }
                 }
                 Some(ColorSpaceInfo::EmbeddedIcc(icc)) => {
                     icc_profile = Some(icc);
@@ -2276,25 +2262,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.state {
             DecoderState::ImageDecoded => Ok(()),
-            DecoderState::ReadingRowData { .. } | DecoderState::ReadingRleData { .. } => {
-                self.read_image_data_impl(buf)?;
-                self.apply_color_transform(buf);
-                self.state = DecoderState::ImageDecoded;
-                Ok(())
-            }
+            DecoderState::ReadingRowData { .. } | DecoderState::ReadingRleData { .. } => self
+                .read_image_data_impl(buf)
+                .map(|()| self.state = DecoderState::ImageDecoded),
             DecoderState::ReadingMetadata { .. } => Err(DecoderError::MetadataNotRead.into()),
-        }
-    }
-
-    /// Apply the V4/V5 `LCS_CALIBRATED_RGB` color transform to the decoded
-    /// pixel buffer, converting from the source color space to sRGB in-place.
-    fn apply_color_transform(&self, buf: &mut [u8]) {
-        if let Some(transform) = self.color_transform.as_ref() {
-            // TransformExecutor::transform works with separate src/dst slices.
-            // We allocate a copy of the source data so we can transform in-place.
-            let src = buf.to_vec();
-            // Ignore errors — if the transform fails we keep the original pixels.
-            let _ = transform.transform(&src, buf);
         }
     }
 
@@ -2495,21 +2466,28 @@ mod test {
     }
 
     #[test]
-    fn test_calibrated_rgb_transform() {
-        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should build a transform.
+    fn test_calibrated_rgb_icc_profile() {
+        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should synthesize an ICC profile.
         let data = std::fs::read("tests/images/bmp/images/pal8v4.bmp").unwrap();
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let profile = decoder.icc_profile().unwrap();
         assert!(
-            decoder.color_transform.is_some(),
-            "pal8v4: color_transform should be built from calibrated RGB parameters"
+            profile.is_some(),
+            "pal8v4: should have a synthesized ICC profile from calibrated RGB parameters"
+        );
+        // The profile should be parseable.
+        let profile_bytes = profile.unwrap();
+        assert!(
+            moxcms::ColorProfile::new_from_slice(&profile_bytes).is_ok(),
+            "synthesized ICC profile should be valid"
         );
 
-        // pal8v5.bmp uses LCS_sRGB — no calibrated RGB, no transform needed.
+        // pal8v5.bmp uses LCS_sRGB — no ICC profile needed.
         let data = std::fs::read("tests/images/bmp/images/pal8v5.bmp").unwrap();
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
         assert!(
-            decoder.color_transform.is_none(),
-            "pal8v5: should have no color_transform (LCS_sRGB)"
+            decoder.icc_profile().unwrap().is_none(),
+            "pal8v5: should have no ICC profile (LCS_sRGB)"
         );
     }
 

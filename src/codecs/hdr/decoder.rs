@@ -561,6 +561,7 @@ impl HdrMetadata {
         // parse known attributes
         match maybe_key_value {
             Some(("FORMAT", val)) => {
+                #[allow(clippy::collapsible_match)] // clippy wants confusing guard syntax here
                 if val.trim() != "32-bit_rle_rgbe" {
                     // XYZE isn't supported yet
                     return Err(ImageError::Unsupported(

@@ -300,7 +300,10 @@ impl ImageFormat {
         }
     }
 
-    /// Return the `ImageFormat`s which are enabled for reading.
+    /// Returns whether the feature of the `image` crate for reading this
+    /// `ImageFormat` is enabled.
+    ///
+    /// See [the list of format features](crate::codecs#supported-formats).
     #[inline]
     #[must_use]
     pub fn reading_enabled(&self) -> bool {
@@ -324,7 +327,10 @@ impl ImageFormat {
         }
     }
 
-    /// Return the `ImageFormat`s which are enabled for writing.
+    /// Returns whether the feature of the `image` crate for writing this
+    /// `ImageFormat` is enabled.
+    ///
+    /// See [the list of format features](crate::codecs#supported-formats).
     #[inline]
     #[must_use]
     pub fn writing_enabled(&self) -> bool {

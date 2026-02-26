@@ -203,7 +203,6 @@ pub use crate::images::flat;
 /// | ------- | -------- | -----
 /// | `avif`  | AVIF     | Decoding requires the `avif-native` feature, uses the libdav1d C library.
 /// | `bmp`   | BMP      |
-/// | `dds`   | DDS      | Only decoding is supported.
 /// | `exr`   | OpenEXR  |
 /// | `ff`    | Farbfeld |
 /// | `gif`   | GIF      |
@@ -243,8 +242,6 @@ pub mod codecs {
     pub mod avif;
     #[cfg(feature = "bmp")]
     pub mod bmp;
-    #[cfg(feature = "dds")]
-    pub mod dds;
     #[cfg(feature = "ff")]
     pub mod farbfeld;
     #[cfg(feature = "gif")]
@@ -269,9 +266,6 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
-
-    #[cfg(feature = "dds")]
-    mod dxt;
 }
 
 mod animation;

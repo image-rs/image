@@ -30,9 +30,6 @@ pub enum ImageFormat {
     /// An Image in TGA Format
     Tga,
 
-    /// An Image in DDS Format
-    Dds,
-
     /// An Image in BMP Format
     Bmp,
 
@@ -88,7 +85,6 @@ impl ImageFormat {
                 "webp" => ImageFormat::WebP,
                 "tif" | "tiff" => ImageFormat::Tiff,
                 "tga" => ImageFormat::Tga,
-                "dds" => ImageFormat::Dds,
                 "bmp" => ImageFormat::Bmp,
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
@@ -159,7 +155,6 @@ impl ImageFormat {
             "image/webp" => Some(ImageFormat::WebP),
             "image/tiff" => Some(ImageFormat::Tiff),
             "image/x-targa" | "image/x-tga" => Some(ImageFormat::Tga),
-            "image/vnd-ms.dds" => Some(ImageFormat::Dds),
             "image/bmp" => Some(ImageFormat::Bmp),
             "image/x-icon" | "image/vnd.microsoft.icon" => Some(ImageFormat::Ico),
             "image/vnd.radiance" => Some(ImageFormat::Hdr),
@@ -206,7 +201,6 @@ impl ImageFormat {
             ImageFormat::Tiff => "image/tiff",
             // the targa MIME type has two options, but this one seems to be used more
             ImageFormat::Tga => "image/x-targa",
-            ImageFormat::Dds => "image/vnd-ms.dds",
             ImageFormat::Bmp => "image/bmp",
             ImageFormat::Ico => "image/x-icon",
             ImageFormat::Hdr => "image/vnd.radiance",
@@ -235,7 +229,6 @@ impl ImageFormat {
             ImageFormat::WebP => true,
             ImageFormat::Tiff => true,
             ImageFormat::Tga => true,
-            ImageFormat::Dds => false,
             ImageFormat::Bmp => true,
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
@@ -268,7 +261,6 @@ impl ImageFormat {
             ImageFormat::WebP => true,
             ImageFormat::Hdr => true,
             ImageFormat::OpenExr => true,
-            ImageFormat::Dds => false,
             ImageFormat::Qoi => true,
             #[allow(deprecated)]
             ImageFormat::Pcx => false,
@@ -295,7 +287,6 @@ impl ImageFormat {
             ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm", "pnm"],
             ImageFormat::Tiff => &["tiff", "tif"],
             ImageFormat::Tga => &["tga"],
-            ImageFormat::Dds => &["dds"],
             ImageFormat::Bmp => &["bmp"],
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
@@ -330,7 +321,6 @@ impl ImageFormat {
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             #[allow(deprecated)]
             ImageFormat::Pcx => false,
-            ImageFormat::Dds => false,
         }
     }
 
@@ -355,7 +345,6 @@ impl ImageFormat {
             ImageFormat::Hdr => cfg!(feature = "hdr"),
             #[allow(deprecated)]
             ImageFormat::Pcx => false,
-            ImageFormat::Dds => false,
         }
     }
 
@@ -375,7 +364,6 @@ impl ImageFormat {
             ImageFormat::WebP,
             ImageFormat::OpenExr,
             ImageFormat::Qoi,
-            ImageFormat::Dds,
             ImageFormat::Hdr,
             #[allow(deprecated)]
             ImageFormat::Pcx,
@@ -406,7 +394,6 @@ mod tests {
         assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::Tga);
-        assert_eq!(from_path("./a.dds").unwrap(), ImageFormat::Dds);
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
@@ -424,7 +411,7 @@ mod tests {
     fn image_formats_are_recognized() {
         use ImageFormat::*;
         const ALL_FORMATS: &[ImageFormat] = &[
-            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
+            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Bmp, Ico, Hdr, Farbfeld, OpenExr,
         ];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();
@@ -455,7 +442,6 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.reading_enabled()
         );
-        assert!(!ImageFormat::Dds.reading_enabled());
     }
 
     #[test]
@@ -465,6 +451,5 @@ mod tests {
             cfg!(feature = "ff"),
             ImageFormat::Farbfeld.writing_enabled()
         );
-        assert!(!ImageFormat::Dds.writing_enabled());
     }
 }

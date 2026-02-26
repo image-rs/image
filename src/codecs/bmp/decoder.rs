@@ -378,26 +378,51 @@ impl ColorSpaceInfo {
 /// carry the CIE XYZ endpoint coordinates for the RGB primaries and
 /// per-channel gamma values, parsed from the FXPT2DOT30 / FXPT16DOT16
 /// fixed-point fields in the header.
-#[derive(Debug, Clone, Copy)]
-pub struct CalibratedRgb {
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CalibratedRgb {
     /// Red primary CIE X coordinate (FXPT2DOT30).
-    pub rx: f32,
+    rx: f32,
     /// Red primary CIE Y coordinate (FXPT2DOT30).
-    pub ry: f32,
+    ry: f32,
     /// Green primary CIE X coordinate (FXPT2DOT30).
-    pub gx: f32,
+    gx: f32,
     /// Green primary CIE Y coordinate (FXPT2DOT30).
-    pub gy: f32,
+    gy: f32,
     /// Blue primary CIE X coordinate (FXPT2DOT30).
-    pub bx: f32,
+    bx: f32,
     /// Blue primary CIE Y coordinate (FXPT2DOT30).
-    pub by: f32,
+    by: f32,
     /// Red channel gamma (FXPT16DOT16).
-    pub gamma_r: f32,
+    gamma_r: f32,
     /// Green channel gamma (FXPT16DOT16).
-    pub gamma_g: f32,
+    gamma_g: f32,
     /// Blue channel gamma (FXPT16DOT16).
-    pub gamma_b: f32,
+    gamma_b: f32,
+}
+
+impl CalibratedRgb {
+    /// Build a moxcms `ColorProfile` from the calibrated RGB primaries and gamma.
+    fn to_color_profile(self) -> moxcms::ColorProfile {
+        let primaries = moxcms::ColorPrimaries {
+            red: moxcms::Chromaticity::new(self.rx, self.ry),
+            green: moxcms::Chromaticity::new(self.gx, self.gy),
+            blue: moxcms::Chromaticity::new(self.bx, self.by),
+        };
+
+        let mut profile = moxcms::ColorProfile::new_srgb();
+        profile.update_rgb_colorimetry(moxcms::WHITE_POINT_D65, primaries);
+
+        // Clear inherited CICP metadata from the sRGB base profile.
+        profile.cicp = None;
+
+        // Use gamma directly as the TRC exponent.
+        // Guard against zero gamma (degenerate header) by falling back to 1.0.
+        let safe_gamma = |g: f32| if g > 0.0 { g } else { 1.0 };
+        profile.red_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_r)));
+        profile.green_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_g)));
+        profile.blue_trc = Some(moxcms::curve_from_gamma(safe_gamma(self.gamma_b)));
+        profile
+    }
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -1031,7 +1056,10 @@ pub struct BmpDecoder<R> {
     palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
     icc_profile: Option<Vec<u8>>,
-    calibrated_rgb: Option<CalibratedRgb>,
+    /// Pre-built 8-bit color transform from the source color space to sRGB.
+    /// Created when parsing `LCS_CALIBRATED_RGB` V4/V5 headers.
+    /// The layout (RGB or RGBA) matches `add_alpha_channel`.
+    color_transform: Option<Box<moxcms::Transform8BitExecutor>>,
     spec_strictness: SpecCompliance,
 
     /// Current decoder state for resumable decoding.
@@ -1059,7 +1087,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             palette: None,
             bitfields: None,
             icc_profile: None,
-            calibrated_rgb: None,
+            color_transform: None,
             spec_strictness: SpecCompliance::default(),
             state: DecoderState::default(),
         }
@@ -1158,12 +1186,6 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     /// In other words, the output image is the indexed color.
     pub fn set_indexed_color(&mut self, indexed_color: bool) {
         self.indexed_color = indexed_color;
-    }
-
-    /// Returns the calibrated RGB color space parameters from the BMP V4/V5
-    /// header, if present.
-    pub fn calibrated_rgb(&self) -> Option<CalibratedRgb> {
-        self.calibrated_rgb
     }
 
     #[cfg(feature = "ico")]
@@ -1603,7 +1625,20 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             // Extract color space info and handle non-Copy variants immediately
             match ColorSpaceInfo::parse(&header_buffer, bmp_header_size, bmp_header_offset) {
                 Some(ColorSpaceInfo::CalibratedRgb(params)) => {
-                    self.calibrated_rgb = Some(params);
+                    let source_profile = params.to_color_profile();
+                    let srgb = moxcms::ColorProfile::new_srgb();
+                    let opts = moxcms::TransformOptions {
+                        prefer_fixed_point: false,
+                        ..moxcms::TransformOptions::default()
+                    };
+                    let layout = if self.add_alpha_channel {
+                        moxcms::Layout::Rgba
+                    } else {
+                        moxcms::Layout::Rgb
+                    };
+                    self.color_transform = source_profile
+                        .create_transform_8bit(layout, &srgb, layout, opts)
+                        .ok();
                 }
                 Some(ColorSpaceInfo::EmbeddedIcc(icc)) => {
                     icc_profile = Some(icc);
@@ -2241,10 +2276,25 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     pub fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.state {
             DecoderState::ImageDecoded => Ok(()),
-            DecoderState::ReadingRowData { .. } | DecoderState::ReadingRleData { .. } => self
-                .read_image_data_impl(buf)
-                .map(|()| self.state = DecoderState::ImageDecoded),
+            DecoderState::ReadingRowData { .. } | DecoderState::ReadingRleData { .. } => {
+                self.read_image_data_impl(buf)?;
+                self.apply_color_transform(buf);
+                self.state = DecoderState::ImageDecoded;
+                Ok(())
+            }
             DecoderState::ReadingMetadata { .. } => Err(DecoderError::MetadataNotRead.into()),
+        }
+    }
+
+    /// Apply the V4/V5 `LCS_CALIBRATED_RGB` color transform to the decoded
+    /// pixel buffer, converting from the source color space to sRGB in-place.
+    fn apply_color_transform(&self, buf: &mut [u8]) {
+        if let Some(transform) = self.color_transform.as_ref() {
+            // TransformExecutor::transform works with separate src/dst slices.
+            // We allocate a copy of the source data so we can transform in-place.
+            let src = buf.to_vec();
+            // Ignore errors — if the transform fails we keep the original pixels.
+            let _ = transform.transform(&src, buf);
         }
     }
 
@@ -2311,15 +2361,6 @@ mod test {
     use std::io::{BufRead, BufReader, Cursor, Seek};
 
     use super::*;
-
-    fn assert_f32_close(name: &str, actual: f32, expected: f32, abs_tol: f32, rel_tol: f32) {
-        let diff = (actual - expected).abs();
-        let tol = abs_tol.max(rel_tol * actual.abs().max(expected.abs()));
-        assert!(
-            diff <= tol,
-            "{name}: expected {expected:.8}, got {actual:.8} (diff {diff:.3e} > tol {tol:.3e})"
-        );
-    }
 
     #[test]
     fn test_bitfield_len() {
@@ -2454,31 +2495,22 @@ mod test {
     }
 
     #[test]
-    fn test_calibrated_rgb() {
-        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB and sRGB-like primaries.
-        let f = BufReader::new(std::fs::File::open("tests/images/bmp/images/pal8v4.bmp").unwrap());
-        let decoder = BmpDecoder::new(f).unwrap();
-        let cal = decoder
-            .calibrated_rgb()
-            .expect("pal8v4.bmp should have calibrated RGB parameters");
+    fn test_calibrated_rgb_transform() {
+        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should build a transform.
+        let data = std::fs::read("tests/images/bmp/images/pal8v4.bmp").unwrap();
+        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        assert!(
+            decoder.color_transform.is_some(),
+            "pal8v4: color_transform should be built from calibrated RGB parameters"
+        );
 
-        // Values from the header's CIEXYZTRIPLE (FXPT2DOT30) and gamma (FXPT16DOT16) fields.
-        // These match standard sRGB primaries with a gamma of ~1/2.2.
-        let abs_tol = 1e-6;
-        let rel_tol = 1e-6;
-        assert_f32_close("rx", cal.rx, 0.64, abs_tol, rel_tol);
-        assert_f32_close("ry", cal.ry, 0.33, abs_tol, rel_tol);
-        assert_f32_close("gx", cal.gx, 0.30, abs_tol, rel_tol);
-        assert_f32_close("gy", cal.gy, 0.60, abs_tol, rel_tol);
-        assert_f32_close("bx", cal.bx, 0.15, abs_tol, rel_tol);
-        assert_f32_close("by", cal.by, 0.06, abs_tol, rel_tol);
-
-        // Gamma fields are FXPT16DOT16 values. In pal8v4.bmp they encode 29789,
-        // i.e. 29789 / 65536 ≈ 0.45454407.
-        let expected_gamma = 29_789.0f32 / 65_536.0;
-        assert_f32_close("gamma_r", cal.gamma_r, expected_gamma, 1e-7, rel_tol);
-        assert_f32_close("gamma_g", cal.gamma_g, expected_gamma, 1e-7, rel_tol);
-        assert_f32_close("gamma_b", cal.gamma_b, expected_gamma, 1e-7, rel_tol);
+        // pal8v5.bmp uses LCS_sRGB — no calibrated RGB, no transform needed.
+        let data = std::fs::read("tests/images/bmp/images/pal8v5.bmp").unwrap();
+        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        assert!(
+            decoder.color_transform.is_none(),
+            "pal8v5: should have no color_transform (LCS_sRGB)"
+        );
     }
 
     /// A reader that simulates partial data availability for testing resumable decoding.

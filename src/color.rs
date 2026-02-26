@@ -150,6 +150,10 @@ pub enum ExtendedColorType {
     Bgra8,
 
     // TODO f16 types?
+    /// Pixel is 32-bit float luminance
+    L32F,
+    /// Pixel is 32-bit float luminance with an alpha channel
+    La32F,
     /// Pixel is 32-bit float RGB
     Rgb32F,
     /// Pixel is 32-bit float RGBA
@@ -180,12 +184,14 @@ impl ExtendedColorType {
             | ExtendedColorType::L4
             | ExtendedColorType::L8
             | ExtendedColorType::L16
+            | ExtendedColorType::L32F
             | ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1
             | ExtendedColorType::La2
             | ExtendedColorType::La4
             | ExtendedColorType::La8
-            | ExtendedColorType::La16 => 2,
+            | ExtendedColorType::La16
+            | ExtendedColorType::La32F => 2,
             ExtendedColorType::Rgb1
             | ExtendedColorType::Rgb2
             | ExtendedColorType::Rgb4
@@ -232,6 +238,8 @@ impl ExtendedColorType {
             ExtendedColorType::La16 => 32,
             ExtendedColorType::Rgb16 => 48,
             ExtendedColorType::Rgba16 => 64,
+            ExtendedColorType::L32F => 32,
+            ExtendedColorType::La32F => 64,
             ExtendedColorType::Rgb32F => 96,
             ExtendedColorType::Rgba32F => 128,
             ExtendedColorType::Bgr8 => 24,

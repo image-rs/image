@@ -50,11 +50,6 @@ pub enum ImageFormat {
 
     /// An Image in QOI Format
     Qoi,
-
-    /// An Image in PCX Format
-    #[cfg_attr(not(feature = "serde"), deprecated)]
-    #[doc(hidden)]
-    Pcx,
 }
 
 impl ImageFormat {
@@ -212,8 +207,6 @@ impl ImageFormat {
             ImageFormat::Qoi => "image/x-qoi",
             // farbfeld's MIME type taken from https://www.wikidata.org/wiki/Q28206109
             ImageFormat::Farbfeld => "application/octet-stream",
-            #[allow(deprecated)]
-            ImageFormat::Pcx => "image/vnd.zbrush.pcx",
         }
     }
 
@@ -237,8 +230,6 @@ impl ImageFormat {
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::Qoi => true,
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
         }
     }
 
@@ -262,8 +253,6 @@ impl ImageFormat {
             ImageFormat::Hdr => true,
             ImageFormat::OpenExr => true,
             ImageFormat::Qoi => true,
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
         }
     }
 
@@ -295,8 +284,6 @@ impl ImageFormat {
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::Qoi => &["qoi"],
-            #[allow(deprecated)]
-            ImageFormat::Pcx => &["pcx"],
         }
     }
 
@@ -322,8 +309,6 @@ impl ImageFormat {
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
         }
     }
 
@@ -349,8 +334,6 @@ impl ImageFormat {
             ImageFormat::OpenExr => cfg!(feature = "exr"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
-            #[allow(deprecated)]
-            ImageFormat::Pcx => false,
         }
     }
 
@@ -371,8 +354,6 @@ impl ImageFormat {
             ImageFormat::OpenExr,
             ImageFormat::Qoi,
             ImageFormat::Hdr,
-            #[allow(deprecated)]
-            ImageFormat::Pcx,
         ]
         .iter()
         .copied()

@@ -563,9 +563,9 @@ impl<W: Write + Seek> TiffEncoder<W> {
             CompressionType::Uncompressed => Compression::Uncompressed,
             CompressionType::PackBits => Compression::Packbits,
             CompressionType::Lzw => Compression::Lzw,
-            CompressionType::Fast => Compression::Deflate(DeflateLevel::Fast),
-            CompressionType::Balanced => Compression::Deflate(DeflateLevel::Balanced),
-            CompressionType::Best => Compression::Deflate(DeflateLevel::Best),
+            CompressionType::DeflateFast => Compression::Deflate(DeflateLevel::Fast),
+            CompressionType::DeflateBalanced => Compression::Deflate(DeflateLevel::Balanced),
+            CompressionType::DeflateBest => Compression::Deflate(DeflateLevel::Best),
         };
 
         encoder = encoder.with_compression(compression);
@@ -652,10 +652,10 @@ pub enum CompressionType {
     /// Legacy [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) algorithm. Not recommended.
     Lzw,
     /// Fast compression using DEFLATE algorithm
-    Fast,
+    DeflateFast,
     /// Balance between speed and compression ratio using DEFLATE algorithm
     #[default]
-    Balanced,
+    DeflateBalanced,
     /// High compression using DEFLATE algorithm
-    Best,
+    DeflateBest,
 }

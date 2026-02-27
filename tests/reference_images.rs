@@ -309,7 +309,7 @@ fn decode_animation_frames(
     }
 
     let reader = std::io::BufReader::new(std::fs::File::open(path)?);
-    let frames = match format {
+    let frames: image::Frames<'_> = match format {
         #[cfg(feature = "gif")]
         ImageFormat::Gif => image::codecs::gif::GifDecoder::new(reader)?.into_frames(),
         #[cfg(feature = "png")]

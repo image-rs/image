@@ -42,6 +42,7 @@ fn bad_images() {
 /// $env:BLESS=1; cargo test; $env:BLESS=$null
 /// ```
 #[test]
+#[cfg(all(feature = "png", feature = "tiff"))] // we need both formats to be able to open+save reference images
 fn check_references() {
     let bless = std::env::var("BLESS").is_ok();
 
@@ -113,9 +114,18 @@ fn check_references() {
         Ok(())
     };
 
+    let mut partial_format_support = false;
     let test_dir = test_dir();
     let mut errors = vec![];
     for test_case in list_test_cases() {
+        let format = ImageFormat::from_path(&test_case.image);
+        if let Ok(format) = format {
+            if !format.reading_enabled() {
+                partial_format_support = true;
+                continue; // skip formats whose features aren't enabled.
+            }
+        }
+
         let rel_image = test_case.image.strip_prefix(&test_dir).unwrap();
 
         if let Err(e) = check_test_case(&test_case) {
@@ -131,6 +141,10 @@ fn check_references() {
     }
 
     // if there are no errors, check for unused reference images
+    if partial_format_support {
+        println!("⚠️ Some formats were skipped due to missing features, so unused reference images won't be checked.");
+        return;
+    }
     let used_references: HashSet<PathBuf> =
         reference_images.into_inner().unwrap().into_iter().collect();
     let unused_references: Vec<PathBuf> = iter_image_path_in(&test_dir.join("reference"))

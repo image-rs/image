@@ -133,6 +133,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
     pub fn set_format(&mut self, format: ImageFormat) {
         self.format = Some(Format::BuiltIn(format));
     }
+    /// Supply the extension of the format as which to interpret the read image.
+    ///
+    /// The extension must be without the leading dot. E.g. `"png"` or `"jpeg"`.
+    pub fn set_format_with_extension(&mut self, ext: OsString) {
+        self.format = Some(Format::Extension(ext));
+    }
 
     /// Remove the current information on the image format.
     ///

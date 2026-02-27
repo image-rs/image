@@ -1000,7 +1000,26 @@ impl CicpRgb {
         use crate::traits::private::PrivateToken;
         let from_layout = <FromColor as SealedPixelWithColorType>::layout(PrivateToken);
         let into_layout = <IntoColor as SealedPixelWithColorType>::layout(PrivateToken);
+        // This method is instantiated *a lot*. Consequently every line here matters in terms of
+        // codegen. We outline all parts into separate methods where they monomorphize only over
+        // the channel type and not the whole pixel except what we needed here to satisfy the type
+        // sysstem.
+        self.cast_pixels_by_layout(buffer, color_space_fallback, from_layout, into_layout)
+    }
 
+    fn cast_pixels_by_layout<FromSubpixel, IntoSubpixel>(
+        &self,
+        buffer: &[FromSubpixel],
+        // Since this is not performance sensitive, we can use a dyn closure here instead of an
+        // impl closure just in case we call this from multiple different paths.
+        color_space_fallback: &dyn Fn() -> [f32; 3],
+        from_layout: LayoutWithColor,
+        into_layout: LayoutWithColor,
+    ) -> Vec<IntoSubpixel>
+    where
+        FromSubpixel: ColorComponentForCicp + Primitive,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
         let mut output = match self.cast_pixels_from_subpixels(buffer, from_layout, into_layout) {
             Ok(ok) => return ok,
             Err(buffer) => buffer,
@@ -1019,10 +1038,7 @@ impl CicpRgb {
         // All of the following is done in-place; so we must allow the buffer space in which the
         // output is written ahead of time although such initialization is technically redundant.
         // We best do this once to allow for a very efficient memset initialization.
-        output.resize(
-            pixels * into_layout.channels(),
-            <IntoColor::Subpixel as Primitive>::DEFAULT_MIN_VALUE,
-        );
+        Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
 
         Self::cast_pixels_by_fallback(
             buffer,
@@ -1031,7 +1047,16 @@ impl CicpRgb {
             into_layout,
             color_space_coefs,
         );
+
         output
+    }
+
+    fn create_output<Into: Primitive>(
+        output: &mut Vec<Into>,
+        pixels: usize,
+        into_layout: LayoutWithColor,
+    ) {
+        output.resize(pixels * into_layout.channels(), Into::DEFAULT_MIN_VALUE);
     }
 
     fn cast_pixels_by_fallback<

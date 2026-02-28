@@ -9,8 +9,12 @@ use libtest_mimic::{Arguments, Trial};
 use walkdir::WalkDir;
 
 static BLESSED: LazyLock<bool> = LazyLock::new(|| std::env::var("BLESS").is_ok());
+
 static TEST_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests"));
+static IMAGE_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("images"));
+static REFERENCE_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("reference"));
+static OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("output"));
 
 /// Test decoding of all test images in `tests/images/` against reference images
 /// (either PNG or TIFF) in `tests/reference/`. This will also write the decoded
@@ -32,9 +36,11 @@ static TEST_DIR: LazyLock<PathBuf> =
 fn main() {
     let mut trials = Vec::new();
 
-    for case in list_test_cases() {
-        let rel_image = case.image.strip_prefix(&*TEST_DIR).unwrap();
-        let test_name = format!("test reference {}", rel_image.display());
+    for image_path in image_paths_in(&IMAGE_DIR) {
+        let test_name = format!(
+            "test reference {}",
+            image_path.strip_prefix(&*TEST_DIR).unwrap().display()
+        );
 
         // we need both PNG and TIFF to be able to run reference tests, since
         // reference images are stored in those formats.
@@ -43,9 +49,17 @@ fn main() {
             continue;
         }
 
-        // if the format of the test image isn't enabled, skip
-        let format = ImageFormat::from_path(&case.image);
-        if format.is_ok_and(|f| !f.reading_enabled()) {
+        // fail if the test image is of an unknown format
+        let Ok(format) = ImageFormat::from_path(&image_path) else {
+            trials.push(Trial::test(
+                test_name,
+                || Err("Unknown image format".into()),
+            ));
+            continue;
+        };
+
+        // skip if the format of the test image isn't enabled
+        if !format.reading_enabled() {
             trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
             continue;
         }
@@ -53,24 +67,19 @@ fn main() {
         trials.push(Trial::test(test_name, move || {
             // load image and check against reference
             let image =
-                image::open(&case.image).map_err(|e| format!("Failed to open image: {}", e))?;
-            check_image_reference(&case, image)?;
+                image::open(&image_path).map_err(|e| format!("Failed to open image: {}", e))?;
+
+            let reference_path = get_reference_path(&image_path, None, &image);
+            check_image_reference(&reference_path, image)?;
 
             // if the image is an animation, check each frame against its reference as well
-            if let Some(frames) = decode_animation_frames(&case.image)? {
+            if let Some(frames) = decode_animation_frames(&image_path)? {
                 for (index, frame) in frames.into_iter().enumerate() {
                     let frame_num = index + 1;
                     let frame = DynamicImage::from(frame);
-                    let frame_case = TestCase {
-                        image: case.image.clone(),
-                        output: with_added_extensions(&case.output, &format!("{frame_num:02}")),
-                        reference: with_added_extensions(
-                            &case.reference,
-                            &format!("{frame_num:02}"),
-                        ),
-                    };
 
-                    check_image_reference(&frame_case, frame)
+                    let reference_path = get_reference_path(&image_path, Some(frame_num), &frame);
+                    check_image_reference(&reference_path, frame)
                         .map_err(|e| format!("Frame {frame_num}: {e}"))?;
                 }
             }
@@ -83,89 +92,76 @@ fn main() {
     libtest_mimic::run(&args, trials).exit();
 }
 
-fn check_image_reference(case: &TestCase, image: DynamicImage) -> Result<(), Box<dyn Error>> {
+fn check_image_reference(reference_path: &Path, image: DynamicImage) -> Result<(), Box<dyn Error>> {
     // save output for inspection
-    // save_image(&image, &case.output)?;
+    let output_path = OUTPUT_DIR.join(reference_path.strip_prefix(&*REFERENCE_DIR).unwrap());
+    save_image(&image, &output_path)?;
+
+    // check if reference exists
+    if !reference_path.exists() {
+        if *BLESSED {
+            // create new reference in bless mode
+            return save_image(&image, reference_path);
+        }
+
+        return Err("Missing reference image".into());
+    }
 
     // load reference
-    let reference_path = ["png", "tiff"]
-        .iter()
-        .map(|ext| with_added_extensions(&case.reference, ext))
-        .find(|p| p.exists());
-    if *BLESSED && reference_path.is_none() {
-        // create new reference in bless mode
-        save_image(&image, &case.reference)?;
-        return Ok(());
-    }
-    let reference_path = reference_path.ok_or("Missing reference image")?;
-
     let reference =
-        image::open(&reference_path).map_err(|e| format!("Failed to open reference image: {e}"))?;
+        image::open(reference_path).map_err(|e| format!("Failed to open reference image: {e}"))?;
 
     // compare to reference
     let cmp_result = compare_to_reference(&image, &reference);
-    if *BLESSED && cmp_result.is_err() && fs::remove_file(&reference_path).is_ok() {
+    if cmp_result.is_err() && *BLESSED {
         // update reference in bless mode
-        save_image(&image, &case.reference)?;
-        return Ok(());
+        return save_image(&image, reference_path);
     }
     cmp_result?;
 
     Ok(())
 }
 
-fn save_image(image: &DynamicImage, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let format = match image.color() {
-        ColorType::Rgb32F | ColorType::Rgba32F => ImageFormat::Tiff,
-        _ => ImageFormat::Png,
-    };
-
-    if !format.writing_enabled() {
-        // nothing we can do if the feature isn't enabled.
-        return Ok(());
-    }
-
-    let output_path = with_added_extensions(path, format.extensions_str()[0]);
-    fs::create_dir_all(output_path.parent().unwrap())?;
-    image.save_with_format(&output_path, format)?;
-
+fn save_image(image: &DynamicImage, path: &Path) -> Result<(), Box<dyn Error>> {
+    fs::create_dir_all(path.parent().unwrap())?;
+    image.save(path)?;
     Ok(())
 }
 
-/// Returns a list of all test cases.
-fn list_test_cases() -> Vec<TestCase> {
-    let mut cases = Vec::new();
+fn get_save_format(image: &DynamicImage) -> ImageFormat {
+    match image.color() {
+        ColorType::Rgb32F | ColorType::Rgba32F => ImageFormat::Tiff,
+        _ => ImageFormat::Png,
+    }
+}
 
-    let image_dir = TEST_DIR.join("images");
-    let reference_dir = TEST_DIR.join("reference");
-    let output_dir = TEST_DIR.join("output");
-
-    for image in iter_image_path_in(&image_dir) {
-        let rel = image.strip_prefix(&image_dir).unwrap().to_path_buf();
-
-        let output = output_dir.join(&rel);
-        let reference = reference_dir.join(&rel);
-
-        cases.push(TestCase {
-            image,
-            output,
-            reference,
-        });
+fn get_reference_path(
+    image_path: &Path,
+    frame_num: Option<usize>,
+    image: &DynamicImage,
+) -> PathBuf {
+    // TODO: Use PathBuf::add_extension once MSRV is 1.91.0
+    fn add_extensions(path: &mut PathBuf, extension: &str) {
+        path.set_file_name(
+            path.file_name().unwrap().to_string_lossy().to_string() + "." + extension,
+        );
     }
 
-    cases
+    let relative_path = image_path.strip_prefix(&*IMAGE_DIR).unwrap();
+    let mut reference_path = REFERENCE_DIR.join(relative_path);
+
+    if let Some(frame_num) = frame_num {
+        add_extensions(&mut reference_path, &format!("{frame_num:02}"));
+    }
+    add_extensions(
+        &mut reference_path,
+        get_save_format(image).extensions_str()[0],
+    );
+
+    reference_path
 }
 
-struct TestCase {
-    /// Absolute path to the test image.
-    image: PathBuf,
-    /// Absolute path to the output image.
-    output: PathBuf,
-    /// Absolute path to the reference image.
-    reference: PathBuf,
-}
-
-fn iter_image_path_in(dir: &Path) -> impl Iterator<Item = PathBuf> {
+fn image_paths_in(dir: &Path) -> impl Iterator<Item = PathBuf> {
     WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -233,18 +229,7 @@ fn compare_to_reference(image: &DynamicImage, reference: &DynamicImage) -> Resul
     }
 }
 
-// TODO: Use Path::with_added_extension once MSRV is 1.91.0
-fn with_added_extensions(path: &Path, extension: &str) -> PathBuf {
-    let mut new_path = path.to_owned();
-    new_path.set_file_name(
-        new_path.file_name().unwrap().to_string_lossy().to_string() + "." + extension,
-    );
-    new_path
-}
-
-fn decode_animation_frames(
-    path: &Path,
-) -> Result<Option<Vec<RgbaImage>>, Box<dyn std::error::Error>> {
+fn decode_animation_frames(path: &Path) -> Result<Option<Vec<RgbaImage>>, Box<dyn Error>> {
     let format = ImageFormat::from_path(path)?;
     if !format.reading_enabled() {
         return Ok(None); // nothing we can do if the feature isn't enabled.

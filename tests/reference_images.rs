@@ -1,10 +1,16 @@
-use std::collections::HashSet;
+use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use image::{AnimationDecoder, ColorType, ImageFormat, RgbaImage};
 use image::{DynamicImage, GenericImageView};
+use libtest_mimic::{Arguments, Trial};
 use walkdir::WalkDir;
+
+static BLESSED: LazyLock<bool> = LazyLock::new(|| std::env::var("BLESS").is_ok());
+static TEST_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests"));
 
 /// Test decoding of all test images in `tests/images/` against reference images
 /// (either PNG or TIFF) in `tests/reference/`. This will also write the decoded
@@ -23,135 +29,89 @@ use walkdir::WalkDir;
 /// ```powershell
 /// $env:BLESS=1; cargo test; $env:BLESS=$null
 /// ```
-#[test]
-#[cfg(all(feature = "png", feature = "tiff"))] // we need both formats to be able to open+save reference images
-fn check_references() {
-    let bless = std::env::var("BLESS").is_ok();
+fn main() {
+    let mut trials = Vec::new();
 
-    let reference_images = std::sync::Mutex::new(vec![]);
+    for case in list_test_cases() {
+        let rel_image = case.image.strip_prefix(&*TEST_DIR).unwrap();
+        let test_name = format!("test reference {}", rel_image.display());
 
-    let check_image_reference =
-        |case: &TestCase, image: DynamicImage| -> Result<(), Box<dyn std::error::Error>> {
-            // track which reference images are used, to detect unused ones.
-            reference_images
-                .lock()
-                .unwrap()
-                .push(case.reference.clone());
+        // we need both PNG and TIFF to be able to run reference tests, since
+        // reference images are stored in those formats.
+        if !ImageFormat::Png.reading_enabled() || !ImageFormat::Tiff.reading_enabled() {
+            trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
+            continue;
+        }
 
-            // save output for inspection
-            save_image(&image, &case.output)?;
+        // if the format of the test image isn't enabled, skip
+        let format = ImageFormat::from_path(&case.image);
+        if format.is_ok_and(|f| !f.reading_enabled()) {
+            trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
+            continue;
+        }
 
-            // load reference
-            let reference_path = ["png", "tiff"]
-                .iter()
-                .map(|ext| with_added_extensions(&case.reference, ext))
-                .find(|p| p.exists());
-            if bless && reference_path.is_none() {
-                // create new reference in bless mode
-                save_image(&image, &case.reference)?;
-                return Ok(());
+        trials.push(Trial::test(test_name, move || {
+            // load image and check against reference
+            let image =
+                image::open(&case.image).map_err(|e| format!("Failed to open image: {}", e))?;
+            check_image_reference(&case, image)?;
+
+            // if the image is an animation, check each frame against its reference as well
+            if let Some(frames) = decode_animation_frames(&case.image)? {
+                for (index, frame) in frames.into_iter().enumerate() {
+                    let frame_num = index + 1;
+                    let frame = DynamicImage::from(frame);
+                    let frame_case = TestCase {
+                        image: case.image.clone(),
+                        output: with_added_extensions(&case.output, &format!("{frame_num:02}")),
+                        reference: with_added_extensions(
+                            &case.reference,
+                            &format!("{frame_num:02}"),
+                        ),
+                    };
+
+                    check_image_reference(&frame_case, frame)
+                        .map_err(|e| format!("Frame {frame_num}: {e}"))?;
+                }
             }
-            let reference_path = reference_path.ok_or("Missing reference image")?;
-
-            let reference = image::open(&reference_path)
-                .map_err(|e| format!("Failed to open reference image: {e}"))?;
-
-            // compare to reference
-            let cmp_result = compare_to_reference(&image, &reference);
-            if bless && cmp_result.is_err() && fs::remove_file(&reference_path).is_ok() {
-                // update reference in bless mode
-                save_image(&image, &case.reference)?;
-            }
-            cmp_result?;
 
             Ok(())
-        };
-
-    let check_test_case = |case: &TestCase| -> Result<(), Box<dyn std::error::Error>> {
-        // load image
-        let image = image::open(&case.image).map_err(|e| format!("Failed to open image: {}", e))?;
-        check_image_reference(case, image)
-    };
-
-    let check_test_case_animation = |case: &TestCase| -> Result<(), Box<dyn std::error::Error>> {
-        // load frames
-        let Some(frames) = decode_animation_frames(&case.image)? else {
-            // images that aren't animations don't matter for this test.
-            return Ok(());
-        };
-
-        for (index, frame) in frames.into_iter().enumerate() {
-            let frame_num = index + 1;
-            let frame = DynamicImage::from(frame);
-            let frame_case = TestCase {
-                image: case.image.clone(),
-                output: with_added_extensions(&case.output, &format!("{frame_num:02}")),
-                reference: with_added_extensions(&case.reference, &format!("{frame_num:02}")),
-            };
-
-            check_image_reference(&frame_case, frame)
-                .map_err(|e| format!("Frame {frame_num}: {e}"))?;
-        }
-
-        Ok(())
-    };
-
-    let mut partial_format_support = false;
-    let test_dir = test_dir();
-    let mut errors = vec![];
-    for test_case in list_test_cases() {
-        let format = ImageFormat::from_path(&test_case.image);
-        if let Ok(format) = format {
-            if !format.reading_enabled() {
-                partial_format_support = true;
-                continue; // skip formats whose features aren't enabled.
-            }
-        }
-
-        let rel_image = test_case.image.strip_prefix(&test_dir).unwrap();
-
-        if let Err(e) = check_test_case(&test_case) {
-            errors.push(format!("❌ {}\n     {e}", rel_image.display()));
-        }
-        if let Err(e) = check_test_case_animation(&test_case) {
-            errors.push(format!("❌ (animation) {}\n     {e}", rel_image.display()));
-        }
+        }))
     }
 
-    if !errors.is_empty() {
-        panic!("Errors in references:\n{}", errors.join("\n"));
-    }
-
-    // if there are no errors, check for unused reference images
-    if partial_format_support {
-        println!("⚠️ Some formats were skipped due to missing features, so unused reference images won't be checked.");
-        return;
-    }
-    let used_references: HashSet<PathBuf> =
-        reference_images.into_inner().unwrap().into_iter().collect();
-    let unused_references: Vec<PathBuf> = iter_image_path_in(&test_dir.join("reference"))
-        .filter(|p| {
-            // saving as an image adds the extension of the file format we save as (typically .png),
-            // so we need to remove that extension to get back the original reference path.
-            let ref_path = p.with_extension("");
-            !used_references.contains(&ref_path)
-        })
-        .collect();
-    if !unused_references.is_empty() {
-        let mut list = String::new();
-        for path in &unused_references {
-            list += &format!("\n    {}", path.strip_prefix(&test_dir).unwrap().display());
-        }
-        panic!(
-            "⚠️ Unused reference images ({}):{}\n",
-            unused_references.len(),
-            list
-        );
-    }
+    let args = Arguments::from_args();
+    libtest_mimic::run(&args, trials).exit();
 }
 
-fn test_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+fn check_image_reference(case: &TestCase, image: DynamicImage) -> Result<(), Box<dyn Error>> {
+    // save output for inspection
+    // save_image(&image, &case.output)?;
+
+    // load reference
+    let reference_path = ["png", "tiff"]
+        .iter()
+        .map(|ext| with_added_extensions(&case.reference, ext))
+        .find(|p| p.exists());
+    if *BLESSED && reference_path.is_none() {
+        // create new reference in bless mode
+        save_image(&image, &case.reference)?;
+        return Ok(());
+    }
+    let reference_path = reference_path.ok_or("Missing reference image")?;
+
+    let reference =
+        image::open(&reference_path).map_err(|e| format!("Failed to open reference image: {e}"))?;
+
+    // compare to reference
+    let cmp_result = compare_to_reference(&image, &reference);
+    if *BLESSED && cmp_result.is_err() && fs::remove_file(&reference_path).is_ok() {
+        // update reference in bless mode
+        save_image(&image, &case.reference)?;
+        return Ok(());
+    }
+    cmp_result?;
+
+    Ok(())
 }
 
 fn save_image(image: &DynamicImage, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -176,9 +136,9 @@ fn save_image(image: &DynamicImage, path: &Path) -> Result<(), Box<dyn std::erro
 fn list_test_cases() -> Vec<TestCase> {
     let mut cases = Vec::new();
 
-    let image_dir = test_dir().join("images");
-    let reference_dir = test_dir().join("reference");
-    let output_dir = test_dir().join("output");
+    let image_dir = TEST_DIR.join("images");
+    let reference_dir = TEST_DIR.join("reference");
+    let output_dir = TEST_DIR.join("output");
 
     for image in iter_image_path_in(&image_dir) {
         let rel = image.strip_prefix(&image_dir).unwrap().to_path_buf();

@@ -64,6 +64,14 @@ fn main() {
             continue;
         }
 
+        // QOI is currently broken on BE architectures, so we have to skip.
+        // See https://github.com/image-rs/image/issues/2808 for details.
+        // TODO: Remove this stupid hack once QOI is fixed.
+        if format == ImageFormat::Qoi && cfg!(target_endian = "big") {
+            trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
+            continue;
+        }
+
         trials.push(Trial::test(test_name, move || {
             // load image and check against reference
             let image =

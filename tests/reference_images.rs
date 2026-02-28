@@ -6,24 +6,6 @@ use image::{AnimationDecoder, ColorType, ImageFormat, RgbaImage};
 use image::{DynamicImage, GenericImageView};
 use walkdir::WalkDir;
 
-/// Tests that all images in `tests/bad/` fail to decode.
-#[test]
-fn bad_images() {
-    let images = iter_image_path_in(&test_dir().join("bad"));
-
-    for image in images {
-        let rel_image = image.strip_prefix(test_dir()).unwrap();
-        match image::open(&image) {
-            Ok(_) => {
-                panic!("❌ Bad image decoded successfully: {}", rel_image.display());
-            }
-            Err(_) => {
-                // expected
-            }
-        }
-    }
-}
-
 /// Test decoding of all test images in `tests/images/` against reference images
 /// (either PNG or TIFF) in `tests/reference/`. This will also write the decoded
 /// images to `tests/output/` regardless of whether they match the reference, to

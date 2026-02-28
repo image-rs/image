@@ -135,9 +135,7 @@ fn bmp_bitfields() {
     let path = BASE_PATH
         .iter()
         .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/raw")
-        .join("windows_dibv5_dump.bin");
+        .join("assets/bmp/windows_dibv5_dump.bin");
     let im_file = BufReader::new(File::open(path).unwrap());
     let decoder = image::codecs::bmp::BmpDecoder::new_without_file_header(im_file).unwrap();
 

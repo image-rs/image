@@ -1277,6 +1277,8 @@ impl CicpRgb {
         }
     }
 
+    // Note: ~50% faster than the output-based fallback in Luma8->LumaA8 and Luma8->LumaA16 codegen
+    // so this one stays with `flat_map` for now.
     fn subpixel_cast_luma_to_luma_alpha<FromSubpixel, IntoSubpixel>(
         output: &mut Vec<IntoSubpixel>,
         buffer: &[FromSubpixel],
@@ -1284,17 +1286,16 @@ impl CicpRgb {
         FromSubpixel: ColorComponentForCicp,
         IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
     {
-        let pixels = buffer.len() / LayoutWithColor::Luma.channels();
-        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::LumaAlpha);
-
         let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
-        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
 
-        let output_chunks = output.as_chunks_mut::<2>().0;
-
-        for (&l, out) in buffer.iter().zip(output_chunks) {
-            *out = [map_channel(l), default_alpha];
-        }
+        output.extend(buffer.iter().copied().flat_map(|l| {
+            [
+                map_channel(l),
+                // Crucially inlined here. When I tried to move this out then it no longer
+                // optimizes any better than the output method. (#2804).
+                <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE,
+            ]
+        }));
     }
 
     fn subpixel_cast_luma_alpha_to_luma<FromSubpixel, IntoSubpixel>(
@@ -1304,15 +1305,11 @@ impl CicpRgb {
         FromSubpixel: ColorComponentForCicp,
         IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
     {
-        let pixels = buffer.len() / LayoutWithColor::LumaAlpha.channels();
-        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Luma);
-
         let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
         let buffer_chunks = buffer.as_chunks::<2>().0;
 
-        for (&[l, _], out) in buffer_chunks.iter().zip(output) {
-            *out = map_channel(l);
-        }
+        output.extend(buffer_chunks.iter().map(|&[l, _]| map_channel(l)));
     }
 }
 

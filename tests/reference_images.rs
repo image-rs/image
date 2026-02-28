@@ -38,7 +38,7 @@ fn main() {
 
     for image_path in image_paths_in(&IMAGE_DIR) {
         let test_name = format!(
-            "test reference {}",
+            "reference {}",
             image_path.strip_prefix(&*TEST_DIR).unwrap().display()
         );
 

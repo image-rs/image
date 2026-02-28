@@ -1202,7 +1202,6 @@ impl CicpRgb {
         // and the Iterator type (and its size_hint) is trivial to work with.
 
         let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
-        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
 
         match (from_layout, into_layout) {
             // First detect if we can use simple channel-by-channel component conversion.
@@ -1215,54 +1214,105 @@ impl CicpRgb {
                 output.extend(buffer.iter().copied().map(map_channel));
             }
             (Layout::Rgb, Layout::Rgba) => {
-                Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
-
-                let buffer_chunks = buffer.as_chunks::<3>().0;
-                let output_chunks = output.as_chunks_mut::<4>().0;
-
-                for (&[r, g, b], out) in buffer_chunks.iter().zip(output_chunks) {
-                    *out = [
-                        map_channel(r),
-                        map_channel(g),
-                        map_channel(b),
-                        default_alpha,
-                    ];
-                }
+                Self::subpixel_cast_rgb_to_rgba(&mut output, buffer);
             }
             (Layout::Rgba, Layout::Rgb) => {
-                Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
-
-                let buffer_chunks = buffer.as_chunks::<4>().0;
-                let output_chunks = output.as_chunks_mut::<3>().0;
-
-                for (&[r, g, b, _], out) in buffer_chunks.iter().zip(output_chunks) {
-                    *out = [map_channel(r), map_channel(g), map_channel(b)];
-                }
+                Self::subpixel_cast_rgba_to_rgb(&mut output, buffer);
             }
             (Layout::Luma, Layout::LumaAlpha) => {
-                Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
-
-                let buffer_chunks = buffer.iter();
-                let output_chunks = output.as_chunks_mut::<2>().0.iter_mut();
-
-                for (&l, out) in buffer_chunks.zip(output_chunks) {
-                    *out = [map_channel(l), default_alpha];
-                }
+                Self::subpixel_cast_luma_to_luma_alpha(&mut output, buffer);
             }
             (Layout::LumaAlpha, Layout::Luma) => {
-                Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
-
-                let buffer_chunks = buffer.as_chunks::<2>().0.iter();
-                let output_chunks = output.iter_mut();
-
-                for (&[l, _], out) in buffer_chunks.zip(output_chunks) {
-                    *out = map_channel(l);
-                }
+                Self::subpixel_cast_luma_alpha_to_luma(&mut output, buffer);
             }
             _ => return Err(output),
         }
 
         Ok(output)
+    }
+
+    fn subpixel_cast_rgb_to_rgba<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgb.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgba);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+
+        let buffer_chunks = buffer.as_chunks::<3>().0;
+        let output_chunks = output.as_chunks_mut::<4>().0;
+
+        for (&[r, g, b], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [
+                map_channel(r),
+                map_channel(g),
+                map_channel(b),
+                default_alpha,
+            ];
+        }
+    }
+
+    fn subpixel_cast_rgba_to_rgb<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgba.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgb);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        let buffer_chunks = buffer.as_chunks::<4>().0;
+        let output_chunks = output.as_chunks_mut::<3>().0;
+
+        for (&[r, g, b, _], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [map_channel(r), map_channel(g), map_channel(b)];
+        }
+    }
+
+    fn subpixel_cast_luma_to_luma_alpha<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Luma.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::LumaAlpha);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+
+        let output_chunks = output.as_chunks_mut::<2>().0;
+
+        for (&l, out) in buffer.iter().zip(output_chunks) {
+            *out = [map_channel(l), default_alpha];
+        }
+    }
+
+    fn subpixel_cast_luma_alpha_to_luma<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::LumaAlpha.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Luma);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+        let buffer_chunks = buffer.as_chunks::<2>().0;
+
+        for (&[l, _], out) in buffer_chunks.iter().zip(output) {
+            *out = map_channel(l);
+        }
     }
 }
 

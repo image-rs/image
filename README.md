@@ -3,6 +3,7 @@
 [![Documentation](https://docs.rs/image/badge.svg)](https://docs.rs/image)
 [![Build Status](https://github.com/image-rs/image/workflows/Rust%20CI/badge.svg)](https://github.com/image-rs/image/actions)
 [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/image-rs/image?utm_source=badge)
 
 Maintainers: [@197g](https://github.com/197g), [@fintelia](https://github.com/fintelia)
 
@@ -193,7 +194,7 @@ for x in 0..imgx {
     }
 }
 
-// Save the image as “fractal.png”, the format is deduced from the path
+// Save the image as "fractal.png", the format is deduced from the path
 imgbuf.save("fractal.png").unwrap();
 ```
 

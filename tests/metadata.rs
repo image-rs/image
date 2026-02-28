@@ -122,7 +122,7 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
 #[cfg(feature = "jpeg")]
 fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
     const IMG_PATH: &str = "tests/images/jpg/exif-xmp-metadata.jpg";
-    const EXPECTED_METADATA: &[u8] = include_bytes!("images/jpg/expected_xmp.bin");
+    const EXPECTED_METADATA: &[u8] = include_bytes!("assets/jpg/expected_xmp.bin");
     let img_path = PathBuf::from_str(IMG_PATH).unwrap();
 
     let data = fs::read(img_path)?;

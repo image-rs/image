@@ -2,4 +2,4 @@
 
 This directory contains bad images that are invalid is some way and should fail to decode.
 
-Adding valid images here will fail tests.
+Adding valid images here will fail `bad_images.rs`.

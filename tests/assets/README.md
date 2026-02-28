@@ -1,3 +1,3 @@
 # Assets
 
-Directory for other files and assets used by tests.
+Directory for non-image files and assets used by tests.

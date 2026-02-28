@@ -78,29 +78,6 @@ fn check_webp_frames_regressions() {
     }
 }
 
-/// Check that BMP files with large values could cause OOM issues are rejected.
-///
-/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
-#[test]
-fn bad_bmps() {
-    let path: PathBuf = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/images")
-        .join("*.bad_bmp");
-
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        // Manually reading the file so we can use load() instead of open()
-        // We have to use load() so we can override the format
-        let im_file = BufReader::new(File::open(path).unwrap());
-        let im: Result<image::DynamicImage, image::ImageError> =
-            image::load(im_file, image::ImageFormat::Bmp);
-        assert!(im.is_err());
-    }
-}
-
 // Test that BMP bitmaps with extra `BI_BITFIELD` values are parsed correctly.
 //
 // The test data comes from a `CF_DIBV5` bitmap on the Windows clipboard. It is a screenshot
@@ -113,8 +90,7 @@ fn bmp_bitfields() {
     let path = BASE_PATH
         .iter()
         .collect::<PathBuf>()
-        .join("assets/bmp")
-        .join("windows_dibv5_dump.bin");
+        .join("assets/bmp/windows_dibv5_dump.bin");
     let im_file = BufReader::new(File::open(path).unwrap());
     let decoder = image::codecs::bmp::BmpDecoder::new_without_file_header(im_file).unwrap();
 

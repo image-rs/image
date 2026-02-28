@@ -141,7 +141,7 @@ fn get_reference_path(
     image: &DynamicImage,
 ) -> PathBuf {
     // TODO: Use PathBuf::add_extension once MSRV is 1.91.0
-    fn add_extensions(path: &mut PathBuf, extension: &str) {
+    fn add_extension(path: &mut PathBuf, extension: &str) {
         path.set_file_name(
             path.file_name().unwrap().to_string_lossy().to_string() + "." + extension,
         );
@@ -151,9 +151,9 @@ fn get_reference_path(
     let mut reference_path = REFERENCE_DIR.join(relative_path);
 
     if let Some(frame_num) = frame_num {
-        add_extensions(&mut reference_path, &format!("{frame_num:02}"));
+        add_extension(&mut reference_path, &format!("{frame_num:02}"));
     }
-    add_extensions(
+    add_extension(
         &mut reference_path,
         get_save_format(image).extensions_str()[0],
     );
@@ -221,57 +221,7 @@ fn compare_to_reference(image: &DynamicImage, reference: &DynamicImage) -> Resul
     if image.as_bytes() == reference.as_bytes() {
         Ok(())
     } else {
-        let (w, h) = image.dimensions();
-        let pixels = w as u64 * h as u64;
-
-        let mut err = format!(
-            "Reference pixel data mismatch\n  Size = {w} x {h}\n  Color = {:?}",
-            image.color()
-        );
-
-        if pixels <= 256 {
-            match common_precision {
-                Precision::U8 => {
-                    let image: &[[u8; 4]] = bytemuck::cast_slice(image.as_bytes());
-                    let reference: &[[u8; 4]] = bytemuck::cast_slice(reference.as_bytes());
-                    print_diff(&mut err, image, reference, w as usize);
-                }
-                Precision::U16 => {
-                    let image: &[[u16; 4]] = bytemuck::cast_slice(image.as_bytes());
-                    let reference: &[[u16; 4]] = bytemuck::cast_slice(reference.as_bytes());
-                    print_diff(&mut err, image, reference, w as usize);
-                }
-                Precision::F32 => {
-                    let image: &[[f32; 4]] = bytemuck::cast_slice(image.as_bytes());
-                    let reference: &[[f32; 4]] = bytemuck::cast_slice(reference.as_bytes());
-                    print_diff(&mut err, image, reference, w as usize);
-                }
-            }
-        }
-
-        fn print_diff<T>(out: &mut String, image: &[[T; 4]], reference: &[[T; 4]], width: usize)
-        where
-            T: std::fmt::Debug + PartialEq + Copy,
-        {
-            let mut differing = 0;
-            const MAX_DIFFERING: usize = 20;
-
-            *out += "\n  First few differing pixels:";
-            for (i, (p_i, p_r)) in image.iter().zip(reference.iter()).enumerate() {
-                if p_i != p_r {
-                    let x = i % width;
-                    let y = i / width;
-
-                    differing += 1;
-                    *out += &format!("\n    x={x} y={y}:  Image {p_i:?} vs {p_r:?} Reference");
-                }
-                if differing >= MAX_DIFFERING {
-                    break;
-                }
-            }
-        }
-
-        Err(err)
+        Err("Mismatching pixel data".into())
     }
 }
 

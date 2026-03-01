@@ -100,7 +100,7 @@ where
     for (x, dst) in
         (image_size.width..(image_size.width + pad_w)).zip(row_buffer.chunks_exact_mut(N).rev())
     {
-        let old_x = x.max(0).min(image_size.width - 1);
+        let old_x = x.min(image_size.width - 1);
         let old_px = old_x * N;
         let src_iter = &source_row[old_px..(old_px + N)];
         for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {

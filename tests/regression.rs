@@ -150,3 +150,21 @@ fn bad_gif_oom() {
             | matches!(error, image::ImageError::Unsupported(_))
     );
 }
+
+#[test]
+#[cfg(feature = "gif")]
+fn gif_regressions() {
+    use image::codecs::gif::GifDecoder;
+    use image::AnimationDecoder as _;
+
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let path = base.join("regression/gif/zero-loop-count.gif");
+    let file = BufReader::new(File::open(path).unwrap());
+
+    let decoder = GifDecoder::new(file).expect("Failed to create GIF decoder for regression test");
+
+    let _ = decoder.loop_count();
+    let mut frames = decoder.into_frames();
+
+    while let Some(Ok(_frame)) = frames.next() {}
+}

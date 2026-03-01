@@ -200,7 +200,12 @@ pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
     /// Loop count of the animated image.
-    fn loop_count(&self) -> LoopCount;
+    ///
+    /// By default, indicates the animation should run once. Formats may implement other defaults
+    /// and read such metadata from the file.
+    fn loop_count(&self) -> LoopCount {
+        LoopCount::Finite(core::num::NonZeroU32::new(1).unwrap())
+    }
 }
 
 #[cfg(test)]

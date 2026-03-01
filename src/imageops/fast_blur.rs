@@ -146,19 +146,53 @@ fn rounding_saturating_mul<T: Primitive>(v: f32, w: f32) -> T {
     T::clamp_nearest_from(v * w)
 }
 
+/// Precomputed reciprocal for fast integer division of u32 accumulators.
+///
+/// Replaces `(acc + ks/2) / ks` with a multiply-shift using the identity:
+///   `floor(n / d) == floor(n * ceil(2^32 / d) / 2^32)`
+/// which is exact for all `n` where `(d-1)*n < d * 2^32` (Granlund-Montgomery '94).
+/// For blur accumulators (`n <= kernel_size * 255`), this holds for all practical sizes.
+#[derive(Clone, Copy)]
+pub(crate) struct U8Weight {
+    reciprocal: u32, // ceil(2^32 / kernel_size)
+    rounding_bias: u32, // kernel_size / 2
+}
+
+impl U8Weight {
+    #[inline]
+    fn new(kernel_size: u32) -> Self {
+        debug_assert!(kernel_size >= 2);
+        Self {
+            // ceil(2^32 / ks) = floor((2^32 - 1) / ks) + 1 = (u32::MAX / ks) + 1
+            reciprocal: (u32::MAX / kernel_size) + 1,
+            rounding_bias: kernel_size / 2,
+        }
+    }
+
+    /// Compute `(acc + bias) / kernel_size` using reciprocal multiplication.
+    #[inline(always)]
+    fn apply(self, acc: u32) -> u8 {
+        let n = acc + self.rounding_bias;
+        ((n as u64 * self.reciprocal as u64) >> 32) as u8
+    }
+}
+
 /// Accumulator abstraction for box blur.
 /// `u8` uses `u32` integer accumulators; other types use `f32`.
 pub(crate) trait BlurAccum: Primitive + Sized {
     type Acc: Copy + Add<Output = Self::Acc> + AddAssign + Sub<Output = Self::Acc> + SubAssign;
+    type Weight: Copy;
 
     fn to_acc(self) -> Self::Acc;
     fn acc_zero() -> Self::Acc;
     fn acc_scale(acc: Self::Acc, count: usize) -> Self::Acc;
-    fn acc_to_store(acc: Self::Acc, kernel_size: usize) -> Self;
+    fn make_weight(kernel_size: usize) -> Self::Weight;
+    fn acc_to_store(acc: Self::Acc, weight: Self::Weight) -> Self;
 }
 
 impl BlurAccum for u8 {
     type Acc = u32;
+    type Weight = U8Weight;
     #[inline(always)]
     fn to_acc(self) -> u32 {
         self as u32
@@ -172,9 +206,12 @@ impl BlurAccum for u8 {
         acc * count as u32
     }
     #[inline(always)]
-    fn acc_to_store(acc: u32, kernel_size: usize) -> u8 {
-        let ks = kernel_size as u32;
-        ((acc + ks / 2) / ks) as u8
+    fn make_weight(kernel_size: usize) -> U8Weight {
+        U8Weight::new(kernel_size as u32)
+    }
+    #[inline(always)]
+    fn acc_to_store(acc: u32, weight: U8Weight) -> u8 {
+        weight.apply(acc)
     }
 }
 
@@ -182,6 +219,7 @@ macro_rules! impl_blur_accum_f32 {
     ($($t:ty),+) => { $(
         impl BlurAccum for $t {
             type Acc = f32;
+            type Weight = f32;
             #[inline(always)]
             fn to_acc(self) -> f32 {
                 self.to_f32().unwrap()
@@ -195,8 +233,12 @@ macro_rules! impl_blur_accum_f32 {
                 acc * count as f32
             }
             #[inline(always)]
-            fn acc_to_store(acc: f32, kernel_size: usize) -> Self {
-                rounding_saturating_mul(acc, 1.0 / kernel_size as f32)
+            fn make_weight(kernel_size: usize) -> f32 {
+                1.0 / kernel_size as f32
+            }
+            #[inline(always)]
+            fn acc_to_store(acc: f32, weight: f32) -> Self {
+                rounding_saturating_mul(acc, weight)
             }
         }
     )+ };
@@ -262,6 +304,7 @@ fn box_blur_horizontal_pass<P: BlurAccum, const CN: usize>(
     test_radius_size(width as usize, radius);
 
     let kernel_size = radius * 2 + 1;
+    let weight = P::make_weight(kernel_size);
     let edge_count = (kernel_size / 2) + 1;
     let half_kernel = kernel_size / 2;
     let width_bound = width as usize - 1;
@@ -299,7 +342,7 @@ fn box_blur_horizontal_pass<P: BlurAccum, const CN: usize>(
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = P::acc_to_store(sums[c], kernel_size);
+                dst_chunk[c] = P::acc_to_store(sums[c], weight);
             }
 
             let next_chunk = &src[next..next + CN];
@@ -330,7 +373,7 @@ fn box_blur_horizontal_pass<P: BlurAccum, const CN: usize>(
                 .zip(advanced_kernel_part_chunks)
             {
                 for c in 0..CN {
-                    dst_chunk[c] = P::acc_to_store(sums[c], kernel_size);
+                    dst_chunk[c] = P::acc_to_store(sums[c], weight);
                 }
                 for c in 0..CN {
                     sums[c] += src_next[c].to_acc();
@@ -347,7 +390,7 @@ fn box_blur_horizontal_pass<P: BlurAccum, const CN: usize>(
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = P::acc_to_store(sums[c], kernel_size);
+                dst_chunk[c] = P::acc_to_store(sums[c], weight);
             }
 
             let next_chunk = &src[next..next + CN];
@@ -376,6 +419,7 @@ fn box_blur_vertical_pass<P: BlurAccum>(
     test_radius_size(width as usize, radius);
 
     let kernel_size = radius * 2 + 1;
+    let weight = P::make_weight(kernel_size);
     let edge_count = (kernel_size / 2) + 1;
     let half_kernel = kernel_size / 2;
     let height_bound = height as usize - 1;
@@ -413,7 +457,7 @@ fn box_blur_vertical_pass<P: BlurAccum>(
             .zip(dst_row.iter_mut())
         {
             let acc = *buf;
-            *dst = P::acc_to_store(acc, kernel_size);
+            *dst = P::acc_to_store(acc, weight);
             *buf = acc + src_next.to_acc() - src_previous.to_acc();
         }
     }
@@ -504,6 +548,40 @@ mod tests {
                 }
                 _ => {}
             }
+        }
+    }
+
+    #[test]
+    fn test_u8_weight_exhaustive_small() {
+        use super::U8Weight;
+        // Exhaustive check for small kernel sizes
+        for ks in (3u32..=51).step_by(2) {
+            let w = U8Weight::new(ks);
+            let max_acc = ks * 255;
+            for acc in 0..=max_acc {
+                let expected = ((acc + ks / 2) / ks) as u8;
+                let got = w.apply(acc);
+                assert_eq!(got, expected, "ks={ks}, acc={acc}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_u8_weight_sampled_large() {
+        use super::U8Weight;
+        // Sampled check for larger kernel sizes
+        for ks in (53u32..=1025).step_by(2) {
+            let w = U8Weight::new(ks);
+            let max_acc = ks * 255;
+            let step = (max_acc / 10_000).max(1) as usize;
+            for acc in (0..=max_acc).step_by(step) {
+                let expected = ((acc + ks / 2) / ks) as u8;
+                let got = w.apply(acc);
+                assert_eq!(got, expected, "ks={ks}, acc={acc}");
+            }
+            // Always check boundaries
+            assert_eq!(w.apply(0), ((0 + ks / 2) / ks) as u8);
+            assert_eq!(w.apply(max_acc), ((max_acc + ks / 2) / ks) as u8);
         }
     }
 }

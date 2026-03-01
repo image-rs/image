@@ -3,5 +3,5 @@ mod rect;
 mod utils;
 
 pub use self::rect::Rect;
-pub(crate) use utils::multiply_accumulate;
+pub(crate) use utils::{fast_round_f32, multiply_accumulate};
 pub(super) use utils::resize_dimensions;

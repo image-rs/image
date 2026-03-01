@@ -17,6 +17,7 @@ use crate::imageops::filter_1d::{
     FilterImageSize,
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
+use crate::math::fast_round_f32;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::{clamp, is_integer};
 use crate::{
@@ -137,29 +138,10 @@ impl ToPrimitive for FloatNearest {
         self.0.round().to_i64()
     }
     fn to_u8(&self) -> Option<u8> {
-        // Fast rounding: (v + 0.5) as u32 truncates, equivalent to roundf for v >= -0.5.
-        // Rust saturates negative floats to 0 on `as u32` (since 1.45), so the
-        // guard also ensures correctness for values in (-0.5, 0).
-        if self.0 < -0.5 {
-            return None;
-        }
-        let r = (self.0 + 0.5) as u32;
-        if r <= u8::MAX as u32 {
-            Some(r as u8)
-        } else {
-            None
-        }
+        fast_round_f32(self.0).to_u8()
     }
     fn to_u16(&self) -> Option<u16> {
-        if self.0 < -0.5 {
-            return None;
-        }
-        let r = (self.0 + 0.5) as u32;
-        if r <= u16::MAX as u32 {
-            Some(r as u16)
-        } else {
-            None
-        }
+        fast_round_f32(self.0).to_u16()
     }
     fn to_u64(&self) -> Option<u64> {
         self.0.round().to_u64()

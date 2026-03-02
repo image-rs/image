@@ -103,13 +103,13 @@ fn main() {
 fn check_image_reference(reference_path: &Path, image: DynamicImage) -> Result<(), Box<dyn Error>> {
     // save output for inspection
     let output_path = OUTPUT_DIR.join(reference_path.strip_prefix(&*REFERENCE_DIR).unwrap());
-    save_image(&image, &output_path)?;
+    save_image(&image, &output_path, false)?;
 
     // check if reference exists
     if !reference_path.exists() {
         if *BLESSED {
             // create new reference in bless mode
-            return save_image(&image, reference_path);
+            return save_image(&image, reference_path, true);
         }
 
         return Err("Missing reference image".into());
@@ -123,16 +123,26 @@ fn check_image_reference(reference_path: &Path, image: DynamicImage) -> Result<(
     let cmp_result = compare_to_reference(&image, &reference);
     if cmp_result.is_err() && *BLESSED {
         // update reference in bless mode
-        return save_image(&image, reference_path);
+        return save_image(&image, reference_path, true);
     }
     cmp_result?;
 
     Ok(())
 }
 
-fn save_image(image: &DynamicImage, path: &Path) -> Result<(), Box<dyn Error>> {
+fn save_image(image: &DynamicImage, path: &Path, optimize: bool) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(path.parent().unwrap())?;
     image.save(path)?;
+
+    // optimize PNGs with oxipng to reduce the size of reference images in the repo
+    if optimize && path.extension().is_some_and(|ext| ext == "png") {
+        oxipng::optimize(
+            &oxipng::InFile::Path(path.to_path_buf()),
+            &oxipng::OutFile::from_path(path.to_path_buf()),
+            &oxipng::Options::from_preset(4),
+        )?;
+    }
+
     Ok(())
 }
 

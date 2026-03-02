@@ -378,7 +378,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             .unwrap()
             .read_image_to_buffer(&mut self.buffer)
             .map_err(ImageError::from_tiff_decode)?;
-        
+
         // Check if we have all of the planes. Otherwise we ran into the allocation limit.
         if self.buffer.as_buffer(0).as_bytes().len() < layout.complete_len {
             return Err(ImageError::Limits(LimitError::from_kind(
@@ -391,7 +391,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             // more detailed comment in the implementation.
             return self.interleave_planes(layout, buf);
         }
-        
+
         match self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);

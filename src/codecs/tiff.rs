@@ -71,6 +71,7 @@ where
             tiff::ColorType::CMYK(16) => ColorType::Rgb16,
             tiff::ColorType::RGB(32) => ColorType::Rgb32F,
             tiff::ColorType::RGBA(32) => ColorType::Rgba32F,
+            tiff::ColorType::YCbCr(8) => ColorType::Rgb8,
 
             tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
                 return Err(err_unknown_color_type(n))
@@ -96,6 +97,7 @@ where
             tiff::ColorType::Gray(1) => ExtendedColorType::L1,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
             tiff::ColorType::CMYK(16) => ExtendedColorType::Cmyk16,
+            tiff::ColorType::YCbCr(8) => ExtendedColorType::YCbCr8,
             _ => color_type.into(),
         };
 
@@ -190,7 +192,8 @@ fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Resul
         ColorType::RGB(k) => k,
         ColorType::RGBA(k) => k,
         ColorType::GrayA(k) => k,
-        ColorType::Palette(k) | ColorType::YCbCr(k) => {
+        ColorType::YCbCr(k) if k == 8 => k,
+        ColorType::Palette(k) => {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tiff.into(),
@@ -375,7 +378,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             .unwrap()
             .read_image_to_buffer(&mut self.buffer)
             .map_err(ImageError::from_tiff_decode)?;
-
+        
         // Check if we have all of the planes. Otherwise we ran into the allocation limit.
         if self.buffer.as_buffer(0).as_bytes().len() < layout.complete_len {
             return Err(ImageError::Limits(LimitError::from_kind(
@@ -388,7 +391,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             // more detailed comment in the implementation.
             return self.interleave_planes(layout, buf);
         }
-
+        
         match self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
                 let mut out_cur = Cursor::new(buf);
@@ -411,6 +414,12 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                     .zip(buf.chunks_exact_mut(width as usize))
                 {
                     out_row.copy_from_slice(&utils::expand_bits(1, width, in_row));
+                }
+            }
+            DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::YCbCr8 => {
+                let mut out_cur = Cursor::new(buf);
+                for ycbcr in v.chunks_exact(3) {
+                    out_cur.write_all(&ycbcr_to_rgb8(ycbcr))?;
                 }
             }
             DecodingResult::U8(v) => {
@@ -458,6 +467,22 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
+}
+
+fn ycbcr_to_rgb8(ycbcr: &[u8]) -> [u8; 3] {
+    let y = f32::from(ycbcr[0]);
+    let cb = f32::from(ycbcr[1]) - 128.0;
+    let cr = f32::from(ycbcr[2]) - 128.0;
+
+    let r = y + 1.402 * cr;
+    let g = y - 0.34414 * cb - 0.71414 * cr;
+    let b = y + 1.772 * cb;
+
+    [
+        r.clamp(0.0, 255.0).round() as u8,
+        g.clamp(0.0, 255.0).round() as u8,
+        b.clamp(0.0, 255.0).round() as u8,
+    ]
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {

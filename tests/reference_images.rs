@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use image::{AnimationDecoder, ColorType, ImageFormat, RgbaImage};
 use image::{DynamicImage, GenericImageView};
@@ -14,18 +15,20 @@ static TEST_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests"));
 static IMAGE_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("images"));
 static REFERENCE_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("reference"));
-static OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("output"));
 
-/// Test decoding of all test images in `tests/images/` against reference images
-/// (either PNG or TIFF) in `tests/reference/`. This will also write the decoded
-/// images to `tests/output/` regardless of whether they match the reference, to
-/// allow for inspection.
+static HASH_PATH: LazyLock<PathBuf> = LazyLock::new(|| TEST_DIR.join("hashes.toml"));
+static HASHES: LazyLock<HashFile> = LazyLock::new(|| HashFile::open(&HASH_PATH).unwrap());
+
+/// Test decoding of all test images in `tests/images/` against their hashes in
+/// `hashes.toml` and reference images (either PNG or TIFF) in `tests/reference/`.
 ///
 /// ## Bless mode
 ///
-/// If the `BLESS` environment variable is set, the test will update the reference images
-/// to match the newly decoded images. This is useful when adding new test images,
-/// updating existing ones, or seeing the output of incorrectly decoded images.
+/// If the `BLESS` environment variable is set, the test will create/update all
+/// missing/mismatching hashes and reference images.
+///
+/// To add a new test image, simply add it to `tests/images/` and run the
+/// following command:
 ///
 /// ```sh
 /// BLESS=1 cargo test
@@ -101,18 +104,33 @@ fn main() {
 }
 
 fn check_image_reference(reference_path: &Path, image: DynamicImage) -> Result<(), Box<dyn Error>> {
-    // save output for inspection
-    let output_path = OUTPUT_DIR.join(reference_path.strip_prefix(&*REFERENCE_DIR).unwrap());
-    save_image(&image, &output_path, false)?;
+    let hash_key = reference_path
+        .strip_prefix(&*REFERENCE_DIR)
+        .unwrap()
+        .with_extension("") // remove reference image extension
+        .to_string_lossy()
+        .replace(std::path::MAIN_SEPARATOR, "/"); // use UNIX separators
 
-    // check if reference exists
+    // check hash
+    let hash = HASHES.get(&hash_key);
+    let image_hash = format!("{:x}", crc32fast::hash(image.as_bytes()));
+    if hash != Some(&image_hash) {
+        if !*BLESSED {
+            return Err(
+                "Decoded image changed!\nMissing or mismatching pixel data hash. Try running tests in blessed mode.".into(),
+            );
+        }
+        edit_image_hash(&hash_key, &image)?;
+    }
+
+    // check reference image
     if !reference_path.exists() {
+        // missing reference images are probably just ignored via .gitignore.
+        // so just create them in blessed mode
         if *BLESSED {
-            // create new reference in bless mode
             return save_image(&image, reference_path, true);
         }
-
-        return Err("Missing reference image".into());
+        return Ok(());
     }
 
     // load reference
@@ -278,4 +296,39 @@ fn decode_animation_frames(path: &Path) -> Result<Option<Vec<RgbaImage>>, Box<dy
         return Ok(None); // not actually animated
     }
     Ok(Some(frames.into_iter().map(|f| f.into_buffer()).collect()))
+}
+
+struct HashFile {
+    data: BTreeMap<String, String>,
+}
+impl HashFile {
+    fn open(path: &Path) -> Result<Self, Box<dyn Error>> {
+        let contents = fs::read_to_string(path)?;
+        let data = toml::from_str(&contents)?;
+        Ok(Self { data })
+    }
+    fn save(&self, path: &Path) -> Result<(), Box<dyn Error>> {
+        let contents = toml::to_string(&self.data)?;
+        fs::write(path, contents)?;
+        Ok(())
+    }
+
+    fn get(&self, key: &str) -> Option<&String> {
+        self.data.get(key)
+    }
+
+    fn set(&mut self, key: String, value: String) {
+        self.data.insert(key, value);
+    }
+}
+
+static HASH_WRITE_LOCK: Mutex<()> = Mutex::new(());
+fn edit_image_hash(key: &str, image: &DynamicImage) -> Result<(), Box<dyn Error>> {
+    let hash = format!("{:x}", crc32fast::hash(image.as_bytes()));
+    let guard = HASH_WRITE_LOCK.lock().unwrap();
+    let mut hash_file = HashFile::open(&HASH_PATH)?;
+    hash_file.set(key.to_string(), hash);
+    hash_file.save(&HASH_PATH)?;
+    std::mem::drop(guard);
+    Ok(())
 }

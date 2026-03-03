@@ -65,6 +65,7 @@ serde = { version = "1.0.214", optional = true, features = ["derive"] }
 pic-scale-safe = "0.1.5"
 
 [dev-dependencies]
+crc32fast = "1.2.0"
 num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
@@ -72,6 +73,7 @@ criterion = "0.5.0"
 libtest-mimic = "0.8.1"
 walkdir = "2.5.0"
 oxipng = { version = "10.1.0", default-features = false, features = ["parallel", "zopfli"] }
+toml = "1.0.3"
 
 [features]
 default = ["rayon", "default-formats"]

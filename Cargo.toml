@@ -71,7 +71,7 @@ quickcheck = "1"
 criterion = "0.5.0"
 libtest-mimic = "0.8.1"
 walkdir = "2.5.0"
-oxipng = { version = "10.1.0", default_features = false, features = ["parallel", "zopfli"] }
+oxipng = { version = "10.1.0", default-features = false, features = ["parallel", "zopfli"] }
 
 [features]
 default = ["rayon", "default-formats"]

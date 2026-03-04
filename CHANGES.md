@@ -18,6 +18,7 @@ Features:
 - Added `ExtendedColorType::Rgb5x1` to represent 5-bit colors as from TGA (#2609).
 - Added `metadata::LoopCount` and `AnimationDecoder::loop_count` to query if
   animations should repeat in a uniform manner (gif, webp, avif) (#2719, #2786).
+- `load_from_memory` now utilizes format detection hooks if any are applicable.
 
 Structural changes:
 - Various changes that reduce the compile time of `image` on codegen by
@@ -34,6 +35,10 @@ Bug fixes:
 
 Compatibility notes (new section):
 - Bump rust-version to `1.88`.
+- Registered hooks now normalize the file extension they are registered against
+  to ascii-lowercase. It is no longer necessary to register all such variants.
+  This may conflate two hooks that previously hooked the same format with
+  different casing.
 
 ### Version 0.25.9
 

@@ -43,8 +43,8 @@ fn test_rgbau8_to_rgbau16() {
 }
 
 #[test]
-fn test_decode_8bit_jpeg_compressed_ycbcr() -> Result<(), image::ImageError> {
-const PATH: &str = "tests/images/tiff/testsuite/ycbcr_jpeg_8bit.tif";
+fn test_decode_8bit_jpeg_ycbcr() -> Result<(), image::ImageError> {
+    const PATH: &str = "tests/images/tiff/testsuite/ycbcr_jpeg_8bit.tif";
     let img_path = PathBuf::from_str(PATH).unwrap();
 
     let data = fs::read(img_path)?;
@@ -65,4 +65,47 @@ const PATH: &str = "tests/images/tiff/testsuite/ycbcr_jpeg_8bit.tif";
     assert!(buffer.iter().any(|&x| x != 0));
 
     Ok(())
+}
+
+#[test]
+fn test_decode_8bit_ycbcr_lzw_bt709() -> Result<(), image::ImageError> {
+    const PATH: &str = "tests/images/tiff/testsuite/ycbcr_lzw_bt709.tif";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+
+    let (w, h) = tiff_decoder.dimensions();
+
+    assert_eq!(
+        tiff_decoder.original_color_type(),
+        image::ExtendedColorType::YCbCr8
+    );
+    assert_eq!(tiff_decoder.color_type(), image::ColorType::Rgb8);
+
+    let mut buffer = vec![0u8; tiff_decoder.total_bytes() as usize];
+    tiff_decoder.read_image(&mut buffer)?;
+
+    assert_eq!(buffer.len(), (w * h * 3) as usize);
+    assert!(buffer.iter().any(|&x| x != 0));
+
+    Ok(())
+}
+
+#[test]
+fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_broken.tif");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let result = TiffDecoder::new(std::io::Cursor::new(data));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_decode_ycbcr_lzw_22() {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_22.tif");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let result = TiffDecoder::new(std::io::Cursor::new(data));
+    assert!(result.is_err());
 }

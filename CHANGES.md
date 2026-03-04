@@ -6,6 +6,35 @@
 
 ## Changes
 
+### Version 0.25.10 (unreleased)
+
+Features:
+- Added `GenericImageView::to_pixel_view` that can be implemented to describe
+  the buffer in terms our `FlatSamples` matrix layout, if applicable. This
+  allows algorithms over generic images to run a specialized version where they
+  can be more efficient over an raw input slice.
+- Added `ImageBuffer::from_raw_bgr{,a}` to efficiently byte-swap images into
+  the RGBA layout of the buffer (#2596).
+- Added `ExtendedColorType::Rgb5x1` to represent 5-bit colors as from TGA (#2609).
+- Added `metadata::LoopCount` and `AnimationDecoder::loop_count` to query if
+  animations should repeat in a uniform manner (gif, webp, avif) (#2719, #2786).
+
+Structural changes:
+- Various changes that reduce the compile time of `image` on codegen by
+  reducing the number of monomorphizations (#2804, #2800, #2807).
+- `GenericImage::copy_from` is now must faster for `ImageBuffer` when the
+  source implements `GenericImageView::to_pixel_view`.
+- `ImageBuffer::as_flat_samples` no longer requires `AsRef<[P::Subpixel]>` for
+  the underlying container, just `Deref` (#2777).
+- Bump `tiff` to `0.11`, supporting planar layout images.
+
+Bug fixes:
+- Fixed a panic in TGA where indices have more bits than mapped colors (#2673).
+- Fix TGA inconsistencies (#2608).
+
+Compatibility notes (new section):
+- Bump rust-version to `1.88`.
+
 ### Version 0.25.9
 
 Features:

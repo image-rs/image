@@ -42,6 +42,7 @@ fn test_rgbau8_to_rgbau16() {
     assert_eq!(image_u16, image_converted);
 }
 
+#[cfg(feature = "tiff")]
 #[test]
 fn test_decode_8bit_jpeg_ycbcr() -> Result<(), image::ImageError> {
     const PATH: &str = "tests/images/tiff/testsuite/ycbcr_jpeg_8bit.tif";
@@ -67,6 +68,7 @@ fn test_decode_8bit_jpeg_ycbcr() -> Result<(), image::ImageError> {
     Ok(())
 }
 
+#[cfg(feature = "tiff")]
 #[test]
 fn test_decode_8bit_ycbcr_lzw_bt709() -> Result<(), image::ImageError> {
     const PATH: &str = "tests/images/tiff/testsuite/ycbcr_lzw_bt709.tif";
@@ -92,6 +94,7 @@ fn test_decode_8bit_ycbcr_lzw_bt709() -> Result<(), image::ImageError> {
     Ok(())
 }
 
+#[cfg(feature = "tiff")]
 #[test]
 fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
     let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_broken.tif");
@@ -101,6 +104,7 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
     assert!(result.is_err());
 }
 
+#[cfg(feature = "tiff")]
 #[test]
 fn test_decode_ycbcr_lzw_22() {
     let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_22.tif");

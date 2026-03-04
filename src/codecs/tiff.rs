@@ -202,9 +202,8 @@ fn check_ycbcr_subsampling<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> Image
         .and_then(|v| v.into_u16().ok());
 
     const COMPRESSION_MODERN_JPEG: u16 = 7;
-    match compression {
-        Some(COMPRESSION_MODERN_JPEG) => return Ok(()),
-        _ => {}
+    if compression == Some(COMPRESSION_MODERN_JPEG) {
+        return Ok(());
     }
 
     let value = decoder

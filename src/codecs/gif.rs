@@ -426,12 +426,13 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn loop_count(&self) -> LoopCount {
         match self.reader.repeat() {
-            gif::Repeat::Finite(n) => LoopCount::Finite(
-                NonZeroU32::new(n.into()).expect("Repeat::Finite should be non-zero"),
-            ),
-            gif::Repeat::Infinite => LoopCount::Infinite,
+            gif::Repeat::Finite(n @ 1..) => {
+                LoopCount::Finite(NonZeroU32::new(n.into()).expect("repeat is non-zero"))
+            }
+            gif::Repeat::Finite(0) | gif::Repeat::Infinite => LoopCount::Infinite,
         }
     }
+
     fn into_frames(self) -> animation::Frames<'a> {
         animation::Frames::new(Box::new(GifFrameIterator::new(self)))
     }

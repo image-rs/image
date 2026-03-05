@@ -209,8 +209,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             ImageFormat::Tiff => Box::new(tiff::TiffDecoder::new(reader)?),
             #[cfg(feature = "tga")]
             ImageFormat::Tga => Box::new(tga::TgaDecoder::new(reader)?),
-            #[cfg(feature = "dds")]
-            ImageFormat::Dds => Box::new(dds::DdsDecoder::new(reader)?),
             #[cfg(feature = "bmp")]
             ImageFormat::Bmp => Box::new(bmp::BmpDecoder::new_with_spec_compliance(
                 reader,

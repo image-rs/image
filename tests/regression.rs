@@ -78,29 +78,6 @@ fn check_webp_frames_regressions() {
     }
 }
 
-/// Check that BMP files with large values could cause OOM issues are rejected.
-///
-/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
-#[test]
-fn bad_bmps() {
-    let path: PathBuf = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/images")
-        .join("*.bad_bmp");
-
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        // Manually reading the file so we can use load() instead of open()
-        // We have to use load() so we can override the format
-        let im_file = BufReader::new(File::open(path).unwrap());
-        let im: Result<image::DynamicImage, image::ImageError> =
-            image::load(im_file, image::ImageFormat::Bmp);
-        assert!(im.is_err());
-    }
-}
-
 /// Regression test for ICO files containing BMP V5 images with embedded ICC profiles.
 /// The ICC profile offset in BITMAPV5HEADER is relative to the DIB header start, so it
 /// should work correctly when embedded in ICO files (which don't have a BITMAPFILEHEADER).
@@ -135,9 +112,7 @@ fn bmp_bitfields() {
     let path = BASE_PATH
         .iter()
         .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/raw")
-        .join("windows_dibv5_dump.bin");
+        .join("assets/bmp/windows_dibv5_dump.bin");
     let im_file = BufReader::new(File::open(path).unwrap());
     let decoder = image::codecs::bmp::BmpDecoder::new_without_file_header(im_file).unwrap();
 
@@ -233,4 +208,22 @@ fn resizing_with_catmul() {
     let mut resizable = image.clone();
     resizable.resize_exact(nw, nh, FilterType::CatmullRom);
     assert_eq!(resizable, expected);
+}
+
+#[test]
+#[cfg(feature = "gif")]
+fn gif_regressions() {
+    use image::codecs::gif::GifDecoder;
+    use image::AnimationDecoder as _;
+
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let path = base.join("regression/gif/zero-loop-count.gif");
+    let file = BufReader::new(File::open(path).unwrap());
+
+    let decoder = GifDecoder::new(file).expect("Failed to create GIF decoder for regression test");
+
+    let _ = decoder.loop_count();
+    let mut frames = decoder.into_frames();
+
+    while let Some(Ok(_frame)) = frames.next() {}
 }

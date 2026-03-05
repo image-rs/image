@@ -68,8 +68,9 @@ impl Seek for GenericReader<'_> {
     fn stream_position(&mut self) -> std::io::Result<u64> {
         self.0.stream_position()
     }
-
-    // TODO: Add `seek_relative` once MSRV is at least 1.80.0
+    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
+        self.0.seek_relative(offset)
+    }
 }
 
 /// A function to produce an [`ImageDecoder`] for a given image format.
@@ -220,7 +221,7 @@ mod tests {
         assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
         assert!(get_decoding_hook(OsStr::new(MOCK_HOOK_EXTENSION)).is_some());
 
-        let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
+        let image = ImageReader::open("tests/assets/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
             .unwrap();

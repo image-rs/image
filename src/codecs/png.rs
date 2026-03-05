@@ -551,10 +551,10 @@ impl<'a, R: BufRead + Seek + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
     fn loop_count(&self) -> LoopCount {
         match self.inner.reader.info().animation_control() {
             None => LoopCount::Infinite,
-            Some(actl) if actl.num_plays == 0 => LoopCount::Infinite,
-            Some(actl) => LoopCount::Finite(
-                NonZeroU32::new(actl.num_plays).expect("num_plays should be non-zero"),
-            ),
+            Some(actl) => match NonZeroU32::new(actl.num_plays) {
+                None => LoopCount::Infinite,
+                Some(n) => LoopCount::Finite(n),
+            },
         }
     }
 

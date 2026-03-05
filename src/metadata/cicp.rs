@@ -342,6 +342,9 @@ impl CicpTransform {
     /// This is used with [`ConvertColorOptions`][`crate::ConvertColorOptions`] in
     /// [`ImageBuffer::copy_from_color_space`][`crate::ImageBuffer::copy_from_color_space`],
     /// [`DynamicImage::copy_from_color_space`][`DynamicImage::copy_from_color_space`].
+    // `Arc::from` is needed for moxcms 0.7.x (returns Box) but is a no-op in 0.8.x (returns Arc
+    // directly); allow the lint so both versions compile cleanly under `-D warnings`.
+    #[allow(clippy::useless_conversion)]
     pub fn new(from: Cicp, into: Cicp) -> Option<Self> {
         if !from.qualify_stability() || !into.qualify_stability() {
             // To avoid regressions, we do not support all kinds of transforms from the start.

@@ -1000,7 +1000,26 @@ impl CicpRgb {
         use crate::traits::private::PrivateToken;
         let from_layout = <FromColor as SealedPixelWithColorType>::layout(PrivateToken);
         let into_layout = <IntoColor as SealedPixelWithColorType>::layout(PrivateToken);
+        // This method is instantiated *a lot*. Consequently every line here matters in terms of
+        // codegen. We outline all parts into separate methods where they monomorphize only over
+        // the channel type and not the whole pixel except what we needed here to satisfy the type
+        // sysstem.
+        self.cast_pixels_by_layout(buffer, color_space_fallback, from_layout, into_layout)
+    }
 
+    fn cast_pixels_by_layout<FromSubpixel, IntoSubpixel>(
+        &self,
+        buffer: &[FromSubpixel],
+        // Since this is not performance sensitive, we can use a dyn closure here instead of an
+        // impl closure just in case we call this from multiple different paths.
+        color_space_fallback: &dyn Fn() -> [f32; 3],
+        from_layout: LayoutWithColor,
+        into_layout: LayoutWithColor,
+    ) -> Vec<IntoSubpixel>
+    where
+        FromSubpixel: ColorComponentForCicp + Primitive,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
         let mut output = match self.cast_pixels_from_subpixels(buffer, from_layout, into_layout) {
             Ok(ok) => return ok,
             Err(buffer) => buffer,
@@ -1019,10 +1038,7 @@ impl CicpRgb {
         // All of the following is done in-place; so we must allow the buffer space in which the
         // output is written ahead of time although such initialization is technically redundant.
         // We best do this once to allow for a very efficient memset initialization.
-        output.resize(
-            pixels * into_layout.channels(),
-            <IntoColor::Subpixel as Primitive>::DEFAULT_MIN_VALUE,
-        );
+        Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
 
         Self::cast_pixels_by_fallback(
             buffer,
@@ -1031,7 +1047,16 @@ impl CicpRgb {
             into_layout,
             color_space_coefs,
         );
+
         output
+    }
+
+    fn create_output<Into: Primitive>(
+        output: &mut Vec<Into>,
+        pixels: usize,
+        into_layout: LayoutWithColor,
+    ) {
+        output.resize(pixels * into_layout.channels(), Into::DEFAULT_MIN_VALUE);
     }
 
     fn cast_pixels_by_fallback<
@@ -1162,6 +1187,20 @@ impl CicpRgb {
             // Not entirely failsafe, if you expand luma to rgba you can get a factor of 4 but at
             // least this will not overflow. And that's why I'm a fan of in-place operations.
             .expect("input layout already allocated with appropriate layout");
+
+        // In most cases we perform a seemingly wasteful initialization, by initializing the output
+        // before writing. However, we gain it back in codegen. If we did not have the vector exist
+        // then the only safe way to add elements is via `push` or `extend_from_slice`. These
+        // methods will check the capacity of the vector on every call and branch to reallocate. In
+        // many cases this throws off loop analysis. LLVM does not seem to trust our capacity or
+        // any arithmetic checks we do before to ensure that the len does not increase beyond the
+        // capacity. The loop bodies that result are catastrophically bad and mostly not
+        // vectorized.
+        //
+        // The one case where this does not apply is when both have the same count of channels. In
+        // this case we can just extend into the output without worrying about the layout at all
+        // and the Iterator type (and its size_hint) is trivial to work with.
+
         let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
 
         match (from_layout, into_layout) {
@@ -1170,41 +1209,107 @@ impl CicpRgb {
             | (Layout::Rgba, Layout::Rgba)
             | (Layout::Luma, Layout::Luma)
             | (Layout::LumaAlpha, Layout::LumaAlpha) => {
+                // Every component assigned accordingly. We do not care which as there is no
+                // conversion do to be done other than numeric one. (no tone mapping etc.).
                 output.extend(buffer.iter().copied().map(map_channel));
             }
             (Layout::Rgb, Layout::Rgba) => {
-                let buffer_chunks = buffer.as_chunks::<3>().0.iter();
-                output.extend(buffer_chunks.flat_map(|rgb| {
-                    let [r, g, b] = rgb.map(map_channel);
-                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
-                    [r, g, b, a]
-                }));
+                Self::subpixel_cast_rgb_to_rgba(&mut output, buffer);
             }
             (Layout::Rgba, Layout::Rgb) => {
-                let buffer_chunks = buffer.as_chunks::<4>().0.iter();
-                output.extend(buffer_chunks.flat_map(|rgb| {
-                    let &[r, g, b, _] = rgb;
-                    [r, g, b].map(map_channel)
-                }));
+                Self::subpixel_cast_rgba_to_rgb(&mut output, buffer);
             }
             (Layout::Luma, Layout::LumaAlpha) => {
-                output.extend(buffer.iter().copied().flat_map(|luma| {
-                    let l = map_channel(luma);
-                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
-                    [l, a]
-                }));
+                Self::subpixel_cast_luma_to_luma_alpha(&mut output, buffer);
             }
             (Layout::LumaAlpha, Layout::Luma) => {
-                let buffer_chunks = buffer.as_chunks::<2>().0.iter();
-                output.extend(buffer_chunks.map(|rgb| {
-                    let &[luma, _] = rgb;
-                    map_channel(luma)
-                }));
+                Self::subpixel_cast_luma_alpha_to_luma(&mut output, buffer);
             }
             _ => return Err(output),
         }
 
         Ok(output)
+    }
+
+    fn subpixel_cast_rgb_to_rgba<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgb.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgba);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+
+        let buffer_chunks = buffer.as_chunks::<3>().0;
+        let output_chunks = output.as_chunks_mut::<4>().0;
+
+        for (&[r, g, b], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [
+                map_channel(r),
+                map_channel(g),
+                map_channel(b),
+                default_alpha,
+            ];
+        }
+    }
+
+    fn subpixel_cast_rgba_to_rgb<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgba.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgb);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        let buffer_chunks = buffer.as_chunks::<4>().0;
+        let output_chunks = output.as_chunks_mut::<3>().0;
+
+        for (&[r, g, b, _], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [map_channel(r), map_channel(g), map_channel(b)];
+        }
+    }
+
+    // Note: ~50% faster than the output-based fallback in Luma8->LumaA8 and Luma8->LumaA16 codegen
+    // so this one stays with `flat_map` for now.
+    fn subpixel_cast_luma_to_luma_alpha<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        output.extend(buffer.iter().copied().flat_map(|l| {
+            [
+                map_channel(l),
+                // Crucially inlined here. When I tried to move this out then it no longer
+                // optimizes any better than the output method. (#2804).
+                <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE,
+            ]
+        }));
+    }
+
+    fn subpixel_cast_luma_alpha_to_luma<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        let buffer_chunks = buffer.as_chunks::<2>().0;
+
+        output.extend(buffer_chunks.iter().map(|&[l, _]| map_channel(l)));
     }
 }
 

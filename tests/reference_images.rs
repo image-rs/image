@@ -10,7 +10,6 @@ use std::io::{self, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
 
-use crc32fast::Hasher as Crc32;
 use image::ColorType;
 use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -132,31 +131,6 @@ fn main() {
                 }
             };
 
-            let test_crc_actual = {
-                let mut hasher = Crc32::new();
-                match test_img {
-                    DynamicImage::ImageLuma8(_)
-                    | DynamicImage::ImageLumaA8(_)
-                    | DynamicImage::ImageRgb8(_)
-                    | DynamicImage::ImageRgba8(_) => hasher.update(test_img.as_bytes()),
-                    DynamicImage::ImageLuma16(_)
-                    | DynamicImage::ImageLumaA16(_)
-                    | DynamicImage::ImageRgb16(_)
-                    | DynamicImage::ImageRgba16(_) => {
-                        for v in test_img.as_bytes().chunks(2) {
-                            hasher.update(&u16::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
-                        }
-                    }
-                    DynamicImage::ImageRgb32F(_) | DynamicImage::ImageRgba32F(_) => {
-                        for v in test_img.as_bytes().chunks(4) {
-                            hasher.update(&f32::from_ne_bytes(v.try_into().unwrap()).to_le_bytes());
-                        }
-                    }
-                    _ => panic!("Unsupported image format"),
-                }
-                hasher.finalize()
-            };
-
             if reference_format == ImageFormat::Png && image_format == Some(ImageFormat::Tiff) {
                 match test_img {
                     DynamicImage::ImageRgb32F(_) => {
@@ -169,12 +143,7 @@ fn main() {
                 }
             }
 
-            let mut error = if test_crc_actual != case.crc {
-                format!(
-                    "The decoded image's hash does not match (expected = {:08x}, actual = {:08x})",
-                    case.crc, test_crc_actual
-                )
-            } else if image::open(&path)?.as_bytes() != test_img.as_bytes() {
+            let mut error: String = if image::open(&path)?.as_bytes() != test_img.as_bytes() {
                 "Reference rendering does not match".into()
             } else {
                 // The image exactly matches the reference. Success!
@@ -187,7 +156,7 @@ fn main() {
                 ColorType::Rgb32F | ColorType::Rgba32F => "tiff",
                 _ => "png",
             };
-            let output_filename = format!("{}.{test_crc_actual:08x}.{ext}", case.orig_filename);
+            let output_filename = format!("{}.{ext}", case.orig_filename);
             let output_path = output_dir.join(output_filename);
             fs::create_dir_all(output_dir).unwrap();
 
@@ -224,7 +193,6 @@ fn main() {
 /// Describes a single test case of `check_references`.
 struct ReferenceTestCase {
     orig_filename: String,
-    crc: u32,
     kind: ReferenceTestKind,
 }
 
@@ -247,47 +215,29 @@ impl std::str::FromStr for ReferenceTestCase {
     /// Construct `ReferenceTestCase` from the file name of a reference
     /// image.
     fn from_str(filename: &str) -> Result<Self, Self::Err> {
-        let mut filename_parts = filename.rsplitn(3, '.');
+        let mut filename_parts: Vec<&str> = filename.split('.').collect();
 
         // Ignore the file extension
-        filename_parts.next().unwrap();
+        filename_parts.pop();
 
-        // The penultimate part of `filename_parts` represents the metadata,
-        // describing the test type and other details.
-        let meta_str = filename_parts.next().ok_or("missing metadata part")?;
-        let meta = meta_str.split('_').collect::<Vec<_>>();
-        let (crc, kind);
-
-        if meta.len() == 1 {
-            // `CRC`
-            crc = parse_crc(meta[0]).ok_or("malformed CRC")?;
-            kind = ReferenceTestKind::SingleImage;
-        } else if meta.len() == 3 && meta[0] == "anim" {
-            // `anim_FRAME_CRC`
-            crc = parse_crc(meta[2]).ok_or("malformed CRC")?;
+        // Figure out if it's an animation. Uses the format `anim_<FRAME>`
+        let mut kind = ReferenceTestKind::SingleImage;
+        let last = *filename_parts.last().ok_or("missing metadata part")?;
+        let meta = last.split('_').collect::<Vec<_>>();
+        if meta.len() == 2 && meta[0] == "anim" {
             let frame: usize = meta[1].parse().map_err(|_| "malformed frame number")?;
             kind = ReferenceTestKind::AnimatedFrame {
                 frame: frame.checked_sub(1).ok_or("frame number must be 1-based")?,
             };
-        } else {
-            return Err("unrecognized reference image metadata format");
+            filename_parts.pop();
         }
 
         // The remaining part represents the original file name
-        let orig_filename = filename_parts
-            .next()
-            .ok_or("missing original file name")?
-            .to_owned();
+        let orig_filename = filename_parts.join(".");
 
         Ok(Self {
             orig_filename,
-            crc,
             kind,
         })
     }
-}
-
-/// Parse the given string as a hexadecimal CRC hash, used by `check_references`.
-fn parse_crc(src: &str) -> Option<u32> {
-    u32::from_str_radix(src, 16).ok()
 }

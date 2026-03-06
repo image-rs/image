@@ -550,7 +550,12 @@ impl<W: Write + Seek> TiffEncoder<W> {
             match C::SAMPLE_FORMAT[0] {
                 tiff::tags::SampleFormat::Uint => Predictor::Horizontal,
                 tiff::tags::SampleFormat::Int => Predictor::Horizontal,
-                tiff::tags::SampleFormat::IEEEFP => Predictor::FloatingPoint,
+                // The floating-point predictor is not supported everywhere.
+                // Safari and Mac OS Preview can view f32 but not predictor 3.
+                // The same goes for ImageJ, a Java imaging library.
+                // Predictor 2 is not usually beneficial for floats,
+                // and some software will reject that as well.
+                tiff::tags::SampleFormat::IEEEFP => Predictor::None,
                 _ => Predictor::None, // catch-all arm for unforeseen additions
             }
         };

@@ -699,7 +699,7 @@ pub enum Predictor {
     /// and the floating-point predictor (predictor 3) to floating-point samples.
     ///
     /// Predictor 3 improves compression of floating-point data, but is not
-    /// supported by all software. In particular, Safari, macOS Preview,
+    /// supported by all software. For example, Safari, macOS Preview,
     /// and ImageJ cannot read TIFF files that use predictor 3.
     IntegerAndFloat,
 }

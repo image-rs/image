@@ -206,30 +206,25 @@ fn check_ycbcr_subsampling<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> Image
         return Ok(());
     }
 
-    let value = decoder
+    let subsampling = decoder
         .find_tag(TAG_YCBCR_SUBSAMPLING)
+        .map_err(ImageError::from_tiff_decode)?
+        .map(|value| value.into_u16_vec())
+        .transpose()
         .map_err(ImageError::from_tiff_decode)?;
 
-    let Some(value) = value else {
+    let subsampling = subsampling.as_deref().unwrap_or(&[2, 2]);
+
+    if subsampling != [1, 1] {
         return Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Tiff.into(),
-                UnsupportedErrorKind::GenericFeature(
-                    "Only YCbCrSubsampling (1,1) is supported for non-JPEG-compressed TIFFs."
-                        .to_string(),
-                ),
+                UnsupportedErrorKind::GenericFeature(format!(
+                "Subsampling {:?} is not supported. Only (1,1) is supported for non-JPEG YCbCr.",
+                subsampling
+            )),
             ),
         ));
-    };
-
-    let subsampling = value.into_u16_vec().map_err(ImageError::from_tiff_decode)?;
-    if subsampling != [1, 1] {
-        return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-            ImageFormat::Tiff.into(),
-            UnsupportedErrorKind::GenericFeature(
-                format!("Subsampling {:?} is not supported. Only (1,1) is supported for non-JPEG YCbCr.", subsampling),
-            ),
-        )));
     }
 
     Ok(())
@@ -281,8 +276,8 @@ fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Resul
         ColorType::RGB(k) => k,
         ColorType::RGBA(k) => k,
         ColorType::GrayA(k) => k,
-        ColorType::YCbCr(k) if k == 8 => k,
-        ColorType::Palette(k) => {
+        ColorType::YCbCr(8) => 8,
+        ColorType::Palette(k) | ColorType::YCbCr(k) => {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Tiff.into(),
@@ -507,10 +502,10 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             }
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::YCbCr8 => {
                 let [lr, lg, lb] = self.ycbcr_coefficients;
-                let mut out_cur = Cursor::new(buf);
-                for ycbcr in v.chunks_exact(3) {
-                    out_cur.write_all(&ycbcr_to_rgb8(ycbcr, lr, lg, lb))?;
-                }
+                let ycbcr = v.as_chunks::<3>().0;
+                let out = buf.as_chunks_mut::<3>().0;
+
+                ycbcr_to_rgb8(ycbcr, lr, lg, lb, out);
             }
             DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
@@ -559,16 +554,24 @@ pub struct TiffEncoder<W> {
     icc: Option<Vec<u8>>,
 }
 
-fn ycbcr_to_rgb8(ycbcr: &[u8], lr: f32, lg: f32, lb: f32) -> [u8; 3] {
-    let y = f32::from(ycbcr[0]);
-    let cb = f32::from(ycbcr[1]) - 128.0;
-    let cr = f32::from(ycbcr[2]) - 128.0;
+fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3]]) {
+    let coeff_r = 2.0 * (1.0 - lr);
+    let coeff_b = 2.0 * (1.0 - lb);
+    let inv_lg = 1.0 / lg;
 
-    let r = y + cr * 2.0 * (1.0 - lr);
-    let b = y + cb * 2.0 * (1.0 - lb);
-    let g = (y - lr * r - lb * b) / lg;
+    for (src, dst) in ycbcr.iter().zip(out.iter_mut()) {
+        let y = f32::from(src[0]);
+        let cb = f32::from(src[1]) - 128.0;
+        let cr = f32::from(src[2]) - 128.0;
 
-    [(r + 0.5) as u8, (g + 0.5) as u8, (b + 0.5) as u8]
+        let r = y + cr * coeff_r;
+        let b = y + cb * coeff_b;
+        let g = (y - lr * r - lb * b) * inv_lg;
+
+        dst[0] = (r + 0.5) as u8;
+        dst[1] = (g + 0.5) as u8;
+        dst[2] = (b + 0.5) as u8;
+    }
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {

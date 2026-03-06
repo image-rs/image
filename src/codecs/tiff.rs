@@ -460,6 +460,7 @@ pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
     compression: CompressionType,
+    predictor: PredictorType,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
@@ -521,12 +522,20 @@ impl<W: Write + Seek> TiffEncoder<W> {
             w,
             icc: None,
             compression: Default::default(),
+            predictor: Default::default(),
         }
     }
 
     /// Change the compression settings for the encoder. See [CompressionType] for the available options.
     pub fn set_compression(&mut self, compression: CompressionType) {
         self.compression = compression
+    }
+
+    /// Change the predictor settings for the encoder. See [PredictorType] for the available options.
+    ///
+    /// If [CompressionType] is set to `Uncompressed`, this setting is ignored and the predictor is always set to `None`.
+    pub fn set_predictor(&mut self, predictor: PredictorType) {
+        self.predictor = predictor
     }
 
     /// Private wrapper function to encode the image with a generic color type. This is used to reduce code duplication in the public `write_image` function.
@@ -550,12 +559,13 @@ impl<W: Write + Seek> TiffEncoder<W> {
             match C::SAMPLE_FORMAT[0] {
                 tiff::tags::SampleFormat::Uint => Predictor::Horizontal,
                 tiff::tags::SampleFormat::Int => Predictor::Horizontal,
-                // The floating-point predictor is not supported everywhere.
-                // Safari and Mac OS Preview can view f32 but not predictor 3.
-                // The same goes for ImageJ, a Java imaging library.
-                // Predictor 2 is not usually beneficial for floats,
-                // and some software will reject that as well.
-                tiff::tags::SampleFormat::IEEEFP => Predictor::None,
+                tiff::tags::SampleFormat::IEEEFP => match self.predictor {
+                    // The floating-point predictor is not supported everywhere.
+                    // Predictor 2 is not usually beneficial for floats,
+                    // and some software will reject that as well.
+                    PredictorType::None | PredictorType::Integer => Predictor::None,
+                    PredictorType::IntegerAndFloat => Predictor::FloatingPoint,
+                },
                 _ => Predictor::None, // catch-all arm for unforeseen additions
             }
         };
@@ -666,4 +676,28 @@ impl Default for CompressionType {
     fn default() -> Self {
         Self::Deflate(6)
     }
+}
+
+/// Predictor settings for the TIFF encoder. The default setting is `Integer`.
+///
+/// A predictor transforms the data before compression to improve the compression ratio.
+/// The predictor does not affect the decoded output, only encoding efficiency.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PredictorType {
+    /// No predictor is applied, regardless of the sample format.
+    None,
+    /// Apply horizontal differencing (predictor 2) to integer samples.
+    ///
+    /// When encoding floating-point data, acts as `PredictorType::None`
+    /// for maximum compatibility.
+    #[default]
+    Integer,
+    /// Apply horizontal differencing (predictor 2) to integer samples
+    /// and the floating-point predictor (predictor 3) to floating-point samples.
+    ///
+    /// Predictor 3 improves compression of floating-point data, but is not
+    /// supported by all software. In particular, Safari, macOS Preview,
+    /// and ImageJ cannot read TIFF files that use predictor 3.
+    IntegerAndFloat,
 }

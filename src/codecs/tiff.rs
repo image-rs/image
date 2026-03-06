@@ -10,7 +10,8 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
-use tiff::encoder::{Compression, Predictor};
+use tiff::encoder::Compression;
+use tiff::encoder::Predictor as TiffPredictor;
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -460,7 +461,7 @@ pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
     compression: CompressionType,
-    predictor: PredictorType,
+    predictor: Predictor,
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
@@ -534,7 +535,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     /// Change the predictor settings for the encoder. See [PredictorType] for the available options.
     ///
     /// If [CompressionType] is set to `Uncompressed`, this setting is ignored and the predictor is always set to `None`.
-    pub fn set_predictor(&mut self, predictor: PredictorType) {
+    pub fn set_predictor(&mut self, predictor: Predictor) {
         self.predictor = predictor
     }
 
@@ -553,20 +554,20 @@ impl<W: Write + Seek> TiffEncoder<W> {
 
         let predictor = if self.compression == CompressionType::Uncompressed {
             // when compression is not in use, there's no point in using a predictor
-            Predictor::None
+            TiffPredictor::None
         } else {
             // different predictors are beneficial depending on the sample format
             match C::SAMPLE_FORMAT[0] {
-                tiff::tags::SampleFormat::Uint => Predictor::Horizontal,
-                tiff::tags::SampleFormat::Int => Predictor::Horizontal,
+                tiff::tags::SampleFormat::Uint => TiffPredictor::Horizontal,
+                tiff::tags::SampleFormat::Int => TiffPredictor::Horizontal,
                 tiff::tags::SampleFormat::IEEEFP => match self.predictor {
                     // The floating-point predictor is not supported everywhere.
                     // Predictor 2 is not usually beneficial for floats,
                     // and some software will reject that as well.
-                    PredictorType::None | PredictorType::Integer => Predictor::None,
-                    PredictorType::IntegerAndFloat => Predictor::FloatingPoint,
+                    Predictor::None | Predictor::Integer => TiffPredictor::None,
+                    Predictor::IntegerAndFloat => TiffPredictor::FloatingPoint,
                 },
-                _ => Predictor::None, // catch-all arm for unforeseen additions
+                _ => TiffPredictor::None, // catch-all arm for unforeseen additions
             }
         };
 
@@ -684,7 +685,7 @@ impl Default for CompressionType {
 /// The predictor does not affect the decoded output, only encoding efficiency.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum PredictorType {
+pub enum Predictor {
     /// No predictor is applied, regardless of the sample format.
     None,
     /// Apply horizontal differencing (predictor 2) to integer samples.

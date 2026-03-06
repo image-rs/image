@@ -45,6 +45,7 @@ where
     /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = Decoder::open(r).map_err(ImageError::from_tiff_decode)?;
+        inner.next_image().map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;

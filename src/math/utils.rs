@@ -46,7 +46,7 @@ pub(crate) fn multiply_accumulate<
     acc + a * b
 }
 
-/// Fast round-to-nearest for non-negative f32.
+/// Fast round-to-nearest for positive f32 values.
 ///
 /// On aarch64 and x86 with SSE 4.1, delegates to hardware `roundss`/`frintn`
 /// via `.round()`.  Otherwise uses the "magic number" trick: adding 2^23 forces
@@ -60,7 +60,7 @@ pub(crate) fn multiply_accumulate<
     )
 ))]
 #[inline(always)]
-pub(crate) fn fast_round_f32(x: f32) -> f32 {
+pub(crate) fn fast_round_positive_f32(x: f32) -> f32 {
     x.round()
 }
 
@@ -72,7 +72,7 @@ pub(crate) fn fast_round_f32(x: f32) -> f32 {
     )
 )))]
 #[inline(always)]
-pub(crate) fn fast_round_f32(x: f32) -> f32 {
+pub(crate) fn fast_round_positive_f32(x: f32) -> f32 {
     const MAGIC: f32 = (1u32 << 23) as f32; // 8_388_608.0
     (x + MAGIC) - MAGIC
 }
@@ -143,7 +143,7 @@ mod test {
     }
 
     #[test]
-    fn fast_round_f32_pixel_range() {
+    fn fast_round_positive_f32_pixel_range() {
         // Must agree with .round() away from .5 boundaries.
         // At exact .5, the magic-number path uses banker's rounding (round-to-even)
         // while the hardware path uses .round() (round-half-away-from-zero).
@@ -151,11 +151,11 @@ mod test {
         for i in 0u32..=255 {
             for frac in &[0.0, 0.1, 0.25, 0.49, 0.51, 0.75, 0.9] {
                 let x = i as f32 + frac;
-                assert_eq!(super::fast_round_f32(x), x.round(), "mismatch at {x}");
+                assert_eq!(super::fast_round_positive_f32(x), x.round(), "mismatch at {x}");
             }
             // At .5 boundaries, allow either rounding direction
             let x = i as f32 + 0.5;
-            let r = super::fast_round_f32(x);
+            let r = super::fast_round_positive_f32(x);
             assert!(
                 r == x.floor() || r == x.ceil(),
                 "out of range at {x}: got {r}"
@@ -164,17 +164,17 @@ mod test {
     }
 
     #[test]
-    fn fast_round_f32_integers() {
+    fn fast_round_positive_f32_integers() {
         for i in 0u32..=65535 {
             let x = i as f32;
-            assert_eq!(super::fast_round_f32(x), x);
+            assert_eq!(super::fast_round_positive_f32(x), x);
         }
     }
 
     #[test]
-    fn fast_round_f32_zero() {
-        assert_eq!(super::fast_round_f32(0.0), 0.0);
-        assert_eq!(super::fast_round_f32(0.4), 0.0);
+    fn fast_round_positive_f32_zero() {
+        assert_eq!(super::fast_round_positive_f32(0.0), 0.0);
+        assert_eq!(super::fast_round_positive_f32(0.4), 0.0);
     }
 
     #[test]

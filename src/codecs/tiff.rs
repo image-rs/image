@@ -10,7 +10,6 @@ use std::marker::PhantomData;
 use std::mem;
 
 use tiff::decoder::{Decoder, DecodingResult};
-use tiff::encoder::compression::DeflateLevel;
 use tiff::encoder::{Compression, Predictor};
 use tiff::tags::Tag;
 

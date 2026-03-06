@@ -563,9 +563,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
             CompressionType::Uncompressed => Compression::Uncompressed,
             CompressionType::PackBits => Compression::Packbits,
             CompressionType::Lzw => Compression::Lzw,
-            CompressionType::DeflateFast => Compression::Deflate(DeflateLevel::Fast),
-            CompressionType::DeflateBalanced => Compression::Deflate(DeflateLevel::Balanced),
-            CompressionType::DeflateBest => Compression::Deflate(DeflateLevel::Best),
+            CompressionType::Deflate(level) => Compression::Deflate(level),
         };
 
         encoder = encoder.with_compression(compression);
@@ -642,20 +640,27 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
 }
 
 /// Compression algorithm of a TIFF encoder. The default setting is `Balanced`.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum CompressionType {
-    /// No compression whatsoever
+    /// No compression whatsoever. Fastest but produces large files.
     Uncompressed,
     /// [PackBits](https://en.wikipedia.org/wiki/PackBits) compression, a variant of RLE compression scheme. Fast, primitive compression with a poor compression ratio.
     PackBits,
-    /// Legacy [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) algorithm. Not recommended.
+    /// Legacy [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) algorithm. Not recommended, use DEFLATE instead.
     Lzw,
-    /// Fast compression using DEFLATE algorithm
-    DeflateFast,
-    /// Balance between speed and compression ratio using DEFLATE algorithm
-    #[default]
-    DeflateBalanced,
-    /// High compression using DEFLATE algorithm
-    DeflateBest,
+    /// [DEFLATE](https://en.wikipedia.org/wiki/DEFLATE) algorithm with the specified compression level. This is the default algorithm.
+    ///
+    /// The valid levels are 1 through 9 inclusive. The default level is 6.
+    ///
+    /// - `1` stands for light but fast compression
+    /// - `6` is the recommended balanced default
+    /// - `9` is maximum compression ratio at the cost of slow encoding
+    Deflate(u8),
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        Self::Deflate(6)
+    }
 }

@@ -550,8 +550,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
             match C::SAMPLE_FORMAT[0] {
                 tiff::tags::SampleFormat::Uint => Predictor::Horizontal,
                 tiff::tags::SampleFormat::Int => Predictor::Horizontal,
-                // TODO: floating-point predictor not implemented in tiff crate, use Predictor::FloatingPoint once implemented.
-                tiff::tags::SampleFormat::IEEEFP => Predictor::None,
+                tiff::tags::SampleFormat::IEEEFP => Predictor::FloatingPoint,
                 _ => Predictor::None, // catch-all arm for unforeseen additions
             }
         };

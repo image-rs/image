@@ -90,6 +90,7 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
         ImageFormat::WebP => Box::new(webp::WebPEncoder::new_lossless(buffered_write)),
         #[cfg(feature = "hdr")]
         ImageFormat::Hdr => Box::new(hdr::HdrEncoder::new(buffered_write)),
+        #[allow(unreachable_patterns)] // unreachable if all formats are enabled
         _ => {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(

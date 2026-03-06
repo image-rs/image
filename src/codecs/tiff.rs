@@ -392,15 +392,15 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
         match self.buffer {
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::Cmyk8 => {
-                let mut out_cur = Cursor::new(buf);
-                for cmyk in v.as_chunks::<4>().0 {
-                    out_cur.write_all(&cmyk_to_rgb(cmyk))?;
+                let buf = buf.as_chunks_mut::<3>().0;
+                for (cmyk, rgb) in v.as_chunks::<4>().0.iter().zip(buf) {
+                    *rgb = cmyk_to_rgb(cmyk);
                 }
             }
             DecodingResult::U16(v) if self.original_color_type == ExtendedColorType::Cmyk16 => {
-                let mut out_cur = Cursor::new(buf);
-                for cmyk in v.as_chunks::<4>().0 {
-                    out_cur.write_all(bytemuck::cast_slice(&cmyk_to_rgb16(cmyk)))?;
+                let buf = buf.as_chunks_mut::<6>().0;
+                for (cmyk, rgb) in v.as_chunks::<4>().0.iter().zip(buf) {
+                    *rgb = bytemuck::cast(cmyk_to_rgb16(cmyk));
                 }
             }
             DecodingResult::U8(v) if self.original_color_type == ExtendedColorType::L1 => {

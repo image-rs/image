@@ -210,11 +210,12 @@ impl ToStorage<f32> for f32 {
 /// Common convolution formula O(x,y)=∑K(k)⋅I(x,y+k); where sums goes from 0...R
 /// when filter is symmetric that we can half kernel reads by using formula
 /// O(x,y)=(∑K(k)⋅(I(x,y+k) + I(x,y+(R-k)))) + K(R/2)⋅I(x,y+R/2); where sums goes from 0...R/2
-fn filter_symmetric_column<T, F, const N: usize>(
+fn filter_symmetric_column<T, F>(
     arena_src: &[&[T]],
     dst_row: &mut [T],
     image_size: FilterImageSize,
     kernel: &[F],
+    n: usize,
 ) where
     T: Copy + AsPrimitive<F>,
     F: ToStorage<T>
@@ -225,7 +226,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
         + Copy
         + 'static,
 {
-    let dst_stride = image_size.width * N;
+    let dst_stride = image_size.width * n;
 
     let length = kernel.len();
     let half_len = length / 2;
@@ -633,7 +634,7 @@ where
 
             let dst = &mut destination[dy * full_width..(dy + 1) * full_width];
 
-            filter_symmetric_column::<T, I, N>(&brows, dst, image_size, column_kernel);
+            filter_symmetric_column::<T, I>(&brows, dst, image_size, column_kernel, N);
         }
 
         start_ky += 1;
@@ -800,7 +801,7 @@ where
 
         let brows_slice = brows.as_slice();
 
-        filter_symmetric_column::<T, I, N>(brows_slice, dst, image_size, &scanned_column_kernel);
+        filter_symmetric_column::<T, I>(brows_slice, dst, image_size, &scanned_column_kernel, N);
     }
 
     Ok(())

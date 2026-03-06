@@ -127,6 +127,11 @@ path = "benches/blur.rs"
 name = "blur"
 harness = false
 
+[[bench]]
+path = "benches/convert.rs"
+name = "convert"
+harness = false
+
 [[test]]
 path = "tests/reference_images.rs"
 name = "reference_images"

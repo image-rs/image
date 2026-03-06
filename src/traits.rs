@@ -224,11 +224,18 @@ impl PixelWithColorType for Luma<u8> {
 impl PixelWithColorType for Luma<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L16;
 }
+impl PixelWithColorType for Luma<f32> {
+    const COLOR_TYPE: ExtendedColorType = ExtendedColorType::L32F;
+}
+
 impl PixelWithColorType for LumaA<u8> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La8;
 }
 impl PixelWithColorType for LumaA<u16> {
     const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La16;
+}
+impl PixelWithColorType for LumaA<f32> {
+    const COLOR_TYPE: ExtendedColorType = ExtendedColorType::La32F;
 }
 
 /// Prevents down-stream users from implementing the `Primitive` trait

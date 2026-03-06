@@ -221,7 +221,7 @@ mod tests {
         assert!(decoding_hook_registered(OsStr::new(MOCK_HOOK_EXTENSION)));
         assert!(get_decoding_hook(OsStr::new(MOCK_HOOK_EXTENSION)).is_some());
 
-        let image = ImageReader::open("tests/images/hook/extension.MoCkHoOk")
+        let image = ImageReader::open("tests/assets/hook/extension.MoCkHoOk")
             .unwrap()
             .decode()
             .unwrap();

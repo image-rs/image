@@ -1,8 +1,8 @@
 //! Compares the decoding results with reference renderings.
 //!
 //! This test harness automatically detects all reference images in
-//! `tests/reference/...` and compares them to the associated file in
-//! `tests/images/...`.
+//! `tests/images/...` and compares them to the associated file in
+//! `tests/reference/...`.
 
 use std::error::Error;
 use std::fs::File;
@@ -62,6 +62,7 @@ fn main() {
             continue;
         }
         // QOI is broken on big endian targets
+        // See https://github.com/image-rs/image/issues/2808
         if image_format == ImageFormat::Qoi && cfg!(target_endian = "big") {
             trials.push(Trial::test(test_name, || Ok(())).with_ignored_flag(true));
             continue;

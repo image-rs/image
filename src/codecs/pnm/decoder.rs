@@ -894,12 +894,15 @@ impl DecodableImageHeader for PixmapHeader {
 
 impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
+        // Note: this strictly matches the (tupltype, depth, maxval) combinations
+        // documented in the PAM spec. The NetPBM format conversion programs are
+        // similarly strict, but other decoders are more lax:
+        // - GIMP interprets the data based on its depth and ignores the tupltype
+        // - ImageMagick interprets based on tupltype, ignores depth, and interprets
+        //   as 8-bit RGB if the tupltype is missing
+
         match self.tupltype {
             _ if self.maxval == 0 => Err(DecoderError::MaxvalZero.into()),
-            None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Ok(TupleType::GrayAlphaU8),
-            None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Ok(TupleType::RGBAlphaU8),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)

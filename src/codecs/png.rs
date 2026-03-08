@@ -192,6 +192,36 @@ impl<R: BufRead + Seek> PngDecoder<R> {
 
         Ok(reader.info().animation_control.is_some())
     }
+
+    fn color_type_info(info: &png::Info<'_>) -> ExtendedColorType {
+        match (info.color_type, info.bit_depth) {
+            (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
+            (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
+            (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
+            (png::ColorType::Grayscale, png::BitDepth::Eight) => ExtendedColorType::L8,
+            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ExtendedColorType::L16,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => ExtendedColorType::La1,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => ExtendedColorType::La2,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => ExtendedColorType::La4,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ExtendedColorType::La8,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ExtendedColorType::La16,
+            (png::ColorType::Rgb, png::BitDepth::One) => ExtendedColorType::Rgb1,
+            (png::ColorType::Rgb, png::BitDepth::Two) => ExtendedColorType::Rgb2,
+            (png::ColorType::Rgb, png::BitDepth::Four) => ExtendedColorType::Rgb4,
+            (png::ColorType::Rgb, png::BitDepth::Eight) => ExtendedColorType::Rgb8,
+            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ExtendedColorType::Rgb16,
+            (png::ColorType::Rgba, png::BitDepth::One) => ExtendedColorType::Rgba1,
+            (png::ColorType::Rgba, png::BitDepth::Two) => ExtendedColorType::Rgba2,
+            (png::ColorType::Rgba, png::BitDepth::Four) => ExtendedColorType::Rgba4,
+            (png::ColorType::Rgba, png::BitDepth::Eight) => ExtendedColorType::Rgba8,
+            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ExtendedColorType::Rgba16,
+            (png::ColorType::Indexed, png::BitDepth::One) => ExtendedColorType::Unknown(1),
+            (png::ColorType::Indexed, png::BitDepth::Two) => ExtendedColorType::Unknown(2),
+            (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
+            (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
+            (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
+        }
+    }
 }
 
 fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
@@ -238,39 +268,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     fn peek_layout(&mut self) -> ImageResult<ImageLayout> {
         let reader = self.ensure_reader_and_header()?;
         let (width, height) = reader.info().size();
-
-        let original = match (reader.info().color_type, reader.info().bit_depth) {
-            (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
-            (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
-            (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
-            (png::ColorType::Grayscale, png::BitDepth::Eight) => ExtendedColorType::L8,
-            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ExtendedColorType::L16,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => ExtendedColorType::La1,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => ExtendedColorType::La2,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => ExtendedColorType::La4,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ExtendedColorType::La8,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ExtendedColorType::La16,
-            (png::ColorType::Rgb, png::BitDepth::One) => ExtendedColorType::Rgb1,
-            (png::ColorType::Rgb, png::BitDepth::Two) => ExtendedColorType::Rgb2,
-            (png::ColorType::Rgb, png::BitDepth::Four) => ExtendedColorType::Rgb4,
-            (png::ColorType::Rgb, png::BitDepth::Eight) => ExtendedColorType::Rgb8,
-            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ExtendedColorType::Rgb16,
-            (png::ColorType::Rgba, png::BitDepth::One) => ExtendedColorType::Rgba1,
-            (png::ColorType::Rgba, png::BitDepth::Two) => ExtendedColorType::Rgba2,
-            (png::ColorType::Rgba, png::BitDepth::Four) => ExtendedColorType::Rgba4,
-            (png::ColorType::Rgba, png::BitDepth::Eight) => ExtendedColorType::Rgba8,
-            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ExtendedColorType::Rgba16,
-            (png::ColorType::Indexed, png::BitDepth::One) => ExtendedColorType::Unknown(1),
-            (png::ColorType::Indexed, png::BitDepth::Two) => ExtendedColorType::Unknown(2),
-            (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
-            (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
-            (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
-        };
-
-        Ok(ImageLayout {
-            original_color_type: Some(original),
-            ..ImageLayout::new(width, height, self.color_type)
-        })
+        Ok(ImageLayout::new(width, height, self.color_type))
     }
 
     fn format_attributes(&self) -> DecoderAttributes {
@@ -356,6 +354,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let reader = self.ensure_reader_and_header()?;
+        let original_color_type = Self::color_type_info(reader.info());
         reader.next_frame(buf).map_err(ImageError::from_png)?;
 
         // PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
@@ -372,6 +371,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         }
 
         Ok(DecodedImageAttributes {
+            original_color_type: Some(original_color_type),
             ..DecodedImageAttributes::default()
         })
     }

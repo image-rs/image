@@ -397,10 +397,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         let info = self.peek_info()?;
         let (width, height) = info.dimensions;
 
-        Ok(crate::ImageLayout {
-            original_color_type: Some(info.original_color_type),
-            ..crate::ImageLayout::new(width, height, info.color_type)
-        })
+        Ok(crate::ImageLayout::new(width, height, info.color_type))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -461,6 +458,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         let info = self.peek_info()?;
         let layout = self.peek_layout()?;
 
+        let original_color_type = Some(info.original_color_type);
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let Some(reader) = &mut self.inner else {
@@ -554,6 +552,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
         Ok(DecodedImageAttributes {
             orientation,
+            original_color_type,
             ..DecodedImageAttributes::default()
         })
     }

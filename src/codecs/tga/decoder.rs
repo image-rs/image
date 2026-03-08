@@ -397,10 +397,7 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         let width = try_dimensions(self.width)?;
         let height = try_dimensions(self.height)?;
 
-        Ok(crate::ImageLayout {
-            original_color_type: self.original_color_type,
-            ..crate::ImageLayout::new(width, height, self.color_type)
-        })
+        Ok(crate::ImageLayout::new(width, height, self.color_type))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -457,6 +454,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         self.reverse_encoding_in_output(buf);
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            original_color_type: self.original_color_type,
+            ..DecodedImageAttributes::default()
+        })
     }
 }

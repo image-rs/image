@@ -63,12 +63,6 @@ pub struct ImageLayout {
     pub width: u32,
     /// The number of pixels in the vertical direction.
     pub height: u32,
-    /// Is the underlying data converted into a different pixel format or color model?
-    ///
-    /// This field is currently an optional hint. The authoritative source for the memory size
-    /// required for [`ImageDecoder::read_image`][`crate::ImageDecoder`] remains the
-    /// [`color`][`ImageLayout::color`] field even if this information is present.
-    pub original_color_type: Option<crate::ExtendedColorType>,
 }
 
 impl ImageLayout {
@@ -98,7 +92,6 @@ impl ImageLayout {
             color,
             width: 0,
             height: 0,
-            original_color_type: None,
         }
     }
 

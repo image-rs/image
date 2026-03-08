@@ -193,6 +193,12 @@ pub struct DecodedImageAttributes {
     pub delay: Option<Delay>,
     /// Orientation of the image, not relayed through EXIF metadata.
     pub orientation: Option<Orientation>,
+    /// Is the underlying data converted into a different pixel format or color model?
+    ///
+    /// This field is currently an optional hint for encoding. The authoritative source for the
+    /// memory size required for [`ImageDecoder::read_image`][`crate::ImageDecoder`] remains the
+    /// [`color`][`ImageLayout::color`] field, you do not need to time travel this information.
+    pub original_color_type: Option<crate::ExtendedColorType>,
 }
 
 /// A hint when metadata corresponding to the image is decoded.

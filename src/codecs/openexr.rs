@@ -127,22 +127,19 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
         };
 
         // We may have discarded the alpha channel.
-        let original = if self.alpha_present_in_file {
-            ExtendedColorType::Rgba32F
-        } else {
-            ExtendedColorType::Rgb32F
-        };
-
-        Ok(crate::ImageLayout {
-            original_color_type: Some(original),
-            ..crate::ImageLayout::new(width, height, color)
-        })
+        Ok(crate::ImageLayout::new(width, height, color))
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
     fn read_image(&mut self, unaligned_bytes: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let layout = self.peek_layout()?;
         let (width, height) = layout.dimensions();
+
+        let original = if self.alpha_present_in_file {
+            ExtendedColorType::Rgba32F
+        } else {
+            ExtendedColorType::Rgb32F
+        };
 
         let reader = self.exr_reader.take().ok_or_else(|| {
             ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
@@ -222,7 +219,10 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             result.layer_data.channel_data.pixels.as_slice(),
         ));
 
-        Ok(DecodedImageAttributes::default())
+        Ok(DecodedImageAttributes {
+            original_color_type: Some(original),
+            ..DecodedImageAttributes::default()
+        })
     }
 }
 

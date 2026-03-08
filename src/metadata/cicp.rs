@@ -367,7 +367,6 @@ impl CicpTransform {
                 let (into, into_layout) = mox_into.map_layout(into_layout);
 
                 from.create_transform_f32(from_layout, into, into_layout, opt)
-                    .map(Arc::<dyn moxcms::TransformExecutor<f32> + Send + Sync>::from)
                     .ok()
             });
 
@@ -388,7 +387,6 @@ impl CicpTransform {
                     let (into, into_layout) = mox_into.map_layout(into_layout);
 
                     from.create_transform_8bit(from_layout, into, into_layout, opt)
-                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
                         .ok()
                 }),
                 f32_fallback.clone(),
@@ -400,7 +398,6 @@ impl CicpTransform {
                     let (into, into_layout) = mox_into.map_layout(into_layout);
 
                     from.create_transform_16bit(from_layout, into, into_layout, opt)
-                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
                         .ok()
                 }),
                 f32_fallback.clone(),

@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, ToPrimitive, Zero};
+use num_traits::{NumCast, Zero};
 
 use crate::{
     error::TryFromExtendedColorError,
@@ -164,6 +164,9 @@ pub enum ExtendedColorType {
     /// Pixel is 16-bit CMYK
     Cmyk16,
 
+    /// Pixel is 8-bit YCbCr
+    YCbCr8,
+
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
@@ -199,6 +202,7 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgb32F
+            | ExtendedColorType::YCbCr8
             | ExtendedColorType::Bgr8 => 3,
             ExtendedColorType::Rgba1
             | ExtendedColorType::Rgba2
@@ -246,6 +250,7 @@ impl ExtendedColorType {
             ExtendedColorType::Bgra8 => 32,
             ExtendedColorType::Cmyk8 => 32,
             ExtendedColorType::Cmyk16 => 64,
+            ExtendedColorType::YCbCr8 => 24,
             ExtendedColorType::Unknown(bpp) => bpp as u16,
         }
     }
@@ -285,6 +290,7 @@ impl ExtendedColorType {
             ExtendedColorType::Rgba16 => Some(ColorType::Rgba16),
             ExtendedColorType::Rgb32F => Some(ColorType::Rgb32F),
             ExtendedColorType::Rgba32F => Some(ColorType::Rgba32F),
+            ExtendedColorType::YCbCr8 => Some(ColorType::Rgb8),
             _ => None,
         }
     }
@@ -512,28 +518,37 @@ impl<T: Primitive> FromPrimitive<T> for T {
 }
 
 // from f32:
-// Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
-// as truncate towards zero. We emulate rounding by adding a bias.
 
-// All other special values are clamped inbetween 0.0 and 1.0 (infinities and subnormals)
-// NaN however always maps to NaN therefore we have to force it towards some value.
-// 1.0 (white) was picked as firefox and chrome choose to map NaN to that.
+// Note that float-to-int `as` casts truncate toward zero. We emulate rounding
+// to nearest by adding a bias of 0.5.
+//
+// The `as` cast also clamps all values outside the range of the target type to
+// the nearest bound, making explicit clamping unnecessary. The only exception
+// is NaN. `NaN as int` is 0, which is not what we want. Firefox and Chrome both
+// map NaN to the maximum value of the target type, so we do the same.
+//
+// To perform the mapping NaN -> 1.0, we use `float.min(1.0)`. This maps NaN
+// (and all values >1) to 1.0. Mapping values >1 to 1.0 is not a problem since
+// they will be clamped to the maximum value of the target type by the `as` cast
+// anyway.
+// Note that the value of 1.0 in `float.min(1.0)` was chosen arbitrarily. Any
+// value >= 1.0 would have the same effect.
 #[inline]
-fn normalize_float(float: f32, max: f32) -> f32 {
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let clamped = if !(float < 1.0) { 1.0 } else { float.max(0.0) };
-    (clamped * max).round()
+fn handle_nan_before_conversion(float: f32) -> f32 {
+    float.min(1.0)
 }
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(normalize_float(float, u8::MAX as f32)).unwrap()
+        let x = handle_nan_before_conversion(float);
+        (x * u8::MAX as f32 + 0.5) as u8
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(normalize_float(float, u16::MAX as f32)).unwrap()
+        let x = handle_nan_before_conversion(float);
+        (x * u16::MAX as f32 + 0.5) as u16
     }
 }
 
@@ -541,22 +556,19 @@ impl FromPrimitive<f32> for u16 {
 
 impl FromPrimitive<u16> for u8 {
     fn from_primitive(c16: u16) -> Self {
-        fn from(c: impl Into<u32>) -> u32 {
-            c.into()
-        }
-        // The input c is the numerator of `c / u16::MAX`.
-        // Derive numerator of `num / u8::MAX`, with rounding.
-        //
-        // This method is based on the inverse (see FromPrimitive<u8> for u16) and was tested
-        // exhaustively in Python. It's the same as the reference function:
-        //  round(c * (2**8 - 1) / (2**16 - 1))
-        NumCast::from((from(c16) + 128) / 257).unwrap()
+        // This expression calculates:
+        //    round(c * u8::MAX / u16::MAX)
+        //  = round(c * 255 / 65535)
+        //  = round(c / 257)
+        //  = trunc((c + 128) / 257)
+        let x: u32 = c16.into();
+        ((x + 128) / 257) as u8
     }
 }
 
 impl FromPrimitive<u16> for f32 {
     fn from_primitive(int: u16) -> Self {
-        (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
+        int as f32 / u16::MAX as f32
     }
 }
 
@@ -564,14 +576,17 @@ impl FromPrimitive<u16> for f32 {
 
 impl FromPrimitive<u8> for f32 {
     fn from_primitive(int: u8) -> Self {
-        (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
+        int as f32 / u8::MAX as f32
     }
 }
 
 impl FromPrimitive<u8> for u16 {
     fn from_primitive(c8: u8) -> Self {
-        let x = c8.to_u64().unwrap();
-        NumCast::from((x << 8) | x).unwrap()
+        // This weird casting to u64 and back to u16 is to help the compiler
+        // optimize RGBA8 -> RGBA16 conversions. Without it, the conversion is
+        // not properly vectorized and about 30% slower.
+        let x: u64 = c8.into();
+        ((x << 8) | x) as u16
     }
 }
 

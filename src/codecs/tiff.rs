@@ -9,6 +9,7 @@ use std::io::{self, BufRead, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
+use tiff::decoder::ifd::Value;
 use tiff::decoder::{Decoder, DecodingResult};
 use tiff::tags::Tag;
 
@@ -23,6 +24,8 @@ use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
 const TAG_XML_PACKET: Tag = Tag::Unknown(700);
+const TAG_YCBCR_COEFFICIENTS: Tag = Tag::Unknown(529);
+const TAG_YCBCR_SUBSAMPLING: Tag = Tag::Unknown(530);
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -48,6 +51,7 @@ struct ImageInfo {
     dimensions: (u32, u32),
     color_type: ColorType,
     original_color_type: ExtendedColorType,
+    ycbcr_coefficients: [f32; 3],
 }
 
 impl<R> TiffDecoder<R>
@@ -126,6 +130,7 @@ where
             tiff::ColorType::CMYK(16) => ColorType::Rgb16,
             tiff::ColorType::RGB(32) => ColorType::Rgb32F,
             tiff::ColorType::RGBA(32) => ColorType::Rgba32F,
+            tiff::ColorType::YCbCr(8) => ColorType::Rgb8,
 
             tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
                 return Err(err_unknown_color_type(n))
@@ -151,13 +156,21 @@ where
             tiff::ColorType::Gray(1) => ExtendedColorType::L1,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
             tiff::ColorType::CMYK(16) => ExtendedColorType::Cmyk16,
+            tiff::ColorType::YCbCr(8) => ExtendedColorType::YCbCr8,
             _ => color_type.into(),
         };
+
+        let mut ycbcr_coefficients = [0.0; 3];
+        if matches!(tiff_color_type, tiff::ColorType::YCbCr(8)) {
+            check_ycbcr_subsampling(reader)?;
+            ycbcr_coefficients = read_ycbcr_coefficients(reader)?;
+        }
 
         self.info = ImageState::At(ImageInfo {
             dimensions,
             color_type,
             original_color_type,
+            ycbcr_coefficients,
         });
 
         self.redistribute_limits();
@@ -266,6 +279,79 @@ impl ImageInfo {
     }
 }
 
+fn check_ycbcr_subsampling<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> ImageResult<()> {
+    let compression = decoder
+        .find_tag(Tag::Compression)
+        .map_err(ImageError::from_tiff_decode)?
+        .and_then(|v| v.into_u16().ok());
+
+    const COMPRESSION_MODERN_JPEG: u16 = 7;
+    if compression == Some(COMPRESSION_MODERN_JPEG) {
+        return Ok(());
+    }
+
+    let subsampling = decoder
+        .find_tag(TAG_YCBCR_SUBSAMPLING)
+        .map_err(ImageError::from_tiff_decode)?
+        .map(|value| value.into_u16_vec())
+        .transpose()
+        .map_err(ImageError::from_tiff_decode)?;
+
+    let subsampling = subsampling.as_deref().unwrap_or(&[2, 2]);
+
+    if subsampling != [1, 1] {
+        return Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Tiff.into(),
+                UnsupportedErrorKind::GenericFeature(format!(
+                "Subsampling {:?} is not supported. Only (1,1) is supported for non-JPEG YCbCr.",
+                subsampling
+            )),
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+fn read_ycbcr_coefficients<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> ImageResult<[f32; 3]> {
+    let value = decoder
+        .find_tag(TAG_YCBCR_COEFFICIENTS)
+        .map_err(ImageError::from_tiff_decode)?;
+
+    const DEFAULT_YCBCR_COEFFICIENTS: [f32; 3] = [0.299, 0.587, 0.114];
+    let Some(value) = value else {
+        return Ok(DEFAULT_YCBCR_COEFFICIENTS);
+    };
+
+    let list = match value {
+        Value::List(list) if list.len() == 3 => list,
+        _ => {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Tiff.into(),
+                "YCbCrCoefficients tag (529) must contain exactly 3 rational values".to_string(),
+            )));
+        }
+    };
+
+    let mut coefficients = [0.0f32; 3];
+    for (i, value) in list.iter().enumerate() {
+        match value {
+            Value::Rational(num, denom) if *denom != 0 => {
+                coefficients[i] = *num as f32 / *denom as f32
+            }
+            _ => {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Tiff.into(),
+                    "YCbCrCoefficients tag (529) contains an invalid rational value".to_string(),
+                )));
+            }
+        }
+    }
+
+    Ok(coefficients)
+}
+
 fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Result<(), ImageError> {
     use tiff::{tags::SampleFormat, ColorType};
     let num_bits = match color_type {
@@ -274,6 +360,7 @@ fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Resul
         ColorType::RGB(k) => k,
         ColorType::RGBA(k) => k,
         ColorType::GrayA(k) => k,
+        ColorType::YCbCr(8) => 8,
         ColorType::Palette(k) | ColorType::YCbCr(k) => {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -436,6 +523,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 dimensions: (0, 0),
                 color_type: ColorType::L8,
                 original_color_type: ExtendedColorType::L8,
+                ycbcr_coefficients: [0.0; 3],
             },
         };
 
@@ -509,6 +597,13 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                     out_row.copy_from_slice(&utils::expand_bits(1, width, in_row));
                 }
             }
+            DecodingResult::U8(v) if info.original_color_type == ExtendedColorType::YCbCr8 => {
+                let [lr, lg, lb] = info.ycbcr_coefficients;
+                let ycbcr = v.as_chunks::<3>().0;
+                let out = buf.as_chunks_mut::<3>().0;
+
+                ycbcr_to_rgb8(ycbcr, lr, lg, lb, out);
+            }
             DecodingResult::U8(v) => {
                 buf.copy_from_slice(v);
             }
@@ -581,6 +676,26 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
+}
+
+fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3]]) {
+    let coeff_r = 2.0 * (1.0 - lr);
+    let coeff_b = 2.0 * (1.0 - lb);
+    let inv_lg = 1.0 / lg;
+
+    for (src, dst) in ycbcr.iter().zip(out.iter_mut()) {
+        let y = f32::from(src[0]);
+        let cb = f32::from(src[1]) - 128.0;
+        let cr = f32::from(src[2]) - 128.0;
+
+        let r = y + cr * coeff_r;
+        let b = y + cb * coeff_b;
+        let g = (y - lr * r - lb * b) * inv_lg;
+
+        dst[0] = (r + 0.5) as u8;
+        dst[1] = (g + 0.5) as u8;
+        dst[2] = (b + 0.5) as u8;
+    }
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {

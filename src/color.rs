@@ -582,8 +582,11 @@ impl FromPrimitive<u8> for f32 {
 
 impl FromPrimitive<u8> for u16 {
     fn from_primitive(c8: u8) -> Self {
-        let x: u16 = c8.into();
-        (x << 8) | x
+        // This weird casting to u64 and back to u16 is to help the compiler
+        // optimize RGBA8 -> RGBA16 conversions. Without it, the conversion is
+        // not properly vectorized and about 30% slower.
+        let x: u64 = c8.into();
+        ((x << 8) | x) as u16
     }
 }
 

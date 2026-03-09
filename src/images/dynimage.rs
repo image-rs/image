@@ -1163,10 +1163,11 @@ impl DynamicImage {
     ///
     /// ```
     /// # fn only_check_if_this_compiles() -> Result<(), Box<dyn std::error::Error>> {
-    /// use image::{ImageReader, metadata::Orientation};
+    /// use image::{ImageReaderOptions, metadata::Orientation};
     ///
-    /// let mut image = ImageReader::open("file.jpg")?.decode()?;
+    /// let mut image = ImageReaderOptions::open("file.jpg")?.decode()?;
     /// image.apply_orientation(Orientation::Rotate90);
+    ///
     /// # Ok(())
     /// # }
     /// ```

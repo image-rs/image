@@ -334,7 +334,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     ///
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn decode(self) -> ImageResult<DynamicImage> {
-        self.into_reader()?.decode()
+        let (image, _meta) = self.into_reader()?.decode()?;
+        Ok(image)
     }
 
     fn require_format(&mut self) -> ImageResult<Format> {
@@ -440,10 +441,10 @@ impl ImageReader<'_> {
     /// If you need to also access the metadata, which may become available during decoding, then
     /// you should use [`Self::decode_into`] instead which will also reuse the buffer where
     /// possible.
-    pub fn decode(&mut self) -> ImageResult<DynamicImage> {
+    pub fn decode(&mut self) -> ImageResult<(DynamicImage, DecodedImageMetadata<'_>)> {
         let mut empty = DynamicImage::new_luma8(0, 0);
-        self.decode_into(&mut empty)?;
-        Ok(empty)
+        let meta = self.decode_into(&mut empty)?;
+        Ok((empty, meta))
     }
 
     /// Decode an image into a provided buffer and retrieve metadata.

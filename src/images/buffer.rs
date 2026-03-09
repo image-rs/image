@@ -1462,6 +1462,58 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     }
 }
 
+impl<S, Container> ImageBuffer<Rgb<S>, Container>
+where
+    Rgb<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
+{
+    /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
+    pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
+        let mut img = Self::from_raw(width, height, container)?;
+
+        for pix in img.pixels_mut() {
+            pix.0.reverse();
+        }
+
+        Some(img)
+    }
+
+    /// Return the underlying raw buffer after converting it into `Bgr` channel order.
+    pub fn into_raw_bgr(mut self) -> Container {
+        for pix in self.pixels_mut() {
+            pix.0.reverse();
+        }
+
+        self.into_raw()
+    }
+}
+
+impl<S, Container> ImageBuffer<Rgba<S>, Container>
+where
+    Rgba<S>: PixelWithColorType<Subpixel = S>,
+    Container: DerefMut<Target = [S]>,
+{
+    /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
+    pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
+        let mut img = Self::from_raw(width, height, container)?;
+
+        for pix in img.pixels_mut() {
+            pix.0[..3].reverse();
+        }
+
+        Some(img)
+    }
+
+    /// Return the underlying raw buffer after converting it into `BgrA` channel order.
+    pub fn into_raw_bgra(mut self) -> Container {
+        for pix in self.pixels_mut() {
+            pix.0[..3].reverse();
+        }
+
+        self.into_raw()
+    }
+}
+
 /// Provides color conversions for whole image buffers.
 pub trait ConvertBuffer<T> {
     /// Converts `self` to a buffer of type T

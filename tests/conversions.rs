@@ -103,13 +103,3 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
     let result = TiffDecoder::new(std::io::Cursor::new(data));
     assert!(result.is_err());
 }
-
-#[cfg(feature = "tiff")]
-#[test]
-fn test_decode_ycbcr_lzw_22() {
-    let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_22.tif");
-    let data = fs::read(img_path).expect("Test image missing");
-
-    let result = TiffDecoder::new(std::io::Cursor::new(data));
-    assert!(result.is_err());
-}

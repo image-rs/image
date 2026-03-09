@@ -21,6 +21,14 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
         b.iter(|| black_box(&rgb_source).to_rgba16());
     });
 
+    c.bench_function("cast_dynamic_rgba8_rgb32f", |b| {
+        b.iter(|| black_box(&rgb_source).to_rgb32f());
+    });
+
+    c.bench_function("cast_dynamic_rgba8_rgba32f", |b| {
+        b.iter(|| black_box(&rgb_source).to_rgba32f());
+    });
+
     let luma_source =
         DynamicImage::ImageLuma8(ImageBuffer::from_pixel(256, 256, image::Luma([0u8])));
 
@@ -64,6 +72,33 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
 
     c.bench_function("cast_dynamic_luma_alpha16_luma16", |b| {
         b.iter(|| black_box(&la_source).to_luma16());
+    });
+
+    let rgba32_source =
+        DynamicImage::ImageRgba32F(ImageBuffer::from_pixel(256, 256, Rgba(Default::default())));
+
+    c.bench_function("cast_dynamic_rgba32f_rgb8", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgb8());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_rgba8", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgba8());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_rgb16", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgb16());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_rgba16", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgba16());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_rgb32f", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgb32f());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_rgba32f", |b| {
+        b.iter(|| black_box(&rgba32_source).to_rgba32f());
     });
 }
 

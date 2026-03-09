@@ -562,10 +562,7 @@ impl FromPrimitive<u16> for u8 {
 
 impl FromPrimitive<u16> for f32 {
     fn from_primitive(int: u16) -> Self {
-        // Note: This conversion is not bit-exact due to 1/u16::MAX being
-        // rounded. Error is at most 1 ulp.
-        const F: f32 = 1.0 / u16::MAX as f32;
-        int as f32 * F
+        int as f32 / u16::MAX as f32
     }
 }
 
@@ -573,10 +570,7 @@ impl FromPrimitive<u16> for f32 {
 
 impl FromPrimitive<u8> for f32 {
     fn from_primitive(int: u8) -> Self {
-        // Note: This conversion is not bit-exact due to 1/u8::MAX being
-        // rounded. Error is at most 1 ulp.
-        const F: f32 = 1.0 / u8::MAX as f32;
-        int as f32 * F
+        int as f32 / u8::MAX as f32
     }
 }
 

@@ -194,7 +194,7 @@ impl ToStorage<u16> for u32 {
 impl ToStorage<u16> for f32 {
     #[inline(always)]
     fn to_(self) -> u16 {
-        self.round().min(u16::MAX as f32) as u16
+        (self.min(u16::MAX as f32) + 0.5) as u16
     }
 }
 

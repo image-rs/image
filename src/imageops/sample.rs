@@ -1207,10 +1207,6 @@ impl GaussianBlurParameters {
     /// - `y_axis_kernel_size` — height of the vertical kernel in pixels, must be > 0
     /// - `y_axis_sigma` — standard deviation for the vertical pass
     ///
-    /// For uniform (isotropic) blur, pass equal values for both axes.
-    /// Larger sigma = more blur; kernel size should typically be `~2*ceil(3*sigma)+1`
-    /// to fully cover the Gaussian curve.
-    ///
     /// # Panics
     /// Panics if any kernel size is 0, not odd, or if any sigma is zero, negative, infinite,
     /// NaN, or subnormal.

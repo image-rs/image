@@ -1241,7 +1241,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         "X axis kernel size must not be zero"
     );
     assert!(
-        parameters.x_axis_sigma.is_normal(),
+        parameters.x_axis_sigma.is_normal() && parameters.x_axis_sigma > 0.,
         "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
     );
     assert!(
@@ -1249,7 +1249,7 @@ pub(crate) fn gaussian_blur_dyn_image(
         "Y axis kernel size must not be zero"
     );
     assert!(
-        parameters.y_axis_sigma.is_normal(),
+        parameters.y_axis_sigma.is_normal() && parameters.y_axis_sigma > 0.,
         "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
     );
     let x_axis_kernel = get_gaussian_kernel_1d(
@@ -1443,7 +1443,7 @@ where
         "X axis kernel size must not be zero"
     );
     assert!(
-        parameters.x_axis_sigma.is_normal(),
+        parameters.x_axis_sigma.is_normal() && parameters.x_axis_sigma > 0.,
         "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
     );
     assert!(
@@ -1451,7 +1451,7 @@ where
         "Y axis kernel size must not be zero"
     );
     assert!(
-        parameters.y_axis_sigma.is_normal(),
+        parameters.y_axis_sigma.is_normal() && parameters.y_axis_sigma > 0.,
         "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
     );
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];

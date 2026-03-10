@@ -1352,8 +1352,12 @@ impl ColorComponentForCicp for u8 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        // Note: saturating conversion does the clamp for us
-        (val * Self::MAX as f32).round() as u8
+        // Standard trick to convert f32 (0.0-1.0) to u8 (0-255) with rounding
+        // to nearest. `as u8` saturates, so it will clamp values outside the
+        // range [0.0, 1.0] to 0 or 255 (NaN is mapped to 0). `as u8` also
+        // truncates towards zero, so adding a bias of 0.5 before the truncation
+        // achieves rounding to the nearest integer.
+        (val * Self::MAX as f32 + 0.5) as u8
     }
 }
 
@@ -1365,8 +1369,8 @@ impl ColorComponentForCicp for u16 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        // Note: saturating conversion does the clamp for us
-        (val * Self::MAX as f32).round() as u16
+        // Same as for u8.
+        (val * Self::MAX as f32 + 0.5) as u16
     }
 }
 

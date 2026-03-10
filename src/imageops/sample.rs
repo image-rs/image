@@ -1108,6 +1108,9 @@ impl GaussianBlurParameters {
     };
 
     /// Creates a new parameters set from radius only.
+    ///
+    /// # Panics
+    /// Panics any radius is negative, subnormal, NaN or infinity.
     pub fn new_from_radius(radius: f32) -> GaussianBlurParameters {
         // Previous implementation was allowing passing 0 so we'll allow here also.
         assert!(radius >= 0.0);
@@ -1124,13 +1127,12 @@ impl GaussianBlurParameters {
     ///
     /// Kernel size will be rounded to nearest odd, and used with fraction
     /// to compute accurate required sigma.
+    ///
+    /// # Panics
+    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal or not odd.
     pub fn new_from_kernel_size(kernel_size: f32) -> GaussianBlurParameters {
         assert!(
-            kernel_size > 0.,
-            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
-        );
-        assert!(
-            kernel_size.is_normal(),
+            kernel_size > 0. && kernel_size.is_normal(),
             "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
         );
         let i_kernel_size = GaussianBlurParameters::round_to_nearest_odd(kernel_size);
@@ -1148,24 +1150,19 @@ impl GaussianBlurParameters {
     ///
     /// Kernel size will be rounded to nearest odd, and used with fraction
     /// to compute accurate required sigma.
+    ///
+    /// # Panics
+    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal or not odd.
     pub fn new_anisotropic_kernel_size(
         x_axis_kernel_size: f32,
         y_axis_kernel_size: f32,
     ) -> GaussianBlurParameters {
         assert!(
-            x_axis_kernel_size > 0.,
+            x_axis_kernel_size > 0. && x_axis_kernel_size.is_normal(),
             "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
         );
         assert!(
-            y_axis_kernel_size.is_normal(),
-            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
-        );
-        assert!(
-            y_axis_kernel_size > 0.,
-            "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
-        );
-        assert!(
-            y_axis_kernel_size.is_normal(),
+            y_axis_kernel_size > 0. && y_axis_kernel_size.is_normal(),
             "Kernel size do not allow infinities, zeros, NaNs or subnormals or negatives"
         );
         let x_kernel_size = GaussianBlurParameters::round_to_nearest_odd(x_axis_kernel_size);
@@ -1183,9 +1180,12 @@ impl GaussianBlurParameters {
     }
 
     /// Creates a new parameters set from sigma only
+    ///
+    /// # Panics
+    /// Panics if sigma is zero, negative, infinite, NaN, or subnormal.
     pub fn new_from_sigma(sigma: f32) -> GaussianBlurParameters {
         assert!(
-            sigma.is_normal(),
+            sigma.is_normal() && sigma > 0.,
             "Sigma cannot be NaN, Infinities, subnormal or zero"
         );
         assert!(sigma > 0.0, "Sigma must be positive");
@@ -1195,6 +1195,52 @@ impl GaussianBlurParameters {
             x_axis_sigma: sigma,
             y_axis_kernel_size: kernel_size,
             y_axis_sigma: sigma,
+        }
+    }
+
+    /// Creates a new [`GaussianBlurParameters`] with independent kernel sizes and sigmas
+    /// for each axis, allowing non-uniform (anisotropic) blurring.
+    ///
+    /// # Parameters
+    /// - `x_axis_kernel_size` — width of the horizontal kernel in pixels, must be > 0
+    /// - `x_axis_sigma` — standard deviation for the horizontal pass; controls blur strength
+    /// - `y_axis_kernel_size` — height of the vertical kernel in pixels, must be > 0
+    /// - `y_axis_sigma` — standard deviation for the vertical pass
+    ///
+    /// For uniform (isotropic) blur, pass equal values for both axes.
+    /// Larger sigma = more blur; kernel size should typically be `~2*ceil(3*sigma)+1`
+    /// to fully cover the Gaussian curve.
+    ///
+    /// # Panics
+    /// Panics if any kernel size is 0, not odd, or if any sigma is zero, negative, infinite,
+    /// NaN, or subnormal.
+    pub fn new(
+        x_axis_kernel_size: u32,
+        x_axis_sigma: f32,
+        y_axis_kernel_size: u32,
+        y_axis_sigma: f32,
+    ) -> GaussianBlurParameters {
+        assert!(
+            x_axis_kernel_size > 0 || !x_axis_kernel_size.is_multiple_of(2),
+            "Kernel size must be more than 0 and must be odd"
+        );
+        assert!(
+            y_axis_kernel_size > 0 || !y_axis_kernel_size.is_multiple_of(2),
+            "Kernel size must be more than 0 and must be odd"
+        );
+        assert!(
+            x_axis_sigma.is_normal() && x_axis_sigma > 0.,
+            "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        assert!(
+            y_axis_sigma.is_normal() && y_axis_sigma > 0.,
+            "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+        );
+        GaussianBlurParameters {
+            x_axis_kernel_size,
+            x_axis_sigma,
+            y_axis_kernel_size,
+            y_axis_sigma,
         }
     }
 
@@ -1236,22 +1282,6 @@ pub(crate) fn gaussian_blur_dyn_image(
     image: &DynamicImage,
     parameters: GaussianBlurParameters,
 ) -> DynamicImage {
-    assert!(
-        parameters.x_axis_kernel_size > 0,
-        "X axis kernel size must not be zero"
-    );
-    assert!(
-        parameters.x_axis_sigma.is_normal() && parameters.x_axis_sigma > 0.,
-        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
-    );
-    assert!(
-        parameters.y_axis_kernel_size > 0,
-        "Y axis kernel size must not be zero"
-    );
-    assert!(
-        parameters.y_axis_sigma.is_normal() && parameters.y_axis_sigma > 0.,
-        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
-    );
     let x_axis_kernel = get_gaussian_kernel_1d(
         parameters.x_axis_kernel_size as usize,
         parameters.x_axis_sigma,
@@ -1438,22 +1468,6 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 where
     I::Pixel: 'static,
 {
-    assert!(
-        parameters.x_axis_kernel_size > 0,
-        "X axis kernel size must not be zero"
-    );
-    assert!(
-        parameters.x_axis_sigma.is_normal() && parameters.x_axis_sigma > 0.,
-        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
-    );
-    assert!(
-        parameters.y_axis_kernel_size > 0,
-        "Y axis kernel size must not be zero"
-    );
-    assert!(
-        parameters.y_axis_sigma.is_normal() && parameters.y_axis_sigma > 0.,
-        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
-    );
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
     let transient_chunks = transient.as_chunks_mut::<CN>().0.iter_mut();
     for (pixel, dst) in image.pixels().zip(transient_chunks) {

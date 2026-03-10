@@ -6,7 +6,7 @@
 
 ## Changes
 
-### Version 0.25.10 (unreleased)
+### Version 0.25.10
 
 Features:
 - Added `GenericImage::copy_from_samples` that can be implemented for images
@@ -36,11 +36,17 @@ Structural changes:
   provides `to_pixel_view` based on the inner type.
 - `ImageBuffer::as_flat_samples` no longer requires `AsRef<[P::Subpixel]>` for
   the underlying container, just `Deref` (#2777).
-- Bump `tiff` to `0.11`, supporting planar layout images.
 
 Bug fixes:
 - Fixed a panic in TGA where indices have more bits than mapped colors (#2673).
-- Fix TGA inconsistencies (#2608).
+
+Notable decoder changes:
+- Bump `tiff` to `0.11`, supporting planar layout images (#2743).
+- ICC profiles can now be written for TIFF files (#2746)
+- Update `ravif` to `0.13`, supporting EXIF (#2733).
+- Update `jpeg-encoder` to `0.7` bringing SIMD acceleration (#2736).
+- The `pnm` decoder decodes binary data quicker with fewer allocations (#2797).
+- The `tga` decoder handles 5-bit data and colormaps correctly (#2608, #2609).
 
 Compatibility notes (new section):
 - Bump rust-version to `1.88`.

@@ -1236,6 +1236,22 @@ pub(crate) fn gaussian_blur_dyn_image(
     image: &DynamicImage,
     parameters: GaussianBlurParameters,
 ) -> DynamicImage {
+    assert!(
+        parameters.x_axis_kernel_size > 0,
+        "X axis kernel size must not be zero"
+    );
+    assert!(
+        parameters.x_axis_sigma.is_normal(),
+        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+    );
+    assert!(
+        parameters.y_axis_kernel_size > 0,
+        "Y axis kernel size must not be zero"
+    );
+    assert!(
+        parameters.y_axis_sigma.is_normal(),
+        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+    );
     let x_axis_kernel = get_gaussian_kernel_1d(
         parameters.x_axis_kernel_size as usize,
         parameters.x_axis_sigma,
@@ -1422,6 +1438,22 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 where
     I::Pixel: 'static,
 {
+    assert!(
+        parameters.x_axis_kernel_size > 0,
+        "X axis kernel size must not be zero"
+    );
+    assert!(
+        parameters.x_axis_sigma.is_normal(),
+        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+    );
+    assert!(
+        parameters.y_axis_kernel_size > 0,
+        "Y axis kernel size must not be zero"
+    );
+    assert!(
+        parameters.y_axis_sigma.is_normal(),
+        "Kernel sigma do not allow infinities, zeros, NaNs or subnormals or negatives"
+    );
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
     let transient_chunks = transient.as_chunks_mut::<CN>().0.iter_mut();
     for (pixel, dst) in image.pixels().zip(transient_chunks) {

@@ -26,7 +26,7 @@ use rgb::AsPixels;
 /// Writes one image into the chosen output.
 pub struct AvifEncoder<W> {
     inner: W,
-    encoder: Encoder,
+    encoder: Encoder<'static>,
 }
 
 /// An enumeration over supported AVIF color spaces
@@ -128,6 +128,12 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
             ImageError::Encoding(EncodingError::new(ImageFormat::Avif.into(), err))
         })?;
         self.inner.write_all(&data.avif_file)?;
+        Ok(())
+    }
+
+    fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
+        let encoder = core::mem::replace(&mut self.encoder, Encoder::new());
+        self.encoder = encoder.with_exif(exif);
         Ok(())
     }
 }

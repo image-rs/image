@@ -1129,7 +1129,7 @@ impl GaussianBlurParameters {
     /// to compute accurate required sigma.
     ///
     /// # Panics
-    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal or not odd.
+    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal.
     pub fn new_from_kernel_size(kernel_size: f32) -> GaussianBlurParameters {
         assert!(
             kernel_size > 0. && kernel_size.is_normal(),
@@ -1152,7 +1152,7 @@ impl GaussianBlurParameters {
     /// to compute accurate required sigma.
     ///
     /// # Panics
-    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal or not odd.
+    /// Panics any kernel size is zero, negative, infinite, NaN, subnormal.
     pub fn new_anisotropic_kernel_size(
         x_axis_kernel_size: f32,
         y_axis_kernel_size: f32,

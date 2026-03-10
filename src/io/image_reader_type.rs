@@ -48,7 +48,7 @@ enum Format {
 ///
 /// It is also possible to make a guess based on the content. This is especially handy if the
 /// source is some blob in memory and you have constructed the reader in another way. Here is an
-/// example with a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
+/// example with a `pbm` black-and-white subformat that encodes its pixel matrix with ascii values.
 ///
 /// ```
 /// # use image::ImageError;
@@ -64,7 +64,7 @@ enum Format {
 /// let mut reader = ImageReader::new(Cursor::new(raw_data))
 ///     .with_guessed_format()
 ///     .expect("Cursor io never fails");
-/// assert_eq!(reader.format(), Some(ImageFormat::Pnm));
+/// assert_eq!(reader.format(), Some(ImageFormat::Pbm));
 ///
 /// # #[cfg(feature = "pnm")]
 /// let image = reader.decode()?;
@@ -224,7 +224,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReader<R> {
             #[cfg(feature = "exr")]
             ImageFormat::OpenExr => Box::new(openexr::OpenExrDecoder::new(reader)?),
             #[cfg(feature = "pnm")]
-            ImageFormat::Pnm => Box::new(pnm::PnmDecoder::new(reader)?),
+            ImageFormat::Pbm
+            | ImageFormat::Pgm
+            | ImageFormat::Ppm
+            | ImageFormat::Pnm
+            | ImageFormat::Pam => Box::new(pnm::PnmDecoder::new(reader)?),
             #[cfg(feature = "ff")]
             ImageFormat::Farbfeld => Box::new(farbfeld::FarbfeldDecoder::new(reader)?),
             #[cfg(feature = "qoi")]

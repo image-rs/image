@@ -199,22 +199,22 @@ pub use crate::images::flat;
 ///
 /// # Supported formats
 ///
-/// | Feature | Format   | Notes
-/// | ------- | -------- | -----
-/// | `avif`  | AVIF     | Decoding requires the `avif-native` feature, uses the libdav1d C library.
-/// | `bmp`   | BMP      |
-/// | `exr`   | OpenEXR  |
-/// | `ff`    | Farbfeld |
-/// | `gif`   | GIF      |
-/// | `hdr`   | HDR      |
-/// | `ico`   | ICO      |
-/// | `jpeg`  | JPEG     |
-/// | `png`   | PNG      |
-/// | `pnm`   | PNM      |
-/// | `qoi`   | QOI      |
-/// | `tga`   | TGA      |
-/// | `tiff`  | TIFF     |
-/// | `webp`  | WebP     | Only lossless encoding is currently supported.
+/// | Feature | Format(s)               | Notes
+/// | ------- | ----------------------- | -----
+/// | `avif`  | AVIF                    | Decoding requires the `avif-native` feature, uses the libdav1d C library.
+/// | `bmp`   | BMP                     |
+/// | `exr`   | OpenEXR                 |
+/// | `ff`    | Farbfeld                |
+/// | `gif`   | GIF                     |
+/// | `hdr`   | HDR                     |
+/// | `ico`   | ICO                     |
+/// | `jpeg`  | JPEG                    |
+/// | `png`   | PNG                     |
+/// | `pnm`   | PBM, PGM, PPM, PNM, PAM |
+/// | `qoi`   | QOI                     |
+/// | `tga`   | TGA                     |
+/// | `tiff`  | TIFF                    |
+/// | `webp`  | WebP                    | Only lossless encoding is currently supported.
 ///
 /// ## A note on format specific features
 ///

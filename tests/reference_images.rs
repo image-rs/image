@@ -187,7 +187,7 @@ fn main() {
     }
 
     let args = Arguments::from_args();
-    libtest_mimic::run(&args, trials).exit();
+    libtest_mimic::run(&args, trials).exit_if_failed();
 }
 
 /// Describes a single test case of `check_references`.

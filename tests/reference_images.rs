@@ -15,7 +15,7 @@ use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
 use walkdir::WalkDir;
 
-fn main() {
+fn main() -> std::process::ExitCode {
     let mut trials = Vec::new();
 
     let image_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -187,7 +187,7 @@ fn main() {
     }
 
     let args = Arguments::from_args();
-    libtest_mimic::run(&args, trials).exit_if_failed();
+    libtest_mimic::run(&args, trials).exit_code()
 }
 
 /// Describes a single test case of `check_references`.

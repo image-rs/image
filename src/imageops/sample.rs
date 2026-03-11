@@ -1183,12 +1183,35 @@ impl GaussianBlurParameters {
     }
 
     /// Creates a new parameters set from sigma only
+    ///
+    /// # Panics
+    /// Panics if sigma is negative, NaN or infinity.
     pub fn new_from_sigma(sigma: f32) -> GaussianBlurParameters {
         assert!(
-            sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, subnormal or zero"
+            sigma >= 0.0 && sigma.is_finite(),
+            "Sigma must be non-negative and finite"
         );
-        assert!(sigma > 0.0, "Sigma must be positive");
+
+        /// As sigma gets smaller, the blur kernel quickly approaches all zeros
+        /// with the center being 1, which is an identity for 1D convolution.
+        /// I.e. no blur. So we define a threshold for sigma below which we
+        /// consider the blur to be an identity.
+        ///
+        /// The threshold is 0.2, because at sigma = 0.2, the center weight of
+        /// the kernel will 99.9993% of the sum of all weights.
+        const IDENTITY_THRESHOLD: f32 = 0.2;
+        if sigma < IDENTITY_THRESHOLD {
+            // Any kernel of size 1 is the identity, so sigma doesn't matter.
+            // However, we pick sigma=1 to avoid  potential issues with NaN,
+            // infinities, and subnormals.
+            return GaussianBlurParameters {
+                x_axis_kernel_size: 1,
+                x_axis_sigma: 1.0,
+                y_axis_kernel_size: 1,
+                y_axis_sigma: 1.0,
+            };
+        }
+
         let kernel_size = GaussianBlurParameters::kernel_size_from_sigma(sigma);
         GaussianBlurParameters {
             x_axis_kernel_size: kernel_size,

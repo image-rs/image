@@ -1207,9 +1207,9 @@ impl GaussianBlurParameters {
         /// precision.
         const IDENTITY_THRESHOLD: f32 = 0.16986436;
         if sigma < IDENTITY_THRESHOLD {
-            // Any kernel of size 1 is the identity, so sigma doesn't matter.
-            // However, we pick sigma=1 to avoid  potential issues with NaN,
-            // infinities, and subnormals.
+            // Any (normalized) kernel of size 1 is the identity, so sigma
+            // doesn't matter. However, we pick sigma=1 to avoid  potential
+            // issues with NaN, infinities, and subnormals.
             return GaussianBlurParameters {
                 x_axis_kernel_size: 1,
                 x_axis_sigma: 1.0,

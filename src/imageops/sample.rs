@@ -1183,12 +1183,41 @@ impl GaussianBlurParameters {
     }
 
     /// Creates a new parameters set from sigma only
+    ///
+    /// # Panics
+    /// Panics if sigma is negative, NaN or infinity.
     pub fn new_from_sigma(sigma: f32) -> GaussianBlurParameters {
         assert!(
-            sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, subnormal or zero"
+            sigma >= 0.0 && sigma.is_finite(),
+            "Sigma must be non-negative and finite"
         );
-        assert!(sigma > 0.0, "Sigma must be positive");
+
+        /// As sigma gets smaller, the blur kernel quickly approaches all zeros
+        /// with the center being 1, which is an identity for 1D convolution.
+        /// I.e. no blur. So we define a threshold for sigma below which we
+        /// consider the blur to be an identity.
+        ///
+        /// Small sigma generally map to a 3x1 kernel. This kernel will have the
+        /// values `[w, 1.0, w]` before normalization (ignoring shared factors),
+        /// where `w = exp(-0.5 / pow(sigma, 2))`. If the sum of weights is
+        /// rounded to 1, i.e. `1.0 + 2.0 * w == 1.0`, then w is small enough
+        /// that the kernel is effectively an identity. So we pick this
+        /// threshold as the largest sigma such that
+        /// `1.0 + 2.0 * exp(-0.5 / pow(sigma, 2)) == 1.0` when rounded to f32
+        /// precision.
+        const IDENTITY_THRESHOLD: f32 = 0.16986436;
+        if sigma < IDENTITY_THRESHOLD {
+            // Any (normalized) kernel of size 1 is the identity, so sigma
+            // doesn't matter. However, we pick sigma=1 to avoid  potential
+            // issues with NaN, infinities, and subnormals.
+            return GaussianBlurParameters {
+                x_axis_kernel_size: 1,
+                x_axis_sigma: 1.0,
+                y_axis_kernel_size: 1,
+                y_axis_sigma: 1.0,
+            };
+        }
+
         let kernel_size = GaussianBlurParameters::kernel_size_from_sigma(sigma);
         GaussianBlurParameters {
             x_axis_kernel_size: kernel_size,

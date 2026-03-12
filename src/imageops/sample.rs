@@ -1197,9 +1197,15 @@ impl GaussianBlurParameters {
         /// I.e. no blur. So we define a threshold for sigma below which we
         /// consider the blur to be an identity.
         ///
-        /// The threshold is 0.2, because at sigma = 0.2, the center weight of
-        /// the kernel will 99.9993% of the sum of all weights.
-        const IDENTITY_THRESHOLD: f32 = 0.2;
+        /// Small sigma generally map to a 3x1 kernel. This kernel will have the
+        /// values `[w, 1.0, w]` before normalization (ignoring shared factors),
+        /// where `w = exp(-0.5 / pow(sigma, 2))`. If the sum of weights is
+        /// rounded to 1, i.e. `1.0 + 2.0 * w == 1.0`, then w is small enough
+        /// that the kernel is effectively an identity. So we pick this
+        /// threshold as the largest sigma such that
+        /// `1.0 + 2.0 * exp(-0.5 / pow(sigma, 2)) == 1.0` when rounded to f32
+        /// precision.
+        const IDENTITY_THRESHOLD: f32 = 0.16986436;
         if sigma < IDENTITY_THRESHOLD {
             // Any kernel of size 1 is the identity, so sigma doesn't matter.
             // However, we pick sigma=1 to avoid  potential issues with NaN,

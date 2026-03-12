@@ -11,6 +11,8 @@ use std::mem;
 
 use tiff::decoder::ifd::Value;
 use tiff::decoder::{Decoder, DecodingResult};
+use tiff::encoder::Compression;
+use tiff::encoder::Predictor as TiffPredictor;
 use tiff::tags::Tag;
 
 use crate::color::{ColorType, ExtendedColorType};
@@ -46,7 +48,8 @@ where
 {
     /// Create a new `TiffDecoder`.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let mut inner = Decoder::open(r).map_err(ImageError::from_tiff_decode)?;
+        inner.next_image().map_err(ImageError::from_tiff_decode)?;
 
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
@@ -552,6 +555,8 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
+    compression: CompressionType,
+    predictor: Predictor,
 }
 
 fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3]]) {
@@ -629,7 +634,24 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w, icc: None }
+        TiffEncoder {
+            w,
+            icc: None,
+            compression: Default::default(),
+            predictor: Default::default(),
+        }
+    }
+
+    /// Change the compression settings for the encoder. See [CompressionType] for the available options.
+    pub fn set_compression(&mut self, compression: CompressionType) {
+        self.compression = compression
+    }
+
+    /// Change the predictor settings for the encoder. See [PredictorType] for the available options.
+    ///
+    /// If [CompressionType] is set to `Uncompressed`, this setting is ignored and the predictor is always set to `None`.
+    pub fn set_predictor(&mut self, predictor: Predictor) {
+        self.predictor = predictor
     }
 
     /// Private wrapper function to encode the image with a generic color type. This is used to reduce code duplication in the public `write_image` function.
@@ -644,6 +666,37 @@ impl<W: Write + Seek> TiffEncoder<W> {
     {
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
+
+        let predictor = if self.compression == CompressionType::Uncompressed {
+            // when compression is not in use, there's no point in using a predictor
+            TiffPredictor::None
+        } else {
+            // different predictors are beneficial depending on the sample format
+            match C::SAMPLE_FORMAT[0] {
+                tiff::tags::SampleFormat::Uint => TiffPredictor::Horizontal,
+                tiff::tags::SampleFormat::Int => TiffPredictor::Horizontal,
+                tiff::tags::SampleFormat::IEEEFP => match self.predictor {
+                    // The floating-point predictor is not supported everywhere.
+                    // Predictor 2 is not usually beneficial for floats,
+                    // and some software will reject that as well.
+                    Predictor::None | Predictor::Integer => TiffPredictor::None,
+                    Predictor::IntegerAndFloat => TiffPredictor::FloatingPoint,
+                },
+                _ => TiffPredictor::None, // catch-all arm for unforeseen additions
+            }
+        };
+
+        encoder = encoder.with_predictor(predictor);
+
+        let compression = match self.compression {
+            CompressionType::Uncompressed => Compression::Uncompressed,
+            CompressionType::PackBits => Compression::Packbits,
+            CompressionType::Lzw => Compression::Lzw,
+            CompressionType::Deflate(level) => Compression::Deflate(level),
+        };
+
+        encoder = encoder.with_compression(compression);
+
         let data = u8_slice_as_pod::<C::Inner>(data)?;
         let mut img_encoder = encoder
             .new_image::<C>(width, height)
@@ -713,4 +766,54 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         self.icc = Some(icc_profile);
         Ok(())
     }
+}
+
+/// Compression algorithm of a TIFF encoder. The default setting is `Balanced`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum CompressionType {
+    /// No compression whatsoever. Fastest but produces large files.
+    Uncompressed,
+    /// [PackBits](https://en.wikipedia.org/wiki/PackBits) compression, a variant of RLE compression scheme. Fast, primitive compression with a poor compression ratio.
+    PackBits,
+    /// Legacy [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) algorithm. Not recommended, use DEFLATE instead.
+    Lzw,
+    /// [DEFLATE](https://en.wikipedia.org/wiki/DEFLATE) algorithm with the specified compression level. This is the default algorithm.
+    ///
+    /// The valid levels are 1 through 9 inclusive. The default level is 6.
+    ///
+    /// - `1` stands for light but fast compression
+    /// - `6` is the recommended balanced default
+    /// - `9` is maximum compression ratio at the cost of slow encoding
+    Deflate(u8),
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        Self::Deflate(6)
+    }
+}
+
+/// Predictor settings for the TIFF encoder. The default setting is `Integer`.
+///
+/// A predictor transforms the data before compression to improve the compression ratio.
+/// The predictor does not affect the decoded output, only encoding efficiency.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum Predictor {
+    /// No predictor is applied, regardless of the sample format.
+    None,
+    /// Apply horizontal differencing (predictor 2) to integer samples.
+    ///
+    /// When encoding floating-point data, acts as `PredictorType::None`
+    /// for maximum compatibility.
+    #[default]
+    Integer,
+    /// Apply horizontal differencing (predictor 2) to integer samples
+    /// and the floating-point predictor (predictor 3) to floating-point samples.
+    ///
+    /// Predictor 3 improves compression of floating-point data, but is not
+    /// supported by all software. For example, Safari, macOS Preview,
+    /// and ImageJ cannot read TIFF files that use predictor 3.
+    IntegerAndFloat,
 }

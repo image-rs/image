@@ -8,7 +8,6 @@
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 use std::f32;
-use std::ops::Mul;
 
 use crate::imageops::filter_1d::{
     filter_2d_sep_la, filter_2d_sep_la_f32, filter_2d_sep_la_u16, filter_2d_sep_plane,
@@ -1034,13 +1033,21 @@ where
 }
 
 fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
+    debug_assert!(width % 2 == 1, "Gaussian kernel width must be odd");
+    debug_assert!(sigma >= 0.0);
+
+    // Define a minimum sigma of 0.01 to prevent division by zero
+    let sigma = sigma.max(0.01);
+    let sigma_recip = 1.0 / sigma;
+
     let mut sum_norm: f32 = 0f32;
     let mut kernel = vec![0f32; width];
-    let scale = 1f32 / (f32::sqrt(2f32 * f32::consts::PI) * sigma);
     let mean = (width / 2) as f32;
 
-    for (x, weight) in kernel.iter_mut().enumerate() {
-        let new_weight = f32::exp(-0.5f32 * f32::powf((x as f32 - mean) / sigma, 2.0f32)) * scale;
+    for (index, weight) in kernel.iter_mut().enumerate() {
+        let x = index as f32 - mean;
+        let f = -0.5 * sigma_recip * sigma_recip;
+        let new_weight = f32::exp(f * (x * x));
         *weight = new_weight;
         sum_norm += new_weight;
     }
@@ -1048,7 +1055,7 @@ fn get_gaussian_kernel_1d(width: usize, sigma: f32) -> Vec<f32> {
     if sum_norm != 0f32 {
         let sum_scale = 1f32 / sum_norm;
         for weight in &mut kernel {
-            *weight = weight.mul(sum_scale);
+            *weight *= sum_scale;
         }
     }
 

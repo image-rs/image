@@ -1,4 +1,3 @@
-use image::imageops::GaussianBlurParameters;
 use image::ImageReader;
 
 fn main() {
@@ -8,7 +7,7 @@ fn main() {
     );
     let img = ImageReader::open(path).unwrap().decode().unwrap();
 
-    let img2 = img.blur_advanced(GaussianBlurParameters::new_from_sigma(10.0));
+    let img2 = img.blur(10.0);
 
     img2.save("examples/fast_blur/mandril_color_blurred.tif")
         .unwrap();

@@ -964,22 +964,26 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `radius` - Blurring window radius. These parameter controls directly the window size.
-    ///   We choose visually optimal sigma for the given radius. To control sigma
-    ///   directly use [DynamicImage::blur_advanced] instead.
+    /// * `sigma` - Radius of the blur. Defines the standard deviation of the
+    ///   Gaussian function. Larger values create more blur.
     ///
-    /// Use [DynamicImage::fast_blur()] for a faster but less
-    /// accurate version.
+    /// # Notes
     ///
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+    ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
+    ///
+    /// # See also
+    ///
+    /// - [DynamicImage::blur_advanced()] for more control over the blur parameters.
+    /// - [DynamicImage::fast_blur()] for a faster but less accurate version.
     #[must_use]
-    pub fn blur(&self, radius: f32) -> DynamicImage {
-        gaussian_blur_dyn_image(self, GaussianBlurParameters::new_from_radius(radius))
+    pub fn blur(&self, sigma: f32) -> DynamicImage {
+        gaussian_blur_dyn_image(self, GaussianBlurParameters::new_from_sigma(sigma))
     }
 
     /// Performs a Gaussian blur on this image.
@@ -988,7 +992,10 @@ impl DynamicImage {
     ///
     /// * `parameters` - see [GaussianBlurParameters] for more info
     ///
+    /// # Notes
+    ///
     /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+    ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
     ///
@@ -1003,7 +1010,10 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `sigma` - value controls image flattening level.
+    /// * `sigma` - Radius of the blur. Defines the standard deviation of the
+    ///   Gaussian function to approximate. Larger values create more blur.
+    ///
+    /// # Notes
     ///
     /// This method typically assumes that the input is scene-linear light.
     /// If it is not, color distortion may occur.
@@ -1015,19 +1025,21 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::fast_blur(p, sigma))
     }
 
-    /// Performs an unsharpen mask on this image.
+    /// Performs an [unsharpen mask](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) on this image.
     ///
     /// # Arguments
     ///
-    /// * `sigma` - value controls image flattening level.
+    /// * `sigma` - Radius of the blur. Defines the standard deviation of the
+    ///   Gaussian function used to create the unsharp mask. Larger values
+    ///   create a blurrier mask and thus a sharpening effect for a larger area.
     /// * `threshold` - is a control of how much to sharpen.
     ///
-    /// This method typically assumes that the input is scene-linear light. If it is not, color
-    /// distortion may occur. It operates on pixel channel values directly without taking into
-    /// account color space data.
+    /// # Notes
     ///
-    /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
-    /// for more information
+    /// This method typically assumes that the input is scene-linear light. If it is not, color
+    /// distortion may occur.
+    ///
+    /// It operates on pixel channel values directly without taking into account color space data.
     #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))

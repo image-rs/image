@@ -27,6 +27,14 @@ fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
 }
 
+/// Trim a plane slice to exactly `stride * height` elements.
+/// rav1d-safe's PlaneView::as_slice() returns the full backing buffer which may
+/// be larger than stride * height; the YUV conversion code requires an exact size.
+fn trim_plane<T>(slice: &[T], stride: usize, height: usize) -> &[T] {
+    let expected = stride * height;
+    &slice[..expected]
+}
+
 /// AVIF Decoder.
 ///
 /// Reads one image into the chosen input.
@@ -320,11 +328,15 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             let v_view = planes.v();
 
             let image = YuvPlanarImage {
-                y_plane: y_view.as_slice(),
+                y_plane: trim_plane(y_view.as_slice(), y_view.stride(), y_view.height()),
                 y_stride: y_view.stride(),
-                u_plane: u_view.as_ref().map_or(&[], |v| v.as_slice()),
+                u_plane: u_view
+                    .as_ref()
+                    .map_or(&[], |v| trim_plane(v.as_slice(), v.stride(), v.height())),
                 u_stride: u_view.as_ref().map_or(0, |v| v.stride()),
-                v_plane: v_view.as_ref().map_or(&[], |v| v.as_slice()),
+                v_plane: v_view
+                    .as_ref()
+                    .map_or(&[], |v| trim_plane(v.as_slice(), v.stride(), v.height())),
                 v_stride: v_view.as_ref().map_or(0, |v| v.stride()),
                 width: width as usize,
                 height: height as usize,
@@ -443,11 +455,15 @@ impl<R: Read> AvifDecoder<R> {
         let v_view = planes.v();
 
         let image = YuvPlanarImage {
-            y_plane: y_view.as_slice(),
+            y_plane: trim_plane(y_view.as_slice(), y_view.stride(), y_view.height()),
             y_stride: y_view.stride(),
-            u_plane: u_view.as_ref().map_or(&[], |v| v.as_slice()),
+            u_plane: u_view
+                .as_ref()
+                .map_or(&[], |v| trim_plane(v.as_slice(), v.stride(), v.height())),
             u_stride: u_view.as_ref().map_or(0, |v| v.stride()),
-            v_plane: v_view.as_ref().map_or(&[], |v| v.as_slice()),
+            v_plane: v_view
+                .as_ref()
+                .map_or(&[], |v| trim_plane(v.as_slice(), v.stride(), v.height())),
             v_stride: v_view.as_ref().map_or(0, |v| v.stride()),
             width: width as usize,
             height: height as usize,

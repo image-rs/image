@@ -60,7 +60,7 @@ mod sealed {
     /// For blur accumulators (`n <= kernel_size * 255`), this holds for all practical sizes.
     #[derive(Clone, Copy)]
     pub struct U8Weight {
-        reciprocal: u32, // ceil(2^32 / kernel_size)
+        reciprocal: u32,    // ceil(2^32 / kernel_size)
         rounding_bias: u32, // kernel_size / 2
     }
 
@@ -198,7 +198,7 @@ mod sealed {
                     let got = w.apply(acc);
                     assert_eq!(got, expected, "ks={ks}, acc={acc}");
                 }
-                assert_eq!(w.apply(0), ((0 + ks / 2) / ks) as u8);
+                assert_eq!(w.apply(0), ((ks / 2) / ks) as u8);
                 assert_eq!(w.apply(max_acc), ((max_acc + ks / 2) / ks) as u8);
             }
         }
@@ -208,7 +208,14 @@ mod sealed {
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive:
-    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + sealed::PrimitiveSealed + sealed::BlurAccum
+    Copy
+    + NumCast
+    + Num
+    + PartialOrd<Self>
+    + Clone
+    + Bounded
+    + sealed::PrimitiveSealed
+    + sealed::BlurAccum
 {
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.

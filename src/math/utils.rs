@@ -151,7 +151,11 @@ mod test {
         for i in 0u32..=255 {
             for frac in &[0.0, 0.1, 0.25, 0.49, 0.51, 0.75, 0.9] {
                 let x = i as f32 + frac;
-                assert_eq!(super::fast_round_positive_f32(x), x.round(), "mismatch at {x}");
+                assert_eq!(
+                    super::fast_round_positive_f32(x),
+                    x.round(),
+                    "mismatch at {x}"
+                );
             }
             // At .5 boundaries, allow either rounding direction
             let x = i as f32 + 0.5;

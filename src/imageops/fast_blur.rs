@@ -21,8 +21,7 @@ use crate::{ImageBuffer, Pixel, Primitive};
 pub fn fast_blur<P: Pixel>(
     input_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,
     sigma: f32,
-) -> ImageBuffer<P, Vec<P::Subpixel>>
-{
+) -> ImageBuffer<P, Vec<P::Subpixel>> {
     let (width, height) = input_buffer.dimensions();
 
     if width == 0 || height == 0 {
@@ -438,5 +437,4 @@ mod tests {
             }
         }
     }
-
 }

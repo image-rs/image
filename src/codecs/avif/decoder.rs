@@ -428,11 +428,11 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             let ref_v = self.picture.plane_data(PlanarImageComponent::V);
 
             let image = YuvPlanarImage {
-                y_plane: ref_y.as_ref(),
+                y_plane: ref_y,
                 y_stride: self.picture.stride(PlanarImageComponent::Y) as usize,
-                u_plane: ref_u.as_ref(),
+                u_plane: ref_u,
                 u_stride: self.picture.stride(PlanarImageComponent::U) as usize,
-                v_plane: ref_v.as_ref(),
+                v_plane: ref_v,
                 v_stride: self.picture.stride(PlanarImageComponent::V) as usize,
                 width: width as usize,
                 height: height as usize,
@@ -534,7 +534,7 @@ impl<R: Read> AvifDecoder<R> {
         // required criteria: bytemuck allows this align of this data, and stride must be dividable by 2
 
         let y_plane_view = transmute_y_plane16(
-            &y_dav1d_plane,
+            y_dav1d_plane,
             self.picture.stride(PlanarImageComponent::Y) as usize,
             width as usize,
             height as usize,
@@ -547,14 +547,14 @@ impl<R: Read> AvifDecoder<R> {
 
         if self.picture.pixel_layout() != PixelLayout::I400 {
             u_plane_view = transmute_chroma_plane16(
-                &u_dav1d_plane,
+                u_dav1d_plane,
                 self.picture.pixel_layout(),
                 self.picture.stride(PlanarImageComponent::U) as usize,
                 width as usize,
                 height as usize,
             );
             v_plane_view = transmute_chroma_plane16(
-                &v_dav1d_plane,
+                v_dav1d_plane,
                 self.picture.pixel_layout(),
                 self.picture.stride(PlanarImageComponent::V) as usize,
                 width as usize,
@@ -662,7 +662,7 @@ impl<R: Read> AvifDecoder<R> {
 
             let a_dav1d_plane = picture.plane_data(PlanarImageComponent::Y);
             let a_plane_view = transmute_y_plane16(
-                &a_dav1d_plane,
+                a_dav1d_plane,
                 picture.stride(PlanarImageComponent::Y) as usize,
                 width as usize,
                 height as usize,

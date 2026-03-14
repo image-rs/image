@@ -5,8 +5,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use image::ImageDecoder;
-
 #[cfg(feature = "tiff")]
 use image::{codecs::tiff::TiffDecoder, ImageReader};
 

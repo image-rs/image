@@ -438,16 +438,56 @@ impl ImageReader<'_> {
 
     /// Decode the next image into a `DynamicImage`.
     ///
-    /// If you need to also access the metadata, which may become available during decoding, then
-    /// you should use [`Self::decode_into`] instead which will also reuse the buffer where
-    /// possible.
+    /// # Examples
+    ///
+    #[cfg_attr(feature = "png", doc = "```")]
+    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// use image::ImageReader;
+    ///
+    /// let mut reader = ImageReader::open("tests/images/png/iptc.png")?;
+    /// let (data, mut meta) = reader.decode()?;
+    ///
+    /// // This image has IPTC metadata attached to it.
+    /// let iptc = meta.iptc_metadata()?;
+    /// assert!(iptc.is_some());
+    ///
+    /// # Ok::<_, image::error::ImageError>(())
+    /// ```
+    ///
+    /// # Related
+    ///
+    /// If you want to enable buffer reuse, consider using [`Self::decode_into`] will can use an
+    /// existing buffer in some instances.
     pub fn decode(&mut self) -> ImageResult<(DynamicImage, DecodedImageMetadata<'_>)> {
-        let mut empty = DynamicImage::new_luma8(0, 0);
+        let mut empty = DynamicImage::default();
         let meta = self.decode_into(&mut empty)?;
         Ok((empty, meta))
     }
 
     /// Decode an image into a provided buffer and retrieve metadata.
+    ///
+    /// # Examples
+    ///
+    #[cfg_attr(feature = "png", doc = "```")]
+    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// use image::{DynamicImage, ImageReader};
+    /// use glob::glob;
+    ///
+    /// let mut buffer = DynamicImage::default();
+    ///
+    /// for entry in glob("tests/images/**/*.png").unwrap() {
+    ///     let Ok(path) = entry else {
+    ///         continue;
+    ///     };
+    ///
+    ///     let mut reader = ImageReader::open(path)?;
+    ///     let mut meta = reader.decode_into(&mut buffer)?;
+    ///     // …
+    /// # break; // Avoid actually looping in the test here.
+    /// }
+    ///
+    /// # Ok::<_, image::error::ImageError>(())
+    /// ```
     pub fn decode_into(
         &mut self,
         image: &mut DynamicImage,
@@ -533,7 +573,7 @@ impl ImageReader<'_> {
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
             // Or should we make an extension method on `ImageDecoder`?
-            let mut placeholder = DynamicImage::new_luma8(0, 0);
+            let mut placeholder = DynamicImage::default();
             self.limits.reserve(bytes)?;
             placeholder.decode_raw(self.inner.as_mut(), layout)?;
             self.limits.free(bytes);
@@ -663,13 +703,35 @@ impl<'lt> DecodedImageMetadata<'lt> {
 }
 
 impl<'stream> ImageReader<'stream> {
-    /// Open the image in a readable stream.
+    /// Open image data as a readable stream of image(s).
     ///
     /// The format is guessed from a fixed array of bytes at stream's start. Hooks can be
     /// configured to customize this behavior, see [`hooks`](crate::hooks) for details.
     ///
-    /// The reader will use default limits. Use [`ImageReaderOptions`] to configure the reader
-    /// before use.
+    /// The reader will use default limits.
+    ///
+    /// # Examples
+    ///
+    #[cfg_attr(feature = "png", doc = "```")]
+    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// use std::io::{BufReader, Cursor};
+    /// use image::ImageReader;
+    ///
+    /// let binary_data: Vec<u8> = /* */
+    ///     std::fs::read("tests/images/png/transparency/acid2.png")?;
+    /// let stream = BufReader::new(Cursor::new(binary_data));
+    ///
+    /// let mut reader = ImageReader::new(stream)?;
+    /// let (data, meta) = reader.decode()?;
+    ///
+    /// # Ok::<_, image::error::ImageError>(())
+    /// ```
+    ///
+    /// # Related
+    ///
+    /// Use [`ImageReaderOptions`] to configure the reader in detail before use. In the simple case
+    /// where you only access a single image without looking at its metadata you may call
+    /// [`ImageReaderOptions::decode`] directly without creating an [`ImageReader`].
     pub fn new<R: 'stream + BufRead + Seek>(reader: R) -> ImageResult<Self> {
         ImageReaderOptions::new(reader)
             .with_guessed_format()?
@@ -681,8 +743,23 @@ impl<'stream> ImageReader<'stream> {
     /// The image's format is determined from the path's file extension. Hooks can be configured to
     /// customize this behavior, see [`hooks`](crate::hooks) for details.
     ///
-    /// The reader will use default limits. Use [`ImageReaderOptions`] to configure the reader
-    /// before use.
+    /// The reader will use default limits.
+    ///
+    #[cfg_attr(feature = "png", doc = "```")]
+    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// use image::ImageReader;
+    ///
+    /// let mut reader = ImageReader::open("tests/images/png/transparency/acid2.png")?;
+    /// let (data, meta) = reader.decode()?;
+    ///
+    /// # Ok::<_, image::error::ImageError>(())
+    /// ```
+    ///
+    /// # Related
+    ///
+    /// Use [`ImageReaderOptions`] to configure the reader in detail before use. In the simple case
+    /// where you only access a single image without looking at its metadata you may call
+    /// [`ImageReaderOptions::decode`] directly without creating an [`ImageReader`].
     pub fn open<P: AsRef<Path>>(path: P) -> ImageResult<Self> {
         ImageReaderOptions::open(path)?.into_reader()
     }
@@ -743,7 +820,7 @@ impl<'stream> ImageReader<'stream> {
 
             let no_delay = Delay::from_saturating_duration(Default::default());
 
-            let mut frame = DynamicImage::new_luma8(0, 0);
+            let mut frame = DynamicImage::default();
             let frame_decoded = match self.decode_into(&mut frame) {
                 Ok(frame) => frame,
                 Err(ref err) if is_end_reached(err) => return None,

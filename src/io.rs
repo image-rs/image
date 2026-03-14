@@ -48,9 +48,9 @@ impl<R: io::Read> ReadExt for R {
 
 /// Communicate the layout of an image.
 ///
-/// Describes a packed rectangular layout with given bit-depth in [`ImageDecoder::init`]. Layouts
-/// from `image` are row-major with no padding between rows and pixels packed by consecutive
-/// channels.
+/// Describes a packed rectangular layout with given bit-depth in
+/// [`ImageDecoder::peek_layout`](crate::ImageDecoder::peek_layout). Standard layouts from `image`
+/// are row-major with no padding between rows and pixels packed by consecutive channels.
 ///
 /// For external crates constructing an instance, use [`ImageLayout::empty`] with the intended
 /// color type and then fill in all applicable fields. (It will become more convenient when Rust

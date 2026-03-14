@@ -50,9 +50,10 @@ pub trait ImageDecoder {
 
     /// Retrieve animation attributes.
     ///
-    /// You should check [`DecoderAttributes::is_animated`] before calling this method. It will
-    /// only be available on animated images. Additionally, most file formats store the metadata in
-    /// the header which might not be read until after calling [`ImageDecoder::peek_layout`].
+    /// You should check [`DecoderAttributes::supports_animation`] before calling this method. It
+    /// will only be available on animated images. Additionally, most file formats store the
+    /// metadata in the header which might not be read until after calling
+    /// [`ImageDecoder::peek_layout`].
     fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
         None
     }
@@ -96,7 +97,13 @@ pub trait ImageDecoder {
 
     /// Returns the ICC color profile embedded in the image, or `Ok(None)` if the image does not have one.
     ///
-    /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
+    /// For formats that don't support embedded profiles this function should always return
+    /// `Ok(None)`. Decoders for formats with non-standard color profiles may create a synthetic
+    /// profile, see our [`bmp`](`crate::codecs::bmp`) module for an example.
+    ///
+    /// A decoder that encounters tags which contain a color profile whose encoding it does not
+    /// support should return [`UnsupportedError`](`crate::error::UnsupportedError`). This allows a
+    /// reader to continue while differentiating from missing metadata.
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(None)
     }
@@ -105,6 +112,10 @@ pub trait ImageDecoder {
     /// A third-party crate such as [`kamadak-exif`](https://docs.rs/kamadak-exif/) is required to actually parse it.
     ///
     /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
+    ///
+    /// A decoder that encounters tags which contain XMP metadata whose encoding it does not
+    /// support should return [`UnsupportedError`](crate::error::UnsupportedError). This allows a
+    /// reader to continue while differentiating from missing metadata.
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(None)
     }
@@ -113,6 +124,10 @@ pub trait ImageDecoder {
     /// A third-party crate such as [`roxmltree`](https://docs.rs/roxmltree/) is required to actually parse it.
     ///
     /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
+    ///
+    /// A decoder that encounters tags which contain XMP metadata whose encoding it does not
+    /// support should return [`UnsupportedError`](crate::error::UnsupportedError). This allows a
+    /// reader to continue while differentiating from missing metadata.
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(None)
     }
@@ -120,6 +135,10 @@ pub trait ImageDecoder {
     /// Returns the raw [IPTC](https://en.wikipedia.org/wiki/IPTC_Information_Interchange_Model) chunk, if it is present.
     ///
     /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
+    ///
+    /// A decoder that encounters tags which contain XMP metadata whose encoding it does not
+    /// support should return [`UnsupportedError`](crate::error::UnsupportedError). This allows a
+    /// reader to continue while differentiating from missing metadata.
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(None)
     }
@@ -197,7 +216,8 @@ pub struct DecodedImageAttributes {
     ///
     /// This field is currently an optional hint for encoding. The authoritative source for the
     /// memory size required for [`ImageDecoder::read_image`][`crate::ImageDecoder`] remains the
-    /// [`color`][`ImageLayout::color`] field, you do not need to time travel this information.
+    /// [`color`][`crate::ImageLayout::color`] field, you do not need to time travel this
+    /// information.
     pub original_color_type: Option<crate::ExtendedColorType>,
 }
 

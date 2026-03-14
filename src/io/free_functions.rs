@@ -18,7 +18,7 @@ use crate::{DynamicImage, ImageDecoder, ImageFormat};
 /// Assumes the reader is already buffered. For optimal performance,
 /// consider wrapping the reader with a `BufReader::new()`.
 ///
-/// Try [`ImageReader`] for more advanced uses.
+/// Try [`ImageReaderOptions`] for more advanced uses.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     let mut reader = ImageReaderOptions::new(r);
     reader.set_format(format);

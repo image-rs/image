@@ -85,21 +85,24 @@ impl Orientation {
     /// Extracts the image orientation from a raw Exif chunk.
     ///
     /// You can obtain the Exif chunk using
-    /// [ImageDecoder::exif_metadata](crate::ImageDecoder::exif_metadata).
+    /// [`DecodedImageAttributes::exif_metadata`](crate::io::DecodedImageMetadata::exif_metadata).
+    /// With a decoder, [ImageDecoder::exif_metadata](crate::ImageDecoder::exif_metadata) can be
+    /// used to fetch the metadata in some states as indicated by
+    /// [`DecodedImageMetadata::icc_profile`](crate::io::DecodedImageMetadata::icc_profile).
     ///
-    /// It is more convenient to use [ImageDecoder::orientation](crate::ImageDecoder::orientation)
-    /// than to invoke this function.
-    /// Only use this function if you extract and process the Exif chunk separately.
+    /// You usually only use this function if you extract and process more Exif chunk separately.
     #[must_use]
     pub fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
         Self::from_exif_chunk_inner(chunk).map(|res| res.0)
     }
 
-    /// Extracts the image orientation from a raw Exif chunk and sets the orientation in the Exif chunk to `Orientation::NoTransforms`.
-    /// This is useful if you want to apply the orientation yourself, and then encode the image with the rest of the Exif chunk intact.
+    /// Extracts the image orientation from a raw Exif chunk and sets the orientation in the Exif
+    /// chunk to [`Orientation::NoTransforms`]. This is useful if you want to apply the orientation
+    /// yourself, and then encode the image with the rest of the Exif chunk intact.
     ///
-    /// If the orientation data is not cleared from the Exif chunk after you apply the orientation data yourself,
-    /// the image will end up being rotated once again by any software that correctly handles Exif, leading to an incorrect result.
+    /// If the orientation data is not cleared from the Exif chunk after you apply the orientation
+    /// data yourself, the image will end up being rotated once again by any software that
+    /// correctly handles Exif, leading to an incorrect result.
     ///
     /// If the Exif value is present but invalid, `None` is returned and the Exif chunk is not modified.
     #[must_use]

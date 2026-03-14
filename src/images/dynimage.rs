@@ -1668,8 +1668,8 @@ pub(crate) fn decoder_to_image(
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
 ///
-/// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
-/// content before its path.
+/// Try [`ImageReaderOptions`] for more advanced uses, including guessing the format based on the
+/// file's content before its path.
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
@@ -1680,8 +1680,8 @@ where
 /// Read a tuple containing the (width, height) of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 ///
-/// Try [`ImageReader`] for more advanced uses, including guessing the format based on the file's
-/// content before its path or manually supplying the format.
+/// Try [`ImageReaderOptions`] for more advanced uses, including guessing the format based on the
+/// file's content before its path or manually supplying the format.
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
@@ -1713,7 +1713,7 @@ pub fn write_buffer_with_format<W: Write + Seek>(
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 ///
-/// Try [`ImageReader`] for more advanced uses.
+/// Try [`ImageReaderOptions`] for more advanced uses.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     ImageReaderOptions::new(io::Cursor::new(buffer))
         .with_guessed_format()?
@@ -1725,7 +1725,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// This is just a simple wrapper that constructs an `std::io::Cursor` around the buffer and then
 /// calls `load` with that reader.
 ///
-/// Try [`ImageReader`] for more advanced uses.
+/// Try [`ImageReaderOptions`] for more advanced uses.
 ///
 /// [`load`]: fn.load.html
 #[inline(always)]

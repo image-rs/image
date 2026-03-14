@@ -20,8 +20,11 @@ use crate::codecs::avif::ycgco::{
     ycgco444_to_rgba8,
 };
 use crate::codecs::avif::yuv::*;
-use dav1d::{PixelLayout, PlanarImageComponent};
 use mp4parse::{read_avif, ImageMirror, ImageRotation, ParseStrictness};
+use rav1d::rust_api::pixel::MatrixCoefficients;
+use rav1d::rust_api::Picture as Rav1dPicture;
+use rav1d::rust_api::PlanarImageComponent;
+use rav1d::PixelLayout;
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -32,8 +35,8 @@ fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
 /// Reads one image into the chosen input.
 pub struct AvifDecoder<R> {
     inner: PhantomData<R>,
-    picture: dav1d::Picture,
-    alpha_picture: Option<dav1d::Picture>,
+    picture: Rav1dPicture,
+    alpha_picture: Option<Rav1dPicture>,
     icc_profile: Option<Vec<u8>>,
     orientation: Orientation,
 }
@@ -81,14 +84,14 @@ impl<R: Read> AvifDecoder<R> {
         let ctx = read_avif(&mut r, ParseStrictness::Permissive).map_err(error_map)?;
         let coded = ctx.primary_item_coded_data().unwrap_or_default();
 
-        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
+        let mut primary_decoder = rav1d::rust_api::Decoder::new().map_err(error_map)?;
         primary_decoder
             .send_data(coded.to_vec(), None, None, None)
             .map_err(error_map)?;
         let picture = read_until_ready(&mut primary_decoder)?;
         let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
         let alpha_picture = if !alpha_item.is_empty() {
-            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
+            let mut alpha_decoder = rav1d::rust_api::Decoder::new().map_err(error_map)?;
             alpha_decoder
                 .send_data(alpha_item.to_vec(), None, None, None)
                 .map_err(error_map)?;
@@ -193,7 +196,7 @@ impl Default for Plane16View<'_> {
 
 /// This is correct to transmute FFI data for Y plane and Alpha plane
 fn transmute_y_plane16(
-    plane: &dav1d::Plane,
+    plane: &rav1d::Plane,
     stride: usize,
     width: usize,
     height: usize,
@@ -233,7 +236,7 @@ fn transmute_y_plane16(
 
 /// This is correct to transmute FFI data for Y plane and Alpha plane
 fn transmute_chroma_plane16(
-    plane: &dav1d::Plane,
+    plane: &rav1d::Plane,
     pixel_layout: PixelLayout,
     stride: usize,
     width: usize,
@@ -288,22 +291,16 @@ enum YuvMatrixStrategy {
 }
 
 /// Getting one of prebuilt matrix of fails
-fn get_matrix(
-    david_matrix: dav1d::pixel::MatrixCoefficients,
-) -> Result<YuvMatrixStrategy, ImageError> {
+fn get_matrix(david_matrix: MatrixCoefficients) -> Result<YuvMatrixStrategy, ImageError> {
     match david_matrix {
-        dav1d::pixel::MatrixCoefficients::Identity => Ok(YuvMatrixStrategy::Identity),
-        dav1d::pixel::MatrixCoefficients::BT709 => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709))
-        }
+        MatrixCoefficients::Identity => Ok(YuvMatrixStrategy::Identity),
+        MatrixCoefficients::BT709 => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709)),
         // This is arguable, some applications prefer to go with Bt.709 as default,
         // and some applications prefer Bt.601 as default.
         // For ex. `Chrome` always prefer Bt.709 even for SD content
         // However, nowadays standard should be Bt.709 for HD+ size otherwise Bt.601
-        dav1d::pixel::MatrixCoefficients::Unspecified => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709))
-        }
-        dav1d::pixel::MatrixCoefficients::Reserved => Err(ImageError::Unsupported(
+        MatrixCoefficients::Unspecified => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt709)),
+        MatrixCoefficients::Reserved => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),
                 UnsupportedErrorKind::GenericFeature(
@@ -311,23 +308,15 @@ fn get_matrix(
                 ),
             ),
         )),
-        dav1d::pixel::MatrixCoefficients::BT470M => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt470_6))
-        }
-        dav1d::pixel::MatrixCoefficients::BT470BG => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt601))
-        }
-        dav1d::pixel::MatrixCoefficients::ST170M => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240))
-        }
-        dav1d::pixel::MatrixCoefficients::ST240M => {
-            Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240))
-        }
-        dav1d::pixel::MatrixCoefficients::YCgCo => Ok(YuvMatrixStrategy::CgCo),
-        dav1d::pixel::MatrixCoefficients::BT2020NonConstantLuminance => {
+        MatrixCoefficients::BT470M => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt470_6)),
+        MatrixCoefficients::BT470BG => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt601)),
+        MatrixCoefficients::ST170M => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240)),
+        MatrixCoefficients::ST240M => Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Smpte240)),
+        MatrixCoefficients::YCgCo => Ok(YuvMatrixStrategy::CgCo),
+        MatrixCoefficients::BT2020NonConstantLuminance => {
             Ok(YuvMatrixStrategy::KrKb(YuvStandardMatrix::Bt2020))
         }
-        dav1d::pixel::MatrixCoefficients::BT2020ConstantLuminance => {
+        MatrixCoefficients::BT2020ConstantLuminance => {
             // This matrix significantly differs from others because linearize values is required
             // to compute Y instead of Y'.
             // Actually it is almost everywhere is not implemented.
@@ -342,14 +331,14 @@ fn get_matrix(
                 ),
             ))
         }
-        dav1d::pixel::MatrixCoefficients::ST2085 => Err(ImageError::Unsupported(
+        MatrixCoefficients::ST2085 => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),
                 UnsupportedErrorKind::GenericFeature("ST2085 matrix is not supported".to_string()),
             ),
         )),
-        dav1d::pixel::MatrixCoefficients::ChromaticityDerivedConstantLuminance
-        | dav1d::pixel::MatrixCoefficients::ChromaticityDerivedNonConstantLuminance => Err(
+        MatrixCoefficients::ChromaticityDerivedConstantLuminance
+        | MatrixCoefficients::ChromaticityDerivedNonConstantLuminance => Err(
             ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),
                 UnsupportedErrorKind::GenericFeature(
@@ -357,7 +346,7 @@ fn get_matrix(
                 ),
             )),
         ),
-        dav1d::pixel::MatrixCoefficients::ICtCp => Err(ImageError::Unsupported(
+        MatrixCoefficients::ICtCp => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Avif.into(),
                 UnsupportedErrorKind::GenericFeature(
@@ -407,8 +396,8 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         }
 
         let yuv_range = match self.picture.color_range() {
-            dav1d::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
-            dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,
+            rav1d::rust_api::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
+            rav1d::rust_api::pixel::YUVRange::Full => YuvIntensityRange::Pc,
         };
 
         let matrix_strategy = get_matrix(self.picture.matrix_coefficients())?;
@@ -704,12 +693,14 @@ impl<R: Read> AvifDecoder<R> {
 /// `get_picture` and `send_pending_data` yield `Again` as a non-fatal error requesting more data is sent to the decoder
 /// This ensures that in the case of `Again` all pending data is submitted
 /// This should be called after `send_data` (which does not yield `Again` when called the first time)
-fn read_until_ready(decoder: &mut dav1d::Decoder) -> ImageResult<dav1d::Picture> {
+fn read_until_ready(
+    decoder: &mut rav1d::rust_api::Decoder,
+) -> ImageResult<rav1d::rust_api::Picture> {
     loop {
         match decoder.get_picture() {
-            Err(dav1d::Error::Again) => match decoder.send_pending_data() {
+            Err(rav1d::Rav1dError::TryAgain) => match decoder.send_pending_data() {
                 Ok(()) => {}
-                Err(dav1d::Error::Again) => {}
+                Err(rav1d::Rav1dError::TryAgain) => {}
                 Err(e) => return Err(error_map(e)),
             },
             r => return r.map_err(error_map),

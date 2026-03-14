@@ -1005,6 +1005,10 @@ where
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
 ///
+/// # Panics
+///
+/// Panics if `sigma` is negative, NaN, or infinity.
+///
 /// # See also
 ///
 /// - [`blur_advanced()`] for a more flexible version of this function.
@@ -1586,6 +1590,10 @@ where
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+///
+/// # Panics
+///
+/// Panics if `sigma` is negative, NaN, or infinity.
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,

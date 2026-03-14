@@ -977,6 +977,10 @@ impl DynamicImage {
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
     ///
+    /// # Panics
+    ///
+    /// Panics if `sigma` is negative, NaN, or infinity.
+    ///
     /// # See also
     ///
     /// - [DynamicImage::blur_advanced()] for more control over the blur parameters.
@@ -1040,6 +1044,10 @@ impl DynamicImage {
     /// distortion may occur.
     ///
     /// It operates on pixel channel values directly without taking into account color space data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `sigma` is negative, NaN, or infinity.
     #[must_use]
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))

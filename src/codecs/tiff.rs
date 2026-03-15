@@ -5,9 +5,7 @@
 //!
 //! # Related Links
 //! * <http://partners.adobe.com/public/developer/tiff/index.html> - The TIFF specification
-use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
+use std::io::{BufRead, Seek, Write};
 
 use tiff::decoder::ifd::Value;
 use tiff::decoder::{Decoder, DecodingResult};
@@ -358,26 +356,6 @@ impl ImageError {
             tiff::TiffError::LimitsExceeded => {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             }
-        }
-    }
-}
-
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
-#[deprecated]
-pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-#[allow(deprecated)]
-impl<R> Read for TiffReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
         }
     }
 }

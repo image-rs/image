@@ -191,12 +191,6 @@ impl<R: Read> HdrDecoder<R> {
         HdrDecoder::with_strictness(reader, true)
     }
 
-    /// Allows reading old Radiance HDR images
-    #[deprecated(note = "Use `new_with_spec_compliance(reader, SpecCompliance::Lenient)` instead")]
-    pub fn new_nonstrict(reader: R) -> ImageResult<Self> {
-        Self::with_strictness(reader, false)
-    }
-
     /// Create a new decoder with the given spec compliance mode.
     pub(crate) fn new_with_spec_compliance(reader: R, spec: SpecCompliance) -> ImageResult<Self> {
         Self::with_strictness(reader, spec == SpecCompliance::Strict)

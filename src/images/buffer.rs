@@ -1026,6 +1026,7 @@ where
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
         let selection = selection.crop_dimms(self);
+        assert!(selection.test_in_bounds(self).is_ok());
 
         fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
             if src == dst || len == 0 {

@@ -232,7 +232,7 @@ where
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
-        Rect::from_image_at(other, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(other, x, y).test_in_bounds_of(self)?;
         // Dispatch the inner images `copy_from` method with adjusted offsets. this ensures its
         // potentially optimized implementation gets used.
         self.image

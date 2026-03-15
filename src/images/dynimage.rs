@@ -1484,7 +1484,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
@@ -1497,7 +1496,6 @@ impl GenericImageView for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
 impl GenericImage for DynamicImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {

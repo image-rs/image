@@ -1026,11 +1026,6 @@ where
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
         let selection = selection.crop_dimms(self);
-        debug_assert!(
-            selection.x + selection.width <= self.width
-                && selection.y + selection.height <= self.height,
-            "Selection must be within the image"
-        );
 
         fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
             if src == dst || len == 0 {

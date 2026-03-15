@@ -184,9 +184,11 @@ impl Rgbe8Pixel {
 }
 
 impl<R: Read> HdrDecoder<R> {
-    /// Reads Radiance HDR image header from stream ```r```
-    /// if the header is valid, creates `HdrDecoder`
-    /// strict mode is enabled
+    /// Reads Radiance HDR image header from `reader` with strict mode enabled.
+    ///
+    /// In strict mode, the header is required to be well-formed. This prevents
+    /// certain older slightly-malformed files from being read. See
+    /// [`HdrDecoder::with_strictness`] for details.
     pub fn new(reader: R) -> ImageResult<Self> {
         HdrDecoder::with_strictness(reader, true)
     }
@@ -196,13 +198,19 @@ impl<R: Read> HdrDecoder<R> {
         Self::with_strictness(reader, spec == SpecCompliance::Strict)
     }
 
-    /// Reads Radiance HDR image header from stream `reader`,
-    /// if the header is valid, creates `HdrDecoder`.
+    /// Reads Radiance HDR image header from `reader`.
     ///
-    /// strict enables strict mode
+    /// In strict mode, the header is required to be well-formed. I.e. it must
+    /// contain a valid signature among other requirements. In non-strict mode,
+    /// certain malformed headers are accepted, allowing more files to be read
+    /// but potentially incorrectly.
     ///
-    /// Warning! Reading wrong file in non-strict mode could consume up to a few
-    ///   megabytes of memory before this errors, if the file is large enough.
+    /// Certain older files require non-strict mode to be read.
+    ///
+    /// # Warning
+    ///
+    /// In non-strict mode, certain invalid files may consume multiple megabytes of memory
+    /// before an error is returned.
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
 

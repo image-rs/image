@@ -248,6 +248,9 @@ where
     let mut v = [0.0f64; 4];
     let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
 
+    let min = S::DEFAULT_MIN_VALUE.to_f64().unwrap();
+    let max = S::DEFAULT_MAX_VALUE.to_f64().unwrap();
+
     for (x, y, outpixel) in out.enumerate_pixels_mut() {
         let pixel = image.get_pixel(x, y);
 
@@ -262,10 +265,9 @@ where
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-        let max = 255f64;
 
         let channels = [new_r, new_b, new_g, v[3]];
-        let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+        let channels = channels.map(|c| NumCast::from(clamp(c, min, max)).unwrap());
 
         *outpixel = *Pixel::from_slice(&channels[..used_channels]);
     }
@@ -308,6 +310,9 @@ where
     let mut v = [0.0f64; 4];
     let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
 
+    let min: f64 = NumCast::from(<I::Pixel as Pixel>::Subpixel::DEFAULT_MIN_VALUE).unwrap();
+    let max: f64 = NumCast::from(<I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE).unwrap();
+
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
@@ -324,10 +329,9 @@ where
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
 
             let channels = [new_r, new_b, new_g, v[3]];
-            let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+            let channels = channels.map(|c| NumCast::from(clamp(c, min, max)).unwrap());
 
             let outpixel = Pixel::from_slice(&channels[..used_channels]);
             image.put_pixel(x, y, *outpixel);

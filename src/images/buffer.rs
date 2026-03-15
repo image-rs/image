@@ -1026,6 +1026,15 @@ where
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
         let selection = selection.crop_dimms(self);
+        assert!(selection.test_in_bounds(self).is_ok());
+
+        fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
+            if src == dst || len == 0 {
+                return;
+            }
+            data.copy_within(src..src + len, dst);
+        }
+
         // We're now running essentially `copy_within` with differing source and destination row
         // pitches. The above ensures that the target row pitch is smaller than our current one and
         // we copy to offset `0` so always all data backwards.
@@ -1041,7 +1050,7 @@ where
             let sy = selection.y + y;
             let source = self.pixel_indices_unchecked(selection.x, sy).start;
             let dst = y as usize * rowlen;
-            self.data.copy_within(source..source + rowlen, dst);
+            copy_within(&mut self.data, source, rowlen, dst);
         }
 
         self.width = selection.width;

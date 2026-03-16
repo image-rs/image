@@ -1026,6 +1026,15 @@ where
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
         let selection = selection.crop_dimms(self);
+        assert!(selection.test_in_bounds(self).is_ok());
+
+        fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
+            if src == dst || len == 0 {
+                return;
+            }
+            data.copy_within(src..src + len, dst);
+        }
+
         // We're now running essentially `copy_within` with differing source and destination row
         // pitches. The above ensures that the target row pitch is smaller than our current one and
         // we copy to offset `0` so always all data backwards.
@@ -1041,7 +1050,7 @@ where
             let sy = selection.y + y;
             let source = self.pixel_indices_unchecked(selection.x, sy).start;
             let dst = y as usize * rowlen;
-            self.data.copy_within(source..source + rowlen, dst);
+            copy_within(&mut self.data, source, rowlen, dst);
         }
 
         self.width = selection.width;
@@ -1342,10 +1351,6 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        self.get_pixel_mut(x, y)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel;
     }
@@ -1356,13 +1361,6 @@ where
         let indices = self.pixel_indices_unchecked(x, y);
         let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
         *p = pixel;
-    }
-
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    ///
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
-        self.get_pixel_mut(x, y).blend(&p);
     }
 
     fn copy_from_samples(

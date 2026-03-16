@@ -13,13 +13,6 @@ pub(crate) mod free_functions;
 pub(crate) mod image_reader_type;
 pub(crate) mod limits;
 
-#[deprecated(note = "this type has been moved to image::Limits")]
-/// Deprecated re-export of `Limits`
-pub type Limits = limits::Limits;
-#[deprecated(note = "this type has been moved to image::LimitSupport")]
-/// Deprecated re-export of `LimitSupport`
-pub type LimitSupport = limits::LimitSupport;
-
 pub use decoder::{
     DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
     SequenceControl,

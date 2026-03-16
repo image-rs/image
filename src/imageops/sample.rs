@@ -1135,7 +1135,7 @@ impl GaussianBlurParameters {
         );
         let i_kernel_size = GaussianBlurParameters::round_to_nearest_odd(kernel_size);
         assert_ne!(i_kernel_size % 2, 0, "Kernel size must be odd");
-        let v_sigma = GaussianBlurParameters::sigma_size(kernel_size);
+        let v_sigma = GaussianBlurParameters::sigma_from_kernel_size(kernel_size);
         GaussianBlurParameters {
             x_axis_kernel_size: i_kernel_size,
             x_axis_sigma: v_sigma,
@@ -1172,8 +1172,8 @@ impl GaussianBlurParameters {
         assert_ne!(x_kernel_size % 2, 0, "Kernel size must be odd");
         let y_kernel_size = GaussianBlurParameters::round_to_nearest_odd(y_axis_kernel_size);
         assert_ne!(y_kernel_size % 2, 0, "Kernel size must be odd");
-        let x_sigma = GaussianBlurParameters::sigma_size(x_axis_kernel_size);
-        let y_sigma = GaussianBlurParameters::sigma_size(y_axis_kernel_size);
+        let x_sigma = GaussianBlurParameters::sigma_from_kernel_size(x_axis_kernel_size);
+        let y_sigma = GaussianBlurParameters::sigma_from_kernel_size(y_axis_kernel_size);
         GaussianBlurParameters {
             x_axis_kernel_size: x_kernel_size,
             x_axis_sigma: x_sigma,
@@ -1183,12 +1183,41 @@ impl GaussianBlurParameters {
     }
 
     /// Creates a new parameters set from sigma only
+    ///
+    /// # Panics
+    /// Panics if sigma is negative, NaN or infinity.
     pub fn new_from_sigma(sigma: f32) -> GaussianBlurParameters {
         assert!(
-            sigma.is_normal(),
-            "Sigma cannot be NaN, Infinities, subnormal or zero"
+            sigma >= 0.0 && sigma.is_finite(),
+            "Sigma must be non-negative and finite"
         );
-        assert!(sigma > 0.0, "Sigma must be positive");
+
+        /// As sigma gets smaller, the blur kernel quickly approaches all zeros
+        /// with the center being 1, which is an identity for 1D convolution.
+        /// I.e. no blur. So we define a threshold for sigma below which we
+        /// consider the blur to be an identity.
+        ///
+        /// Small sigma generally map to a 3x1 kernel. This kernel will have the
+        /// values `[w, 1.0, w]` before normalization (ignoring shared factors),
+        /// where `w = exp(-0.5 / pow(sigma, 2))`. If the sum of weights is
+        /// rounded to 1, i.e. `1.0 + 2.0 * w == 1.0`, then w is small enough
+        /// that the kernel is effectively an identity. So we pick this
+        /// threshold as the largest sigma such that
+        /// `1.0 + 2.0 * exp(-0.5 / pow(sigma, 2)) == 1.0` when rounded to f32
+        /// precision.
+        const IDENTITY_THRESHOLD: f32 = 0.16986436;
+        if sigma < IDENTITY_THRESHOLD {
+            // Any (normalized) kernel of size 1 is the identity, so sigma
+            // doesn't matter. However, we pick sigma=1 to avoid  potential
+            // issues with NaN, infinities, and subnormals.
+            return GaussianBlurParameters {
+                x_axis_kernel_size: 1,
+                x_axis_sigma: 1.0,
+                y_axis_kernel_size: 1,
+                y_axis_sigma: 1.0,
+            };
+        }
+
         let kernel_size = GaussianBlurParameters::kernel_size_from_sigma(sigma);
         GaussianBlurParameters {
             x_axis_kernel_size: kernel_size,
@@ -1218,17 +1247,29 @@ impl GaussianBlurParameters {
         }
     }
 
-    fn sigma_size(kernel_size: f32) -> f32 {
+    fn sigma_from_kernel_size(kernel_size: f32) -> f32 {
         let safe_kernel_size = if kernel_size <= 1. { 0.8 } else { kernel_size };
+        // This formula finds a "optimal perceptual sigma" for a given kernel
+        // size. It is also used by other libraries, such as OpenCV:
+        // https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gac05a120c1ae92a6060dd0db190a61afa
         0.3 * ((safe_kernel_size - 1.) * 0.5 - 1.) + 0.8
     }
 
     fn kernel_size_from_sigma(sigma: f32) -> u32 {
-        let possible_size = (((((sigma - 0.8) / 0.3) + 1.) * 2.) + 1.).max(3.) as u32;
-        if possible_size.is_multiple_of(2) {
-            return possible_size + 1;
-        }
-        possible_size
+        // This uses the inverse of the formula in `sigma_from_kernel_size` to
+        // find the kernel size for a given sigma. This isn't the only valid
+        // choice. For example, OpenCV uses 6σ+1 as the kernel size. Both work.
+        // Note that a kernel size of 6.666σ convers 99.91% of the Gaussian
+        // distribution, resulting in a high-quality blur without ringing
+        // artifacts.
+        //
+        // Some more details:
+        // - The returned kernel size is at least 3. This is important for small
+        //   sigmas, since a kernel size of 1 would no no blur at all.
+        // - The `| 1` ensure that the returned kernel size is odd, which is
+        //   required. In effect, even numbers are rounded up to the next odd
+        //   number, which is the same as the behavior of `round_to_nearest_odd`.
+        (6.66666 * sigma - 2.3333333).max(3.) as u32 | 1
     }
 }
 

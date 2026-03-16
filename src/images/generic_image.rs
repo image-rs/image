@@ -181,29 +181,6 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 
 /// A trait for manipulating images.
 pub trait GenericImage: GenericImageView {
-    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// Panics for dynamic images (this method is deprecated and will be removed).
-    ///
-    /// ## Known issues
-    ///
-    /// This requires the buffer to contain a unique set of continuous channels in the exact order
-    /// and byte representation that the pixel type requires. This is somewhat restrictive.
-    ///
-    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
-    /// while still doing only one array lookup:
-    ///
-    /// ```ignore
-    /// let px = image.pixel_entry_at(x,y);
-    /// px.set_from_rgba(rgba)
-    /// ```
-    #[deprecated(since = "0.24.0", note = "Use `get_pixel` and `put_pixel` instead.")]
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
     /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
@@ -222,13 +199,6 @@ pub trait GenericImage: GenericImageView {
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
-
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    #[deprecated(
-        since = "0.24.0",
-        note = "Use iterator `pixels_mut` to blend the pixels directly"
-    )]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Copies all of the pixels from another image into this image.
     ///
@@ -356,23 +326,11 @@ mod tests {
     use crate::{GrayImage, ImageBuffer};
 
     #[test]
-    #[allow(deprecated)]
-    /// Test that alpha blending works as expected
-    fn test_image_alpha_blending() {
+    fn test_image_put_pixel() {
         let mut target = ImageBuffer::new(1, 1);
-        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert_eq!(*target.get_pixel(0, 0), Rgba([255, 0, 0, 255]));
-        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert_eq!(*target.get_pixel(0, 0), Rgba([0, 255, 0, 255]));
-
-        // Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert_eq!(*target.get_pixel(0, 0), Rgba([127, 128, 0, 255]));
-
-        // Blending two alpha channels
-        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert_eq!(*target.get_pixel(0, 0), Rgba([170, 85, 0, 191]));
+        let pixel: Rgba<u8> = Rgba([255, 0, 0, 255]);
+        target.put_pixel(0, 0, pixel);
+        assert_eq!(*target.get_pixel(0, 0), pixel);
     }
 
     #[test]

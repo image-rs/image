@@ -29,9 +29,7 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::io::{self, BufRead, Cursor, Read, Seek, Write};
-use std::marker::PhantomData;
-use std::mem;
+use std::io::{BufRead, Read, Seek, Write};
 use std::num::NonZeroU32;
 
 use gif::ColorOutput;
@@ -109,27 +107,6 @@ impl<R: Read> GifDecoder<R> {
             decoder.height().into(),
             ColorType::Rgba8,
         )
-    }
-}
-
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-#[allow(dead_code)]
-#[deprecated]
-pub struct GifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-
-#[allow(deprecated)]
-impl<R> Read for GifReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
     }
 }
 
@@ -683,6 +660,7 @@ impl ImageError {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::io;
 
     #[test]
     fn frames_exceeding_logical_screen_size() {
@@ -696,7 +674,7 @@ mod test {
             0x77, 0xF5, 0x6D, 0x14, 0x00, 0x3B,
         ];
 
-        let mut decoder = GifDecoder::new(Cursor::new(data)).unwrap();
+        let mut decoder = GifDecoder::new(io::Cursor::new(data)).unwrap();
         let layout = decoder.peek_layout().unwrap();
 
         let mut buf = vec![0u8; layout.total_bytes() as usize];

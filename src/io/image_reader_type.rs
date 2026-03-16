@@ -4,7 +4,8 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::error::{
-    ImageFormatHint, ImageResult, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
 };
 use crate::io::limits::Limits;
 use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes};
@@ -374,16 +375,70 @@ pub struct ImageReader<'lt> {
 pub struct DecodedImageMetadata<'reader> {
     inner: &'reader mut (dyn ImageDecoder + 'reader),
     attributes: &'reader DecodedImageAttributes,
-    metadata_buffers: &'reader MetadataBuffers,
+    metadata_buffers: &'reader mut MetadataBuffers,
 }
 
 #[derive(Default)]
 struct MetadataBuffers {
-    exif: Option<Vec<u8>>,
-    icc: Option<Vec<u8>>,
-    xmp: Option<Vec<u8>>,
-    iptc: Option<Vec<u8>>,
+    exif: MetadataBlock,
+    icc: MetadataBlock,
+    xmp: MetadataBlock,
+    iptc: MetadataBlock,
     first_meta_retrieved: bool,
+}
+
+/// Buffer state for one item of metadata, to surface the error at the right time.
+#[derive(Default)]
+enum MetadataBlock {
+    /// No buffered metadata.
+    #[default]
+    None,
+    Ok(Vec<u8>),
+    /// There was an error acquiring the metadata, this is the original error.
+    Err(ImageError),
+    /// The error was already polled. We continue to error but now with a replacement.
+    ErrorTaken,
+    /// The error was an `Unsupported`, similar to `ErrorTaken` but also return as
+    /// `ImageError::Unsupported` with the original format hint.
+    Unsupported(ImageFormatHint),
+}
+
+impl MetadataBlock {
+    fn is_not_none(&self) -> bool {
+        !matches!(self, MetadataBlock::None)
+    }
+
+    fn get(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        match self {
+            MetadataBlock::None => Ok(None),
+            MetadataBlock::Ok(data) => Ok(Some(data.clone())),
+            MetadataBlock::Err(err) => {
+                // Doing a little dance to change the variant to ErrorTaken in-place.
+                let replacement_err = ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::FailedAlready,
+                ));
+
+                let err = core::mem::replace(err, replacement_err);
+
+                *self = if let ImageError::Unsupported(e) = &err {
+                    MetadataBlock::Unsupported(e.format_hint())
+                } else {
+                    MetadataBlock::ErrorTaken
+                };
+
+                Err(err)
+            }
+            MetadataBlock::ErrorTaken => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::FailedAlready,
+            ))),
+            MetadataBlock::Unsupported(hint) => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    hint.clone(),
+                    UnsupportedErrorKind::GenericFeature("metadata".to_string()),
+                ),
+            )),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -493,7 +548,7 @@ impl ImageReader<'_> {
         image: &mut DynamicImage,
     ) -> ImageResult<DecodedImageMetadata<'_>> {
         let layout = self.inner.peek_layout()?;
-        self.fill_header_metadata_if_any()?;
+        self.fill_header_metadata_if_any();
 
         // This is technically redundant but it's also cheap.
         self.limits.check_dimensions(layout.width, layout.height)?;
@@ -544,7 +599,7 @@ impl ImageReader<'_> {
         Ok(DecodedImageMetadata {
             inner: self.inner.as_mut(),
             attributes: &self.last_attributes,
-            metadata_buffers: &self.metadata_buffers,
+            metadata_buffers: &mut self.metadata_buffers,
         })
     }
 
@@ -560,7 +615,7 @@ impl ImageReader<'_> {
 
         // Some decoders may still want a buffer, so we can't fully ignore it.
         let layout = self.inner.peek_layout()?;
-        self.fill_header_metadata_if_any()?;
+        self.fill_header_metadata_if_any();
 
         // This is technically redundant but it's also cheap.
         self.limits.check_dimensions(layout.width, layout.height)?;
@@ -592,7 +647,7 @@ impl ImageReader<'_> {
     ///
     /// Polls the underlying decoder for any `InHeader` metadata that is constant across a file,
     /// applicable to all images, and appears early.
-    fn fill_header_metadata_if_any(&mut self) -> Result<(), ImageError> {
+    fn fill_header_metadata_if_any(&mut self) {
         type MetadataFn<'a> =
             fn(&mut (dyn ImageDecoder + 'a)) -> Result<Option<Vec<u8>>, ImageError>;
 
@@ -641,59 +696,89 @@ impl ImageReader<'_> {
             // We might have already tried this and succeeded. Expect the same result as last time
             // but avoids the allocation associated with that. A repeated `None` should be cheap,
             // most probably. This holds for variants that retrieve it once.
-            if matches!(hint, DecodedMetadataHint::InHeader) && buffer.is_some() {
+            if matches!(hint, DecodedMetadataHint::InHeader) && buffer.is_not_none() {
                 continue;
             }
 
             match getter(self.inner.as_mut()) {
-                Ok(metadata) => *buffer = metadata,
+                Ok(None) => *buffer = MetadataBlock::None,
+                Ok(Some(metadata)) => *buffer = MetadataBlock::Ok(metadata),
                 Err(err) => {
-                    if let ImageError::Unsupported(_) = err {
-                        // This is not a problem, we just won't have this metadata.
-                        *buffer = None;
-                        continue;
-                    }
-
-                    return Err(err);
+                    *buffer = MetadataBlock::Err(err);
                 }
             }
         }
 
         // Note: on error we do not set this flag. You can try again.
         self.metadata_buffers.first_meta_retrieved = true;
-
-        Ok(())
     }
 }
 
 impl<'lt> DecodedImageMetadata<'lt> {
     /// Get the EXIF metadata of the previous image if any.
     pub fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        match self.inner.format_attributes().exif {
-            DecodedMetadataHint::Unknown | DecodedMetadataHint::AfterFinish => {
-                let _ = self.inner.peek_layout();
-                self.inner.exif_metadata()
-            }
-            DecodedMetadataHint::InHeader | DecodedMetadataHint::PerImage => {
-                Ok(self.metadata_buffers.exif.clone())
-            }
-            DecodedMetadataHint::None => Ok(None),
-        }
+        Self::access_block_with(
+            &mut self.metadata_buffers.exif,
+            self.inner.format_attributes().exif,
+            self.inner,
+            <dyn ImageDecoder + '_>::exif_metadata,
+        )
     }
 
     /// Get the ICC profile of the previous image if any.
     pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        self.inner.icc_profile()
+        Self::access_block_with(
+            &mut self.metadata_buffers.icc,
+            self.inner.format_attributes().icc,
+            self.inner,
+            <dyn ImageDecoder + '_>::icc_profile,
+        )
     }
 
     /// Get the XMP metadata of the previous image if any.
     pub fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        self.inner.xmp_metadata()
+        Self::access_block_with(
+            &mut self.metadata_buffers.xmp,
+            self.inner.format_attributes().xmp,
+            self.inner,
+            <dyn ImageDecoder + '_>::xmp_metadata,
+        )
     }
 
     /// Get the IPTC metadata of the previous image if any.
     pub fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        self.inner.iptc_metadata()
+        Self::access_block_with(
+            &mut self.metadata_buffers.iptc,
+            self.inner.format_attributes().iptc,
+            self.inner,
+            <dyn ImageDecoder + '_>::iptc_metadata,
+        )
+    }
+
+    fn access_block_with<'l>(
+        block: &mut MetadataBlock,
+        meta: DecodedMetadataHint,
+        decoder: &mut (dyn ImageDecoder + 'l),
+        access: fn(&'_ mut (dyn ImageDecoder + 'l)) -> ImageResult<Option<Vec<u8>>>,
+    ) -> ImageResult<Option<Vec<u8>>> {
+        match meta {
+            DecodedMetadataHint::Unknown | DecodedMetadataHint::AfterFinish => access(decoder),
+            DecodedMetadataHint::InHeader => {
+                if matches!(block, MetadataBlock::ErrorTaken) {
+                    // We can retry this, prefer rechecking from the source.
+                    access(decoder)
+                } else {
+                    block.get()
+                }
+            }
+            DecodedMetadataHint::PerImage => {
+                // This error is sensitive to the timing (after read_image it may or may not refer
+                // to the next image until we access the decoder with `peek_layout` again. We don't
+                // want to guess, any call after the first may substitute the error.
+                block.get()
+            }
+            DecodedMetadataHint::None => Ok(None),
+        }
     }
 
     /// Get auxiliary attributes of the previous image.
@@ -838,5 +923,148 @@ impl<'stream> ImageReader<'stream> {
         });
 
         Frames::new(Box::new(iter))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{error::DecodingError, io::DecoderAttributes};
+
+    use super::*;
+
+    struct InjectedReader {
+        attr: DecoderAttributes,
+        xmp_metadata: InjectedXmp,
+        xmp_per_image: Vec<InjectedXmp>,
+        image: usize,
+    }
+
+    #[derive(Clone, Debug, Default)]
+    enum InjectedXmp {
+        #[default]
+        None,
+        Data(Vec<u8>),
+        Unsupported,
+        DecodeErr,
+    }
+
+    impl ImageDecoder for InjectedReader {
+        fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+            self.xmp_metadata = self
+                .xmp_per_image
+                .get(self.image)
+                .cloned()
+                .unwrap_or_default();
+            Ok(crate::ImageLayout::empty(crate::ColorType::Rgba8))
+        }
+
+        fn format_attributes(&self) -> DecoderAttributes {
+            self.attr.clone()
+        }
+
+        fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+            match self.xmp_metadata {
+                InjectedXmp::None => Ok(None),
+                InjectedXmp::Data(ref data) => Ok(Some(data.clone())),
+                InjectedXmp::DecodeErr => Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormatHint::Unknown,
+                    "simulating that XMP metadata could not be decoded".to_string(),
+                ))),
+                InjectedXmp::Unsupported => Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormatHint::Unknown,
+                        UnsupportedErrorKind::GenericFeature("".into()),
+                    ),
+                )),
+            }
+        }
+
+        fn read_image(&mut self, _: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+            if matches!(self.attr.xmp, DecodedMetadataHint::PerImage) {
+                self.xmp_metadata = InjectedXmp::None;
+            }
+
+            self.image += 1;
+            Ok(Default::default())
+        }
+
+        fn more_images(&self) -> SequenceControl {
+            if Some(self.image) < self.xmp_per_image.len().checked_sub(1) {
+                SequenceControl::MaybeMore
+            } else {
+                SequenceControl::None
+            }
+        }
+    }
+
+    #[test]
+    fn in_header_data_applies() -> Result<(), ImageError> {
+        const DATA: &[u8] = b"<xmp>FAKE</xmp>";
+
+        let mut reader = ImageReader::from_decoder(Box::new(InjectedReader {
+            attr: DecoderAttributes {
+                xmp: DecodedMetadataHint::InHeader,
+                ..DecoderAttributes::default()
+            },
+            xmp_metadata: InjectedXmp::default(),
+            xmp_per_image: vec![InjectedXmp::Data(DATA.to_vec()), InjectedXmp::None],
+            image: 0,
+        }));
+
+        let (_, mut meta) = reader.decode()?;
+        assert_eq!(meta.xmp_metadata()?, Some(DATA.to_vec()));
+
+        // In-Header applies to all images.
+        let (_, mut meta) = reader.decode()?;
+        assert_eq!(meta.xmp_metadata()?, Some(DATA.to_vec()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn error_stays_error() -> Result<(), ImageError> {
+        let mut reader = ImageReader::from_decoder(Box::new(InjectedReader {
+            attr: DecoderAttributes {
+                xmp: DecodedMetadataHint::InHeader,
+                ..DecoderAttributes::default()
+            },
+            xmp_metadata: InjectedXmp::default(),
+            xmp_per_image: vec![InjectedXmp::DecodeErr],
+            image: 0,
+        }));
+
+        let (_, mut meta) = reader.decode()?;
+        assert!(matches!(meta.xmp_metadata(), Err(ImageError::Decoding(_))));
+
+        // In-header should retry the meta data acquisition.
+        assert!(matches!(meta.xmp_metadata(), Err(ImageError::Decoding(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_error_repeats() -> Result<(), ImageError> {
+        let mut reader = ImageReader::from_decoder(Box::new(InjectedReader {
+            attr: DecoderAttributes {
+                xmp: DecodedMetadataHint::PerImage,
+                ..DecoderAttributes::default()
+            },
+            xmp_metadata: InjectedXmp::default(),
+            xmp_per_image: vec![InjectedXmp::Unsupported],
+            image: 0,
+        }));
+
+        let (_, mut meta) = reader.decode()?;
+        assert!(matches!(
+            meta.xmp_metadata(),
+            Err(ImageError::Unsupported(_))
+        ));
+
+        assert!(matches!(
+            meta.xmp_metadata(),
+            Err(ImageError::Unsupported(_))
+        ));
+
+        Ok(())
     }
 }

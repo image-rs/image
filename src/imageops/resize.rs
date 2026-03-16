@@ -156,7 +156,7 @@ fn has_constant_alpha(image: &DynamicImage) -> bool {
 #[must_use]
 fn has_constant_alpha_integer<P, Container>(img: &ImageBuffer<P, Container>) -> bool
 where
-    P: Pixel + 'static,
+    P: Pixel,
     Container: std::ops::Deref<Target = [P::Subpixel]>,
     P::Subpixel:
         Copy + PartialEq + BitXor<P::Subpixel, Output = P::Subpixel> + AddAssign + Into<u64>,

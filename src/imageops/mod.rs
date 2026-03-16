@@ -252,8 +252,8 @@ where
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Lerp,
 {
     for y in 0..img.height() {
         let pixel = start.map2(stop, |a, b| {
@@ -285,8 +285,8 @@ where
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Lerp,
 {
     for x in 0..img.width() {
         let pixel = start.map2(stop, |a, b| {

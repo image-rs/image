@@ -3,20 +3,26 @@ use num_traits::Bounded;
 use crate::imageops::filter_1d::{SafeAdd, SafeMul};
 use crate::{ImageBuffer, Pixel, Primitive};
 
-/// Approximation of Gaussian blur.
+/// A fast approximation of Gaussian blur.
 ///
 /// # Arguments
 ///
-/// * `image_buffer` - source image.
-/// * `sigma` - value controls image flattening level.
+/// * `sigma` - Radius of the blur. Defines the standard deviation of the
+///   Gaussian function to approximate. Larger values create more blur.
+///
+/// # Notes
 ///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
 ///
-/// Source: Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
-/// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
+/// # See also
+///
+/// - [`blur()`](crate::imageops::blur()) - more accurate Gaussian blur implementation, but slower.
+//
+// Source: Kovesi, P.:  Fast Almost-Gaussian Filtering The Australian Pattern
+// Recognition Society Conference: DICTA 2010. December 2010. Sydney.
 #[must_use]
 pub fn fast_blur<P: Pixel>(
     input_buffer: &ImageBuffer<P, Vec<P::Subpixel>>,

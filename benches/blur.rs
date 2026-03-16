@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use image::imageops::{blur_advanced, fast_blur, GaussianBlurParameters};
+use image::imageops::{blur, fast_blur};
 use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 
 pub fn bench_fast_blur(c: &mut Criterion) {
@@ -19,27 +19,27 @@ pub fn bench_fast_blur(c: &mut Criterion) {
     });
 
     c.bench_function("gaussian blur: sigma 3.0", |b| {
-        b.iter(|| blur_advanced(&src, GaussianBlurParameters::new_from_sigma(3.0)));
+        b.iter(|| blur(&src, 3.0));
     });
 
     c.bench_function("gaussian blur: sigma 7.0", |b| {
-        b.iter(|| blur_advanced(&src, GaussianBlurParameters::new_from_sigma(7.0)));
+        b.iter(|| blur(&src, 7.0));
     });
 
     c.bench_function("gaussian blur: sigma 50.0", |b| {
-        b.iter(|| blur_advanced(&src, GaussianBlurParameters::new_from_sigma(50.0)));
+        b.iter(|| blur(&src, 50.0));
     });
 
     c.bench_function("gaussian blur (dynamic image): sigma 3.0", |b| {
-        b.iter(|| dynamic.blur_advanced(GaussianBlurParameters::new_from_sigma(3.0)));
+        b.iter(|| dynamic.blur(3.0));
     });
 
     c.bench_function("gaussian blur (dynamic image): sigma 7.0", |b| {
-        b.iter(|| dynamic.blur_advanced(GaussianBlurParameters::new_from_sigma(7.0)));
+        b.iter(|| dynamic.blur(7.0));
     });
 
     c.bench_function("gaussian blur (dynamic image): sigma 50.0", |b| {
-        b.iter(|| dynamic.blur_advanced(GaussianBlurParameters::new_from_sigma(50.0)));
+        b.iter(|| dynamic.blur(50.0));
     });
 }
 

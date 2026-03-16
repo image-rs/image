@@ -995,23 +995,32 @@ where
 ///
 /// # Arguments
 ///
-/// * `radius` - Blurring window radius. These parameter controls directly the window size.
-///   We choose visually optimal sigma for the given radius. To control sigma
-///   directly use [DynamicImage::blur_advanced] instead.
+/// * `sigma` - Radius of the blur. Defines the standard deviation of the
+///   Gaussian function. Larger values create more blur.
 ///
-/// Use [`crate::imageops::fast_blur()`] for a faster but less
-/// accurate version.
+/// # Notes
+///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+///
+/// # Panics
+///
+/// Panics if `sigma` is negative, NaN, or infinity.
+///
+/// # See also
+///
+/// - [`blur_advanced()`] for a more flexible version of this function.
+/// - [`fast_blur`](crate::imageops::fast_blur()) for a faster but less accurate Gaussian blur.
 pub fn blur<I: GenericImageView>(
     image: &I,
-    radius: f32,
+    sigma: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
     I::Pixel: 'static,
 {
-    gaussian_blur_indirect(image, GaussianBlurParameters::new_from_radius(radius))
+    gaussian_blur_indirect(image, GaussianBlurParameters::new_from_sigma(sigma))
 }
 
 /// Performs a Gaussian blur on the supplied image.
@@ -1020,9 +1029,16 @@ where
 ///
 ///  - `parameters` - see [GaussianBlurParameters] for more info.
 ///
+/// # Notes
+///
 /// This method assumes alpha pre-multiplication for images that contain non-constant alpha.
+///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+///
+/// # See also
+///
+/// - [`blur()`] for a simpler version of this function.
 pub fn blur_advanced<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
@@ -1560,24 +1576,31 @@ where
     out
 }
 
-/// Performs an unsharpen mask on the supplied image.
+/// Performs an [unsharpen mask](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
+/// on the supplied image.
 ///
 /// # Arguments:
 ///
-/// * `sigma` - is the amount to blur the image by.
+/// * `sigma` - Radius of the blur. Defines the standard deviation of the
+///   Gaussian function used to create the unsharp mask. Larger values
+///   create a blurrier mask and thus a sharpening effect for a larger area.
 /// * `threshold` - is the threshold for minimal brightness change that will be sharpened.
+///
+/// # Notes
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
 ///
-/// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
+/// # Panics
+///
+/// Panics if `sigma` is negative, NaN, or infinity.
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
-    let mut tmp = blur_advanced(image, GaussianBlurParameters::new_from_sigma(sigma));
+    let mut tmp = blur(image, sigma);
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();

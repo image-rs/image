@@ -125,6 +125,24 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(decoder.xmp().cloned())
     }
 
+    fn extended_xmp_metadata(&mut self) -> ImageResult<Option<(String, Vec<u8>)>> {
+        let options = zune_core::options::DecoderOptions::default()
+            .set_strict_mode(false)
+            .set_max_width(usize::MAX)
+            .set_max_height(usize::MAX);
+        let mut decoder =
+            zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(&self.input), options);
+        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
+
+        if let Some(info) = decoder.info() {
+            if let (Some(guid), Some(data)) = (info.extended_xmp_guid, info.extended_xmp) {
+                let guid_str = String::from_utf8_lossy(&guid).into_owned();
+                return Ok(Some((guid_str, data)));
+            }
+        }
+        Ok(None)
+    }
+
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)

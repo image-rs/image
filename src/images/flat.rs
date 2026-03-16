@@ -789,8 +789,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// not release any allocation.
     pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
     where
-        P: Pixel + 'static,
-        P::Subpixel: 'static,
+        P: Pixel,
         Buffer: Deref<Target = [P::Subpixel]>,
     {
         if !self.is_normal(NormalForm::RowMajorPacked) {

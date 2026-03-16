@@ -90,8 +90,8 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut out = image.buffer_like();
 
@@ -156,8 +156,8 @@ where
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut out = image.buffer_like();
 
@@ -221,8 +221,8 @@ where
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut out = image.buffer_like();
 
@@ -480,7 +480,7 @@ macro_rules! do_dithering(
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Subpixel = u8>,
 {
     let (width, height) = image.dimensions();
     let mut err: [i16; 3] = [0; 3];
@@ -521,7 +521,7 @@ pub fn index_colors<Pix, Map>(
 ) -> ImageBuffer<Luma<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Subpixel = u8>,
 {
     // Special case, we do *not* want to copy the color space here.
     let mut indices = ImageBuffer::new(image.width(), image.height());

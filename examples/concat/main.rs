@@ -20,8 +20,8 @@ fn main() {
 fn h_concat<I, P, S>(images: &[I]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     // The final width is the sum of all images width.
     let img_width_out: u32 = images.iter().map(|im| im.width()).sum();

@@ -226,9 +226,9 @@ where
 {
     if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
         // ignore grayscale and gray+alpha images
-        // TODO: Find a faster way to convert GenericImageView to ImageBuffer
-        let (width, height) = image.dimensions();
-        return ImageBuffer::from_fn(width, height, |x, y| image.get_pixel(x, y));
+        let mut buffer = image.buffer_like();
+        buffer.copy_from(image, 0, 0).unwrap();
+        return buffer;
     }
 
     let mut out = image.buffer_like();
@@ -277,11 +277,7 @@ where
 
 /// Hue rotate the supplied image in place.
 ///
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
-///
-/// *[See also `huerotate`.][huerotate]*
+/// See [`huerotate`] for more details.
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,

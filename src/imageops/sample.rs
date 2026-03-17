@@ -247,8 +247,8 @@ fn horizontal_sample<P, S>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let (width, height) = image.dimensions();
     // This is protection against a memory usage similar to #2340. See `vertical_sample`.
@@ -492,8 +492,8 @@ pub fn interpolate_bilinear<P: Pixel>(
 fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let (width, height) = image.dimensions();
 
@@ -593,8 +593,8 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Enlargeable + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
 {
     // Maximum support channels for `ThumbnailSum`.
     assert!(P::CHANNEL_COUNT as usize <= MAX_CHANNEL);
@@ -866,8 +866,8 @@ where
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32; 9]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -941,11 +941,7 @@ pub fn resize<I: GenericImageView>(
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     // Check if there is nothing to sample from.
     let is_empty = {
         let (width, height) = image.dimensions();
@@ -1007,10 +1003,7 @@ where
 pub fn blur<I: GenericImageView>(
     image: &I,
     radius: f32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     gaussian_blur_indirect(image, GaussianBlurParameters::new_from_radius(radius))
 }
 
@@ -1026,10 +1019,7 @@ where
 pub fn blur_advanced<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     gaussian_blur_indirect(image, parameters)
 }
 
@@ -1443,10 +1433,7 @@ pub(crate) fn gaussian_blur_dyn_image(
 fn gaussian_blur_indirect<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     match I::Pixel::CHANNEL_COUNT {
         1 => gaussian_blur_indirect_impl::<I, 1>(image, parameters),
         2 => gaussian_blur_indirect_impl::<I, 2>(image, parameters),
@@ -1459,10 +1446,7 @@ where
 fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
     let transient_chunks = transient.as_chunks_mut::<CN>().0.iter_mut();
     for (pixel, dst) in image.pixels().zip(transient_chunks) {
@@ -1574,8 +1558,8 @@ where
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut tmp = blur_advanced(image, GaussianBlurParameters::new_from_sigma(sigma));
 

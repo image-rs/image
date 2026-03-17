@@ -174,7 +174,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImageView for SubImageInner<I>
 where
     I: Deref,
@@ -217,7 +216,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImage for SubImageInner<I>
 where
     I: DerefMut,

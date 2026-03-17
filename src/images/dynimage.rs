@@ -1070,12 +1070,24 @@ impl DynamicImage {
     }
 
     /// Hue rotate the supplied image.
-    /// `value` is the degrees to rotate each pixel by.
-    /// 0 and 360 do nothing, the rest rotates by the given degree value.
-    /// just like the css webkit filter hue-rotate(180)
     ///
-    /// This method operates on pixel channel values directly without taking into account color
-    /// space data. The HSV color space is dependent on the current color space primaries.
+    /// `value` is the angle in degrees to rotate the hue of each pixel by. 0 and 360
+    /// do nothing. -15 is the same as 360-15 = 345. This behaves the same as the CSS
+    /// filter [`hue-rotate()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/filter-function/hue-rotate).
+    ///
+    /// # Notes
+    ///
+    /// This method operates on pixel channel values directly without taking into
+    /// account color space data. The HSV color space is dependent on the current
+    /// color space primaries.
+    ///
+    /// The first 3 channels are interpreted as RGB and the hue rotation is applied
+    /// to those channels. Any additional channels (e.g. alpha) are left unchanged.
+    /// Images with fewer than 3 channels are not modified.
+    ///
+    /// # See also
+    ///
+    /// * [`imageops::huerotate`] for a generic version of this function.
     #[must_use]
     pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
@@ -1484,7 +1496,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
 
@@ -1497,7 +1508,6 @@ impl GenericImageView for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
 impl GenericImage for DynamicImage {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {

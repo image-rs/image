@@ -1,6 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::NumCast;
+use num_traits::{NumCast, ToPrimitive};
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::metadata::{CicpColorPrimaries, CicpTransferCharacteristics};
@@ -224,6 +224,13 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        // TODO: Find a faster way to convert GenericImageView to ImageBuffer
+        let (width, height) = image.dimensions();
+        return ImageBuffer::from_fn(width, height, |x, y| image.get_pixel(x, y));
+    }
+
     let mut out = image.buffer_like();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -245,29 +252,24 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
-    let mut v = [0.0f64; 4];
-    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
-
     for (x, y, outpixel) in out.enumerate_pixels_mut() {
-        let pixel = image.get_pixel(x, y);
+        let mut pixel = image.get_pixel(x, y);
+        let channels = pixel.channels_mut();
 
-        for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
-            *v = NumCast::from(*c).unwrap();
-        }
-
-        let r = v[0];
-        let g = v[1];
-        let b = v[2];
+        let r = channels[0].to_f64().unwrap();
+        let g = channels[1].to_f64().unwrap();
+        let b = channels[2].to_f64().unwrap();
 
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        let channels = [new_r, new_b, new_g, v[3]];
-        let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
 
-        *outpixel = *Pixel::from_slice(&channels[..used_channels]);
+        *outpixel = pixel;
     }
 
     out
@@ -284,6 +286,11 @@ pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        return;
+    }
+
     let (width, height) = image.dimensions();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -305,32 +312,26 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
-    let mut v = [0.0f64; 4];
-    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
-
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+            let mut pixel = image.get_pixel(x, y);
+            let channels = pixel.channels_mut();
 
-            for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
-                *v = NumCast::from(*c).unwrap();
-            }
-
-            let r = v[0];
-            let g = v[1];
-            let b = v[2];
+            let r = channels[0].to_f64().unwrap();
+            let g = channels[1].to_f64().unwrap();
+            let b = channels[2].to_f64().unwrap();
 
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            let channels = [new_r, new_b, new_g, v[3]];
-            let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+            channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+            channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+            channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
 
-            let outpixel = Pixel::from_slice(&channels[..used_channels]);
-            image.put_pixel(x, y, *outpixel);
+            image.put_pixel(x, y, pixel);
         }
     }
 }

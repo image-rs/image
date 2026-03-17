@@ -213,11 +213,24 @@ where
 }
 
 /// Hue rotate the supplied image.
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
 ///
-/// *[See also `huerotate_in_place`.][huerotate_in_place]*
+/// `value` is the angle in degrees to rotate the hue of each pixel by. 0 and 360
+/// do nothing. -15 is the same as 360-15 = 345. This behaves the same as the CSS
+/// filter [`hue-rotate()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/filter-function/hue-rotate).
+///
+/// # Notes
+///
+/// This method operates on pixel channel values directly without taking into
+/// account color space data. The HSV color space is dependent on the current
+/// color space primaries.
+///
+/// The first 3 channels are interpreted as RGB and the hue rotation is applied
+/// to those channels. Any additional channels (e.g. alpha) are left unchanged.
+/// Images with fewer than 3 channels are not modified.
+///
+/// # See also
+///
+/// * [`huerotate_in_place`] for an in-place version of this function.
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,

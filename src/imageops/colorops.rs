@@ -1,6 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::NumCast;
+use num_traits::{NumCast, ToPrimitive};
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::metadata::{CicpColorPrimaries, CicpTransferCharacteristics};
@@ -213,17 +213,37 @@ where
 }
 
 /// Hue rotate the supplied image.
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
 ///
-/// *[See also `huerotate_in_place`.][huerotate_in_place]*
+/// `value` is the angle in degrees to rotate the hue of each pixel by. 0 and 360
+/// do nothing. -15 is the same as 360-15 = 345. This behaves the same as the CSS
+/// filter [`hue-rotate()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/filter-function/hue-rotate).
+///
+/// # Notes
+///
+/// This method operates on pixel channel values directly without taking into
+/// account color space data. The HSV color space is dependent on the current
+/// color space primaries.
+///
+/// The first 3 channels are interpreted as RGB and the hue rotation is applied
+/// to those channels. Any additional channels (e.g. alpha) are left unchanged.
+/// Images with fewer than 3 channels are not modified.
+///
+/// # See also
+///
+/// * [`huerotate_in_place`] for an in-place version of this function.
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        let mut buffer = image.buffer_like();
+        buffer.copy_from(image, 0, 0).unwrap();
+        return buffer;
+    }
+
     let mut out = image.buffer_like();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -245,29 +265,24 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
-    let mut v = [0.0f64; 4];
-    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
-
     for (x, y, outpixel) in out.enumerate_pixels_mut() {
-        let pixel = image.get_pixel(x, y);
+        let mut pixel = image.get_pixel(x, y);
+        let channels = pixel.channels_mut();
 
-        for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
-            *v = NumCast::from(*c).unwrap();
-        }
-
-        let r = v[0];
-        let g = v[1];
-        let b = v[2];
+        let r = channels[0].to_f64().unwrap();
+        let g = channels[1].to_f64().unwrap();
+        let b = channels[2].to_f64().unwrap();
 
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        let channels = [new_r, new_b, new_g, v[3]];
-        let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
 
-        *outpixel = *Pixel::from_slice(&channels[..used_channels]);
+        *outpixel = pixel;
     }
 
     out
@@ -275,15 +290,16 @@ where
 
 /// Hue rotate the supplied image in place.
 ///
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
-///
-/// *[See also `huerotate`.][huerotate]*
+/// See [`huerotate`] for more details.
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        return;
+    }
+
     let (width, height) = image.dimensions();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -305,32 +321,26 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
-    let mut v = [0.0f64; 4];
-    let used_channels = <I::Pixel as Pixel>::CHANNEL_COUNT as usize;
-
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+            let mut pixel = image.get_pixel(x, y);
+            let channels = pixel.channels_mut();
 
-            for (v, c) in v.iter_mut().zip(pixel.channels().iter()) {
-                *v = NumCast::from(*c).unwrap();
-            }
-
-            let r = v[0];
-            let g = v[1];
-            let b = v[2];
+            let r = channels[0].to_f64().unwrap();
+            let g = channels[1].to_f64().unwrap();
+            let b = channels[2].to_f64().unwrap();
 
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            let channels = [new_r, new_b, new_g, v[3]];
-            let channels = channels.map(|c| NumCast::from(clamp(c, 0.0, max)).unwrap());
+            channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+            channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+            channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
 
-            let outpixel = Pixel::from_slice(&channels[..used_channels]);
-            image.put_pixel(x, y, *outpixel);
+            image.put_pixel(x, y, pixel);
         }
     }
 }

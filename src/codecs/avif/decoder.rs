@@ -3,6 +3,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
@@ -369,28 +370,27 @@ fn get_matrix(
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.picture.width(), self.picture.height())
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.picture.bit_depth() == 8 {
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let color = if self.picture.bit_depth() == 8 {
             ColorType::Rgba8
         } else {
             ColorType::Rgba16
-        }
+        };
+
+        Ok(crate::ImageLayout {
+            width: self.picture.width(),
+            height: self.picture.height(),
+            ..crate::ImageLayout::empty(color)
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.icc_profile.clone())
     }
 
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        Ok(self.orientation)
-    }
-
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let bit_depth = self.picture.bit_depth();
 
@@ -398,7 +398,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         // if this happens then there is an incorrect implementation somewhere else
         assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
-        let (width, height) = self.dimensions();
+        let (width, height) = layout.dimensions();
         // This is suspicious if this happens, better fail early
         if width == 0 || height == 0 {
             return Err(ImageError::Limits(LimitError::from_kind(
@@ -485,7 +485,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
 
             // Squashing alpha plane into a picture
-            if let Some(picture) = self.alpha_picture {
+            if let Some(picture) = &self.alpha_picture {
                 if picture.pixel_layout() != PixelLayout::I400 {
                     return Err(ImageError::Decoding(DecodingError::new(
                         ImageFormat::Avif.into(),
@@ -521,11 +521,10 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
         }
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            orientation: Some(self.orientation),
+            ..DecodedImageAttributes::default()
+        })
     }
 }
 

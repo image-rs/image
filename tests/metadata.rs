@@ -25,12 +25,22 @@ fn test_read_xmp_png() -> Result<(), image::ImageError> {
     const EXPECTED_PNG_METADATA: &str = "<?xpacket begin='\u{feff}' id='W5M0MpCehiHzreSzNTczkc9d'?>\n<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Image::ExifTool 13.25'>\n<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n\n <rdf:Description rdf:about=''\n  xmlns:dc='http://purl.org/dc/elements/1.1/'>\n  <dc:subject>\n   <rdf:Bag>\n    <rdf:li>sunset, mountains, nature</rdf:li>\n   </rdf:Bag>\n  </dc:subject>\n </rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end='r'?>";
 
     let img_path = PathBuf::from_str(XMP_PNG_PATH).unwrap();
-
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
-    let metadata = png_decoder.xmp_metadata()?;
-    assert!(metadata.is_some());
-    assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
+
+    {
+        let mut png_decoder = PngDecoder::new(std::io::Cursor::new(&data[..]));
+        png_decoder.peek_layout()?;
+        let metadata = png_decoder.xmp_metadata()?;
+        assert!(metadata.is_some());
+        assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
+    }
+
+    {
+        let png_decoder = PngDecoder::new(std::io::Cursor::new(&data[..]));
+        let mut reader = image::ImageReader::from_decoder(Box::new(png_decoder));
+        let (_, mut meta) = reader.decode()?;
+        assert!(meta.xmp_metadata()?.as_deref() == Some(EXPECTED_PNG_METADATA.as_bytes()));
+    }
 
     Ok(())
 }
@@ -41,8 +51,8 @@ fn test_read_xmp_webp() -> Result<(), image::ImageError> {
     const XMP_WEBP_PATH: &str = "tests/images/webp/lossless_images/simple_xmp.webp";
     const EXPECTED_METADATA: &str = "<?xpacket begin='\u{feff}' id='W5M0MpCehiHzreSzNTczkc9d'?>\n<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Image::ExifTool 13.25'>\n<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n\n <rdf:Description rdf:about=''\n  xmlns:dc='http://purl.org/dc/elements/1.1/'>\n  <dc:subject>\n   <rdf:Bag>\n    <rdf:li>sunset, mountains, nature</rdf:li>\n   </rdf:Bag>\n  </dc:subject>\n </rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n<?xpacket end='w'?>";
     let img_path = PathBuf::from_str(XMP_WEBP_PATH).unwrap();
-
     let data = fs::read(img_path)?;
+
     let mut webp_decoder = WebPDecoder::new(std::io::Cursor::new(data))?;
     let metadata = webp_decoder.xmp_metadata()?;
 
@@ -110,7 +120,8 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(IPTC_PNG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data));
+    png_decoder.peek_layout()?;
     let metadata = png_decoder.iptc_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, metadata.unwrap());

@@ -7,8 +7,9 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::decoder::DecodedMetadataHint;
 use crate::io::image_reader_type::SpecCompliance;
-use crate::metadata::Orientation;
+use crate::io::{DecodedImageAttributes, DecoderAttributes};
 use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
@@ -21,7 +22,6 @@ pub struct JpegDecoder<R> {
     width: u16,
     height: u16,
     limits: Limits,
-    orientation: Option<Orientation>,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
     phantom: PhantomData<R>,
@@ -71,7 +71,6 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
             width,
             height,
             limits,
-            orientation: None,
             phantom: PhantomData,
         })
     }
@@ -88,15 +87,30 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.width), u32::from(self.height))
+    fn format_attributes(&self) -> DecoderAttributes {
+        DecoderAttributes {
+            // As per specification, once we start with MCUs we can only have restarts. Also all
+            // our methods currently seek of their own accord anyways, it's just important to
+            // uphold this if we do not buffer the whole file.
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::InHeader,
+            xmp: DecodedMetadataHint::InHeader,
+            iptc: DecodedMetadataHint::InHeader,
+            ..DecoderAttributes::default()
+        }
     }
 
-    fn color_type(&self) -> ColorType {
-        ColorType::from_jpeg(self.orig_color_space)
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        Ok(crate::ImageLayout::new(
+            self.width.into(),
+            self.height.into(),
+            ColorType::from_jpeg(self.orig_color_space),
+        ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(self.spec_compliance == SpecCompliance::Strict)
             .set_max_width(usize::MAX)
@@ -108,6 +122,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(self.spec_compliance == SpecCompliance::Strict)
             .set_max_width(usize::MAX)
@@ -117,16 +133,12 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         let exif = decoder.exif().cloned();
 
-        self.orientation = Some(
-            exif.as_ref()
-                .and_then(|exif| Orientation::from_exif_chunk(exif))
-                .unwrap_or(Orientation::NoTransforms),
-        );
-
         Ok(exif)
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(self.spec_compliance == SpecCompliance::Strict)
             .set_max_width(usize::MAX)
@@ -139,6 +151,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        // If this is changed to operate on a file, ensure all headers are done here and we have
+        // reached the MCU/RST portion of the stream.
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(self.spec_compliance == SpecCompliance::Strict)
             .set_max_width(usize::MAX)
@@ -150,16 +164,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         Ok(decoder.iptc().cloned())
     }
 
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
-        if self.orientation.is_none() {
-            let _ = self.exif_metadata()?;
-        }
-        Ok(self.orientation.unwrap())
-    }
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        let advertised_len = self.total_bytes();
+        let advertised_len = layout.total_bytes();
         let actual_len = buf.len() as u64;
 
         if actual_len != advertised_len {
@@ -177,22 +185,22 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             &self.input,
             self.orig_color_space,
             self.spec_compliance == SpecCompliance::Strict,
-            self.limits,
+            &self.limits,
         );
+
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
-        Ok(())
+
+        Ok(DecodedImageAttributes {
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.dimensions();
+        let (width, height) = self.peek_layout()?.dimensions();
         limits.check_dimensions(width, height)?;
         self.limits = limits;
         Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
     }
 }
 
@@ -222,12 +230,12 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     }
 }
 
-fn new_zune_decoder(
-    input: &[u8],
+fn new_zune_decoder<'input>(
+    input: &'input [u8],
     orig_color_space: ZuneColorSpace,
     strict_mode: bool,
-    limits: Limits,
-) -> zune_jpeg::JpegDecoder<ZCursor<&[u8]>> {
+    limits: &Limits,
+) -> zune_jpeg::JpegDecoder<ZCursor<&'input [u8]>> {
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options = zune_core::options::DecoderOptions::default()
         .jpeg_set_out_colorspace(target_color_space)
@@ -267,8 +275,16 @@ mod tests {
     #[test]
     fn test_exif_orientation() {
         let data = fs::read("tests/images/jpg/portrait_2.jpg").unwrap();
-        let mut decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
-        assert_eq!(decoder.orientation().unwrap(), Orientation::FlipHorizontal);
+        let decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
+
+        let mut image = crate::DynamicImage::new_luma8(0, 0);
+        let mut reader = crate::ImageReader::from_decoder(Box::new(decoder));
+        let meta = reader.decode_into(&mut image).unwrap();
+
+        assert_eq!(
+            meta.attributes().orientation.unwrap(),
+            crate::metadata::Orientation::FlipHorizontal
+        );
     }
 
     #[test]
@@ -277,15 +293,17 @@ mod tests {
         image.truncate(image.len() - 1000); // simulate a truncated image
 
         // Default (lenient) mode: truncated image should be accepted
-        let decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
-        let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+        let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
+        let layout = decoder.peek_layout().unwrap();
+        let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_ok());
 
         // Strict mode: truncated image should be rejected
-        let decoder =
+        let mut decoder =
             JpegDecoder::new_with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict)
                 .unwrap();
-        let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+        let layout = decoder.peek_layout().unwrap();
+        let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_err());
     }
 }

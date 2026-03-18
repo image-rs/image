@@ -22,6 +22,7 @@ use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecodedImageAttributes;
 use crate::{ColorType, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// farbfeld Reader
@@ -195,22 +196,16 @@ impl<R: Read> FarbfeldDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.reader.width, self.reader.height)
+    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        let FarbfeldReader { width, height, .. } = self.reader;
+        Ok(crate::ImageLayout::new(width, height, ColorType::Rgba16))
     }
 
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgba16
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.peek_layout()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.reader.read_exact(buf)?;
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

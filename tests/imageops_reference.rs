@@ -1,6 +1,4 @@
-#[cfg(feature = "png")]
-use image::DynamicImage;
-use image::{GenericImageView, GrayImage, RgbImage, RgbaImage};
+use image::{DynamicImage, GenericImageView, GrayImage, RgbImage, RgbaImage};
 use std::{
     path::{Path, PathBuf},
     sync::LazyLock,
@@ -78,6 +76,11 @@ fn add_trial<I: Into<DynamicImage>>(
     name: impl AsRef<str>,
     f: impl FnOnce() -> I + Send + 'static,
 ) {
+    if !cfg!(feature = "png") {
+        trials.push(Trial::test(name.as_ref(), move || Ok(())).with_ignored_flag(true));
+        return;
+    }
+
     let path = REFERENCE.join(format!("{}.png", name.as_ref()));
     trials.push(Trial::test(name.as_ref(), move || {
         let image = f().into();
@@ -95,7 +98,13 @@ struct Image {
 impl Image {
     fn open(path: &Path) -> &'static Self {
         let name = path.file_stem().unwrap().to_str().unwrap().to_string();
-        let image = image::open(path).unwrap();
+
+        let image = if cfg!(feature = "png") {
+            image::open(path).unwrap()
+        } else {
+            DynamicImage::new_rgb8(8, 8)
+        };
+
         Box::leak(Box::new(Self {
             name,
             rgba: image.to_rgba8(),
@@ -109,6 +118,7 @@ fn compare_to_output(path: &Path, image: DynamicImage) {
     let name = path.file_stem().unwrap().to_str().unwrap();
 
     if !path.exists() {
+        #[cfg(feature = "png")]
         save_png(path, image);
         panic!("Saved output for {name} to {path:?}. Please verify it is correct and commit it.");
     }

@@ -21,14 +21,13 @@ pub use self::sample::{
 
 /// Color operations
 pub use self::colorops::{
-    brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
-    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+    brighten, brighten_in_place, contrast, contrast_in_place, dither, grayscale, grayscale_alpha,
+    grayscale_with_type, grayscale_with_type_alpha, huerotate, huerotate_in_place, index_colors,
+    invert, BiLevel, ColorMap,
 };
 
 mod affine;
-// Public only because of Rust bug:
-// https://github.com/rust-lang/rust/issues/18241
-pub mod colorops;
+mod colorops;
 mod fast_blur;
 mod filter_1d;
 pub(crate) mod resize;

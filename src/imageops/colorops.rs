@@ -370,7 +370,7 @@ pub trait ColorMap {
 ///
 /// # Examples
 /// ```
-/// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
+/// use image::imageops::{index_colors, BiLevel, ColorMap};
 /// use image::{ImageBuffer, Luma};
 ///
 /// let (w, h) = (16, 16);

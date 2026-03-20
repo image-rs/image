@@ -1,7 +1,7 @@
 use image::{DynamicImage, GenericImageView, GrayImage, RgbImage, RgbaImage};
 use std::{
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{LazyLock, OnceLock},
 };
 
 use libtest_mimic::{Arguments, Trial};
@@ -14,9 +14,14 @@ static REFERENCE: LazyLock<PathBuf> = LazyLock::new(|| TESTS_DIR.join("imageops"
 fn main() -> std::process::ExitCode {
     let mut trials = Vec::new();
 
-    let bw_edge = Image::open(&ASSETS.join("bw-edge.png"));
-    let noise = Image::open(&ASSETS.join("noise.png"));
-    let cat = Image::open(&ASSETS.join("cat.png"));
+    static IMAGES: OnceLock<[Image; 3]> = OnceLock::new();
+    let [bw_edge, noise, cat] = IMAGES.get_or_init(|| {
+        [
+            Image::open(&ASSETS.join("bw-edge.png")),
+            Image::open(&ASSETS.join("noise.png")),
+            Image::open(&ASSETS.join("cat.png")),
+        ]
+    });
 
     // blur & fast_blur with various sigmas
     for image in [bw_edge, noise] {
@@ -96,7 +101,7 @@ struct Image {
     gray: GrayImage,
 }
 impl Image {
-    fn open(path: &Path) -> &'static Self {
+    fn open(path: &Path) -> Self {
         let name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
         let image = if cfg!(feature = "png") {
@@ -105,12 +110,12 @@ impl Image {
             DynamicImage::new_rgb8(8, 8)
         };
 
-        Box::leak(Box::new(Self {
+        Self {
             name,
             rgba: image.to_rgba8(),
             rgb: image.to_rgb8(),
             gray: image.to_luma8(),
-        }))
+        }
     }
 }
 

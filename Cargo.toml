@@ -126,6 +126,11 @@ path = "benches/convert.rs"
 name = "convert"
 harness = false
 
+[[bench]]
+path = "benches/imageops.rs"
+name = "imageops"
+harness = false
+
 [[test]]
 path = "tests/reference_images.rs"
 name = "reference_images"

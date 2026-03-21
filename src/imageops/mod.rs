@@ -3,8 +3,6 @@ use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
 
-pub use self::sample::FilterType;
-
 pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
 
 /// Affine transformations
@@ -14,10 +12,13 @@ pub use self::affine::{
     rotate90, rotate90_in,
 };
 
+pub use self::fast_blur::fast_blur;
+
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
-    sample_nearest, thumbnail, unsharpen,
+    blur, blur_advanced, filter3x3, interpolate_bilinear, interpolate_nearest, resize,
+    sample_bilinear, sample_nearest, thumbnail, unsharpen, FilterType, GaussianBlurParameters,
 };
+pub(crate) use sample::gaussian_blur_dyn_image;
 
 /// Color operations
 pub use self::colorops::{
@@ -32,10 +33,6 @@ mod fast_blur;
 mod filter_1d;
 pub(crate) mod resize;
 mod sample;
-
-pub use fast_blur::fast_blur;
-pub(crate) use sample::gaussian_blur_dyn_image;
-pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.

@@ -17,6 +17,7 @@ use crate::imageops::filter_1d::{
     FilterImageSize,
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
+use crate::math::fast_round_positive_f32;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::{clamp, is_integer};
 use crate::{
@@ -137,10 +138,10 @@ impl ToPrimitive for FloatNearest {
         self.0.round().to_i64()
     }
     fn to_u8(&self) -> Option<u8> {
-        self.0.round().to_u8()
+        fast_round_positive_f32(self.0).to_u8()
     }
     fn to_u16(&self) -> Option<u16> {
-        self.0.round().to_u16()
+        fast_round_positive_f32(self.0).to_u16()
     }
     fn to_u64(&self) -> Option<u64> {
         self.0.round().to_u64()

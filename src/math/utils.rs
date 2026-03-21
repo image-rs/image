@@ -46,6 +46,37 @@ pub(crate) fn multiply_accumulate<
     acc + a * b
 }
 
+/// Fast round-to-nearest for positive f32 values.
+///
+/// On aarch64 and x86 with SSE 4.1, delegates to hardware `roundss`/`frintn`
+/// via `.round()`.  Otherwise uses the "magic number" trick: adding 2^23 forces
+/// the mantissa to snap to the nearest integer, subtracting gives the result.
+/// Two `addss` instructions, no libm `roundf` call.
+#[cfg(any(
+    target_arch = "aarch64",
+    all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "sse4.1"
+    )
+))]
+#[inline(always)]
+pub(crate) fn fast_round_positive_f32(x: f32) -> f32 {
+    x.round()
+}
+
+#[cfg(not(any(
+    target_arch = "aarch64",
+    all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "sse4.1"
+    )
+)))]
+#[inline(always)]
+pub(crate) fn fast_round_positive_f32(x: f32) -> f32 {
+    const MAGIC: f32 = (1u32 << 23) as f32; // 8_388_608.0
+    (x + MAGIC) - MAGIC
+}
+
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint
@@ -109,6 +140,45 @@ mod test {
             let exact = (400_f64 * f64::from(new_h) / f64::from(old_h)).round() as u32;
             result.1 == new_h && result.0 == exact.max(1)
         }
+    }
+
+    #[test]
+    fn fast_round_positive_f32_pixel_range() {
+        // Must agree with .round() away from .5 boundaries.
+        // At exact .5, the magic-number path uses banker's rounding (round-to-even)
+        // while the hardware path uses .round() (round-half-away-from-zero).
+        // Either way the result is within 1 of .round(), which is fine for pixels.
+        for i in 0u32..=255 {
+            for frac in &[0.0, 0.1, 0.25, 0.49, 0.51, 0.75, 0.9] {
+                let x = i as f32 + frac;
+                assert_eq!(
+                    super::fast_round_positive_f32(x),
+                    x.round(),
+                    "mismatch at {x}"
+                );
+            }
+            // At .5 boundaries, allow either rounding direction
+            let x = i as f32 + 0.5;
+            let r = super::fast_round_positive_f32(x);
+            assert!(
+                r == x.floor() || r == x.ceil(),
+                "out of range at {x}: got {r}"
+            );
+        }
+    }
+
+    #[test]
+    fn fast_round_positive_f32_integers() {
+        for i in 0u32..=65535 {
+            let x = i as f32;
+            assert_eq!(super::fast_round_positive_f32(x), x);
+        }
+    }
+
+    #[test]
+    fn fast_round_positive_f32_zero() {
+        assert_eq!(super::fast_round_positive_f32(0.0), 0.0);
+        assert_eq!(super::fast_round_positive_f32(0.4), 0.0);
     }
 
     #[test]

@@ -5,8 +5,6 @@ use crate::{GenericImage, GenericImageView, SubImage};
 
 pub use self::sample::FilterType;
 
-pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
-
 /// Affine transformations
 pub use self::affine::{
     flip_horizontal, flip_horizontal_in, flip_horizontal_in_place, flip_vertical, flip_vertical_in,

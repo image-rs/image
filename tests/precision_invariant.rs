@@ -60,7 +60,7 @@ fn adjust_contrast_precision_invariant() {
 }
 
 fn assert_precision_invariant(test: impl Fn(DynamicImage) -> DynamicImage) {
-    let img_u8 = ImageBuffer::from_par_fn(256, 256, |x, y| -> Rgb<u8> {
+    let img_u8 = ImageBuffer::from_fn(256, 256, |x, y| -> Rgb<u8> {
         Rgb([x as u8, (y / 8) as u8, (x * 13 + y) as u8])
     });
     let img_u16: ImageBuffer<Rgb<u16>, Vec<u16>> = img_u8.convert();

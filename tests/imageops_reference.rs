@@ -7,22 +7,25 @@ use std::{
 use libtest_mimic::{Arguments, Trial};
 
 fn main() -> std::process::ExitCode {
-    let mut trials = Vec::new();
+    let tests_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let assets_dir = tests_dir.join("assets");
+    let reference_dir = tests_dir.join("imageops");
 
     static IMAGES: OnceLock<[Image; 3]> = OnceLock::new();
     let [bw_edge, noise, cat] = IMAGES.get_or_init(|| {
         [
-            Image::open(&tests_dir().join("assets/bw-edge.png")),
-            Image::open(&tests_dir().join("assets/noise.png")),
-            Image::open(&tests_dir().join("assets/cat.png")),
+            Image::open(&assets_dir.join("bw-edge.png")),
+            Image::open(&assets_dir.join("noise.png")),
+            Image::open(&assets_dir.join("cat.png")),
         ]
     });
+
+    let mut trials = ImageTrials::new(reference_dir);
 
     // blur & fast_blur with various sigmas
     for image in [bw_edge, noise] {
         for sigma in [0.1, 0.5, 1.0, 1.5, 2.0, 5.0, 10.0, 50.0] {
-            add_trial(
-                &mut trials,
+            trials.add(
                 format!("blur/{} blur sigma={sigma:.1}", image.name),
                 move || {
                     image::imageops::blur_advanced(
@@ -31,8 +34,7 @@ fn main() -> std::process::ExitCode {
                     )
                 },
             );
-            add_trial(
-                &mut trials,
+            trials.add(
                 format!("blur/{} fast_blur sigma={sigma:.1}", image.name),
                 move || image::imageops::fast_blur(&image.rgb, sigma),
             );
@@ -41,58 +43,65 @@ fn main() -> std::process::ExitCode {
 
     // huerotate with various angles
     for angle in [0, 30, 180, -45] {
-        add_trial(&mut trials, format!("huerotate angle={angle}"), move || {
+        trials.add(format!("huerotate angle={angle}"), move || {
             image::imageops::huerotate(&cat.rgba, angle)
         });
     }
-    add_trial(&mut trials, "huerotate grayscale", move || {
+    trials.add("huerotate grayscale", move || {
         image::imageops::huerotate(&cat.gray, 180)
     });
 
     // invert
-    add_trial(&mut trials, "invert", move || {
+    trials.add("invert", move || {
         let mut img = cat.rgba.clone();
         image::imageops::invert(&mut img);
         img
     });
 
     // filter3x3
-    add_trial(&mut trials, "filter3x3 laplace", move || {
+    trials.add("filter3x3 laplace", move || {
         image::imageops::filter3x3(&cat.rgb, &[1.0, 1.0, 1.0, 1.0, -8.0, 1.0, 1.0, 1.0, 1.0])
     });
-    add_trial(&mut trials, "filter3x3 box blur", move || {
+    trials.add("filter3x3 box blur", move || {
         image::imageops::filter3x3(&cat.rgb, &[1.0 / 9.0; 9])
     });
-    add_trial(&mut trials, "filter3x3 sharpen", move || {
+    trials.add("filter3x3 sharpen", move || {
         image::imageops::filter3x3(&cat.rgb, &[0.0, -0.5, 0.0, -0.5, 3.0, -0.5, 0.0, -0.5, 0.0])
     });
 
     let args = Arguments::from_args();
-    libtest_mimic::run(&args, trials).exit_code()
+    libtest_mimic::run(&args, trials.trials).exit_code()
 }
 
-fn tests_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+struct ImageTrials {
+    trials: Vec<Trial>,
+    reference_dir: PathBuf,
 }
-
-fn add_trial<I: Into<DynamicImage>>(
-    trials: &mut Vec<Trial>,
-    name: impl AsRef<str>,
-    f: impl FnOnce() -> I + Send + 'static,
-) {
-    if !cfg!(feature = "png") {
-        trials.push(Trial::test(name.as_ref(), move || Ok(())).with_ignored_flag(true));
-        return;
+impl ImageTrials {
+    fn new(reference_dir: PathBuf) -> Self {
+        Self {
+            trials: Vec::new(),
+            reference_dir,
+        }
     }
+    fn add<I: Into<DynamicImage>>(
+        &mut self,
+        name: impl AsRef<str>,
+        f: impl FnOnce() -> I + Send + 'static,
+    ) {
+        if !cfg!(feature = "png") {
+            self.trials
+                .push(Trial::test(name.as_ref(), move || Ok(())).with_ignored_flag(true));
+            return;
+        }
 
-    let path = tests_dir()
-        .join("imageops")
-        .join(format!("{}.png", name.as_ref()));
-    trials.push(Trial::test(name.as_ref(), move || {
-        let image = f().into();
-        compare_to_output(&path, image);
-        Ok(())
-    }));
+        let path = self.reference_dir.join(format!("{}.png", name.as_ref()));
+        self.trials.push(Trial::test(name.as_ref(), move || {
+            let image = f().into();
+            compare_to_output(&path, image);
+            Ok(())
+        }));
+    }
 }
 
 struct Image {

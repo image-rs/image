@@ -57,9 +57,12 @@ fn check_webp_frames_regressions() {
     for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
         let bytes = fs::read(&path).unwrap();
         let cursor = Cursor::new(&bytes);
-        let frame_count = image_webp::WebPDecoder::new(cursor.clone())
-            .unwrap()
-            .num_frames() as usize;
+        let raw_decoder = image_webp::WebPDecoder::new(cursor.clone()).unwrap();
+        let frame_count = if raw_decoder.is_animated() {
+            raw_decoder.num_frames() as usize
+        } else {
+            1
+        };
         let decoder = WebPDecoder::new(cursor).unwrap();
         // The `take` guards against a potentially infinitely running iterator.
         // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.

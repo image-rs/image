@@ -118,34 +118,63 @@ impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                if self.current == self.decoder.inner.num_frames() {
+                let is_animated = self.decoder.inner.is_animated();
+                let num_frames = if is_animated {
+                    self.decoder.inner.num_frames()
+                } else {
+                    1
+                };
+                if self.current == num_frames {
                     return None;
                 }
                 self.current += 1;
                 let (width, height) = self.decoder.inner.dimensions();
 
-                let (img, delay) = if self.decoder.inner.has_alpha() {
-                    let mut img = RgbaImage::new(width, height);
-                    match self.decoder.inner.read_frame(&mut img) {
-                        Ok(delay) => (img, delay),
-                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
-                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
-                    }
-                } else {
-                    let mut img = RgbImage::new(width, height);
-                    match self.decoder.inner.read_frame(&mut img) {
-                        Ok(delay) => (img.convert(), delay),
-                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
-                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
-                    }
-                };
+                if is_animated {
+                    let (img, delay) = if self.decoder.inner.has_alpha() {
+                        let mut img = RgbaImage::new(width, height);
+                        match self.decoder.inner.read_frame(&mut img) {
+                            Ok(delay) => (img, delay),
+                            Err(image_webp::DecodingError::NoMoreFrames) => return None,
+                            Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
+                        }
+                    } else {
+                        let mut img = RgbImage::new(width, height);
+                        match self.decoder.inner.read_frame(&mut img) {
+                            Ok(delay) => (img.convert(), delay),
+                            Err(image_webp::DecodingError::NoMoreFrames) => return None,
+                            Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
+                        }
+                    };
 
-                Some(Ok(Frame::from_parts(
-                    img,
-                    0,
-                    0,
-                    Delay::from_numer_denom_ms(delay, 1),
-                )))
+                    Some(Ok(Frame::from_parts(
+                        img,
+                        0,
+                        0,
+                        Delay::from_numer_denom_ms(delay, 1),
+                    )))
+                } else {
+                    let img = if self.decoder.inner.has_alpha() {
+                        let mut img = RgbaImage::new(width, height);
+                        match self.decoder.inner.read_image(&mut img) {
+                            Ok(()) => img,
+                            Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
+                        }
+                    } else {
+                        let mut img = RgbImage::new(width, height);
+                        match self.decoder.inner.read_image(&mut img) {
+                            Ok(()) => img.convert(),
+                            Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
+                        }
+                    };
+
+                    Some(Ok(Frame::from_parts(
+                        img,
+                        0,
+                        0,
+                        Delay::from_numer_denom_ms(0, 1),
+                    )))
+                }
             }
         }
 
@@ -183,5 +212,14 @@ mod tests {
         let data = std::io::Cursor::new(bytes);
 
         let _ = WebPDecoder::new(data);
+    }
+
+    #[test]
+    fn into_frames_non_animated() {
+        let data = std::fs::read("tests/images/webp/lossy_images/simple-rgb.webp").unwrap();
+        let decoder = WebPDecoder::new(std::io::Cursor::new(data)).unwrap();
+        assert!(!decoder.has_animation());
+        let frames: Vec<_> = decoder.into_frames().collect_frames().unwrap();
+        assert_eq!(frames.len(), 1);
     }
 }

@@ -1,15 +1,10 @@
 use image::{DynamicImage, GenericImageView, GrayImage, RgbImage, RgbaImage};
 use std::{
     path::{Path, PathBuf},
-    sync::{LazyLock, OnceLock},
+    sync::OnceLock,
 };
 
 use libtest_mimic::{Arguments, Trial};
-
-static TESTS_DIR: LazyLock<PathBuf> =
-    LazyLock::new(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests"));
-static ASSETS: LazyLock<PathBuf> = LazyLock::new(|| TESTS_DIR.join("assets"));
-static REFERENCE: LazyLock<PathBuf> = LazyLock::new(|| TESTS_DIR.join("imageops"));
 
 fn main() -> std::process::ExitCode {
     let mut trials = Vec::new();
@@ -17,9 +12,9 @@ fn main() -> std::process::ExitCode {
     static IMAGES: OnceLock<[Image; 3]> = OnceLock::new();
     let [bw_edge, noise, cat] = IMAGES.get_or_init(|| {
         [
-            Image::open(&ASSETS.join("bw-edge.png")),
-            Image::open(&ASSETS.join("noise.png")),
-            Image::open(&ASSETS.join("cat.png")),
+            Image::open(&tests_dir().join("assets/bw-edge.png")),
+            Image::open(&tests_dir().join("assets/noise.png")),
+            Image::open(&tests_dir().join("assets/cat.png")),
         ]
     });
 
@@ -76,6 +71,10 @@ fn main() -> std::process::ExitCode {
     libtest_mimic::run(&args, trials).exit_code()
 }
 
+fn tests_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
 fn add_trial<I: Into<DynamicImage>>(
     trials: &mut Vec<Trial>,
     name: impl AsRef<str>,
@@ -86,7 +85,9 @@ fn add_trial<I: Into<DynamicImage>>(
         return;
     }
 
-    let path = REFERENCE.join(format!("{}.png", name.as_ref()));
+    let path = tests_dir()
+        .join("imageops")
+        .join(format!("{}.png", name.as_ref()));
     trials.push(Trial::test(name.as_ref(), move || {
         let image = f().into();
         compare_to_output(&path, image);

@@ -79,8 +79,13 @@ const ALPHA_OPAQUE: u8 = 0xFF;
 /// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 
-/// The value of the V5 header field indicating an embedded ICC profile ("MBED").
-const PROFILE_EMBEDDED: u32 = 0x4D424544;
+/// The value of the V5 header field indicating an embedded ICC profile.
+const PROFILE_EMBEDDED: u32 = u32::from_be_bytes(*b"MBED");
+
+// BMP color space type constants (bV4CSType / bV5CSType).
+const LCS_CALIBRATED_RGB: u32 = 0x00000000;
+const LCS_SRGB: u32 = u32::from_be_bytes(*b"sRGB");
+const LCS_WINDOWS_COLOR_SPACE: u32 = u32::from_be_bytes(*b"Win ");
 
 /// During progressive decoding, the decoder applies transforms (e.g. a vertical
 /// flip for bottom-up BMP files) as it writes rows into the output buffer.
@@ -288,6 +293,137 @@ impl ParsedIccProfile {
             profile_offset,
             profile_size,
         })
+    }
+}
+
+/// Color space data parsed from V4/V5 BMP headers.
+#[derive(Debug, Clone)]
+enum ColorSpaceInfo {
+    /// LCS_CALIBRATED_RGB: endpoint and gamma values specified in the header.
+    CalibratedRgb(CalibratedRgb),
+    /// LCS_sRGB or LCS_WINDOWS_COLOR_SPACE: sRGB color space.
+    Srgb,
+    /// PROFILE_EMBEDDED: ICC profile data embedded in the file.
+    EmbeddedIcc(ParsedIccProfile),
+}
+
+impl ColorSpaceInfo {
+    /// Parse color space information from a V4/V5 header buffer.
+    /// The buffer should start after the 4-byte size field.
+    /// Note: Caller must ensure buffer has at least 104 bytes (V4 header minus size field);
+    /// this method does not validate.
+    #[track_caller]
+    fn parse(buffer: &[u8], bmp_header_size: u32, bmp_header_offset: u64) -> Option<Self> {
+        // bV4CSType at offset 56 from header start = offset 52 from after size field.
+        let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
+
+        match cs_type {
+            LCS_CALIBRATED_RGB => {
+                let read_u32 = |offset: usize| -> u32 {
+                    u32::from_le_bytes(buffer[offset..offset + 4].try_into().unwrap())
+                };
+
+                // FXPT2DOT30 (2.30 fixed-point) → f32.
+                let fxpt2dot30 = |val: u32| -> f32 { val as f32 * (1.0 / (1u64 << 30) as f32) };
+                // FXPT16DOT16 (16.16 fixed-point) → f32.
+                let fxpt16dot16 = |val: u32| -> f32 { val as f32 / 65536.0 };
+
+                // CIEXYZTRIPLE: 9 FXPT2DOT30 values at offsets 60-95 from header
+                // start (56-91 from after size field). Layout:
+                //   RedX, RedY, RedZ, GreenX, GreenY, GreenZ, BlueX, BlueY, BlueZ
+                // We read only X and Y per primary (Z is implicit: Z = 1 - X - Y
+                // for chromaticity, but BMP stores raw CIE XYZ values).
+                let rx = fxpt2dot30(read_u32(56));
+                let ry = fxpt2dot30(read_u32(60));
+                let gx = fxpt2dot30(read_u32(68));
+                let gy = fxpt2dot30(read_u32(72));
+                let bx = fxpt2dot30(read_u32(80));
+                let by = fxpt2dot30(read_u32(84));
+
+                // Gamma values at offsets 96-107 from header start (92-103 from after size).
+                let gamma_r = fxpt16dot16(read_u32(92));
+                let gamma_g = fxpt16dot16(read_u32(96));
+                let gamma_b = fxpt16dot16(read_u32(100));
+
+                // Validate: Y values must be non-zero (used as denominators in
+                // XYZ→chromaticity conversion by color management libraries).
+                if ry == 0.0 || gy == 0.0 || by == 0.0 {
+                    return None;
+                }
+
+                Some(ColorSpaceInfo::CalibratedRgb(CalibratedRgb {
+                    rx,
+                    ry,
+                    gx,
+                    gy,
+                    bx,
+                    by,
+                    gamma_r,
+                    gamma_g,
+                    gamma_b,
+                }))
+            }
+            LCS_SRGB | LCS_WINDOWS_COLOR_SPACE => Some(ColorSpaceInfo::Srgb),
+            PROFILE_EMBEDDED if bmp_header_size >= BITMAPV5HEADER_SIZE => {
+                ParsedIccProfile::parse(buffer, bmp_header_offset).map(ColorSpaceInfo::EmbeddedIcc)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Calibrated RGB color space parameters from a BMP V4/V5 header.
+///
+/// When the header's `bV4CSType` is `LCS_CALIBRATED_RGB`, these fields
+/// carry the CIE XYZ endpoint coordinates for the RGB primaries and
+/// per-channel gamma values, parsed from the FXPT2DOT30 / FXPT16DOT16
+/// fixed-point fields in the header.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CalibratedRgb {
+    /// Red primary CIE X coordinate (FXPT2DOT30).
+    rx: f32,
+    /// Red primary CIE Y coordinate (FXPT2DOT30).
+    ry: f32,
+    /// Green primary CIE X coordinate (FXPT2DOT30).
+    gx: f32,
+    /// Green primary CIE Y coordinate (FXPT2DOT30).
+    gy: f32,
+    /// Blue primary CIE X coordinate (FXPT2DOT30).
+    bx: f32,
+    /// Blue primary CIE Y coordinate (FXPT2DOT30).
+    by: f32,
+    /// Red channel gamma (FXPT16DOT16).
+    gamma_r: f32,
+    /// Green channel gamma (FXPT16DOT16).
+    gamma_g: f32,
+    /// Blue channel gamma (FXPT16DOT16).
+    gamma_b: f32,
+}
+
+impl CalibratedRgb {
+    /// Build a moxcms `ColorProfile` from the calibrated RGB primaries and gamma.
+    fn to_color_profile(self) -> moxcms::ColorProfile {
+        let primaries = moxcms::ColorPrimaries {
+            red: moxcms::Chromaticity::new(self.rx, self.ry),
+            green: moxcms::Chromaticity::new(self.gx, self.gy),
+            blue: moxcms::Chromaticity::new(self.bx, self.by),
+        };
+
+        let mut profile = moxcms::ColorProfile::new_srgb();
+        profile.update_rgb_colorimetry(moxcms::WHITE_POINT_D65, primaries);
+
+        // Clear inherited CICP metadata from the sRGB base profile.
+        profile.cicp = None;
+
+        // Use gamma directly as the TRC exponent via a parametric curve
+        // (ICC type 0: Y = X^gamma).  This preserves full s15Fixed16 precision
+        // when serialised to ICC bytes.
+        let safe_gamma = |g: f32| if g > 0.0 { g } else { 1.0 };
+        let parametric_trc = |g: f32| moxcms::ToneReprCurve::Parametric(vec![safe_gamma(g)]);
+        profile.red_trc = Some(parametric_trc(self.gamma_r));
+        profile.green_trc = Some(parametric_trc(self.gamma_g));
+        profile.blue_trc = Some(parametric_trc(self.gamma_b));
+        profile
     }
 }
 
@@ -1473,18 +1609,32 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             }
         };
 
-        // Parse ICC profile metadata from V5 header (but don't read the profile data yet)
+        // Parse color space fields from V4/V5 header
         let mut icc_profile = None;
-        if bmp_header_size >= BITMAPV5HEADER_SIZE {
-            // Read the full V5 header into a buffer for ICC profile metadata parsing
-            // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+        if bmp_header_size >= BITMAPV4HEADER_SIZE {
+            // Read the header into a buffer for color space parsing.
+            // Buffer starts after the 4-byte size field.
             let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
             let current_pos = self.reader.stream_position()?;
             self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
             self.reader.read_exact(&mut header_buffer)?;
 
-            // Extract ICC profile metadata for later reading
-            icc_profile = ParsedIccProfile::parse(&header_buffer, bmp_header_offset);
+            // Extract color space info and handle non-Copy variants immediately
+            match ColorSpaceInfo::parse(&header_buffer, bmp_header_size, bmp_header_offset) {
+                Some(ColorSpaceInfo::CalibratedRgb(params)) => {
+                    // Synthesize an ICC profile from the calibrated RGB parameters
+                    // and store it directly — no file read needed.
+                    if let Ok(encoded) = params.to_color_profile().encode() {
+                        self.icc_profile = Some(encoded);
+                    }
+                }
+                Some(ColorSpaceInfo::EmbeddedIcc(icc)) => {
+                    icc_profile = Some(icc);
+                }
+                // LCS_sRGB / LCS_WINDOWS_COLOR_SPACE: the caller treats
+                // "no ICC profile" as sRGB, so nothing to store.
+                Some(ColorSpaceInfo::Srgb) | None => {}
+            }
 
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
@@ -2314,6 +2464,32 @@ mod test {
             "rgb24prof2.bmp",
             moxcms::DataColorSpace::Rgb,
             moxcms::ProfileClass::DisplayDevice,
+        );
+    }
+
+    #[test]
+    fn test_calibrated_rgb_icc_profile() {
+        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should synthesize an ICC profile.
+        let data = std::fs::read("tests/images/bmp/images/pal8v4.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(
+            profile.is_some(),
+            "pal8v4: should have a synthesized ICC profile from calibrated RGB parameters"
+        );
+        validate_icc_profile(
+            &profile.unwrap(),
+            "pal8v4.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
+
+        // pal8v5.bmp uses LCS_sRGB — no ICC profile needed.
+        let data = std::fs::read("tests/images/bmp/images/pal8v5.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        assert!(
+            decoder.icc_profile().unwrap().is_none(),
+            "pal8v5: should have no ICC profile (LCS_sRGB)"
         );
     }
 

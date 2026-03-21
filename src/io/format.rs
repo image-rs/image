@@ -21,8 +21,20 @@ pub enum ImageFormat {
     /// An Image in WEBP Format
     WebP,
 
+    /// An Image in PBM Format
+    Pbm,
+
+    /// An Image in PGM Format
+    Pgm,
+
+    /// An Image in PPM Format
+    Ppm,
+
     /// An Image in general PNM Format
     Pnm,
+
+    /// An Image in PAM Format
+    Pam,
 
     /// An Image in TIFF Format
     Tiff,
@@ -84,7 +96,11 @@ impl ImageFormat {
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
                 "exr" => ImageFormat::OpenExr,
-                "pbm" | "pam" | "ppm" | "pgm" | "pnm" => ImageFormat::Pnm,
+                "pbm" => ImageFormat::Pbm,
+                "pgm" => ImageFormat::Pgm,
+                "ppm" => ImageFormat::Ppm,
+                "pnm" => ImageFormat::Pnm,
+                "pam" => ImageFormat::Pam,
                 "ff" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
                 _ => return None,
@@ -154,10 +170,11 @@ impl ImageFormat {
             "image/x-icon" | "image/vnd.microsoft.icon" => Some(ImageFormat::Ico),
             "image/vnd.radiance" => Some(ImageFormat::Hdr),
             "image/x-exr" => Some(ImageFormat::OpenExr),
-            "image/x-portable-bitmap"
-            | "image/x-portable-graymap"
-            | "image/x-portable-pixmap"
-            | "image/x-portable-anymap" => Some(ImageFormat::Pnm),
+            "image/x-portable-bitmap" => Some(ImageFormat::Pbm),
+            "image/x-portable-graymap" => Some(ImageFormat::Pgm),
+            "image/x-portable-pixmap" => Some(ImageFormat::Ppm),
+            "image/x-portable-anymap" => Some(ImageFormat::Ppm),
+            "image/x-portable-arbitrarymap" => Some(ImageFormat::Pam),
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             "image/x-qoi" => Some(ImageFormat::Qoi),
@@ -200,8 +217,11 @@ impl ImageFormat {
             ImageFormat::Ico => "image/x-icon",
             ImageFormat::Hdr => "image/vnd.radiance",
             ImageFormat::OpenExr => "image/x-exr",
-            // return the most general MIME type
+            ImageFormat::Pbm => "image/x-portable-bitmap",
+            ImageFormat::Pgm => "image/x-portable-graymap",
+            ImageFormat::Ppm => "image/x-portable-pixmap",
             ImageFormat::Pnm => "image/x-portable-anymap",
+            ImageFormat::Pam => "image/x-portable-arbitrarymap",
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             ImageFormat::Qoi => "image/x-qoi",
@@ -226,7 +246,11 @@ impl ImageFormat {
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
             ImageFormat::OpenExr => true,
+            ImageFormat::Pbm => true,
+            ImageFormat::Pgm => true,
+            ImageFormat::Ppm => true,
             ImageFormat::Pnm => true,
+            ImageFormat::Pam => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::Qoi => true,
@@ -246,7 +270,11 @@ impl ImageFormat {
             ImageFormat::Bmp => true,
             ImageFormat::Tiff => true,
             ImageFormat::Tga => true,
+            ImageFormat::Pbm => true,
+            ImageFormat::Pgm => true,
+            ImageFormat::Ppm => true,
             ImageFormat::Pnm => true,
+            ImageFormat::Pam => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::WebP => true,
@@ -273,7 +301,11 @@ impl ImageFormat {
             ImageFormat::Jpeg => &["jpg", "jpeg"],
             ImageFormat::Gif => &["gif"],
             ImageFormat::WebP => &["webp"],
-            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm", "pnm"],
+            ImageFormat::Pbm => &["pbm"],
+            ImageFormat::Pgm => &["pgm"],
+            ImageFormat::Ppm => &["ppm"],
+            ImageFormat::Pnm => &["pnm"],
+            ImageFormat::Pam => &["pam"],
             ImageFormat::Tiff => &["tiff", "tif"],
             ImageFormat::Tga => &["tga"],
             ImageFormat::Bmp => &["bmp"],
@@ -305,7 +337,11 @@ impl ImageFormat {
             ImageFormat::Ico => cfg!(feature = "ico"),
             ImageFormat::Hdr => cfg!(feature = "hdr"),
             ImageFormat::OpenExr => cfg!(feature = "exr"),
-            ImageFormat::Pnm => cfg!(feature = "pnm"),
+            ImageFormat::Pbm
+            | ImageFormat::Pgm
+            | ImageFormat::Ppm
+            | ImageFormat::Pnm
+            | ImageFormat::Pam => cfg!(feature = "pnm"),
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif-native"),
             ImageFormat::Qoi => cfg!(feature = "qoi"),
@@ -327,7 +363,11 @@ impl ImageFormat {
             ImageFormat::Bmp => cfg!(feature = "bmp"),
             ImageFormat::Tiff => cfg!(feature = "tiff"),
             ImageFormat::Tga => cfg!(feature = "tga"),
-            ImageFormat::Pnm => cfg!(feature = "pnm"),
+            ImageFormat::Pbm
+            | ImageFormat::Pgm
+            | ImageFormat::Ppm
+            | ImageFormat::Pnm
+            | ImageFormat::Pam => cfg!(feature = "pnm"),
             ImageFormat::Farbfeld => cfg!(feature = "ff"),
             ImageFormat::Avif => cfg!(feature = "avif"),
             ImageFormat::WebP => cfg!(feature = "webp"),
@@ -347,7 +387,11 @@ impl ImageFormat {
             ImageFormat::Bmp,
             ImageFormat::Tiff,
             ImageFormat::Tga,
+            ImageFormat::Pbm,
+            ImageFormat::Pgm,
+            ImageFormat::Ppm,
             ImageFormat::Pnm,
+            ImageFormat::Pam,
             ImageFormat::Farbfeld,
             ImageFormat::Avif,
             ImageFormat::WebP,
@@ -385,10 +429,11 @@ mod tests {
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
         assert_eq!(from_path("./a.exr").unwrap(), ImageFormat::OpenExr);
-        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pnm);
-        assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
-        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
-        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pbm);
+        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pgm);
+        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Ppm);
+        assert_eq!(from_path("./a.pnm").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.PAM").unwrap(), ImageFormat::Pam);
         assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
@@ -396,11 +441,7 @@ mod tests {
 
     #[test]
     fn image_formats_are_recognized() {
-        use ImageFormat::*;
-        const ALL_FORMATS: &[ImageFormat] = &[
-            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Bmp, Ico, Hdr, Farbfeld, OpenExr,
-        ];
-        for &format in ALL_FORMATS {
+        for format in ImageFormat::all() {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {
                 assert!(file.set_extension(ext));

@@ -38,6 +38,7 @@ impl EncodableLayout for [f32] {
 /// Properties:
 /// - For a float -> int conversion:
 ///     - The float is rounded to the nearest integer.
+///       (An implementation may use a fast approximation instead of a precise rounding method.)
 ///     - NaN is mapped to 0.
 ///     - Values outside the range of the integer type are clamped to the min or max value.
 /// - For a float -> float conversion:
@@ -49,6 +50,10 @@ pub(crate) trait NearestFrom<T> {
 
 impl NearestFrom<f32> for u8 {
     fn nearest_from(value: f32) -> Self {
+        // Approximate rounding using the well-known + 0.5 trick.
+        // This does not handle certain cases correctly. E.g. `0.5_f32.nextdown()`
+        // is incorrectly rounded to 1 instead of 0. However, this isn't typically
+        // an issue in practice.
         (value + 0.5) as u8
     }
 }

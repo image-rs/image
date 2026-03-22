@@ -3,10 +3,6 @@ use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
 
-pub use self::sample::FilterType;
-
-pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
-
 /// Affine transformations
 pub use self::affine::{
     flip_horizontal, flip_horizontal_in, flip_horizontal_in_place, flip_vertical, flip_vertical_in,
@@ -14,29 +10,27 @@ pub use self::affine::{
     rotate90, rotate90_in,
 };
 
+pub use self::fast_blur::fast_blur;
+
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
-    sample_nearest, thumbnail, unsharpen,
+    blur, blur_advanced, filter3x3, interpolate_bilinear, interpolate_nearest, resize,
+    sample_bilinear, sample_nearest, thumbnail, unsharpen, FilterType, GaussianBlurParameters,
 };
+pub(crate) use sample::gaussian_blur_dyn_image;
 
 /// Color operations
 pub use self::colorops::{
-    brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
-    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+    brighten, brighten_in_place, contrast, contrast_in_place, dither, grayscale, grayscale_alpha,
+    grayscale_with_type, grayscale_with_type_alpha, huerotate, huerotate_in_place, index_colors,
+    invert, BiLevel, ColorMap,
 };
 
 mod affine;
-// Public only because of Rust bug:
-// https://github.com/rust-lang/rust/issues/18241
-pub mod colorops;
+mod colorops;
 mod fast_blur;
 mod filter_1d;
 pub(crate) mod resize;
 mod sample;
-
-pub use fast_blur::fast_blur;
-pub(crate) use sample::gaussian_blur_dyn_image;
-pub use sample::{blur_advanced, GaussianBlurParameters};
 
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
@@ -252,8 +246,8 @@ where
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Lerp,
 {
     for y in 0..img.height() {
         let pixel = start.map2(stop, |a, b| {
@@ -285,8 +279,8 @@ where
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Lerp + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Lerp,
 {
     for x in 0..img.width() {
         let pixel = start.map2(stop, |a, b| {

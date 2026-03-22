@@ -154,7 +154,7 @@ impl<W: Write> AvifEncoder<W> {
         color: ExtendedColorType,
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
-        fn try_from_raw<P: Pixel + 'static>(
+        fn try_from_raw<P: Pixel>(
             data: &[P::Subpixel],
             width: u32,
             height: u32,
@@ -172,7 +172,7 @@ impl<W: Write> AvifEncoder<W> {
             image: ImageBuffer<P, &[P::Subpixel]>,
         ) -> Img<&'buf [RGBA8]>
         where
-            P: Pixel + 'static,
+            P: Pixel,
             Rgba<u8>: FromColor<P>,
         {
             let (width, height) = image.dimensions();

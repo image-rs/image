@@ -86,14 +86,11 @@ fn gif() {
     // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
 
     // Custom constructor on GifDecoder
-    #[allow(deprecated)]
-    {
-        assert!(GifDecoder::new(Cursor::new(&image))
-            .unwrap()
-            .set_limits(width_height_limits())
-            .is_err());
-        // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
-    }
+    assert!(GifDecoder::new(Cursor::new(&image))
+        .unwrap()
+        .set_limits(width_height_limits())
+        .is_err());
+    // no tests for allocation limits because the caller is responsible for allocating the buffer in this case
 }
 
 #[test]

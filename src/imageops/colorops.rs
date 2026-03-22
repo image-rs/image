@@ -149,11 +149,18 @@ where
 }
 
 /// Brighten the supplied image.
-/// ```value``` is the amount to brighten each pixel by.
-/// Negative values decrease the brightness and positive values increase it.
 ///
-/// *[See also `brighten_in_place`.][brighten_in_place]*
-pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
+/// # Arguments
+///
+/// - `value`: The amount between -1 and 1 to brighten each pixel by.
+///   Negative values decrease the brightness and positive values increase it.
+///
+///   A value of 1 will make all pixels white and a value of -1 will make all pixels black. 0 will do nothing.
+///
+/// # See also
+///
+/// - [`brighten_in_place`] for an in-place version of this function.
+pub fn brighten<I, P, S>(image: &I, value: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
@@ -161,54 +168,61 @@ where
 {
     let mut out = image.buffer_like();
 
-    let max = S::DEFAULT_MAX_VALUE;
-    let max: i32 = NumCast::from(max).unwrap();
-
+    let apply = new_apply_brightness(value);
     for (x, y, pixel) in image.pixels() {
-        let e = pixel.map_with_alpha(
-            |b| {
-                let c: i32 = NumCast::from(b).unwrap();
-                let d = clamp(c + value, 0, max);
-
-                NumCast::from(d).unwrap()
-            },
-            |alpha| alpha,
-        );
-        out.put_pixel(x, y, e);
+        out.put_pixel(x, y, apply(pixel));
     }
 
     out
 }
 
 /// Brighten the supplied image in place.
-/// ```value``` is the amount to brighten each pixel by.
-/// Negative values decrease the brightness and positive values increase it.
 ///
-/// *[See also `brighten`.][brighten]*
-pub fn brighten_in_place<I>(image: &mut I, value: i32)
+/// # Arguments
+///
+/// - `value`: The amount between -1 and 1 to brighten each pixel by.
+///   Negative values decrease the brightness and positive values increase it.
+///
+///   A value of 1 will make all pixels white and a value of -1 will make all pixels black. 0 will do nothing.
+///
+/// # See also
+///
+/// - [`brighten`] for a non-destructive version of this function.
+pub fn brighten_in_place<I>(image: &mut I, value: f32)
 where
     I: GenericImage,
 {
     let (width, height) = image.dimensions();
 
-    let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
-    let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
+    let apply = new_apply_brightness(value);
 
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
-                |b| {
-                    let c: i32 = NumCast::from(b).unwrap();
-                    let d = clamp(c + value, 0, max);
-
-                    NumCast::from(d).unwrap()
-                },
-                |alpha| alpha,
-            );
-
-            image.put_pixel(x, y, e);
+            image.put_pixel(x, y, apply(image.get_pixel(x, y)));
         }
+    }
+}
+
+fn new_apply_brightness<P: Pixel>(mut amount: f32) -> impl Fn(P) -> P {
+    let max: f32 = NumCast::from(P::Subpixel::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(P::Subpixel::DEFAULT_MIN_VALUE).unwrap();
+
+    if amount.is_nan() {
+        amount = 0.0;
+    }
+    let amount = amount.clamp(-1.0, 1.0) * (max - min);
+
+    move |pixel| {
+        pixel.map_with_alpha(
+            move |b| {
+                let c: f32 = NumCast::from(b).unwrap();
+                let d = clamp(c + amount, min, max);
+
+                NumCast::from(d).unwrap()
+            },
+            |alpha| alpha,
+        )
     }
 }
 
@@ -617,9 +631,9 @@ mod test {
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![25u8, 26u8, 27u8, 35u8, 36u8, 37u8]).unwrap();
 
-        assert_pixels_eq!(&brighten(&image, 10), &expected);
+        assert_pixels_eq!(&brighten(&image, 0.1), &expected);
     }
 
     #[test]
@@ -628,9 +642,9 @@ mod test {
             ImageBuffer::from_raw(3, 2, vec![0u8, 1u8, 2u8, 10u8, 11u8, 12u8]).unwrap();
 
         let expected: GrayImage =
-            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+            ImageBuffer::from_raw(3, 2, vec![25u8, 26u8, 27u8, 35u8, 36u8, 37u8]).unwrap();
 
-        brighten_in_place(&mut image, 10);
+        brighten_in_place(&mut image, 0.1);
         assert_pixels_eq!(&image, &expected);
     }
 

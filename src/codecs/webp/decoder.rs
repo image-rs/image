@@ -4,7 +4,7 @@ use image_webp::LoopCount;
 
 use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, FormatAttributes,
     SequenceControl,
 };
 use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Rgba};
@@ -40,14 +40,14 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             // As per extended file format description:
             // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
             icc: DecodedMetadataHint::InHeader,
             exif: DecodedMetadataHint::AfterFinish,
             xmp: DecodedMetadataHint::AfterFinish,
-            ..DecoderAttributes::default()
+            ..FormatAttributes::default()
         }
     }
 

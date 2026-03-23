@@ -14,7 +14,7 @@ pub(crate) mod image_reader_type;
 pub(crate) mod limits;
 
 pub use decoder::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, FormatAttributes,
     SequenceControl,
 };
 

@@ -18,7 +18,7 @@ use crate::error::{
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes, SequenceControl,
+    DecodedAnimationAttributes, DecodedImageAttributes, FormatAttributes, SequenceControl,
 };
 use crate::math::Rect;
 use crate::metadata::LoopCount;
@@ -271,8 +271,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         Ok(ImageLayout::new(width, height, self.color_type))
     }
 
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             // is any sort of iTXT chunk.
             xmp: DecodedMetadataHint::AfterFinish,
             // is any sort of iTXT chunk.
@@ -281,7 +281,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             icc: DecodedMetadataHint::InHeader,
             // see eXIf chunk order.
             exif: DecodedMetadataHint::InHeader,
-            ..DecoderAttributes::default()
+            ..FormatAttributes::default()
         }
     }
 
@@ -636,8 +636,8 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             supports_animation: true,
             ..self.inner.format_attributes()
         }

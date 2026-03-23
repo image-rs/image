@@ -6,7 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, DecoderAttributes};
+use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, FormatAttributes};
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -266,7 +266,7 @@ impl DirEntry {
 // We forward everything to png or bmp decoder.
 #[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
         match &self.inner_decoder {
             Bmp(decoder) => decoder.format_attributes(),
             Png(decoder) => decoder.format_attributes(),

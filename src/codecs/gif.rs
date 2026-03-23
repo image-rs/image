@@ -42,7 +42,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderAttributes,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, FormatAttributes,
 };
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
@@ -111,14 +111,14 @@ impl<R: Read> GifDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             xmp: DecodedMetadataHint::AfterFinish,
             icc: DecodedMetadataHint::AfterFinish,
             iptc: DecodedMetadataHint::None,
             exif: DecodedMetadataHint::None,
             supports_animation: true,
-            ..DecoderAttributes::default()
+            ..FormatAttributes::default()
         }
     }
 

@@ -17,7 +17,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::{DecodedImageAttributes, DecoderAttributes};
+use crate::io::{DecodedImageAttributes, FormatAttributes};
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -445,8 +445,8 @@ impl ImageError {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             // is any sort of iTXT chunk.
             xmp: DecodedMetadataHint::PerImage,
             icc: DecodedMetadataHint::PerImage,
@@ -454,7 +454,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             // not provided above.
             iptc: DecodedMetadataHint::None,
             supports_sequence: true,
-            ..DecoderAttributes::default()
+            ..FormatAttributes::default()
         }
     }
 

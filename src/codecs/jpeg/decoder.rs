@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::image_reader_type::SpecCompliance;
-use crate::io::{DecodedImageAttributes, DecoderAttributes};
+use crate::io::{DecodedImageAttributes, FormatAttributes};
 use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
@@ -87,8 +87,8 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
             // As per specification, once we start with MCUs we can only have restarts. Also all
             // our methods currently seek of their own accord anyways, it's just important to
             // uphold this if we do not buffer the whole file.
@@ -96,7 +96,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             exif: DecodedMetadataHint::InHeader,
             xmp: DecodedMetadataHint::InHeader,
             iptc: DecodedMetadataHint::InHeader,
-            ..DecoderAttributes::default()
+            ..FormatAttributes::default()
         }
     }
 

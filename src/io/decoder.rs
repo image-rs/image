@@ -44,8 +44,8 @@ pub trait ImageDecoder {
     /// basic capability information about the format. If, in the future, we added different basic
     /// methods of retrieving color data then the attributes would indicate the preferred and/or
     /// possible choices.
-    fn format_attributes(&self) -> DecoderAttributes {
-        DecoderAttributes::default()
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes::default()
     }
 
     /// Retrieve animation attributes.
@@ -164,10 +164,10 @@ pub trait ImageDecoder {
 /// Information meant to steer the protocol usage with the decoder.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
-pub struct DecoderAttributes {
-    /// Are there multiple images in this file that form an animation?
+pub struct FormatAttributes {
+    /// Could there be multiple images in this file that form an animation?
     pub supports_animation: bool,
-    /// Are there multiple images in this file, as an unrelated sequence?
+    /// Could there be multiple images in this file, as an unrelated sequence?
     pub supports_sequence: bool,
     /// When should ICC profiles be retrieved.
     pub icc: DecodedMetadataHint,
@@ -271,7 +271,7 @@ pub enum SequenceControl {
 
 #[deny(clippy::missing_trait_methods)]
 impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
-    fn format_attributes(&self) -> DecoderAttributes {
+    fn format_attributes(&self) -> FormatAttributes {
         (**self).format_attributes()
     }
     fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {

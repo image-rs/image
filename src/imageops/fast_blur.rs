@@ -1,7 +1,7 @@
 use num_traits::Bounded;
 
 use crate::imageops::filter_1d::{SafeAdd, SafeMul};
-use crate::traits::NearestFrom;
+use crate::primitive_sealed::NearestFrom;
 use crate::{ImageBuffer, Pixel, Primitive};
 
 /// Approximation of Gaussian blur.

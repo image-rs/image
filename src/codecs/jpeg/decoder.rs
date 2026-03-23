@@ -279,7 +279,7 @@ mod tests {
 
         let mut image = crate::DynamicImage::new_luma8(0, 0);
         let mut reader = crate::ImageReader::from_decoder(Box::new(decoder));
-        let meta = reader.decode_into(&mut image).unwrap();
+        let meta = reader.decode_to_dynimage(&mut image).unwrap();
 
         assert_eq!(
             meta.attributes().orientation.unwrap(),

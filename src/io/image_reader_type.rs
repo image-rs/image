@@ -508,7 +508,7 @@ impl ImageReader<'_> {
     /// existing buffer in some instances.
     pub fn decode(&mut self) -> ImageResult<(DynamicImage, DecodedImageMetadata<'_>)> {
         let mut empty = DynamicImage::default();
-        let meta = self.decode_into(&mut empty)?;
+        let meta = self.decode_to_dynimage(&mut empty)?;
         Ok((empty, meta))
     }
 
@@ -516,8 +516,8 @@ impl ImageReader<'_> {
     ///
     /// # Examples
     ///
-    #[cfg_attr(feature = "png", doc = "```")]
-    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// ```ignore
+    /// // Enable if exposed.
     /// use image::{DynamicImage, ImageReader};
     /// use glob::glob;
     ///
@@ -529,14 +529,14 @@ impl ImageReader<'_> {
     ///     };
     ///
     ///     let mut reader = ImageReader::open(path)?;
-    ///     let mut meta = reader.decode_into(&mut buffer)?;
+    ///     let mut meta = reader.decode_to_dynimage(&mut buffer)?;
     ///     // …
     /// # break; // Avoid actually looping in the test here.
     /// }
     ///
     /// # Ok::<_, image::error::ImageError>(())
     /// ```
-    pub fn decode_into(
+    pub(crate) fn decode_to_dynimage(
         &mut self,
         image: &mut DynamicImage,
     ) -> ImageResult<DecodedImageMetadata<'_>> {
@@ -549,49 +549,62 @@ impl ImageReader<'_> {
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         self.limits.reserve(layout.total_bytes())?;
 
-        // Run all the metadata extraction which we may need.
-        let icc = self.inner.icc_profile()?;
-        let exif = self.inner.exif_metadata()?;
-
         // Retrieve the raw image data as indicated by the layout.
-        let mut attr = image.decode_raw(self.inner.as_mut(), layout)?;
+        self.last_attributes = image.decode_raw(self.inner.as_mut(), layout)?;
 
-        // Apply the profile. If the profile itself is not valid or not present you get the default
-        // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
-        // RGB we'll treat it as unspecified so that downstream will know that our handling of this
-        // _existing_ profile was not / could not be done with full fidelity.
-        if let Some(icc) = icc {
-            if let Some(cicp) = crate::metadata::cms_provider().parse_icc(&icc) {
-                // We largely ignore the error itself here, you just get the image with no color
-                // space attached to it.
-                if let Ok(rgb) = cicp.try_into_rgb() {
-                    image.set_rgb_primaries(rgb.primaries);
-                    image.set_transfer_function(rgb.transfer);
-                } else {
-                    image.set_rgb_primaries(crate::metadata::CicpColorPrimaries::Unspecified);
-                    image.set_transfer_function(
-                        crate::metadata::CicpTransferCharacteristics::Unspecified,
-                    );
-                }
-            }
+        let mut meta = DecodedImageMetadata {
+            inner: self.inner.as_mut(),
+            attributes: &mut self.last_attributes,
+            metadata_buffers: &mut self.metadata_buffers,
+        };
+
+        meta.apply_metdata(&self.settings, image)?;
+
+        Ok(meta)
+    }
+
+    /// Decode the next image into a pre-allocated buffer.
+    ///
+    /// Note that this will produce raw image data. You'll be on your own to ensure that metadata
+    /// such as the orientation of the image or color space transformations is accurately
+    /// represented.
+    ///
+    /// # Examples
+    ///
+    #[cfg_attr(feature = "png", doc = "```")]
+    #[cfg_attr(not(feature = "png"), doc = "```no_run")]
+    /// use image::ImageReader;
+    ///
+    /// let mut reader = ImageReader::open("tests/images/png/iptc.png")?;
+    /// let buf_size = reader.peek_layout()?.total_bytes();
+    /// let mut buffer = vec![0; buf_size as usize];
+    ///
+    /// let mut meta = reader.decode_into(&mut buffer)?;
+    /// // This image also has IPTC metadata attached to it.
+    /// let iptc = meta.iptc_metadata()?;
+    /// assert!(iptc.is_some());
+    ///
+    /// # Ok::<_, image::error::ImageError>(())
+    /// ```
+    pub fn decode_into(&mut self, buffer: &mut [u8]) -> ImageResult<DecodedImageMetadata<'_>> {
+        let layout = self.inner.peek_layout()?;
+        self.fill_header_metadata_if_any();
+
+        let actual = buffer.len();
+
+        if usize::try_from(layout.total_bytes()).ok() != Some(actual) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::BufferSizeMismatch,
+            )));
         }
 
-        // Determine which orientation to use.
-        if attr.orientation.is_none() {
-            attr.orientation = exif.and_then(|chunk| Orientation::from_exif_chunk(&chunk));
-        }
+        self.limits.check_dimensions(layout.width, layout.height)?;
 
-        if self.settings.apply_orientation {
-            if let Some(orient) = attr.orientation {
-                image.apply_orientation(orient);
-            }
-        }
-
-        self.last_attributes = attr;
+        self.last_attributes = self.inner.read_image(buffer)?;
 
         Ok(DecodedImageMetadata {
             inner: self.inner.as_mut(),
-            attributes: &self.last_attributes,
+            attributes: &mut self.last_attributes,
             metadata_buffers: &mut self.metadata_buffers,
         })
     }
@@ -827,7 +840,7 @@ impl<'stream> ImageReader<'stream> {
             let no_delay = Delay::from_saturating_duration(Default::default());
 
             let mut frame = DynamicImage::default();
-            let frame_decoded = match self.decode_into(&mut frame) {
+            let frame_decoded = match self.decode_to_dynimage(&mut frame) {
                 Ok(frame) => frame,
                 Err(ref err) if is_end_reached(err) => return None,
                 Err(err) => return Some(Err(err)),
@@ -849,7 +862,7 @@ impl<'stream> ImageReader<'stream> {
 /// Result of [`ImageReader::decode_into`] that provides access to metadata.
 pub struct DecodedImageMetadata<'reader> {
     inner: &'reader mut (dyn ImageDecoder + 'reader),
-    attributes: &'reader DecodedImageAttributes,
+    attributes: &'reader mut DecodedImageAttributes,
     metadata_buffers: &'reader mut MetadataBuffers,
 }
 
@@ -892,6 +905,53 @@ impl<'lt> DecodedImageMetadata<'lt> {
             self.inner,
             <dyn ImageDecoder + '_>::iptc_metadata,
         )
+    }
+
+    fn apply_metdata(
+        &mut self,
+        settings: &ImageReaderSettings,
+        image: &mut DynamicImage,
+    ) -> Result<(), ImageError> {
+        // Run all the metadata extraction which we may need.
+        let icc = self.icc_profile()?;
+        let exif = self.exif_metadata()?;
+
+        // Apply the profile. If the profile itself is not valid or not present you get the default
+        // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
+        // RGB we'll treat it as unspecified so that downstream will know that our handling of this
+        // _existing_ profile was not / could not be done with full fidelity.
+        if let Some(icc) = icc {
+            if let Some(cicp) = crate::metadata::cms_provider().parse_icc(&icc) {
+                // We largely ignore the error itself here, you just get the image with no color
+                // space attached to it.
+                if let Ok(rgb) = cicp.try_into_rgb() {
+                    image.set_rgb_primaries(rgb.primaries);
+                    image.set_transfer_function(rgb.transfer);
+                } else {
+                    image.set_rgb_primaries(crate::metadata::CicpColorPrimaries::Unspecified);
+                    image.set_transfer_function(
+                        crate::metadata::CicpTransferCharacteristics::Unspecified,
+                    );
+                }
+            }
+        }
+
+        let mut orientation = self.attributes.orientation;
+
+        // Determine which orientation to use.
+        if orientation.is_none() {
+            orientation = exif.and_then(|chunk| Orientation::from_exif_chunk(&chunk));
+        }
+
+        self.attributes.orientation = orientation;
+
+        if settings.apply_orientation {
+            if let Some(orient) = orientation {
+                image.apply_orientation(orient);
+            }
+        }
+
+        Ok(())
     }
 
     fn access_block_with<'l>(

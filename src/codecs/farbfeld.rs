@@ -144,8 +144,7 @@ impl<R: Read + Seek> Seek for FarbfeldReader<R> {
                 )
             })?;
 
-        // TODO: convert to seek_relative() once that gets stabilised
-        self.inner.seek(SeekFrom::Current(offset_from_current))?;
+        self.inner.seek_relative(offset_from_current)?;
         self.current_offset = if offset_from_current < 0 {
             original_offset.checked_sub(offset_from_current.wrapping_neg() as u64)
         } else {

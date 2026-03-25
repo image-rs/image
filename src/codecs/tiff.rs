@@ -32,6 +32,7 @@ where
     color_type: ColorType,
     original_color_type: ExtendedColorType,
     ycbcr_coefficients: [f32; 3],
+    should_premultiply_alpha: bool,
 
     // We only use an Option here so we can call with_limits on the decoder without moving.
     inner: Option<Decoder<R>>,
@@ -109,11 +110,33 @@ where
             ycbcr_coefficients = read_ycbcr_coefficients(&mut inner)?;
         }
 
+        let mut should_premultiply_alpha = false;
+        let has_alpha = matches!(
+            color_type,
+            ColorType::La8
+                | ColorType::La16
+                | ColorType::Rgba8
+                | ColorType::Rgba16
+                | ColorType::Rgba32F
+        );
+
+        if has_alpha {
+            let extra_samples = inner
+                .find_tag_unsigned_vec::<u16>(Tag::ExtraSamples)
+                .map_err(ImageError::from_tiff_decode)?;
+
+            should_premultiply_alpha = match extra_samples.as_deref().and_then(|v| v.first()) {
+                Some(&2) => true,
+                _ => false,
+            };
+        }
+
         Ok(TiffDecoder {
             dimensions,
             color_type,
             original_color_type,
             ycbcr_coefficients,
+            should_premultiply_alpha,
             inner: Some(inner),
             buffer: DecodingResult::U8(vec![]),
         })
@@ -516,6 +539,26 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
             DecodingResult::F16(_) => unreachable!(),
+        }
+
+        if self.should_premultiply_alpha {
+            match self.color_type {
+                ColorType::Rgba8 => pic_scale_safe::premultiply_rgba8(buf),
+                ColorType::La8 => pic_scale_safe::premultiply_la8(buf),
+                ColorType::Rgba16 => {
+                    let buf16: &mut [u16] = bytemuck::cast_slice_mut(buf);
+                    pic_scale_safe::premultiply_rgba16(buf16, 16);
+                }
+                ColorType::La16 => {
+                    let buf16: &mut [u16] = bytemuck::cast_slice_mut(buf);
+                    pic_scale_safe::premultiply_la16(buf16, 16);
+                }
+                ColorType::Rgba32F => {
+                    let buf32: &mut [f32] = bytemuck::cast_slice_mut(buf);
+                    pic_scale_safe::premultiply_rgba_f32(buf32);
+                }
+                _ => {}
+            }
         }
 
         Ok(())

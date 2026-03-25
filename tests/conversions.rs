@@ -103,3 +103,42 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
     let result = TiffDecoder::new(std::io::Cursor::new(data));
     assert!(result.is_err());
 }
+
+#[cfg(feature = "tiff")]
+#[test]
+fn test_tiff_alpha_missing() {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/alpha_missing.tiff");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let decoder = TiffDecoder::new(std::io::Cursor::new(data)).unwrap();
+    let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+    decoder.read_image(&mut buffer).unwrap();
+
+    assert_eq!(buffer, [255, 255, 255, 128]);
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+fn test_tiff_alpha_associated() {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/alpha_associated.tiff");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let decoder = TiffDecoder::new(std::io::Cursor::new(data)).unwrap();
+    let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+    decoder.read_image(&mut buffer).unwrap();
+
+    assert_eq!(buffer, [255, 255, 255, 128]);
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+fn test_tiff_alpha_straight() {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/alpha_straight.tiff");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let decoder = TiffDecoder::new(std::io::Cursor::new(data)).unwrap();
+    let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+    decoder.read_image(&mut buffer).unwrap();
+
+    assert_eq!(buffer, [128, 128, 128, 128]);
+}

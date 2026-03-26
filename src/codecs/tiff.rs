@@ -125,10 +125,8 @@ where
                 .find_tag_unsigned_vec::<u16>(Tag::ExtraSamples)
                 .map_err(ImageError::from_tiff_decode)?;
 
-            should_premultiply_alpha = match extra_samples.as_deref().and_then(|v| v.first()) {
-                Some(&2) => true,
-                _ => false,
-            };
+            should_premultiply_alpha =
+                matches!(extra_samples.as_deref().and_then(|v| v.first()), Some(&2));
         }
 
         Ok(TiffDecoder {

@@ -531,9 +531,9 @@ where
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    // Accumulator for a full output row: one [f32; 4] slot per output column.
-    // Allocated once here and reused for every output row to avoid per-pixel heap pressure.
-    let mut acc = vec![0.0f32; width as usize * 4];
+    // Accumulator for a full output row: [[f32; 4], width] pixel slot.
+    // Allocated once here and reused for every output row.
+    let mut acc: Vec<[f32; 4]> = vec![[1.0; 4]; width as usize];
 
     for outy in 0..new_height {
         // For an explanation of this algorithm, see the comments
@@ -567,8 +567,8 @@ where
         // per-pixel `pix = Rgba([1.0; 4])` initialisation: channels covered by the input
         // pixel type get accumulated values added on top, while any extra channels (e.g.
         // the alpha channel when the source has no alpha) remain at 1.0.
-        for v in acc.iter_mut() {
-            *v = 1.0;
+        for pix in acc.iter_mut() {
+            *pix = [1.0; 4];
         }
 
         // Reordered loop: iterate over kernel rows in the outer loop and x-columns in the
@@ -579,21 +579,15 @@ where
             let src_y = left + i as u32;
             for x in 0..width {
                 let p = image.get_pixel(x, src_y);
-                let base = x as usize * 4;
                 for (j, &c) in p.channels().iter().enumerate() {
-                    acc[base + j] += <f32 as NumCast>::from(c).unwrap() * w;
+                    acc[x as usize][j] += <f32 as NumCast>::from(c).unwrap() * w;
                 }
             }
         }
 
         // Flush the accumulated row into the output image.
-        for x in 0..width {
-            let base = x as usize * 4;
-            out.put_pixel(
-                x,
-                outy,
-                crate::Rgba([acc[base], acc[base + 1], acc[base + 2], acc[base + 3]]),
-            );
+        for (x, &pix) in acc.iter().enumerate() {
+            out.put_pixel(x as u32, outy, crate::Rgba(pix));
         }
     }
 

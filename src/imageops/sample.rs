@@ -260,7 +260,6 @@ where
 
     let mut out = ImageBuffer::new(new_width, height);
     out.copy_color_space_from(image);
-    let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
     let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
@@ -270,58 +269,77 @@ where
 
     let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
 
-    for outx in 0..new_width {
-        // Find the point in the input image corresponding to the centre
-        // of the current pixel in the output image.
-        let inputx = (outx as f32 + 0.5) * ratio;
+    // Precompute the filter weights for every output column once, so the inner
+    // (per-row) loop only does arithmetic — not weight computation.
+    // Memory cost: O(new_width × kernel_size × 4 bytes), typically a few hundred KB.
+    let col_weights: Vec<(u32, Vec<f32>)> = (0..new_width)
+        .map(|outx| {
+            // Find the point in the input image corresponding to the centre
+            // of the current pixel in the output image.
+            let inputx = (outx as f32 + 0.5) * ratio;
 
-        // Left and right are slice bounds for the input pixels relevant
-        // to the output pixel we are calculating.  Pixel x is relevant
-        // if and only if (x >= left) && (x < right).
+            // Left and right are slice bounds for the input pixels relevant
+            // to the output pixel we are calculating.  Pixel x is relevant
+            // if and only if (x >= left) && (x < right).
 
-        // Invariant: 0 <= left < right <= width
+            // Invariant: 0 <= left < right <= width
 
-        let left = (inputx - src_support).floor() as i64;
-        let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
+            let left = (inputx - src_support).floor() as i64;
+            let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
 
-        let right = (inputx + src_support).ceil() as i64;
-        let right = clamp(
-            right,
-            <i64 as From<_>>::from(left) + 1,
-            <i64 as From<_>>::from(width),
-        ) as u32;
+            let right = (inputx + src_support).ceil() as i64;
+            let right = clamp(
+                right,
+                <i64 as From<_>>::from(left) + 1,
+                <i64 as From<_>>::from(width),
+            ) as u32;
 
-        // Go back to left boundary of pixel, to properly compare with i
-        // below, as the kernel treats the centre of a pixel as 0.
-        let inputx = inputx - 0.5;
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputx = inputx - 0.5;
 
-        ws.clear();
-        let mut sum = 0.0;
-        for i in left..right {
-            let w = (filter.kernel)((i as f32 - inputx) / sratio);
-            ws.push(w);
-            sum += w;
-        }
-        for w in ws.iter_mut() {
-            *w /= sum;
-        }
+            let mut ws = Vec::with_capacity((right - left) as usize);
+            let mut sum = 0.0;
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputx) / sratio);
+                ws.push(w);
+                sum += w;
+            }
+            for w in ws.iter_mut() {
+                *w /= sum;
+            }
 
-        for y in 0..height {
-            let mut t = [0.0; MAX_CHANNEL];
+            (left, ws)
+        })
+        .collect();
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(left + i as u32, y);
+    // Raw f32 slice of the intermediate Rgba32FImage: width * 4 f32s per row.
+    // Direct slice indexing avoids per-pixel trait dispatch, bounds-check overhead,
+    // and the NumCast f32→f32 no-op conversion that `get_pixel` would require.
+    let src_raw = image.as_raw();
+    let src_stride = width as usize * 4;
 
-                for (t, &c) in t.iter_mut().zip(p.channels()) {
-                    *t += c * w;
-                }
+    // Iterate row-by-row so that writes to the output buffer are sequential
+    // (row-major), avoiding the column-major write pattern of the original loop.
+    for y in 0..height {
+        let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
+        for (outx, (left, ws)) in col_weights.iter().enumerate() {
+            let mut t = [0.0f32; MAX_CHANNEL];
+
+            for (i, &w) in ws.iter().enumerate() {
+                // Unrolled 4-channel accumulation directly from the raw f32 slice.
+                let base = (*left as usize + i) * 4;
+                t[0] += src_row[base] * w;
+                t[1] += src_row[base + 1] * w;
+                t[2] += src_row[base + 2] * w;
+                t[3] += src_row[base + 3] * w;
             }
 
             for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {
                 *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
             }
 
-            out.put_pixel(outx, y, pix_temp);
+            out.put_pixel(outx as u32, y, pix_temp);
         }
     }
 
@@ -513,6 +531,10 @@ where
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
+    // Accumulator for a full output row: one [f32; 4] slot per output column.
+    // Allocated once here and reused for every output row to avoid per-pixel heap pressure.
+    let mut acc = vec![0.0f32; width as usize * 4];
+
     for outy in 0..new_height {
         // For an explanation of this algorithm, see the comments
         // in horizontal_sample.
@@ -541,18 +563,37 @@ where
             *w /= sum;
         }
 
-        for x in 0..width {
-            let mut pix = crate::Rgba([1.0; 4]);
+        // Initialize accumulator to 1.0 for all channels.  This matches the original
+        // per-pixel `pix = Rgba([1.0; 4])` initialisation: channels covered by the input
+        // pixel type get accumulated values added on top, while any extra channels (e.g.
+        // the alpha channel when the source has no alpha) remain at 1.0.
+        for v in acc.iter_mut() {
+            *v = 1.0;
+        }
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(x, left + i as u32);
-
-                for (tc, &c) in pix.channels_mut().iter_mut().zip(p.channels()) {
-                    *tc += <f32 as NumCast>::from(c).unwrap() * w;
+        // Reordered loop: iterate over kernel rows in the outer loop and x-columns in the
+        // inner loop.  This reads each source row sequentially across all columns —
+        // matching the row-major layout of the image buffer — instead of striding between
+        // rows for every output column, which would thrash the cache.
+        for (i, &w) in ws.iter().enumerate() {
+            let src_y = left + i as u32;
+            for x in 0..width {
+                let p = image.get_pixel(x, src_y);
+                let base = x as usize * 4;
+                for (j, &c) in p.channels().iter().enumerate() {
+                    acc[base + j] += <f32 as NumCast>::from(c).unwrap() * w;
                 }
             }
+        }
 
-            out.put_pixel(x, outy, pix);
+        // Flush the accumulated row into the output image.
+        for x in 0..width {
+            let base = x as usize * 4;
+            out.put_pixel(
+                x,
+                outy,
+                crate::Rgba([acc[base], acc[base + 1], acc[base + 2], acc[base + 3]]),
+            );
         }
     }
 

@@ -317,11 +317,9 @@ where
         col_starts.push(col_ws.len());
     }
 
-    // Raw f32 slice of the intermediate Rgba32FImage: width * 4 f32s per row.
-    // Direct slice indexing avoids per-pixel trait dispatch, bounds-check overhead,
-    // and the NumCast f32→f32 no-op conversion that `get_pixel` would require.
+    // Raw f32 slice of the intermediate Rgba32FImage per row.
     let src_raw = image.as_raw();
-    let src_stride = width as usize * 4;
+    let src_stride = width as usize * MAX_CHANNEL;
 
     // Iterate row-by-row so that writes to the output buffer are sequential
     // (row-major), avoiding the column-major write pattern of the original loop.
@@ -334,12 +332,10 @@ where
             let mut t = [0.0; MAX_CHANNEL];
 
             for (i, &w) in ws.iter().enumerate() {
-                // Unrolled 4-channel accumulation directly from the raw f32 slice.
-                let base = (left + i) * 4;
-                t[0] += src_row[base] * w;
-                t[1] += src_row[base + 1] * w;
-                t[2] += src_row[base + 2] * w;
-                t[3] += src_row[base + 3] * w;
+                let base = (left + i) * MAX_CHANNEL;
+                for (tc, src) in t.iter_mut().zip(&src_row[base..base + MAX_CHANNEL]) {
+                    *tc += *src * w;
+                }
             }
 
             for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {

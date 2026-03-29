@@ -6,7 +6,9 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, FormatAttributes};
+use crate::io::{
+    DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
+};
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -273,10 +275,10 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         }
     }
 
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         match &mut self.inner_decoder {
-            Bmp(decoder) => decoder.peek_layout(),
-            Png(decoder) => decoder.peek_layout(),
+            Bmp(decoder) => decoder.prepare_image(),
+            Png(decoder) => decoder.prepare_image(),
         }
     }
 
@@ -294,8 +296,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     return Err(DecoderError::PngShorterThanHeader.into());
                 }
 
+                let layout = decoder.prepare_image()?;
                 // Check if the image dimensions match the ones in the image data.
-                let (width, height) = decoder.peek_layout()?.dimensions();
+                let (width, height) = layout.layout.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Png,
@@ -310,14 +313,15 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if decoder.peek_layout()?.color != ColorType::Rgba8 {
+                if layout.layout.color != ColorType::Rgba8 {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 
                 decoder.read_image(buf)
             }
             Bmp(decoder) => {
-                let (width, height) = decoder.peek_layout()?.dimensions();
+                let layout = decoder.prepare_image()?;
+                let (width, height) = layout.layout.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Bmp,
@@ -331,11 +335,11 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if decoder.peek_layout()?.color != ColorType::Rgba8 {
+                if layout.layout.color != ColorType::Rgba8 {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Bmp.into(),
-                            UnsupportedErrorKind::Color(decoder.peek_layout()?.color.into()),
+                            UnsupportedErrorKind::Color(layout.layout.color.into()),
                         ),
                     ));
                 }
@@ -499,7 +503,7 @@ mod test {
         ];
 
         let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
-        let bytes = decoder.peek_layout().unwrap().total_bytes();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
         let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
     }

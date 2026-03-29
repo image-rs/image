@@ -185,7 +185,7 @@ pub(crate) fn guess_format_extension(start: &[u8]) -> Option<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::DecodedImageAttributes;
+    use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
     use crate::{load_from_memory, ColorType, DynamicImage, ImageReaderOptions};
     use std::io::Cursor;
 
@@ -194,12 +194,12 @@ mod tests {
     const MOCK_IMAGE_OUTPUT: [u8; 9] = [255, 0, 0, 0, 255, 0, 0, 0, 255];
     struct MockDecoder {}
     impl ImageDecoder for MockDecoder {
-        fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-            Ok(crate::ImageLayout {
-                width: (MOCK_IMAGE_OUTPUT.len() / 3) as u32,
-                height: 1,
-                ..crate::ImageLayout::empty(ColorType::Rgb8)
-            })
+        fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+            Ok(DecoderPreparedImage::new(
+                (MOCK_IMAGE_OUTPUT.len() / 3) as u32,
+                1,
+                ColorType::Rgb8,
+            ))
         }
 
         fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

@@ -22,7 +22,7 @@ use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::{ColorType, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// farbfeld Reader
@@ -64,12 +64,10 @@ impl<R: Read> FarbfeldReader<R> {
             cached_byte: None,
         };
 
-        if crate::utils::check_dimension_overflow(
-            reader.width,
-            reader.height,
-            // ExtendedColorType is always rgba16
-            8,
-        ) {
+        // ExtendedColorType is always rgba16
+        let layout = crate::ImageLayout::new(reader.width, reader.height, ColorType::Rgba16);
+
+        if layout.total_bytes_overflows_u64() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Farbfeld.into(),
@@ -196,13 +194,13 @@ impl<R: Read> FarbfeldDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let FarbfeldReader { width, height, .. } = self.reader;
-        Ok(crate::ImageLayout::new(width, height, ColorType::Rgba16))
+        Ok(DecoderPreparedImage::new(width, height, ColorType::Rgba16))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.reader.read_exact(buf)?;
         Ok(DecodedImageAttributes::default())

@@ -18,7 +18,8 @@ use crate::error::{
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, FormatAttributes, SequenceControl,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
+    SequenceControl,
 };
 use crate::math::Rect;
 use crate::metadata::LoopCount;
@@ -265,10 +266,10 @@ fn reader_finished_already() -> ImageError {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let reader = self.ensure_reader_and_header()?;
         let (width, height) = reader.info().size();
-        Ok(ImageLayout::new(width, height, self.color_type))
+        Ok(DecoderPreparedImage::new(width, height, self.color_type))
     }
 
     fn format_attributes(&self) -> FormatAttributes {
@@ -350,7 +351,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let reader = self.ensure_reader_and_header()?;
@@ -360,7 +361,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         // PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
         // to be reordered to native endianness per the contract of `read_image`. Assumes equal
         // depth which is the only supported output from `png` with our options.
-        let bpc = layout.color.bytes_per_pixel() / layout.color.channel_count();
+        let bpc = layout.layout.color.bytes_per_pixel() / layout.layout.color.channel_count();
 
         match bpc {
             1 => (), // No reodering necessary for u8
@@ -457,12 +458,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         };
 
         // Allocate the buffers, honoring the memory limits
-        let layout @ ImageLayout {
+        let layout = self.inner.prepare_image()?;
+        let ImageLayout {
             width,
             height,
             color,
-            ..
-        } = self.inner.peek_layout()?;
+        } = layout.layout;
 
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
@@ -592,7 +593,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             BlendOp::Source => {
                 copy_pixel_bytes(
                     current.as_mut_bytes(),
-                    &layout,
+                    &layout.layout,
                     &buffer[..],
                     &dispose_region,
                 );
@@ -601,7 +602,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 // TODO: investigate speed, speed-ups, and bounds-checks.
                 blend_pixel_bytes(
                     current.as_mut_bytes(),
-                    &layout,
+                    &layout.layout,
                     &buffer[..],
                     &dispose_region,
                 )
@@ -661,8 +662,8 @@ impl<R: BufRead + Seek> ImageDecoder for ApngDecoder<R> {
         Some(DecodedAnimationAttributes { loop_count })
     }
 
-    fn peek_layout(&mut self) -> ImageResult<ImageLayout> {
-        self.inner.peek_layout()
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        self.inner.prepare_image()
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -1012,14 +1013,14 @@ mod tests {
         ));
 
         let layout = dec
-            .peek_layout()
+            .prepare_image()
             .expect("Unable to read PNG file (does it exist?)");
 
-        assert_eq![(2000, 1000), layout.dimensions()];
+        assert_eq![(2000, 1000), layout.layout.dimensions()];
 
         assert_eq![
             ColorType::Rgb8,
-            layout.color,
+            layout.layout.color,
             "Image MUST have the Rgb8 format"
         ];
 
@@ -1043,7 +1044,7 @@ mod tests {
         not_png[0] = 0;
 
         let mut decoder = PngDecoder::new(Cursor::new(&not_png));
-        let error = decoder.peek_layout().err().unwrap();
+        let error = decoder.prepare_image().err().unwrap();
 
         let _ = error
             .source()

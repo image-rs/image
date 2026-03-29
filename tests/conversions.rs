@@ -51,7 +51,7 @@ fn test_decode_8bit_jpeg_ycbcr() -> Result<(), image::ImageError> {
     let mut reader = ImageReader::from_decoder(Box::new(tiff_decoder));
 
     let layout = reader.peek_layout()?;
-    assert_eq!(layout.color, image::ColorType::Rgb8);
+    assert_eq!(layout.layout.color, image::ColorType::Rgb8);
 
     let (image, meta) = reader.decode()?;
     let original_type = meta.attributes().original_color_type;
@@ -73,7 +73,7 @@ fn test_decode_8bit_ycbcr_lzw_bt709() -> Result<(), image::ImageError> {
     let mut reader = ImageReader::from_decoder(Box::new(tiff_decoder));
 
     let layout = reader.peek_layout()?;
-    assert_eq!(layout.color, image::ColorType::Rgb8);
+    assert_eq!(layout.layout.color, image::ColorType::Rgb8);
 
     let (image, meta) = reader.decode()?;
     let original_type = meta.attributes().original_color_type;

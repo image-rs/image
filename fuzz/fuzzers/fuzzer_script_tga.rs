@@ -9,10 +9,10 @@ fuzz_target!(|data: &[u8]| {
 fn decode(data: &[u8]) -> Result<(), image::ImageError> {
     use image::ImageDecoder;
     let mut decoder = image::codecs::tga::TgaDecoder::new(std::io::Cursor::new(data))?;
-    if decoder.peek_layout()?.total_bytes() > 4_000_000 {
+    if decoder.prepare_image()?.total_bytes() > 4_000_000 {
         return Ok(());
     }
-    let mut buffer = vec![0; decoder.peek_layout()?.total_bytes() as usize];
+    let mut buffer = vec![0; decoder.prepare_image()?.total_bytes() as usize];
     decoder.read_image(&mut buffer)?;
     Ok(())
 }

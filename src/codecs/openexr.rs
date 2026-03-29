@@ -26,7 +26,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -104,7 +104,7 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let (width, height) = match &self.exr_reader {
             Some(exr) => {
                 let header = &exr.meta_data().headers[self.header_index];
@@ -127,13 +127,13 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
         };
 
         // We may have discarded the alpha channel.
-        Ok(crate::ImageLayout::new(width, height, color))
+        Ok(DecoderPreparedImage::new(width, height, color))
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
     fn read_image(&mut self, unaligned_bytes: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
-        let (width, height) = layout.dimensions();
+        let layout = self.prepare_image()?;
+        let (width, height) = layout.layout.dimensions();
 
         let original = if self.alpha_present_in_file {
             ExtendedColorType::Rgba32F
@@ -146,7 +146,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
         })?;
 
         let _blocks_in_header = reader.headers()[self.header_index].chunk_count as u64;
-        let channel_count = layout.color.channel_count() as usize;
+        let channel_count = layout.layout.color.channel_count() as usize;
 
         let display_window = reader.headers()[self.header_index]
             .shared_attributes
@@ -159,7 +159,7 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
 
         {
             // check whether the buffer is large enough for the dimensions of the file
-            let bytes_per_pixel = usize::from(layout.color.bytes_per_pixel());
+            let bytes_per_pixel = usize::from(layout.layout.color.bytes_per_pixel());
             let expected_byte_count = (width as usize)
                 .checked_mul(height as usize)
                 .and_then(|size| size.checked_mul(bytes_per_pixel));
@@ -402,7 +402,7 @@ mod test {
     /// Read the file from the specified path into an `Rgb32FImage`.
     fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
-        let (width, height) = decoder.peek_layout()?.dimensions();
+        let (width, height) = decoder.prepare_image()?.layout.dimensions();
         let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -416,7 +416,7 @@ mod test {
     /// Read the file from the specified path into an `Rgba32FImage`.
     fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
         let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
-        let (width, height) = decoder.peek_layout()?.dimensions();
+        let (width, height) = decoder.prepare_image()?.layout.dimensions();
         let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
 
         ImageBuffer::from_raw(width, height, buffer)

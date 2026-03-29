@@ -12,7 +12,7 @@ use crate::images::buffer::{
 };
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::math::{resize_dimensions, Rect};
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
@@ -243,7 +243,7 @@ impl DynamicImage {
     /// Decodes an encoded image into a dynamic image.
     pub fn from_decoder(mut decoder: impl ImageDecoder) -> ImageResult<Self> {
         let mut image = DynamicImage::new_luma8(0, 0);
-        let layout = decoder.peek_layout()?;
+        let layout = decoder.prepare_image()?;
         image.decode_raw(&mut decoder, layout)?;
         Ok(image)
     }
@@ -252,7 +252,7 @@ impl DynamicImage {
     pub(crate) fn decode_raw(
         &mut self,
         decoder: &mut dyn ImageDecoder,
-        layout: crate::ImageLayout,
+        layout: DecoderPreparedImage,
     ) -> ImageResult<DecodedImageAttributes> {
         decoder_to_image(self, decoder, layout)
     }
@@ -1550,14 +1550,14 @@ impl Default for DynamicImage {
 pub(crate) fn decoder_to_image(
     image: &mut DynamicImage,
     decoder: &mut dyn ImageDecoder,
-    layout: crate::ImageLayout,
+    layout: DecoderPreparedImage,
 ) -> ImageResult<DecodedImageAttributes> {
     let crate::ImageLayout {
         width: w,
         height: h,
         color: color_type,
         ..
-    } = layout;
+    } = layout.layout;
 
     let attr;
 

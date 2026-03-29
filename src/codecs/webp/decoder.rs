@@ -4,8 +4,8 @@ use image_webp::LoopCount;
 
 use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, FormatAttributes,
-    SequenceControl,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
+    FormatAttributes, SequenceControl,
 };
 use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Rgba};
 
@@ -60,7 +60,7 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         Some(DecodedAnimationAttributes { loop_count })
     }
 
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let (width, height) = self.inner.dimensions();
         let color = if self.inner.has_alpha() {
             ColorType::Rgba8
@@ -68,7 +68,7 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             ColorType::Rgb8
         };
 
-        Ok(crate::ImageLayout::new(width, height, color))
+        Ok(DecoderPreparedImage::new(width, height, color))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -80,7 +80,7 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             )));
         }
 
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // `read_frame` panics if the image is not animated.

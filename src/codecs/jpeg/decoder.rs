@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::image_reader_type::SpecCompliance;
-use crate::io::{DecodedImageAttributes, FormatAttributes};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, FormatAttributes};
 use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
@@ -100,8 +100,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
         }
     }
 
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        Ok(crate::ImageLayout::new(
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        Ok(DecoderPreparedImage::new(
             self.width.into(),
             self.height.into(),
             ColorType::from_jpeg(self.orig_color_space),
@@ -165,7 +165,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
 
         let advertised_len = layout.total_bytes();
         let actual_len = buf.len() as u64;
@@ -197,8 +197,8 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.peek_layout()?.dimensions();
-        limits.check_dimensions(width, height)?;
+        let layout = self.prepare_image()?;
+        limits.check_layout_dimensions(&layout)?;
         self.limits = limits;
         Ok(())
     }
@@ -294,7 +294,7 @@ mod tests {
 
         // Default (lenient) mode: truncated image should be accepted
         let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_ok());
 
@@ -302,7 +302,7 @@ mod tests {
         let mut decoder =
             JpegDecoder::new_with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict)
                 .unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_err());
     }

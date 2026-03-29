@@ -8,7 +8,7 @@ use crate::error::{
     UnsupportedErrorKind,
 };
 use crate::io::limits::Limits;
-use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes};
+use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage};
 use crate::io::{DecodedMetadataHint, SequenceControl};
 use crate::metadata::Orientation;
 use crate::{hooks, Delay, Frame, Frames};
@@ -325,8 +325,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn into_dimensions(self) -> ImageResult<(u32, u32)> {
         let mut decoder = self.into_decoder()?;
-        let layout = decoder.peek_layout()?;
-        Ok((layout.width, layout.height))
+        let layout = decoder.prepare_image()?;
+        Ok(layout.layout.dimensions())
     }
 
     /// Read the image (replaces `load`).
@@ -480,8 +480,8 @@ impl ImageReaderOptions<BufReader<File>> {
 
 impl ImageReader<'_> {
     /// Query the layout that the image will have.
-    pub fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        self.inner.peek_layout()
+    pub fn peek_layout(&mut self) -> ImageResult<DecoderPreparedImage> {
+        self.inner.prepare_image()
     }
 
     /// Decode the next image into a `DynamicImage`.
@@ -540,11 +540,11 @@ impl ImageReader<'_> {
         &mut self,
         image: &mut DynamicImage,
     ) -> ImageResult<DecodedImageMetadata<'_>> {
-        let layout = self.inner.peek_layout()?;
+        let layout = self.inner.prepare_image()?;
         self.fill_header_metadata_if_any();
 
         // This is technically redundant but it's also cheap.
-        self.limits.check_dimensions(layout.width, layout.height)?;
+        self.limits.check_layout_dimensions(&layout)?;
         // Check that we do not allocate a bigger buffer than we are allowed to
         // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
         self.limits.reserve(layout.total_bytes())?;
@@ -587,7 +587,7 @@ impl ImageReader<'_> {
     /// # Ok::<_, image::error::ImageError>(())
     /// ```
     pub fn decode_into(&mut self, buffer: &mut [u8]) -> ImageResult<DecodedImageMetadata<'_>> {
-        let layout = self.inner.peek_layout()?;
+        let layout = self.inner.prepare_image()?;
         self.fill_header_metadata_if_any();
 
         let actual = buffer.len();
@@ -598,7 +598,7 @@ impl ImageReader<'_> {
             )));
         }
 
-        self.limits.check_dimensions(layout.width, layout.height)?;
+        self.limits.check_layout_dimensions(&layout)?;
 
         self.last_attributes = self.inner.read_image(buffer)?;
 
@@ -620,11 +620,11 @@ impl ImageReader<'_> {
         // possible. We can just try out until one works.
 
         // Some decoders may still want a buffer, so we can't fully ignore it.
-        let layout = self.inner.peek_layout()?;
+        let layout = self.inner.prepare_image()?;
         self.fill_header_metadata_if_any();
 
         // This is technically redundant but it's also cheap.
-        self.limits.check_dimensions(layout.width, layout.height)?;
+        self.limits.check_layout_dimensions(&layout)?;
         let bytes = layout.total_bytes();
 
         if bytes < 512 {
@@ -645,7 +645,7 @@ impl ImageReader<'_> {
 
     /// Get the animation attributes of the file if any.
     pub fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
-        let _ = self.inner.peek_layout();
+        let _ = self.inner.prepare_image();
         self.inner.animation_attributes()
     }
 
@@ -1009,13 +1009,13 @@ mod tests {
     }
 
     impl ImageDecoder for InjectedReader {
-        fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+        fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
             self.xmp_metadata = self
                 .xmp_per_image
                 .get(self.image)
                 .cloned()
                 .unwrap_or_default();
-            Ok(crate::ImageLayout::empty(crate::ColorType::Rgba8))
+            Ok(DecoderPreparedImage::new(0, 0, crate::ColorType::Rgba8))
         }
 
         fn format_attributes(&self) -> FormatAttributes {

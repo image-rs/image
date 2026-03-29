@@ -305,7 +305,7 @@ mod tests {
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let mut decoder = JpegDecoder::new(Cursor::new(encoded)).expect("Could not decode image");
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut decoded = vec![0; layout.total_bytes() as usize];
         decoder
             .read_image(&mut decoded)

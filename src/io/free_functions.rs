@@ -173,7 +173,7 @@ pub(crate) fn decoder_to_vec<T>(
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let total_bytes = usize::try_from(decoder.peek_layout()?.total_bytes());
+    let total_bytes = usize::try_from(decoder.prepare_image()?.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::MAX as usize {
         return Err(ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::InsufficientMemory,

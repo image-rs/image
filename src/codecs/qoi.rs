@@ -1,7 +1,7 @@
 //! Decoding and encoding of QOI images
 
 use crate::error::{DecodingError, EncodingError, UnsupportedError, UnsupportedErrorKind};
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -24,14 +24,18 @@ where
 }
 
 impl<R: Read> ImageDecoder for QoiDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let header = self.decoder.header();
         let color = match header.channels {
             qoi::Channels::Rgb => ColorType::Rgb8,
             qoi::Channels::Rgba => ColorType::Rgba8,
         };
 
-        Ok(crate::ImageLayout::new(header.width, header.height, color))
+        Ok(DecoderPreparedImage::new(
+            header.width,
+            header.height,
+            color,
+        ))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
@@ -110,8 +114,8 @@ mod tests {
         let mut decoder = QoiDecoder::new(File::open("tests/images/qoi/basic-test.qoi").unwrap())
             .expect("Unable to read QOI file");
 
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!((5, 5), layout.dimensions());
-        assert_eq!(ColorType::Rgba8, layout.color);
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!((5, 5), layout.layout.dimensions());
+        assert_eq!(ColorType::Rgba8, layout.layout.color);
     }
 }

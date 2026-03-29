@@ -42,7 +42,8 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, FormatAttributes,
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
+    FormatAttributes,
 };
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
@@ -134,16 +135,16 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         Some(DecodedAnimationAttributes { loop_count })
     }
 
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let decoder = self.ensure_decoder()?;
-        Ok(Self::layout_from_decoder(decoder))
+        Ok(Self::layout_from_decoder(decoder).into())
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
 
-        let (width, height) = self.peek_layout()?.dimensions();
-        limits.check_dimensions(width, height)?;
+        let layout = self.prepare_image()?;
+        limits.check_layout_dimensions(&layout)?;
 
         self.limits = limits;
 
@@ -157,7 +158,6 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             width,
             height,
             color,
-            ..
         } = Self::layout_from_decoder(decoder);
 
         // Allocate the buffer for the previous frame.
@@ -675,7 +675,7 @@ mod test {
         ];
 
         let mut decoder = GifDecoder::new(io::Cursor::new(data)).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
 
         let mut buf = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buf).is_ok());

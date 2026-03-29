@@ -1,19 +1,30 @@
 use crate::error::ImageResult;
+use crate::io::DecoderPreparedImage;
 use crate::metadata::{LoopCount, Orientation};
 use crate::Delay;
 
 /// The interface for `image` to utilize in reading image files.
 ///
-/// This should be thought of as one side of protocol between `image` and a specific file format.
-/// In the general case, the calls are expected to be made in the following order:
+/// Please carefully consider consuming this interface directly and prefer interaction with an
+/// [`ImageReader`]. This is one directional of a protocol between `image` and format decoders. In
+/// the general case, an implementation can expect calls to be made in the following order:
 ///
 /// ```text,bnf
-/// set_limits*
-/// > (peek_layout+ > {xmp,icc,exif,iptc}_metadata* > read_image)*
-/// > finish
+/// decoding sequence = configure, { decode image }, "finish", { metadata }
+///
+/// decode image =
+///    "prepare_image", { metadata | "prepare_image" }, "read_image"
+///
+/// configure = "set_limits"
+///
+/// metadata = "xmp_metadata" | "icc_profile" | "exif_metadata" | "iptc_metadata"
 /// ```
 ///
-/// Metadata (`icc_profile`, `exif_metadata`, etc.)is handled different for different image
+/// Deviation from this order can be treated as an error. Future changes to the protocol may
+/// introduce additional methods. Decoders will indicate support for sequent variants in their
+/// [`ImageDecoder::format_attributes`].
+///
+/// Metadata (`icc_profile`, `exif_metadata`, etc.) is handled different for different image
 /// containers. The should apply to the previous image.
 pub trait ImageDecoder {
     /// Set the decoder to have the specified limits. See [`Limits`] for the different kinds of
@@ -32,14 +43,14 @@ pub trait ImageDecoder {
     /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
-        let (width, height) = self.peek_layout()?.dimensions();
-        limits.check_dimensions(width, height)?;
+        let layout = self.prepare_image()?;
+        limits.check_layout_dimensions(&layout)?;
         Ok(())
     }
 
     /// Retrieve general information about the decoder / its format itself.
     ///
-    /// This hint which methods should be called while decoding (a sequence of) images from this
+    /// This hints which methods should be called while decoding (a sequence of) images from this
     /// decoder, e.g. when metadata is available and when it will be overridden. It also provides
     /// basic capability information about the format. If, in the future, we added different basic
     /// methods of retrieving color data then the attributes would indicate the preferred and/or
@@ -50,23 +61,30 @@ pub trait ImageDecoder {
 
     /// Retrieve animation attributes.
     ///
-    /// You should check [`DecoderAttributes::supports_animation`] before calling this method. It
-    /// will only be available on animated images. Additionally, most file formats store the
+    /// You should check [`FormatAttributes::supports_animation`] before calling this method. A
+    /// value will only be available on animated images. Additionally, most file formats store the
     /// metadata in the header which might not be read until after calling
-    /// [`ImageDecoder::peek_layout`].
+    /// [`ImageDecoder::prepare_image`].
+    ///
+    /// The value here is expected to remain constant when it is present.
     fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
         None
     }
 
-    /// Consume the header of the image, determining the image's layout.
+    /// Consume the header of the image, determining the (next) image's layout.
     ///
-    /// This must be called before a call to [`Self::read_image`] to ensure that the initial
-    /// metadata has been read. In contrast to a constructor it can be called after configuring
+    /// This shall be called before a call to [`ImageDecoder::read_image`] to ensure that the
+    /// initial metadata has been read. The returned layout indicates the expected buffer of
+    /// [`ImageDecoder::read_image`]. The caller is responsible for passing a buffer of the
+    /// appropriate size.
+    ///
+    /// This method should be idempotent on success, calling it multiple times in a row should
+    /// produce equivalent results. The decoder must _not_ advance to another image descriptor when
+    /// it is called when it has already reached one.
+    ///
+    /// In contrast to a constructor it can be called multiple times, even after reconfiguring
     /// limits and context which avoids resource issues for formats that buffer metadata.
-    ///
-    /// The layout returned by an implementation of [`ImageDecoder::peek_layout`] must match the
-    /// buffer expected in [`ImageDecoder::read_image`].
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout>;
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage>;
 
     /// Read all the bytes in the image into a buffer.
     ///
@@ -80,14 +98,14 @@ pub trait ImageDecoder {
     ///
     /// # Panics
     ///
-    /// This function should panic if `buf.len() != self.peek_layout().total_bytes()`.
+    /// This function should panic if `buf.len() != self.prepare_image().total_bytes()`.
     ///
     /// # Examples
     ///
     /// ```
     /// # use image::ImageDecoder;
     /// fn read_16bit_image(mut decoder: impl ImageDecoder) -> Vec<u16> {
-    ///     let layout = decoder.peek_layout().unwrap();
+    ///     let layout = decoder.prepare_image().unwrap();
     ///     let mut buf: Vec<u16> = vec![0; (layout.total_bytes() / 2) as usize];
     ///     decoder.read_image(bytemuck::cast_slice_mut(&mut buf)).unwrap();
     ///     buf
@@ -241,7 +259,7 @@ pub enum DecodedMetadataHint {
     /// metadata.
     AfterFinish,
     /// Metadata is available in the header and will be valid after the first call to
-    /// [`ImageDecoder::peek_layout`] and will remain valid for all subsequent images.
+    /// [`ImageDecoder::prepare_image`] and will remain valid for all subsequent images.
     InHeader,
     /// Metadata exists for each image in this file, it must be retrieved between peeking the
     /// layout and reading the image.
@@ -274,8 +292,8 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     fn format_attributes(&self) -> FormatAttributes {
         (**self).format_attributes()
     }
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-        (**self).peek_layout()
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        (**self).prepare_image()
     }
     fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
         (**self).animation_attributes()
@@ -308,7 +326,7 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DecodedImageAttributes, ImageDecoder, ImageResult};
+    use super::{DecodedImageAttributes, DecoderPreparedImage, ImageDecoder, ImageResult};
     use crate::ColorType;
 
     #[test]
@@ -316,8 +334,8 @@ mod tests {
         struct D;
 
         impl ImageDecoder for D {
-            fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
-                Ok(crate::ImageLayout::new(
+            fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+                Ok(DecoderPreparedImage::new(
                     0xffff_ffff,
                     0xffff_ffff,
                     ColorType::Rgb8,
@@ -329,7 +347,7 @@ mod tests {
             }
         }
 
-        assert_eq!(D.peek_layout().unwrap().total_bytes(), u64::MAX);
+        assert_eq!(D.prepare_image().unwrap().total_bytes(), u64::MAX);
         let v = crate::DynamicImage::from_decoder(D);
         assert!(v.is_err());
     }

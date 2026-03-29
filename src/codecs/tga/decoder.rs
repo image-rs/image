@@ -1,6 +1,6 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
 use crate::error::{DecodingError, LimitError, LimitErrorKind};
-use crate::io::{DecodedImageAttributes, ReadExt};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, ReadExt};
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -386,7 +386,7 @@ impl<R: Read> TgaDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         fn try_dimensions(value: usize) -> ImageResult<u32> {
             value
                 .try_into()
@@ -397,11 +397,11 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
         let width = try_dimensions(self.width)?;
         let height = try_dimensions(self.height)?;
 
-        Ok(crate::ImageLayout::new(width, height, self.color_type))
+        Ok(DecoderPreparedImage::new(width, height, self.color_type))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Decode the raw data

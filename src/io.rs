@@ -88,16 +88,65 @@ impl ImageLayout {
         }
     }
 
-    /// Returns the total number of bytes in the decoded image.
+    /// The total number of bytes in the described image.
     ///
-    /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in
-    /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into. If, however, the size does not fit in a u64 then `u64::MAX` is returned.
+    /// See also [`DecodedLayout::total_bytes`].
     pub fn total_bytes(&self) -> u64 {
         let ImageLayout { width, height, .. } = *self;
         let total_pixels = u64::from(width) * u64::from(height);
         let bytes_per_pixel = u64::from(self.color.bytes_per_pixel());
         total_pixels.saturating_mul(bytes_per_pixel)
+    }
+
+    /// Checks if the provided dimensions would overflow a `u64`.
+    ///
+    /// FIXME: instead have `try_total_bytes() -> Result<u64, _>`? But should it return an
+    /// unsupported error (as formats that use this do) or should it instead return another error
+    /// since the method is then unrelated to a format.
+    pub(crate) fn total_bytes_overflows_u64(&self) -> bool {
+        let &ImageLayout { width, height, .. } = self;
+        let bytes_per_pixel: u8 = self.color.bytes_per_pixel();
+        u64::from(width) * u64::from(height) > u64::MAX / u64::from(bytes_per_pixel)
+    }
+}
+
+/// Describes the next image for
+/// [`ImageDecoder::prepare_image`](`crate::ImageDecoder::prepare_image`).
+///
+/// For external crates constructing an instance, use [`Self::new`] with the intended color type
+/// and then fill in all applicable fields. This initializes the layout, a minimal descriptor of an
+/// expected [`DynamicImage`][`crate::DynamicImage`] (or equivalently sized other buffer).
+#[non_exhaustive]
+pub struct DecoderPreparedImage {
+    /// The layout of the primary image data.
+    pub layout: ImageLayout,
+}
+
+/// Defaults all fields except the layout.
+impl From<ImageLayout> for DecoderPreparedImage {
+    fn from(layout: ImageLayout) -> Self {
+        DecoderPreparedImage { layout }
+    }
+}
+
+impl DecoderPreparedImage {
+    /// A layout matching a [`DynamicImage`][`crate::DynamicImage`] of the given dimensions and
+    /// color type.
+    pub fn new(w: u32, h: u32, color: crate::ColorType) -> DecoderPreparedImage {
+        DecoderPreparedImage {
+            layout: ImageLayout::new(w, h, color),
+        }
+    }
+
+    /// The total number of bytes in the decoded image.
+    ///
+    /// This is the size of the buffer that must be passed to
+    /// [`ImageDecoder::read_image`](`crate::ImageDecoder::read_image`) or
+    /// `read_image_with_progress`. The returned value may exceed `usize::MAX`, in which case it
+    /// isn't actually possible to construct a buffer to decode all the image data into. If the
+    /// size does not fit in a u64 then `u64::MAX` is returned. For all practical purposes all
+    /// platforms will fail to allocate that much memory.
+    pub fn total_bytes(&self) -> u64 {
+        self.layout.total_bytes()
     }
 }

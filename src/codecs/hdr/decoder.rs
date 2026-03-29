@@ -6,6 +6,7 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::DecoderPreparedImage;
 use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
 use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
@@ -272,8 +273,9 @@ impl<R: Read> HdrDecoder<R> {
         };
 
         // color type is always rgb8
-        if crate::utils::check_dimension_overflow(width, height, ColorType::Rgb8.bytes_per_pixel())
-        {
+        let layout = crate::ImageLayout::new(width, height, ColorType::Rgb8);
+
+        if layout.total_bytes_overflows_u64() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Hdr.into(),
@@ -302,9 +304,9 @@ impl<R: Read> HdrDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let HdrMetadata { width, height, .. } = self.meta;
-        Ok(crate::ImageLayout::new(width, height, ColorType::Rgb32F))
+        Ok(DecoderPreparedImage::new(width, height, ColorType::Rgb32F))
     }
 
     fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
@@ -317,7 +319,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Don't read anything if image is empty

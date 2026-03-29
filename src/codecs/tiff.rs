@@ -17,7 +17,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::{DecodedImageAttributes, FormatAttributes};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, FormatAttributes};
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -458,11 +458,11 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         }
     }
 
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let info = self.peek_info()?;
         let (width, height) = info.dimensions;
 
-        Ok(crate::ImageLayout::new(width, height, info.color_type))
+        Ok(DecoderPreparedImage::new(width, height, info.color_type))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -522,7 +522,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         let info = self.peek_info()?;
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
 
         let original_color_type = Some(info.original_color_type);
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));

@@ -11,8 +11,8 @@ use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::DecodedImageAttributes;
-use crate::{utils, ImageDecoder, ImageFormat};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
+use crate::{ImageDecoder, ImageFormat};
 
 /// All errors that can occur when attempting to parse a PNM
 #[derive(Debug, Clone)]
@@ -326,19 +326,15 @@ impl<R: Read> PnmDecoder<R> {
             PnmSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buffered_read),
         }?;
 
-        let layout = decoder.peek_layout()?;
+        let layout = decoder.prepare_image()?;
 
-        if utils::check_dimension_overflow(
-            layout.width,
-            layout.height,
-            layout.color.bytes_per_pixel(),
-        ) {
+        if layout.layout.total_bytes_overflows_u64() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Pnm.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
                         "Image dimensions ({}x{}) are too large",
-                        layout.width, layout.height,
+                        layout.layout.width, layout.layout.height,
                     )),
                 ),
             ));
@@ -631,11 +627,11 @@ trait HeaderReader: Read {
 impl<R> HeaderReader for R where R: Read {}
 
 impl<R: Read> ImageDecoder for PnmDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::io::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let width = self.header.width();
         let height = self.header.height();
 
-        Ok(crate::io::ImageLayout::new(
+        Ok(DecoderPreparedImage::new(
             width,
             height,
             self.tuple.expanded_color(),
@@ -643,7 +639,7 @@ impl<R: Read> ImageDecoder for PnmDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
+        let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         let original_color_type = Some(self.tuple.original_color());
 
@@ -1021,12 +1017,12 @@ TUPLTYPE BLACKANDWHITE
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (4, 4));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::L1);
@@ -1070,12 +1066,12 @@ TUPLTYPE BLACKANDWHITE_ALPHA
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::La8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (2, 2));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::La8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::La1);
@@ -1112,11 +1108,11 @@ TUPLTYPE GRAYSCALE
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (4, 4));
+        assert_eq!(decoder.prepare_image().unwrap().layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
@@ -1158,12 +1154,12 @@ TUPLTYPE GRAYSCALE_ALPHA
 ENDHDR
 \xdc\xba\x32\x10\xdc\xba\x32\x10";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::La16);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (2, 1));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::La16);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (2, 1));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::La16);
@@ -1209,11 +1205,14 @@ HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::Rgb8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (2, 2));
+        assert_eq!(
+            decoder.prepare_image().unwrap().layout.color,
+            ColorType::Rgb8
+        );
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
@@ -1252,12 +1251,12 @@ TUPLTYPE RGB_ALPHA
 ENDHDR
 \x00\x01\x02\x03\x0a\x0b\x0c\x0d\x05\x06\x07\x08";
         let mut decoder = PnmDecoder::new(&pamdata[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::Rgba8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (1, 3));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::Rgba8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (1, 3));
         assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::Rgba8);
@@ -1287,15 +1286,15 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = [&b"P4 6 2\n"[..], &[0b0110_1100_u8, 0b1011_0111]].concat();
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (6, 2));
         assert_eq!(
             decoder.subtype(),
             PnmSubtype::Bitmap(SampleEncoding::Binary)
         );
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::L1);
@@ -1338,7 +1337,7 @@ ENDHDR
         let pbmbinary = BufReader::new(FailRead(Cursor::new(b"P1 1 1\n")));
 
         let mut decoder = PnmDecoder::new(pbmbinary).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder
             .read_image(&mut image)
@@ -1352,12 +1351,12 @@ ENDHDR
         // whitespace characters that should be allowed (the 6 characters according to POSIX).
         let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0\t\n\x0b\x0c\r1";
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::L1);
@@ -1386,12 +1385,12 @@ ENDHDR
         // whitespace for the pbm format or any mix.
         let pbmbinary = b"P1 6 2\n011011101101";
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
-        assert_eq!(layout.color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (6, 2));
+        let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let attr = decoder.read_image(&mut image).unwrap();
         assert_eq!(attr.original_color_type.unwrap(), ExtendedColorType::L1);
@@ -1420,14 +1419,14 @@ ENDHDR
         let elements = (0..16).collect::<Vec<_>>();
         let pbmbinary = [&b"P5 4 4 255\n"[..], &elements].concat();
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (4, 4));
+        assert_eq!(decoder.prepare_image().unwrap().layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
             PnmSubtype::Graymap(SampleEncoding::Binary)
         );
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, elements);
@@ -1455,14 +1454,14 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = b"P2 4 4 255\n 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15";
         let mut decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.peek_layout().unwrap().color, ColorType::L8);
-        assert_eq!(decoder.peek_layout().unwrap().dimensions(), (4, 4));
+        assert_eq!(decoder.prepare_image().unwrap().layout.color, ColorType::L8);
+        assert_eq!(decoder.prepare_image().unwrap().layout.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
             PnmSubtype::Graymap(SampleEncoding::Ascii)
         );
 
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(image, (0..16).collect::<Vec<_>>());
@@ -1488,7 +1487,7 @@ ENDHDR
     fn ppm_ascii() {
         let ascii = b"P3 1 1 2000\n0 1000 2000";
         let mut decoder = PnmDecoder::new(&ascii[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
@@ -1532,7 +1531,7 @@ ENDHDR
         // Validate: we have a header. Note: we might already calculate that this will fail but
         // then we could not return information about the header to the caller.
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         let _ = decoder.read_image(&mut image);
     }
@@ -1541,7 +1540,7 @@ ENDHDR
     fn data_too_short() {
         let data = b"P3 16 16 1\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
 
         let _ = decoder.read_image(&mut image).unwrap_err();
@@ -1563,7 +1562,7 @@ ENDHDR
     fn leading_zeros() {
         let data = b"P2 03 00000000000002 00100\n011 22 033\n44 055 66\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        let layout = decoder.peek_layout().unwrap();
+        let layout = decoder.prepare_image().unwrap();
         let mut image = vec![0; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut image).is_ok());
     }
@@ -1578,6 +1577,6 @@ ENDHDR
     fn header_large_dimension() {
         let data = b"P4 1 01234567890\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-        assert!(decoder.peek_layout().unwrap().dimensions() == (1, 1234567890));
+        assert!(decoder.prepare_image().unwrap().layout.dimensions() == (1, 1234567890));
     }
 }

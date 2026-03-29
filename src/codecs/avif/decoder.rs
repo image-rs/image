@@ -3,7 +3,7 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::io::DecodedImageAttributes;
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
@@ -370,18 +370,18 @@ fn get_matrix(
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
-    fn peek_layout(&mut self) -> ImageResult<crate::ImageLayout> {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let color = if self.picture.bit_depth() == 8 {
             ColorType::Rgba8
         } else {
             ColorType::Rgba16
         };
 
-        Ok(crate::ImageLayout {
-            width: self.picture.width(),
-            height: self.picture.height(),
-            ..crate::ImageLayout::empty(color)
-        })
+        Ok(DecoderPreparedImage::new(
+            self.picture.width(),
+            self.picture.height(),
+            color,
+        ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -389,8 +389,8 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
-        let layout = self.peek_layout()?;
-        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+        let prepared = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(prepared.total_bytes()));
 
         let bit_depth = self.picture.bit_depth();
 
@@ -398,7 +398,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         // if this happens then there is an incorrect implementation somewhere else
         assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
-        let (width, height) = layout.dimensions();
+        let (width, height) = prepared.layout.dimensions();
         // This is suspicious if this happens, better fail early
         if width == 0 || height == 0 {
             return Err(ImageError::Limits(LimitError::from_kind(

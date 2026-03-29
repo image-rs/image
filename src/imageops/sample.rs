@@ -321,8 +321,7 @@ where
     let src_raw = image.as_raw();
     let src_stride = width as usize * MAX_CHANNEL;
 
-    // Iterate row-by-row so that writes to the output buffer are sequential
-    // (row-major), avoiding the column-major write pattern of the original loop.
+    // Iterate row-by-row so that writes to the output buffer are sequential (row-major)
     for y in 0..height {
         let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
         for outx in 0..col_count {

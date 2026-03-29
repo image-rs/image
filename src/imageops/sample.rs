@@ -269,18 +269,13 @@ where
 
     let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
 
-    // Precompute filter weights for every output column into a flat contiguous layout:
-    //   col_lefts[outx]            — leftmost source column index for output column outx
-    //   col_ws[col_starts[outx]..col_starts[outx+1]] — normalised filter weights
-    //
-    // Using a flat Vec<f32> (rather than Vec<Vec<f32>>) avoids the pointer-chasing
-    // overhead of following 400+ separate heap pointers in the inner loop, keeping all
-    // weight data contiguous and L2-resident.
     let col_count = new_width as usize;
     let max_ks = (2.0 * src_support).ceil() as usize + 2;
-    let mut col_lefts: Vec<u32> = Vec::with_capacity(col_count);
-    let mut col_starts: Vec<u32> = Vec::with_capacity(col_count + 1);
+    // Preallocated buffer for precomputed weights.
     let mut col_ws: Vec<f32> = Vec::with_capacity(col_count * max_ks);
+    // Utility for indexing precomputed weights
+    let mut col_lefts: Vec<usize> = Vec::with_capacity(col_count);
+    let mut col_starts: Vec<usize> = Vec::with_capacity(col_count + 1);
 
     col_starts.push(0);
     for outx in 0..new_width {
@@ -308,9 +303,9 @@ where
         // below, as the kernel treats the centre of a pixel as 0.
         let inputx = inputx - 0.5;
 
-        col_lefts.push(left);
+        col_lefts.push(left as usize);
         let ws_start = col_ws.len();
-        let mut sum = 0.0f32;
+        let mut sum = 0.0;
         for i in left..right {
             let w = (filter.kernel)((i as f32 - inputx) / sratio);
             col_ws.push(w);
@@ -319,7 +314,7 @@ where
         for w in col_ws[ws_start..].iter_mut() {
             *w /= sum;
         }
-        col_starts.push(col_ws.len() as u32);
+        col_starts.push(col_ws.len());
     }
 
     // Raw f32 slice of the intermediate Rgba32FImage: width * 4 f32s per row.
@@ -333,10 +328,10 @@ where
     for y in 0..height {
         let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
         for outx in 0..col_count {
-            let left = col_lefts[outx] as usize;
-            let ws = &col_ws[col_starts[outx] as usize..col_starts[outx + 1] as usize];
+            let left = col_lefts[outx];
+            let ws = &col_ws[col_starts[outx]..col_starts[outx + 1]];
 
-            let mut t = [0.0f32; MAX_CHANNEL];
+            let mut t = [0.0; MAX_CHANNEL];
 
             for (i, &w) in ws.iter().enumerate() {
                 // Unrolled 4-channel accumulation directly from the raw f32 slice.

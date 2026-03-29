@@ -18,7 +18,7 @@ use crate::imageops::filter_1d::{
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::{clamp, is_integer};
+use crate::utils::{clamp, is_integer, vec_try_with_capacity};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -272,10 +272,13 @@ where
     let col_count = new_width as usize;
     let max_ks = (2.0 * src_support).ceil() as usize + 2;
     // Preallocated buffer for precomputed weights.
-    let mut col_ws: Vec<f32> = Vec::with_capacity(col_count * max_ks);
+    let mut col_ws: Vec<f32> =
+        vec_try_with_capacity(col_count * max_ks).expect("capacity overflow in horizontal_sample");
     // Utility for indexing precomputed weights
-    let mut col_lefts: Vec<usize> = Vec::with_capacity(col_count);
-    let mut col_starts: Vec<usize> = Vec::with_capacity(col_count + 1);
+    let mut col_lefts: Vec<usize> =
+        vec_try_with_capacity(col_count).expect("capacity overflow in horizontal_sample");
+    let mut col_starts: Vec<usize> =
+        vec_try_with_capacity(col_count + 1).expect("capacity overflow in horizontal_sample");
 
     col_starts.push(0);
     for outx in 0..new_width {

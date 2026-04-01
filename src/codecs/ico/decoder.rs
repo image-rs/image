@@ -39,6 +39,10 @@ enum DecoderError {
         /// The dimensions of the image itself
         image: (u32, u32),
     },
+
+    /// The starting stream position of the reader is so large that the
+    /// positions of some bytes in the image data cannot be represented in a u64.
+    StreamPositionTooLarge,
 }
 
 impl fmt::Display for DecoderError {
@@ -65,6 +69,9 @@ impl fmt::Display for DecoderError {
             } => f.write_fmt(format_args!(
                 "Entry{entry:?} and {format}{image:?} dimensions do not match!"
             )),
+            DecoderError::StreamPositionTooLarge => f.write_str(
+                "The starting stream position of the reader is too large to be represented in a u64, which is required for seeking to the image data.",
+            ),
         }
     }
 }
@@ -137,7 +144,8 @@ struct DirEntry {
     bits_per_pixel: u16,
 
     image_length: u32,
-    image_offset: u32,
+    // Offset is relative to the start of the stream, NOT the start of the ICO file.
+    image_offset: u64,
 }
 
 impl<R: BufRead + Seek> IcoDecoder<R> {
@@ -154,15 +162,17 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
     }
 }
 
-fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
+fn read_entries<R: Read + Seek>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
+    let stream_start = r.stream_position()?;
+
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
     // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
     let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
-    (0..count).map(|_| read_entry(r)).collect()
+    (0..count).map(|_| read_entry(r, stream_start)).collect()
 }
 
-fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+fn read_entry<R: Read>(r: &mut R, stream_start: u64) -> ImageResult<DirEntry> {
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -179,6 +189,18 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
     }
 
+    let image_length = u32::from_le_bytes(buf[8..12].try_into().unwrap());
+    let image_offset = u32::from_le_bytes(buf[12..16].try_into().unwrap());
+
+    // translate from offsets within the ICO file to offsets within the stream
+    let Some(image_offset) = u64::from(image_offset).checked_add(stream_start) else {
+        return Err(DecoderError::StreamPositionTooLarge.into());
+    };
+    // verify that offset + length is within u64
+    if image_offset.checked_add(u64::from(image_length)).is_none() {
+        return Err(DecoderError::StreamPositionTooLarge.into());
+    }
+
     Ok(DirEntry {
         width: buf[0],
         height: buf[1],
@@ -186,8 +208,8 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
         reserved: buf[3],
         num_color_planes,
         bits_per_pixel,
-        image_length: u32::from_le_bytes(buf[8..12].try_into().unwrap()),
-        image_offset: u32::from_le_bytes(buf[12..16].try_into().unwrap()),
+        image_length,
+        image_offset,
     })
 }
 
@@ -231,7 +253,7 @@ impl DirEntry {
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
-        r.seek(SeekFrom::Start(u64::from(self.image_offset)))?;
+        r.seek(SeekFrom::Start(self.image_offset))?;
         Ok(())
     }
 
@@ -335,8 +357,8 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 let r = decoder.reader();
                 let image_end = r.stream_position()?;
-                let data_end = u64::from(self.selected_entry.image_offset)
-                    + u64::from(self.selected_entry.image_length);
+                let data_end =
+                    self.selected_entry.image_offset + u64::from(self.selected_entry.image_length);
 
                 let mask_row_bytes = width.div_ceil(32) * 4;
                 let mask_length = u64::from(mask_row_bytes) * u64::from(height);

@@ -1,6 +1,7 @@
 //!  Utilities
 
 use std::collections::TryReserveError;
+use std::io::{self, BufRead, Read, Seek};
 use std::iter::repeat;
 
 #[inline(always)]
@@ -154,6 +155,96 @@ pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
     // while types that can represent fractional values will return something
     // other than zero.
     <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
+}
+
+pub(crate) struct OffsetReader<R> {
+    inner: R,
+    offset: u64,
+}
+impl<R: Seek> OffsetReader<R> {
+    /// Creates a reader started at `stream_position() == 0`, no matter the
+    /// current stream position of the given reader.
+    pub(crate) fn start_at_zero(mut inner: R) -> io::Result<Self> {
+        let offset = inner.stream_position()?;
+        Ok(Self { inner, offset })
+    }
+}
+impl<R: Seek> Seek for OffsetReader<R> {
+    #[inline]
+    #[track_caller]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let inner_pos = match pos {
+            io::SeekFrom::Start(pos) => {
+                let Some(inner_pos) = pos.checked_add(self.offset) else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::FileTooLarge,
+                        format!("SeekFrom::Start({pos}) is invalid, because it would cause an overflow when adding the offset (which is {}).", self.offset),
+                    ));
+                };
+                io::SeekFrom::Start(inner_pos)
+            }
+            _ => pos,
+        };
+
+        let stream_pos = self.inner.seek(inner_pos)?;
+
+        if stream_pos < self.offset {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Seek to {pos:?} would seek before the start of the image data (which starts at {}).", self.offset),
+            ));
+        }
+
+        Ok(stream_pos - self.offset)
+    }
+    fn seek_relative(&mut self, offset: i64) -> io::Result<()> {
+        self.inner.seek_relative(offset)?;
+
+        debug_assert!(
+            self.inner.stream_position()? >= self.offset,
+            "Seek relative by {offset} would seek before the start of the image data (which starts at {}).",
+            self.offset
+        );
+
+        Ok(())
+    }
+    fn stream_position(&mut self) -> io::Result<u64> {
+        self.inner.stream_position().map(|pos| pos - self.offset)
+    }
+}
+impl<R: Read> Read for OffsetReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+    fn read_vectored(&mut self, bufs: &mut [io::IoSliceMut<'_>]) -> io::Result<usize> {
+        self.inner.read_vectored(bufs)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.inner.read_to_end(buf)
+    }
+    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.inner.read_to_string(buf)
+    }
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        self.inner.read_exact(buf)
+    }
+}
+impl<R: BufRead> BufRead for OffsetReader<R> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.inner.fill_buf()
+    }
+    fn consume(&mut self, amt: usize) {
+        self.inner.consume(amt)
+    }
+    fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.inner.read_until(byte, buf)
+    }
+    fn skip_until(&mut self, byte: u8) -> io::Result<usize> {
+        self.inner.skip_until(byte)
+    }
+    fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.inner.read_line(buf)
+    }
 }
 
 #[cfg(test)]

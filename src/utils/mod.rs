@@ -177,7 +177,7 @@ impl<R: Seek> Seek for OffsetReader<R> {
             io::SeekFrom::Start(pos) => {
                 let Some(inner_pos) = pos.checked_add(self.offset) else {
                     return Err(io::Error::new(
-                        io::ErrorKind::FileTooLarge,
+                        io::ErrorKind::InvalidInput,
                         format!("SeekFrom::Start({pos}) is invalid, because it would cause an overflow when adding the offset (which is {}).", self.offset),
                     ));
                 };
@@ -198,18 +198,23 @@ impl<R: Seek> Seek for OffsetReader<R> {
         Ok(stream_pos - self.offset)
     }
     fn seek_relative(&mut self, offset: i64) -> io::Result<()> {
-        self.inner.seek_relative(offset)?;
+        if self.offset == 0 || offset >= 0 {
+            // If self.offset is 0, then we can defer to the underlying reader
+            // without concern. Similarly, if the offset is positive, we seek
+            // to the right which is fine no matter the value of self.offset.
+            return self.inner.seek_relative(offset);
+        }
 
-        debug_assert!(
-            self.inner.stream_position()? >= self.offset,
-            "Seek relative by {offset} would seek before the start of the image data (which starts at {}).",
-            self.offset
-        );
-
+        self.seek(io::SeekFrom::Current(offset))?;
         Ok(())
     }
     fn stream_position(&mut self) -> io::Result<u64> {
-        self.inner.stream_position().map(|pos| pos - self.offset)
+        let pos = self.inner.stream_position()?;
+        pos.checked_sub(self.offset).ok_or_else(|| {
+            io::Error::other(
+                format!("Stream position of the underlying reader is invalid. Expected position to be >= {} but found {pos}.", self.offset),
+            )
+        })
     }
 }
 impl<R: Read> Read for OffsetReader<R> {

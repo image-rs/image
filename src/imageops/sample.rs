@@ -267,8 +267,6 @@ where
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
-
     let col_count = new_width as usize;
     let max_ks = (2.0 * src_support).ceil() as usize + 2;
     // Preallocated buffer for precomputed weights.
@@ -324,10 +322,16 @@ where
     let src_raw = image.as_raw();
     let src_stride = width as usize * MAX_CHANNEL;
 
+    // Output channel count and row stride for direct writes into the output buffer.
+    let nchannels = P::CHANNEL_COUNT as usize;
+    let out_stride = col_count * nchannels;
+    let out_raw = out.as_mut();
+
     // Iterate row-by-row so that writes to the output buffer are sequential (row-major)
     for y in 0..height {
         let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
-        for outx in 0..col_count {
+        let out_row = &mut out_raw[y as usize * out_stride..(y as usize + 1) * out_stride];
+        for (outx, dst) in out_row.chunks_exact_mut(nchannels).enumerate() {
             let left = col_lefts[outx];
             let ws = &col_ws[col_starts[outx]..col_starts[outx + 1]];
 
@@ -340,11 +344,10 @@ where
                 }
             }
 
-            for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {
+            // Write directly to the output slice, bypassing put_pixel's bounds checks.
+            for (&tc, pc) in t.iter().zip(dst.iter_mut()) {
                 *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
             }
-
-            out.put_pixel(outx as u32, y, pix_temp);
         }
     }
 

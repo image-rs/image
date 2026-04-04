@@ -789,8 +789,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// not release any allocation.
     pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
     where
-        P: Pixel + 'static,
-        P::Subpixel: 'static,
+        P: Pixel,
         Buffer: Deref<Target = [P::Subpixel]>,
     {
         if !self.is_normal(NormalForm::RowMajorPacked) {
@@ -1497,7 +1496,7 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 where
     Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         if !self.inner.in_bounds(0, x, y) {
             panic_pixel_out_of_bounds((x, y), self.dimensions())
         }
@@ -1505,17 +1504,7 @@ where
         let base_index = self.inner.in_bounds_index(0, x, y);
         let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
-        P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
-    }
-
-    #[allow(deprecated)]
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        *self.get_pixel_mut(x, y) = pixel;
-    }
-
-    #[allow(deprecated)]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        self.get_pixel_mut(x, y).blend(&pixel);
+        *P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range]) = pixel;
     }
 }
 
@@ -1666,9 +1655,8 @@ mod tests {
                 .as_view_mut::<LumaA<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
-            #[allow(deprecated)]
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
+                view.put_pixel(i % 3, i / 3, LumaA([2 * i as u16, 2 * i as u16 + 1]));
             }
         }
 

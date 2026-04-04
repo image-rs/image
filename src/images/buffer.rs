@@ -1025,7 +1025,16 @@ where
     /// assert_eq!(img.dimensions(), (16, 8));
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
-        let selection = selection.crop_dimms(self);
+        let selection = selection.shrink_to_bounds_of(self);
+        assert!(selection.test_in_bounds_of(self).is_ok());
+
+        fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
+            if src == dst || len == 0 {
+                return;
+            }
+            data.copy_within(src..src + len, dst);
+        }
+
         // We're now running essentially `copy_within` with differing source and destination row
         // pitches. The above ensures that the target row pitch is smaller than our current one and
         // we copy to offset `0` so always all data backwards.
@@ -1041,7 +1050,7 @@ where
             let sy = selection.y + y;
             let source = self.pixel_indices_unchecked(selection.x, sy).start;
             let dst = y as usize * rowlen;
-            self.data.copy_within(source..source + rowlen, dst);
+            copy_within(&mut self.data, source, rowlen, dst);
         }
 
         self.width = selection.width;
@@ -1342,10 +1351,6 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        self.get_pixel_mut(x, y)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel;
     }
@@ -1358,13 +1363,6 @@ where
         *p = pixel;
     }
 
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    ///
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
-        self.get_pixel_mut(x, y).blend(&p);
-    }
-
     fn copy_from_samples(
         &mut self,
         view: ViewOfPixel<'_, Self::Pixel>,
@@ -1373,7 +1371,7 @@ where
     ) -> ImageResult<()> {
         let (width, height) = view.dimensions();
         let pix_stride = usize::from(<Self::Pixel as Pixel>::CHANNEL_COUNT);
-        Rect::from_image_at(&view, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(&view, x, y).test_in_bounds_of(self)?;
 
         if width == 0 || height == 0 || pix_stride == 0 {
             return Ok(());

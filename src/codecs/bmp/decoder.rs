@@ -38,13 +38,13 @@ static R5_G5_B5_COLOR_MASK: Bitfields = Bitfields {
     r: Bitfield::from_len_shift(5, 10),
     g: Bitfield::from_len_shift(5, 5),
     b: Bitfield::from_len_shift(5, 0),
-    a: Bitfield::empty(),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_COLOR_MASK: Bitfields = Bitfields {
     r: Bitfield::from_len_shift(8, 24),
     g: Bitfield::from_len_shift(8, 16),
     b: Bitfield::from_len_shift(8, 8),
-    a: Bitfield::empty(),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_A8_COLOR_MASK: Bitfields = Bitfields {
     r: Bitfield::from_len_shift(8, 16),
@@ -775,32 +775,19 @@ impl Bitfield {
         (516, 0),      // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
     ];
 
-    const fn get_factor_addend(len: u32) -> (u32, u32) {
-        debug_assert!(len <= 8);
-        Self::FACTOR_ADDEND[(len % 8) as usize]
-    }
-
-    const fn empty() -> Self {
-        Bitfield {
-            shift: 0,
-            len: 0,
-            factor_addend: (0, 0),
-        }
-    }
     const fn from_len_shift(len: u32, shift: u32) -> Self {
-        debug_assert!(len != 0);
         debug_assert!(len <= 8);
         debug_assert!(shift + len <= 32);
         Bitfield {
             shift,
             len,
-            factor_addend: Self::get_factor_addend(len),
+            factor_addend: Self::FACTOR_ADDEND[(len % 8) as usize],
         }
     }
 
     fn from_mask(mask: u32, max_len: u32) -> ImageResult<Bitfield> {
         if mask == 0 {
-            return Ok(Bitfield::empty());
+            return Ok(Bitfield::from_len_shift(0, 0));
         }
         let mut shift = mask.trailing_zeros();
         let mut len = (!(mask >> shift)).trailing_zeros();
@@ -814,12 +801,7 @@ impl Bitfield {
             shift += len - 8;
             len = 8;
         }
-        // TODO: len is potentially > 8 here. Is this allowed?
-        Ok(Bitfield {
-            shift,
-            len,
-            factor_addend: Bitfield::get_factor_addend(len),
-        })
+        Ok(Bitfield::from_len_shift(len, shift))
     }
 
     #[inline]

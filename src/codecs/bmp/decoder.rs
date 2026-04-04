@@ -760,20 +760,22 @@ struct Bitfield {
 
 impl Bitfield {
     /// Factors and addends such that `((data * factor + addend) >> 8) as u8`
-    /// maps the `data` value to the nesarest value in the full 0-255 range.
+    /// maps the `data` value to the nearest value in the full 0-255 range.
+    ///
+    /// All constants come from the following site and were adjusted to use a
+    /// shift of 8: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
     const FACTOR_ADDEND: [(u32, u32); 8] = [
-        (1 << 8, 0), // this is used for len=8
-        (255 << 8, 0),
-        (85 << 8, 0),
-        (9344, 0),
-        (17 << 8, 0),
-        (2108, 92),
-        (1036, 132),
-        (516, 0),
+        (1 << 8, 0),   // len=8: round(x * 255 / 255) = (x * 256 + 0) >> 8
+        (255 << 8, 0), // len=1: round(x * 255 / 1)   = (x * 65280 + 0) >> 8
+        (85 << 8, 0),  // len=2: round(x * 255 / 3)   = (x * 21760 + 0) >> 8
+        (9344, 0),     // len=3: round(x * 255 / 7)   = (x * 9344 + 0) >> 8
+        (17 << 8, 0),  // len=4: round(x * 255 / 15)  = (x * 4352 + 0) >> 8
+        (2108, 92),    // len=5: round(x * 255 / 31)  = (x * 2108 + 92) >> 8
+        (1036, 132),   // len=6: round(x * 255 / 63)  = (x * 1036 + 132) >> 8
+        (516, 0),      // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
     ];
 
     const fn get_factor_addend(len: u32) -> (u32, u32) {
-        debug_assert!(len != 0);
         debug_assert!(len <= 8);
         Self::FACTOR_ADDEND[(len % 8) as usize]
     }
@@ -824,6 +826,8 @@ impl Bitfield {
     fn read(&self, data: u32) -> u8 {
         debug_assert!(self.len <= 8);
 
+        // This performs branch-less UNORM conversion using the multiply-add
+        // method. See `FACTOR_ADDEND` above for more information.
         let (factor, addend) = self.factor_addend;
         let mask = (1 << self.len) - 1;
         let data = (data >> self.shift) & mask;

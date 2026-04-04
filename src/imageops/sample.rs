@@ -18,7 +18,7 @@ use crate::imageops::filter_1d::{
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::{clamp, is_integer};
+use crate::utils::{clamp, is_integer, vec_try_with_capacity};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -271,15 +271,17 @@ where
     let max_ks = (2.0 * src_support).ceil() as usize + 2;
 
     // Max memory usage for weights
-    const MAX_WEIGHT_FLOATS: usize = 1 << 20;   // 4MiB f32
+    const MAX_WEIGHT_FLOATS: usize = 1 << 20; // 4MiB f32
 
     // Number of columns whose weights fit in the budget
     let batch_size = (MAX_WEIGHT_FLOATS / max_ks.max(1)).max(1).min(col_count);
 
     // Reusable buffers shared across batches
     let mut batch_ws: Vec<f32> = Vec::new();
-    let mut batch_lefts: Vec<usize> = Vec::with_capacity(batch_size);
-    let mut batch_starts: Vec<usize> = Vec::with_capacity(batch_size + 1);
+    let mut batch_lefts: Vec<usize> =
+        vec_try_with_capacity(batch_size).expect("capacity overflow in horizontal_sample");
+    let mut batch_starts: Vec<usize> =
+        vec_try_with_capacity(batch_size + 1).expect("capacity overflow in horizontal_sample");
 
     // Rgba32FImage per row
     let src_raw = image.as_raw();
@@ -341,9 +343,9 @@ where
         // apply weights to every row in this batch
         for y in 0..height {
             let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
-            let out_batch = &mut out_raw
-                [y as usize * out_stride + batch_start * nchannels
-                    ..y as usize * out_stride + batch_end * nchannels];
+            let start = y as usize * out_stride + batch_start * nchannels;
+            let end = y as usize * out_stride + batch_end * nchannels;
+            let out_batch = &mut out_raw[start..end];
 
             for (b, dst) in out_batch.chunks_exact_mut(nchannels).enumerate() {
                 let left = batch_lefts[b];

@@ -4,41 +4,36 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 
+use image::ImageFormat;
+
 extern crate glob;
 extern crate image;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
 
-fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
+fn process_images<F>(dir: &str, input_format: ImageFormat, func: F)
 where
     F: Fn(PathBuf),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let decoders = &[
-        "tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "farbfeld", "exr",
-    ];
-    for decoder in decoders {
-        let mut path = base.clone();
-        path.push(dir);
-        path.push(decoder);
-        path.push("*");
-        path.push(
-            "*.".to_string()
-                + match input_decoder {
-                    Some(val) => val,
-                    None => decoder,
-                },
-        );
-        let pattern = &*format!("{}", path.display());
-        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            func(path);
-        }
+    let mut path = base.clone();
+    path.push(dir);
+    path.push("**");
+    path.push("*");
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|p| p.is_file())
+        .filter(|p| ImageFormat::from_path(p).ok() == Some(input_format))
+    {
+        func(path);
     }
 }
 
-fn truncate_images(decoder: &str) {
-    process_images(IMAGE_DIR, Some(decoder), |path| {
+fn truncate_images(format: ImageFormat) {
+    process_images(IMAGE_DIR, format, |path| {
         println!("{path:?}");
         let fin = fs::File::open(&path).unwrap();
         let max_length = 1000;
@@ -53,50 +48,70 @@ fn truncate_images(decoder: &str) {
 
 #[test]
 fn truncate_tga() {
-    truncate_images("tga");
+    truncate_images(ImageFormat::Tga);
 }
 
 #[test]
 fn truncate_tiff() {
-    truncate_images("tiff");
+    truncate_images(ImageFormat::Tiff);
 }
 
 #[test]
 fn truncate_png() {
-    truncate_images("png");
+    truncate_images(ImageFormat::Png);
 }
 
 #[test]
 fn truncate_gif() {
-    truncate_images("gif");
+    truncate_images(ImageFormat::Gif);
 }
 
 #[test]
 fn truncate_bmp() {
-    truncate_images("bmp");
+    truncate_images(ImageFormat::Bmp);
 }
 
 #[test]
 fn truncate_ico() {
-    truncate_images("ico");
+    truncate_images(ImageFormat::Ico);
 }
 
 #[test]
 fn truncate_jpg() {
-    truncate_images("jpg");
+    truncate_images(ImageFormat::Jpeg);
 }
 
 #[test]
 fn truncate_hdr() {
-    truncate_images("hdr");
+    truncate_images(ImageFormat::Hdr);
 }
 
 #[test]
 fn truncate_farbfeld() {
-    truncate_images("farbfeld");
+    truncate_images(ImageFormat::Farbfeld);
 }
 
 #[test]
 fn truncate_exr() {
-    truncate_images("exr");
+    truncate_images(ImageFormat::OpenExr);
+}
+
+#[test]
+fn truncate_webp() {
+    truncate_images(ImageFormat::WebP);
+}
+
+#[test]
+fn truncate_qoi() {
+    truncate_images(ImageFormat::Qoi);
+}
+
+#[test]
+fn truncate_pnm() {
+    truncate_images(ImageFormat::Pnm);
+}
+
+#[test]
+fn truncate_avif() {
+    truncate_images(ImageFormat::Avif);
 }

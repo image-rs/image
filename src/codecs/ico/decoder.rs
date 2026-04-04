@@ -1,11 +1,12 @@
 use byteorder_lite::ReadBytesExt;
-use std::io::{BufRead, Read, Seek, SeekFrom};
+use std::io::{BufRead, Read, Seek};
 use std::{error, fmt};
 
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::utils::seek_start_with_offset;
 use crate::{ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
@@ -107,6 +108,7 @@ impl From<IcoEntryImageFormat> for ImageFormat {
 /// An ico decoder
 pub struct IcoDecoder<R: BufRead + Seek> {
     selected_entry: DirEntry,
+    reader_offset: u64,
     inner_decoder: InnerDecoder<R>,
 }
 
@@ -143,12 +145,14 @@ struct DirEntry {
 impl<R: BufRead + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
+        let reader_offset = r.stream_position()?;
         let entries = read_entries(&mut r)?;
         let entry = best_entry(entries)?;
-        let decoder = entry.decoder(r)?;
+        let decoder = entry.decoder(r, reader_offset)?;
 
         Ok(IcoDecoder {
             selected_entry: entry,
+            reader_offset,
             inner_decoder: decoder,
         })
     }
@@ -230,13 +234,13 @@ impl DirEntry {
             && u32::from(self.real_height()) == height.min(256)
     }
 
-    fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
-        r.seek(SeekFrom::Start(u64::from(self.image_offset)))?;
+    fn seek_to_start<R: Read + Seek>(&self, r: &mut R, reader_offset: u64) -> ImageResult<()> {
+        seek_start_with_offset(r, reader_offset, u64::from(self.image_offset))?;
         Ok(())
     }
 
-    fn is_png<R: Read + Seek>(&self, r: &mut R) -> ImageResult<bool> {
-        self.seek_to_start(r)?;
+    fn is_png<R: Read + Seek>(&self, r: &mut R, reader_offset: u64) -> ImageResult<bool> {
+        self.seek_to_start(r, reader_offset)?;
 
         // Read the first 8 bytes to sniff the image.
         let mut signature = [0u8; 8];
@@ -245,9 +249,13 @@ impl DirEntry {
         Ok(signature == PNG_SIGNATURE)
     }
 
-    fn decoder<R: BufRead + Seek>(&self, mut r: R) -> ImageResult<InnerDecoder<R>> {
-        let is_png = self.is_png(&mut r)?;
-        self.seek_to_start(&mut r)?;
+    fn decoder<R: BufRead + Seek>(
+        &self,
+        mut r: R,
+        reader_offset: u64,
+    ) -> ImageResult<InnerDecoder<R>> {
+        let is_png = self.is_png(&mut r, reader_offset)?;
+        self.seek_to_start(&mut r, reader_offset)?;
 
         if is_png {
             let limits = crate::Limits {
@@ -335,7 +343,8 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 let r = decoder.reader();
                 let image_end = r.stream_position()?;
-                let data_end = u64::from(self.selected_entry.image_offset)
+                let data_end = self.reader_offset
+                    + u64::from(self.selected_entry.image_offset)
                     + u64::from(self.selected_entry.image_length);
 
                 let mask_row_bytes = width.div_ceil(32) * 4;

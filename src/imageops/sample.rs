@@ -316,11 +316,7 @@ where
             let left = clamp(left, 0, width as i64 - 1) as u32;
 
             let right = (inputx + src_support).ceil() as i64;
-            let right = clamp(
-                right,
-                left as i64 + 1,
-                width as i64,
-            ) as u32;
+            let right = clamp(right, left as i64 + 1, width as i64) as u32;
 
             // Go back to left boundary of pixel, to properly compare with i
             // below, as the kernel treats the centre of a pixel as 0.

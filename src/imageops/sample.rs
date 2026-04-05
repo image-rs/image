@@ -313,13 +313,13 @@ where
             // Invariant: 0 <= left < right <= width
 
             let left = (inputx - src_support).floor() as i64;
-            let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
+            let left = clamp(left, 0, width as i64 - 1) as u32;
 
             let right = (inputx + src_support).ceil() as i64;
             let right = clamp(
                 right,
-                <i64 as From<_>>::from(left) + 1,
-                <i64 as From<_>>::from(width),
+                left as i64 + 1,
+                width as i64,
             ) as u32;
 
             // Go back to left boundary of pixel, to properly compare with i

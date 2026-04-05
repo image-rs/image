@@ -293,7 +293,7 @@ where
 
     let mut batch_start = 0;
     while batch_start < col_count {
-        let batch_end = (batch_start + batch_size).min(col_count);
+        let batch_end = batch_start.saturating_add(batch_size).min(col_count);
 
         // precompute weights for every column in this batch
         batch_ws.clear();

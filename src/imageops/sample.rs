@@ -311,9 +311,7 @@ where
             // if and only if (x >= left) && (x < right).
 
             // Invariant: 0 <= left < right <= width
-
-            let left = (inputx - src_support).floor() as i64;
-            let left = clamp(left, 0, width as i64 - 1) as u32;
+            let left = clamp((inputx - src_support) as u32, 0, width - 1);
 
             let right = (inputx + src_support).ceil() as i64;
             let right = clamp(right, left as i64 + 1, width as i64) as u32;

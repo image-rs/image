@@ -304,21 +304,22 @@ where
         for outx in batch_start..batch_end {
             // Find the point in the input image corresponding to the centre
             // of the current pixel in the output image.
-            let inputx = (outx as f32 + 0.5) * ratio;
+            // Use f64 to avoid precision loss for large dimensions
+            let inputx = (outx as f64 + 0.5) * ratio as f64;
 
             // Left and right are slice bounds for the input pixels relevant
             // to the output pixel we are calculating.  Pixel x is relevant
             // if and only if (x >= left) && (x < right).
 
             // Invariant: 0 <= left < right <= width
-            let left = clamp((inputx - src_support) as u32, 0, width - 1);
+            let left = clamp((inputx - src_support as f64) as u32, 0, width - 1);
 
-            let right = (inputx + src_support).ceil() as i64;
+            let right = (inputx + src_support as f64).ceil() as i64;
             let right = clamp(right, left as i64 + 1, width as i64) as u32;
 
             // Go back to left boundary of pixel, to properly compare with i
             // below, as the kernel treats the centre of a pixel as 0.
-            let inputx = inputx - 0.5;
+            let inputx = inputx as f32 - 0.5;
 
             batch_lefts.push(left as usize);
             let ws_start = batch_ws.len();

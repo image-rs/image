@@ -103,3 +103,20 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
     let result = TiffDecoder::new(std::io::Cursor::new(data));
     assert!(result.is_err());
 }
+
+#[cfg(feature = "tiff")]
+#[test]
+fn test_decode_8bit_cmyk() -> Result<(), image::ImageError> {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/cmyk_u8_edge_case.tif");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+
+    assert_eq!(tiff_decoder.color_type(), image::ColorType::Rgb8);
+
+    let mut buffer = vec![0u8; tiff_decoder.total_bytes() as usize];
+    tiff_decoder.read_image(&mut buffer)?;
+    assert_eq!(buffer, vec![190, 190, 190]);
+
+    Ok(())
+}

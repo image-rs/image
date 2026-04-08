@@ -761,7 +761,7 @@ impl<'a> IrbReader<'a> {
     }
 
     fn skip_padding(&mut self, size: usize) {
-        if size % 2 != 0 && !self.data.is_empty() {
+        if !size.is_multiple_of(2) && !self.data.is_empty() {
             self.data = &self.data[1..];
         }
     }

@@ -1,7 +1,6 @@
 //! Decoding of AVIF images.
 use crate::error::{
-    DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
-    UnsupportedErrorKind,
+    DecodingError, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 ///
@@ -20,7 +19,7 @@ use crate::codecs::avif::ycgco::{
 };
 use crate::codecs::avif::yuv::*;
 use dav1d::{PixelLayout, PlanarImageComponent};
-use mp4parse::{read_avif, ParseStrictness};
+use mp4parse::{read_avif, AvifContext, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -31,9 +30,13 @@ fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
 /// Reads one image into the chosen input.
 pub struct AvifDecoder<R> {
     inner: PhantomData<R>,
-    picture: dav1d::Picture,
-    alpha_picture: Option<dav1d::Picture>,
+    width: u32,
+    height: u32,
+    bit_depth: u8,
+    ctx: AvifContext,
     icc_profile: Option<Vec<u8>>,
+    exif_metadata: Option<Vec<u8>>,
+    xmp_metadata: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,46 +80,24 @@ impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
         let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
-        let coded = ctx.primary_item_coded_data().unwrap_or_default();
-
-        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
-        primary_decoder
-            .send_data(coded.to_vec(), None, None, None)
-            .map_err(error_map)?;
-        let picture = read_until_ready(&mut primary_decoder)?;
-        let alpha_item = ctx.alpha_item_coded_data().unwrap_or_default();
-        let alpha_picture = if !alpha_item.is_empty() {
-            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
-            alpha_decoder
-                .send_data(alpha_item.to_vec(), None, None, None)
-                .map_err(error_map)?;
-            Some(read_until_ready(&mut alpha_decoder)?)
-        } else {
-            None
-        };
+        let dimensions = ctx.spatial_extents().unwrap();
+        let av1_config = ctx.av1_config().unwrap();
         let icc_profile = ctx
             .icc_colour_information()
             .map(|x| x.ok().unwrap_or_default())
             .map(|x| x.to_vec());
+        let exif_metadata = ctx.exif_metadata().map(|v| v.to_vec());
+        let xmp_metadata = ctx.xmp_metadata().map(|v| v.to_vec());
 
-        match picture.bit_depth() {
-            8 => (),
-            10 | 12 => (),
-            _ => {
-                return ImageResult::Err(ImageError::Decoding(DecodingError::new(
-                    ImageFormatHint::Exact(ImageFormat::Avif),
-                    format!(
-                        "Avif format does not support {} bit depth",
-                        picture.bit_depth()
-                    ),
-                )))
-            }
-        };
         Ok(AvifDecoder {
             inner: PhantomData,
-            picture,
-            alpha_picture,
+            width: dimensions.image_width,
+            height: dimensions.image_height,
+            bit_depth: av1_config.bit_depth,
+            ctx,
             icc_profile,
+            exif_metadata,
+            xmp_metadata,
         })
     }
 }
@@ -328,11 +309,11 @@ fn get_matrix(
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
-        (self.picture.width(), self.picture.height())
+        (self.width, self.height)
     }
 
     fn color_type(&self) -> ColorType {
-        if self.picture.bit_depth() == 8 {
+        if self.bit_depth == 8 {
             ColorType::Rgba8
         } else {
             ColorType::Rgba16
@@ -343,14 +324,16 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         Ok(self.icc_profile.clone())
     }
 
+    fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.exif_metadata.clone())
+    }
+
+    fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.xmp_metadata.clone())
+    }
+
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-
-        let bit_depth = self.picture.bit_depth();
-
-        // Normally this should never happen,
-        // if this happens then there is an incorrect implementation somewhere else
-        assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
         let (width, height) = self.dimensions();
         // This is suspicious if this happens, better fail early
@@ -360,54 +343,75 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             )));
         }
 
-        let yuv_range = match self.picture.color_range() {
+        let coded = self.ctx.primary_item_coded_data().unwrap_or_default();
+
+        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
+        primary_decoder
+            .send_data(coded.to_vec(), None, None, None)
+            .map_err(error_map)?;
+        let picture = read_until_ready(&mut primary_decoder)?;
+        let alpha_item = self.ctx.alpha_item_coded_data().unwrap_or_default();
+        let alpha_picture = if !alpha_item.is_empty() {
+            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
+            alpha_decoder
+                .send_data(alpha_item.to_vec(), None, None, None)
+                .map_err(error_map)?;
+            Some(read_until_ready(&mut alpha_decoder)?)
+        } else {
+            None
+        };
+
+        assert_eq!(width, picture.width());
+        assert_eq!(height, picture.height());
+        assert_eq!(self.bit_depth as usize, picture.bit_depth());
+
+        let yuv_range = match picture.color_range() {
             dav1d::pixel::YUVRange::Limited => YuvIntensityRange::Tv,
             dav1d::pixel::YUVRange::Full => YuvIntensityRange::Pc,
         };
 
-        let matrix_strategy = get_matrix(self.picture.matrix_coefficients())?;
+        let matrix_strategy = get_matrix(picture.matrix_coefficients())?;
 
         // Identity matrix should be possible only on 4:4:4
         if matrix_strategy == YuvMatrixStrategy::Identity
-            && self.picture.pixel_layout() != PixelLayout::I444
+            && picture.pixel_layout() != PixelLayout::I444
         {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Avif.into(),
-                AvifDecoderError::YuvLayoutOnIdentityMatrix(self.picture.pixel_layout()),
+                AvifDecoderError::YuvLayoutOnIdentityMatrix(picture.pixel_layout()),
             )));
         }
 
-        if matrix_strategy == YuvMatrixStrategy::CgCo
-            && self.picture.pixel_layout() == PixelLayout::I400
+        if matrix_strategy == YuvMatrixStrategy::CgCo && picture.pixel_layout() == PixelLayout::I400
         {
             return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Avif.into(),
                 AvifDecoderError::UnsupportedLayoutAndMatrix(
-                    self.picture.pixel_layout(),
+                    picture.pixel_layout(),
                     matrix_strategy,
                 ),
             )));
         }
 
-        if bit_depth == 8 {
-            let ref_y = self.picture.plane(PlanarImageComponent::Y);
-            let ref_u = self.picture.plane(PlanarImageComponent::U);
-            let ref_v = self.picture.plane(PlanarImageComponent::V);
+        if self.bit_depth == 8 {
+            let ref_y = picture.plane(PlanarImageComponent::Y);
+            let ref_u = picture.plane(PlanarImageComponent::U);
+            let ref_v = picture.plane(PlanarImageComponent::V);
 
             let image = YuvPlanarImage {
                 y_plane: ref_y.as_ref(),
-                y_stride: self.picture.stride(PlanarImageComponent::Y) as usize,
+                y_stride: picture.stride(PlanarImageComponent::Y) as usize,
                 u_plane: ref_u.as_ref(),
-                u_stride: self.picture.stride(PlanarImageComponent::U) as usize,
+                u_stride: picture.stride(PlanarImageComponent::U) as usize,
                 v_plane: ref_v.as_ref(),
-                v_stride: self.picture.stride(PlanarImageComponent::V) as usize,
+                v_stride: picture.stride(PlanarImageComponent::V) as usize,
                 width: width as usize,
                 height: height as usize,
             };
 
             match matrix_strategy {
                 YuvMatrixStrategy::KrKb(standard) => {
-                    let worker = match self.picture.pixel_layout() {
+                    let worker = match picture.pixel_layout() {
                         PixelLayout::I400 => yuv400_to_rgba8,
                         PixelLayout::I420 => yuv420_to_rgba8,
                         PixelLayout::I422 => yuv422_to_rgba8,
@@ -417,7 +421,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     worker(image, buf, yuv_range, standard)?;
                 }
                 YuvMatrixStrategy::CgCo => {
-                    let worker = match self.picture.pixel_layout() {
+                    let worker = match picture.pixel_layout() {
                         PixelLayout::I400 => unreachable!(),
                         PixelLayout::I420 => ycgco420_to_rgba8,
                         PixelLayout::I422 => ycgco422_to_rgba8,
@@ -427,7 +431,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     worker(image, buf, yuv_range)?;
                 }
                 YuvMatrixStrategy::Identity => {
-                    let worker = match self.picture.pixel_layout() {
+                    let worker = match picture.pixel_layout() {
                         PixelLayout::I400 => unreachable!(),
                         PixelLayout::I420 => unreachable!(),
                         PixelLayout::I422 => unreachable!(),
@@ -439,7 +443,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
 
             // Squashing alpha plane into a picture
-            if let Some(picture) = self.alpha_picture {
+            if let Some(picture) = alpha_picture {
                 if picture.pixel_layout() != PixelLayout::I400 {
                     return Err(ImageError::Decoding(DecodingError::new(
                         ImageFormat::Avif.into(),
@@ -463,11 +467,23 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             // // 8+ bit-depth case
             if let Ok(buf) = bytemuck::try_cast_slice_mut(buf) {
                 let target_slice: &mut [u16] = buf;
-                self.process_16bit_picture(target_slice, yuv_range, matrix_strategy)?;
+                self.process_16bit_picture(
+                    picture,
+                    alpha_picture,
+                    target_slice,
+                    yuv_range,
+                    matrix_strategy,
+                )?;
             } else {
                 // If buffer from Decoder is unaligned
                 let mut aligned_store = vec![0u16; buf.len() / 2];
-                self.process_16bit_picture(&mut aligned_store, yuv_range, matrix_strategy)?;
+                self.process_16bit_picture(
+                    picture,
+                    alpha_picture,
+                    &mut aligned_store,
+                    yuv_range,
+                    matrix_strategy,
+                )?;
                 let buf_chunks = buf.as_chunks_mut::<2>().0.iter_mut();
                 for (dst, src) in buf_chunks.zip(aligned_store.iter()) {
                     *dst = src.to_ne_bytes();
@@ -486,14 +502,16 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
 impl<R: Read> AvifDecoder<R> {
     fn process_16bit_picture(
         &self,
+        picture: dav1d::Picture,
+        alpha_picture: Option<dav1d::Picture>,
         target: &mut [u16],
         yuv_range: YuvIntensityRange,
         matrix_strategy: YuvMatrixStrategy,
     ) -> ImageResult<()> {
-        let y_dav1d_plane = self.picture.plane(PlanarImageComponent::Y);
+        let y_dav1d_plane = picture.plane(PlanarImageComponent::Y);
 
-        let (width, height) = (self.picture.width(), self.picture.height());
-        let bit_depth = self.picture.bit_depth();
+        let (width, height) = (picture.width(), picture.height());
+        let bit_depth = picture.bit_depth();
 
         // dav1d may return not aligned and not correctly constrained data,
         // or at least I can't find guarantees on that
@@ -502,28 +520,28 @@ impl<R: Read> AvifDecoder<R> {
 
         let y_plane_view = transmute_y_plane16(
             &y_dav1d_plane,
-            self.picture.stride(PlanarImageComponent::Y) as usize,
+            picture.stride(PlanarImageComponent::Y) as usize,
             width as usize,
             height as usize,
         );
 
-        let u_dav1d_plane = self.picture.plane(PlanarImageComponent::U);
-        let v_dav1d_plane = self.picture.plane(PlanarImageComponent::V);
+        let u_dav1d_plane = picture.plane(PlanarImageComponent::U);
+        let v_dav1d_plane = picture.plane(PlanarImageComponent::V);
         let mut u_plane_view = Plane16View::default();
         let mut v_plane_view = Plane16View::default();
 
-        if self.picture.pixel_layout() != PixelLayout::I400 {
+        if picture.pixel_layout() != PixelLayout::I400 {
             u_plane_view = transmute_chroma_plane16(
                 &u_dav1d_plane,
-                self.picture.pixel_layout(),
-                self.picture.stride(PlanarImageComponent::U) as usize,
+                picture.pixel_layout(),
+                picture.stride(PlanarImageComponent::U) as usize,
                 width as usize,
                 height as usize,
             );
             v_plane_view = transmute_chroma_plane16(
                 &v_dav1d_plane,
-                self.picture.pixel_layout(),
-                self.picture.stride(PlanarImageComponent::V) as usize,
+                picture.pixel_layout(),
+                picture.stride(PlanarImageComponent::V) as usize,
                 width as usize,
                 height as usize,
             );
@@ -542,7 +560,7 @@ impl<R: Read> AvifDecoder<R> {
 
         match matrix_strategy {
             YuvMatrixStrategy::KrKb(standard) => {
-                let worker = match self.picture.pixel_layout() {
+                let worker = match picture.pixel_layout() {
                     PixelLayout::I400 => {
                         if bit_depth == 10 {
                             yuv400_to_rgba10
@@ -575,7 +593,7 @@ impl<R: Read> AvifDecoder<R> {
                 worker(image, target, yuv_range, standard)?;
             }
             YuvMatrixStrategy::CgCo => {
-                let worker = match self.picture.pixel_layout() {
+                let worker = match picture.pixel_layout() {
                     PixelLayout::I400 => unreachable!(),
                     PixelLayout::I420 => {
                         if bit_depth == 10 {
@@ -602,7 +620,7 @@ impl<R: Read> AvifDecoder<R> {
                 worker(image, target, yuv_range)?;
             }
             YuvMatrixStrategy::Identity => {
-                let worker = match self.picture.pixel_layout() {
+                let worker = match picture.pixel_layout() {
                     PixelLayout::I400 => unreachable!(),
                     PixelLayout::I420 => unreachable!(),
                     PixelLayout::I422 => unreachable!(),
@@ -619,7 +637,7 @@ impl<R: Read> AvifDecoder<R> {
         }
 
         // Squashing alpha plane into a picture
-        if let Some(picture) = &self.alpha_picture {
+        if let Some(picture) = &alpha_picture {
             if picture.pixel_layout() != PixelLayout::I400 {
                 return Err(ImageError::Decoding(DecodingError::new(
                     ImageFormat::Avif.into(),
@@ -646,7 +664,7 @@ impl<R: Read> AvifDecoder<R> {
         }
 
         // Expand current bit depth to target 16
-        let target_expand_bits = 16u32 - self.picture.bit_depth() as u32;
+        let target_expand_bits = 16u32 - picture.bit_depth() as u32;
         for item in target.iter_mut() {
             *item = (*item).rotate_left(target_expand_bits);
         }

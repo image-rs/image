@@ -23,6 +23,13 @@ pub trait ImageDecoder {
         Ok(None)
     }
 
+    /// Return the ICC profile's name as embedded in the image.
+    ///
+    /// For formats that don't store embedded profiles with separate names this function should always return `Ok(None)`.
+    fn icc_profile_name(&mut self) -> ImageResult<Option<&String>> {
+        Ok(None)
+    }
+
     /// Returns the raw [Exif](https://en.wikipedia.org/wiki/Exif) chunk, if it is present.
     /// A third-party crate such as [`kamadak-exif`](https://docs.rs/kamadak-exif/) is required to actually parse it.
     ///
@@ -142,6 +149,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn original_color_type(&self) -> ExtendedColorType {
         (**self).original_color_type()
+    }
+    fn icc_profile_name(&mut self) -> ImageResult<Option<&String>> {
+        (**self).icc_profile_name()
     }
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).icc_profile()

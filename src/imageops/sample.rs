@@ -547,53 +547,161 @@ where
 
     let mut out = ImageBuffer::new(width, new_height);
     out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
-    let mut ws = Vec::new();
 
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    for outy in 0..new_height {
-        // For an explanation of this algorithm, see the comments
-        // in horizontal_sample.
-        let inputy = (outy as f32 + 0.5) * ratio;
+    let row_count = new_height as usize;
+    let max_ks = (2.0 * src_support).ceil() as usize + 2;
 
-        let left = (inputy - src_support).floor() as i64;
-        let left = clamp(left, 0, <i64 as From<_>>::from(height) - 1) as u32;
+    // Max memory usage for weights
+    const MAX_WEIGHT_FLOATS: usize = 1 << 20; // 4MiB f32
 
-        let right = (inputy + src_support).ceil() as i64;
-        let right = clamp(
-            right,
-            <i64 as From<_>>::from(left) + 1,
-            <i64 as From<_>>::from(height),
-        ) as u32;
+    // Number of output rows whose weights fit in the budget
+    let batch_size = (MAX_WEIGHT_FLOATS / max_ks.max(1)).max(1).min(row_count);
 
-        let inputy = inputy - 0.5;
+    let nchannels = P::CHANNEL_COUNT as usize;
+    let src_stride = width as usize * MAX_CHANNEL;
 
-        ws.clear();
-        let mut sum = 0.0;
-        for i in left..right {
-            let w = (filter.kernel)((i as f32 - inputy) / sratio);
-            ws.push(w);
-            sum += w;
+    // Whether to use the f32 row cache. A sliding window of pre-converted source rows
+    // is only beneficial when reuse_factor = max_ks / sratio > 1, i.e. when each source row
+    // contributes to more than one output row. For large downscales (e.g. Nearest at 3×),
+    // source rows are never reused and the cache would add overhead instead.
+    let use_cache = max_ks as f32 > sratio;
+
+    // Sliding window cache: holds at most `max_ks + 1` pre-converted source rows.
+    // Empty when `!use_cache`.  The extra `+1` slot keeps circular-index reuse safe.
+    let cache_capacity = if use_cache { max_ks + 1 } else { 0 };
+    let mut cache_buf = vec![0.0f32; cache_capacity * src_stride];
+    let mut cache_base: usize = 0; // source-row index of the oldest cached slot
+    let mut cache_size: usize = 0; // number of rows currently valid in the cache
+
+    // Rgba32FImage is stored as [f32] with MAX_CHANNEL floats per pixel.
+    let out_stride = width as usize * MAX_CHANNEL;
+    let out_raw = out.as_mut();
+
+    // Reusable weight buffers shared across batches
+    let mut batch_ws: Vec<f32> = Vec::new();
+    let mut batch_lefts: Vec<usize> =
+        vec_try_with_capacity(batch_size).expect("capacity overflow in vertical_sample");
+    let mut batch_starts: Vec<usize> =
+        vec_try_with_capacity(batch_size + 1).expect("capacity overflow in vertical_sample");
+
+    let mut batch_start = 0;
+    while batch_start < row_count {
+        let batch_end = batch_start.saturating_add(batch_size).min(row_count);
+
+        // Precompute weights for every output row in this batch.
+        batch_ws.clear();
+        batch_lefts.clear();
+        batch_starts.clear();
+        batch_starts.push(0);
+
+        for outy in batch_start..batch_end {
+            // Use f64 to avoid precision loss for large dimensions
+            let inputy = (outy as f64 + 0.5) * ratio as f64;
+
+            // Invariant: 0 <= left < right <= height
+            let left = clamp((inputy - src_support as f64) as u32, 0, height - 1);
+
+            let right = (inputy + src_support as f64).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, height as i64) as u32;
+
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputy = inputy as f32 - 0.5;
+
+            batch_lefts.push(left as usize);
+            let ws_start = batch_ws.len();
+            let mut sum = 0.0;
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputy) / sratio);
+                batch_ws.push(w);
+                sum += w;
+            }
+            for w in batch_ws[ws_start..].iter_mut() {
+                *w /= sum;
+            }
+            batch_starts.push(batch_ws.len());
         }
-        for w in ws.iter_mut() {
-            *w /= sum;
-        }
 
-        for x in 0..width {
-            let mut pix = crate::Rgba([1.0; 4]);
+        for (b, outy) in (batch_start..batch_end).enumerate() {
+            let left = batch_lefts[b];
+            let ws = &batch_ws[batch_starts[b]..batch_starts[b + 1]];
+            let out_row = &mut out_raw[outy * out_stride..(outy + 1) * out_stride];
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(x, left + i as u32);
+            if use_cache {
+                // Maintain the sliding window: evict rows before `left`, then
+                // lazily pre-convert any rows in [left, right) that are missing.
+                let right = left + ws.len();
+                let evict = left.saturating_sub(cache_base).min(cache_size);
+                cache_base += evict;
+                cache_size -= evict;
 
-                for (tc, &c) in pix.channels_mut().iter_mut().zip(p.channels()) {
-                    *tc += <f32 as NumCast>::from(c).unwrap() * w;
+                while cache_base + cache_size < right {
+                    let row = cache_base + cache_size;
+                    let slot = row % cache_capacity;
+                    let row_buf = &mut cache_buf[slot * src_stride..(slot + 1) * src_stride];
+                    for x in 0..width {
+                        let p = image.get_pixel(x, row as u32);
+                        let base = x as usize * MAX_CHANNEL;
+                        for (j, &c) in p.channels().iter().enumerate() {
+                            row_buf[base + j] = <f32 as NumCast>::from(c).unwrap();
+                        }
+                        // Channels beyond P::CHANNEL_COUNT stay 0 (vec is zero-initialized,
+                        // and prior occupants of this slot also wrote only nchannels).
+                    }
+                    cache_size += 1;
+                }
+
+                // Use the "first-tap initialize, rest accumulate" pattern to
+                // avoid a separate zero-fill pass over the output row.
+                let (&w0, rest_ws) = ws.split_first().expect("ws non-empty");
+                let slot = left % cache_capacity;
+                let src = &cache_buf[slot * src_stride..(slot + 1) * src_stride];
+                for (d, &s) in out_row.iter_mut().zip(src.iter()) {
+                    *d = s * w0;
+                }
+                for (k, &w) in rest_ws.iter().enumerate() {
+                    let src_row = left + 1 + k;
+                    let slot = src_row % cache_capacity;
+                    let src = &cache_buf[slot * src_stride..(slot + 1) * src_stride];
+                    for (d, &s) in out_row.iter_mut().zip(src.iter()) {
+                        *d += s * w;
+                    }
+                }
+            } else {
+                // No cache: source rows are not reused, so convert on the fly.
+                //
+                // Loop order is (tap, x) — the inner loop traverses a single source
+                // row sequentially, which is cache-friendly even without pre-conversion.
+                // "First-tap initialize" eliminates a separate zero-fill pass.
+                let (&w0, rest_ws) = ws.split_first().expect("ws non-empty");
+                for x in 0..width {
+                    let p = image.get_pixel(x, left as u32);
+                    let base = x as usize * MAX_CHANNEL;
+                    for (j, &c) in p.channels().iter().enumerate() {
+                        out_row[base + j] = <f32 as NumCast>::from(c).unwrap() * w0;
+                    }
+                    for j in nchannels..MAX_CHANNEL {
+                        out_row[base + j] = 0.0;
+                    }
+                }
+                for (k, &w) in rest_ws.iter().enumerate() {
+                    let src_y = (left + 1 + k) as u32;
+                    for x in 0..width {
+                        let p = image.get_pixel(x, src_y);
+                        let base = x as usize * MAX_CHANNEL;
+                        for (j, &c) in p.channels().iter().enumerate() {
+                            out_row[base + j] += <f32 as NumCast>::from(c).unwrap() * w;
+                        }
+                    }
                 }
             }
-
-            out.put_pixel(x, outy, pix);
         }
+
+        batch_start = batch_end;
     }
 
     out

@@ -561,21 +561,22 @@ where
     // Number of output rows whose weights fit in the budget
     let batch_size = (MAX_WEIGHT_FLOATS / max_ks.max(1)).max(1).min(row_count);
 
-    let nchannels = P::CHANNEL_COUNT as usize;
     let src_stride = width as usize * MAX_CHANNEL;
 
-    // Whether to use the f32 row cache. A sliding window of pre-converted source rows
-    // is only beneficial when reuse_factor = max_ks / sratio > 1, i.e. when each source row
-    // contributes to more than one output row. For large downscales (e.g. Nearest at 3×),
-    // source rows are never reused and the cache would add overhead instead.
-    let use_cache = max_ks as f32 > sratio;
-
-    // Sliding window cache: holds at most `max_ks + 1` pre-converted source rows.
-    // Empty when `!use_cache`.  The extra `+1` slot keeps circular-index reuse safe.
-    let cache_capacity = if use_cache { max_ks + 1 } else { 0 };
+    // Sliding window cache: pre-converted source rows reused across output rows.
+    // Capacity is capped by a memory budget (same budget as weights) so that very
+    // wide images or large kernels do not balloon memory usage.  When the budget
+    // allows fewer rows than `max_ks + 1`, some taps will miss the cache and be
+    // converted on the fly into `scratch_row` instead.
+    let cache_capacity = (max_ks + 1).min(MAX_WEIGHT_FLOATS / src_stride.max(1));
     let mut cache_buf = vec![0.0f32; cache_capacity * src_stride];
     let mut cache_base: usize = 0; // source-row index of the oldest cached slot
     let mut cache_size: usize = 0; // number of rows currently valid in the cache
+
+    // Scratch buffer for on-the-fly conversion when a source row misses the cache.
+    // Zero-initialised once; channels beyond P::CHANNEL_COUNT are never overwritten,
+    // so they stay 0 for the lifetime of the buffer.
+    let mut scratch_row = vec![0.0f32; src_stride];
 
     // Rgba32FImage is stored as [f32] with MAX_CHANNEL floats per pixel.
     let out_stride = width as usize * MAX_CHANNEL;
@@ -631,72 +632,52 @@ where
             let ws = &batch_ws[batch_starts[b]..batch_starts[b + 1]];
             let out_row = &mut out_raw[outy * out_stride..(outy + 1) * out_stride];
 
-            if use_cache {
-                // Maintain the sliding window: evict rows before `left`, then
-                // lazily pre-convert any rows in [left, right) that are missing.
-                let right = left + ws.len();
-                let evict = left.saturating_sub(cache_base).min(cache_size);
-                cache_base += evict;
-                cache_size -= evict;
+            // Maintain the sliding window: evict rows before `left`, then fill
+            // as many rows as fit within `cache_capacity`.  Rows beyond that budget
+            // are converted on the fly via `scratch_row` when needed below.
+            let right = left + ws.len();
+            let evict = left.saturating_sub(cache_base).min(cache_size);
+            cache_base += evict;
+            cache_size -= evict;
 
-                while cache_base + cache_size < right {
-                    let row = cache_base + cache_size;
-                    let slot = row % cache_capacity;
-                    let row_buf = &mut cache_buf[slot * src_stride..(slot + 1) * src_stride];
-                    for x in 0..width {
-                        let p = image.get_pixel(x, row as u32);
-                        let base = x as usize * MAX_CHANNEL;
-                        for (j, &c) in p.channels().iter().enumerate() {
-                            row_buf[base + j] = <f32 as NumCast>::from(c).unwrap();
-                        }
-                        // Channels beyond P::CHANNEL_COUNT stay 0 (vec is zero-initialized,
-                        // and prior occupants of this slot also wrote only nchannels).
-                    }
-                    cache_size += 1;
-                }
-
-                // Use the "first-tap initialize, rest accumulate" pattern to
-                // avoid a separate zero-fill pass over the output row.
-                let (&w0, rest_ws) = ws.split_first().expect("ws non-empty");
-                let slot = left % cache_capacity;
-                let src = &cache_buf[slot * src_stride..(slot + 1) * src_stride];
-                for (d, &s) in out_row.iter_mut().zip(src.iter()) {
-                    *d = s * w0;
-                }
-                for (k, &w) in rest_ws.iter().enumerate() {
-                    let src_row = left + 1 + k;
-                    let slot = src_row % cache_capacity;
-                    let src = &cache_buf[slot * src_stride..(slot + 1) * src_stride];
-                    for (d, &s) in out_row.iter_mut().zip(src.iter()) {
-                        *d += s * w;
-                    }
-                }
-            } else {
-                // No cache: source rows are not reused, so convert on the fly.
-                //
-                // Loop order is (tap, x) — the inner loop traverses a single source
-                // row sequentially, which is cache-friendly even without pre-conversion.
-                // "First-tap initialize" eliminates a separate zero-fill pass.
-                let (&w0, rest_ws) = ws.split_first().expect("ws non-empty");
+            let fill_up_to = right.min(cache_base + cache_capacity);
+            while cache_base + cache_size < fill_up_to {
+                let row = cache_base + cache_size;
+                let slot = row % cache_capacity;
+                let row_buf = &mut cache_buf[slot * src_stride..(slot + 1) * src_stride];
                 for x in 0..width {
-                    let p = image.get_pixel(x, left as u32);
+                    let p = image.get_pixel(x, row as u32);
                     let base = x as usize * MAX_CHANNEL;
                     for (j, &c) in p.channels().iter().enumerate() {
-                        out_row[base + j] = <f32 as NumCast>::from(c).unwrap() * w0;
+                        row_buf[base + j] = <f32 as NumCast>::from(c).unwrap();
                     }
-                    for j in nchannels..MAX_CHANNEL {
-                        out_row[base + j] = 0.0;
-                    }
+                    // Channels beyond P::CHANNEL_COUNT stay 0 (vec is zero-initialized,
+                    // and prior occupants of this slot also wrote only nchannels).
                 }
-                for (k, &w) in rest_ws.iter().enumerate() {
-                    let src_y = (left + 1 + k) as u32;
+                cache_size += 1;
+            }
+
+            // Accumulate taps into out_row.  For each tap, use the cached row when
+            // available; otherwise convert the source row on the fly into scratch_row.
+            // Zero-fill first so cache-miss taps can always use `+=`.
+            out_row.fill(0.0);
+            for (k, &w) in ws.iter().enumerate() {
+                let src_row = left + k;
+                let src: &[f32] = if src_row >= cache_base && src_row < cache_base + cache_size {
+                    let slot = src_row % cache_capacity;
+                    &cache_buf[slot * src_stride..(slot + 1) * src_stride]
+                } else {
                     for x in 0..width {
-                        let p = image.get_pixel(x, src_y);
+                        let p = image.get_pixel(x, src_row as u32);
                         let base = x as usize * MAX_CHANNEL;
                         for (j, &c) in p.channels().iter().enumerate() {
-                            out_row[base + j] += <f32 as NumCast>::from(c).unwrap() * w;
+                            scratch_row[base + j] = <f32 as NumCast>::from(c).unwrap();
                         }
                     }
+                    &scratch_row
+                };
+                for (d, &s) in out_row.iter_mut().zip(src.iter()) {
+                    *d += s * w;
                 }
             }
         }

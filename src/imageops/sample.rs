@@ -568,7 +568,12 @@ where
     // wide images or large kernels do not balloon memory usage.  When the budget
     // allows fewer rows than `max_ks + 1`, some taps will miss the cache and be
     // converted on the fly into `scratch_row` instead.
-    let cache_capacity = (max_ks + 1).min(MAX_WEIGHT_FLOATS / src_stride.max(1));
+    let cache_capacity = if max_ks as f32 > sratio {
+        (max_ks + 1).min(MAX_WEIGHT_FLOATS / src_stride.max(1))
+    } else {
+        // cache won't hit case.
+        0
+    };
     let mut cache_buf = vec![0.0f32; cache_capacity * src_stride];
     let mut cache_base: usize = 0; // source-row index of the oldest cached slot
     let mut cache_size: usize = 0; // number of rows currently valid in the cache

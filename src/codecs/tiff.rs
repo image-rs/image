@@ -452,7 +452,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             icc: DecodedMetadataHint::PerImage,
             exif: DecodedMetadataHint::PerImage,
             // not provided above.
-            iptc: DecodedMetadataHint::None,
+            iptc: DecodedMetadataHint::Unsupported,
             supports_sequence: true,
             ..FormatAttributes::default()
         }

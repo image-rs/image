@@ -688,11 +688,7 @@ impl ImageReader<'_> {
             let should_buffer_now = match hint {
                 DecodedMetadataHint::InHeader => !first_meta_retrieved,
                 DecodedMetadataHint::PerImage => true,
-                DecodedMetadataHint::None
-                | DecodedMetadataHint::Unknown
-                // NOTE: we could retrieve this if `!more_images´; but after reading the image. We
-                // probably want the same code path. TBD.
-                | DecodedMetadataHint::AfterFinish => false,
+                DecodedMetadataHint::Unsupported | DecodedMetadataHint::None => false,
             };
 
             if !should_buffer_now {
@@ -961,7 +957,6 @@ impl<'lt> DecodedImageMetadata<'lt> {
         access: fn(&'_ mut (dyn ImageDecoder + 'l)) -> ImageResult<Option<Vec<u8>>>,
     ) -> ImageResult<Option<Vec<u8>>> {
         match meta {
-            DecodedMetadataHint::Unknown | DecodedMetadataHint::AfterFinish => access(decoder),
             DecodedMetadataHint::InHeader => {
                 if matches!(block, MetadataBlock::ErrorTaken) {
                     // We can retry this, prefer rechecking from the source.
@@ -976,7 +971,7 @@ impl<'lt> DecodedImageMetadata<'lt> {
                 // want to guess, any call after the first may substitute the error.
                 block.get()
             }
-            DecodedMetadataHint::None => Ok(None),
+            DecodedMetadataHint::Unsupported | DecodedMetadataHint::None => Ok(None),
         }
     }
 

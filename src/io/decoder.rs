@@ -244,20 +244,25 @@ pub struct DecodedImageAttributes {
 /// Note that while this is a hint, different variants give contradictory indication on when they
 /// should be polled. When a metadatum is tagged as [`DecodedMetadataHint::PerImage`] it MUST be
 /// polled after each image to ensure all are retrieved, iterating to the next image without
-/// polling MAY reset and skip some metadata. Conversely, when a metadatum is tagged as
-/// [`DecodedMetadataHint::AfterFinish`] it should not be considered fully valid until after a call
-/// to [`ImageDecoder::finish`]. This call might be destructive with regards to the other kind of
-/// metadata.
+/// polling MAY reset and skip some metadata.
+///
+/// # Design consideration
+///
+/// Each variant describes a way to fetch accurate and complete metadata for an individual image in
+/// a file. This offloads some responsibility to the decoder, streamed formats that may contain
+/// parts after the file need to be peek forwards to aggregate all metadata and then seek
+/// backwards. During design we had a sequence that relied on [`ImageDecoder::finish`] but that did
+/// not allow the reader to ensure all data was present. This call would also be destructive with
+/// regards to the other kind of metadata.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub enum DecodedMetadataHint {
-    /// The metadata could be anywhere in the file and can only be reliably polled when the image
-    /// is finished.
+    /// The decoder does not support this datum. It will return `None` but there is no guarantee
+    /// that the datum is truly absent in the file.
+    ///
+    /// This is the default.
     #[default]
-    Unknown,
-    /// Explicitly indicate that the file must be polled fully before interpreting this kind of
-    /// metadata.
-    AfterFinish,
+    Unsupported,
     /// Metadata is available in the header and will be valid after the first call to
     /// [`ImageDecoder::prepare_image`] and will remain valid for all subsequent images.
     InHeader,

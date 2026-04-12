@@ -45,8 +45,8 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             // As per extended file format description:
             // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
             icc: DecodedMetadataHint::InHeader,
-            exif: DecodedMetadataHint::AfterFinish,
-            xmp: DecodedMetadataHint::AfterFinish,
+            exif: DecodedMetadataHint::InHeader,
+            xmp: DecodedMetadataHint::InHeader,
             ..FormatAttributes::default()
         }
     }

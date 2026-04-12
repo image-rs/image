@@ -275,9 +275,11 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     fn format_attributes(&self) -> FormatAttributes {
         FormatAttributes {
             // is any sort of iTXT chunk.
-            xmp: DecodedMetadataHint::AfterFinish,
+            // FIXME: we do not collect these in advance.
+            xmp: DecodedMetadataHint::InHeader,
             // is any sort of iTXT chunk.
-            iptc: DecodedMetadataHint::AfterFinish,
+            // FIXME: we do not collect these in advance.
+            iptc: DecodedMetadataHint::InHeader,
             // see iCCP chunk order.
             icc: DecodedMetadataHint::InHeader,
             // see eXIf chunk order.

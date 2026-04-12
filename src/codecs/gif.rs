@@ -114,10 +114,12 @@ impl<R: Read> GifDecoder<R> {
 impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
     fn format_attributes(&self) -> FormatAttributes {
         FormatAttributes {
-            xmp: DecodedMetadataHint::AfterFinish,
-            icc: DecodedMetadataHint::AfterFinish,
+            // FIXME: may appear anywhere.
+            xmp: DecodedMetadataHint::InHeader,
+            icc: DecodedMetadataHint::InHeader,
             iptc: DecodedMetadataHint::None,
-            exif: DecodedMetadataHint::None,
+            // FIXME: there is some in a Photoshop 8BIM extension which we do not collect.
+            exif: DecodedMetadataHint::Unsupported,
             supports_animation: true,
             ..FormatAttributes::default()
         }

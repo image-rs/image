@@ -149,6 +149,22 @@ pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
     <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
 }
 
+/// This is equivalent to `r.seek(SeekFrom::Start(reader_offset + offset))`,
+/// but correctly handles the case where `reader_offset + offset` would overflow.
+pub(crate) fn seek_start_with_offset<R: std::io::Read + std::io::Seek>(
+    r: &mut R,
+    reader_offset: u64,
+    offset: u64,
+) -> std::io::Result<u64> {
+    let Some(offset) = reader_offset.checked_add(offset) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "offset overflow",
+        ));
+    };
+    r.seek(std::io::SeekFrom::Start(offset))
+}
+
 #[cfg(test)]
 mod test {
     #[test]

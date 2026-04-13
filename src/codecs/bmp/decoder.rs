@@ -1559,10 +1559,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
         match length.cmp(&max_length) {
-            Ordering::Greater => {
-                self.reader
-                    .seek(SeekFrom::Current((length - max_length) as i64))?;
-            }
+            Ordering::Greater => self.reader.seek_relative((length - max_length) as i64)?,
             Ordering::Less => buf.resize(max_length, 0),
             Ordering::Equal => (),
         }

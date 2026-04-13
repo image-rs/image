@@ -90,6 +90,27 @@ pub enum CicpColorPrimaries {
     Industry22 = 22,
 }
 
+impl CicpColorPrimaries {
+    /// Do support these primaries in color [`CicpTransform`]?
+    pub const fn is_supported_for_transform(self) -> bool {
+        // Note: exhaustive match so we actively decide on future additions.
+        match self {
+            CicpColorPrimaries::SRgb
+            | CicpColorPrimaries::RgbM
+            | CicpColorPrimaries::RgbB
+            | CicpColorPrimaries::Bt601
+            | CicpColorPrimaries::Rgb240m
+            | CicpColorPrimaries::GenericFilm
+            | CicpColorPrimaries::Rgb2020
+            | CicpColorPrimaries::Xyz
+            | CicpColorPrimaries::SmpteRp431
+            | CicpColorPrimaries::SmpteRp432
+            | CicpColorPrimaries::Industry22 => true,
+            CicpColorPrimaries::Unspecified => false,
+        }
+    }
+}
+
 /// The transfer characteristics, expressing relation between encoded values and linear color
 /// values.
 ///
@@ -147,6 +168,37 @@ pub enum CicpTransferCharacteristics {
     /// ARIB STD-B67
     /// Rec. ITU-R BT.2100-2 hybrid log- gamma (HLG) system
     Bt2100Hlg = 18,
+}
+
+impl CicpTransferCharacteristics {
+    /// Do support this transfer function in color [`CicpTransform`]?
+    pub const fn is_supported_for_transform(self) -> bool {
+        // Note: exhaustive match so we actively decide on future additions.
+        match self {
+            CicpTransferCharacteristics::Bt709
+            | CicpTransferCharacteristics::Bt470M
+            | CicpTransferCharacteristics::Bt470BG
+            | CicpTransferCharacteristics::Bt601
+            | CicpTransferCharacteristics::Smpte240m
+            | CicpTransferCharacteristics::Linear
+            | CicpTransferCharacteristics::Log100
+            | CicpTransferCharacteristics::LogSqrt
+            | CicpTransferCharacteristics::Iec61966_2_4
+            | CicpTransferCharacteristics::Bt1361
+            | CicpTransferCharacteristics::SRgb
+            | CicpTransferCharacteristics::Bt2020_10bit
+            | CicpTransferCharacteristics::Bt2020_12bit
+            | CicpTransferCharacteristics::Smpte428
+            | CicpTransferCharacteristics::Bt2100Hlg => true,
+            CicpTransferCharacteristics::Unspecified
+            // Dolby patent WO 2022/066242; my problem not _only_ being the patent itself but also
+            // that the patent does not contain any useful information. It does *not* disclose the
+            // actual method. You get a graph of roughly the function. Fuck off.
+            //
+            // aka. Rec2100 PQ
+            | CicpTransferCharacteristics::Smpte2084 => false,
+        }
+    }
 }
 
 ///
@@ -263,6 +315,12 @@ impl CicpTransform {
     /// are well understood and can be expected to be supported in future versions. However, we do
     /// not make guarantees about adjusting the rounding modes, accuracy, and exact numeric values
     /// used in the transform. Also, out-of-gamut colors may be handled differently per API.
+    ///
+    /// See the respective methods for supported
+    /// [primaries](`CicpColorPrimaries::is_supported_for_transform`) and
+    /// [transfer characteristics](`CicpTransferCharacteristics::is_supported_for_transform`). Note
+    /// that only identity and chromaticity derived non-constant matrices are supported; and only
+    /// full range colors.
     ///
     /// Returns `None` if the transformation is not (yet) supported.
     ///
@@ -1110,21 +1168,8 @@ impl Cicp {
                     // The equivalent of our Luma color as a type..
                     | CicpMatrixCoefficients::ChromaticityDerivedNonConstant
             )
-            && matches!(
-                self.primaries,
-                CicpColorPrimaries::SRgb
-                    | CicpColorPrimaries::SmpteRp431
-                    | CicpColorPrimaries::SmpteRp432
-                    | CicpColorPrimaries::Bt601
-                    | CicpColorPrimaries::Rgb240m
-            )
-            && matches!(
-                self.transfer,
-                CicpTransferCharacteristics::SRgb
-                    | CicpTransferCharacteristics::Bt709
-                    | CicpTransferCharacteristics::Bt601
-                    | CicpTransferCharacteristics::Linear
-            )
+            && self.transfer.is_supported_for_transform()
+            && self.primaries.is_supported_for_transform()
     }
 
     /// Discard matrix and range information.

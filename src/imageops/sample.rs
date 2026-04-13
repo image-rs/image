@@ -18,7 +18,7 @@ use crate::imageops::filter_1d::{
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::{clamp, is_integer};
+use crate::utils::{clamp, is_integer, vec_try_with_capacity};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -247,8 +247,8 @@ fn horizontal_sample<P, S>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let (width, height) = image.dimensions();
     // This is protection against a memory usage similar to #2340. See `vertical_sample`.
@@ -260,7 +260,6 @@ where
 
     let mut out = ImageBuffer::new(new_width, height);
     out.copy_color_space_from(image);
-    let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
     let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
@@ -268,61 +267,102 @@ where
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
+    let col_count = new_width as usize;
+    let max_ks = (2.0 * src_support).ceil() as usize + 2;
 
-    for outx in 0..new_width {
-        // Find the point in the input image corresponding to the centre
-        // of the current pixel in the output image.
-        let inputx = (outx as f32 + 0.5) * ratio;
+    // Max memory usage for weights
+    const MAX_WEIGHT_FLOATS: usize = 1 << 20; // 4MiB f32
 
-        // Left and right are slice bounds for the input pixels relevant
-        // to the output pixel we are calculating.  Pixel x is relevant
-        // if and only if (x >= left) && (x < right).
+    // Number of columns whose weights fit in the budget
+    let batch_size = (MAX_WEIGHT_FLOATS / max_ks.max(1)).max(1).min(col_count);
 
-        // Invariant: 0 <= left < right <= width
+    // Reusable buffers shared across batches
+    let mut batch_ws: Vec<f32> = Vec::new();
+    let mut batch_lefts: Vec<usize> =
+        vec_try_with_capacity(batch_size).expect("capacity overflow in horizontal_sample");
+    let mut batch_starts: Vec<usize> =
+        vec_try_with_capacity(batch_size + 1).expect("capacity overflow in horizontal_sample");
 
-        let left = (inputx - src_support).floor() as i64;
-        let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
+    // Rgba32FImage per row
+    let src_raw = image.as_raw();
+    let src_stride = width as usize * MAX_CHANNEL;
 
-        let right = (inputx + src_support).ceil() as i64;
-        let right = clamp(
-            right,
-            <i64 as From<_>>::from(left) + 1,
-            <i64 as From<_>>::from(width),
-        ) as u32;
+    let nchannels = P::CHANNEL_COUNT as usize;
+    let out_stride = col_count * nchannels;
+    let out_raw = out.as_mut();
 
-        // Go back to left boundary of pixel, to properly compare with i
-        // below, as the kernel treats the centre of a pixel as 0.
-        let inputx = inputx - 0.5;
+    let mut batch_start = 0;
+    while batch_start < col_count {
+        let batch_end = batch_start.saturating_add(batch_size).min(col_count);
 
-        ws.clear();
-        let mut sum = 0.0;
-        for i in left..right {
-            let w = (filter.kernel)((i as f32 - inputx) / sratio);
-            ws.push(w);
-            sum += w;
+        // precompute weights for every column in this batch
+        batch_ws.clear();
+        batch_lefts.clear();
+        batch_starts.clear();
+        batch_starts.push(0);
+
+        for outx in batch_start..batch_end {
+            // Find the point in the input image corresponding to the centre
+            // of the current pixel in the output image.
+            // Use f64 to avoid precision loss for large dimensions
+            let inputx = (outx as f64 + 0.5) * ratio as f64;
+
+            // Left and right are slice bounds for the input pixels relevant
+            // to the output pixel we are calculating.  Pixel x is relevant
+            // if and only if (x >= left) && (x < right).
+
+            // Invariant: 0 <= left < right <= width
+            let left = clamp((inputx - src_support as f64) as u32, 0, width - 1);
+
+            let right = (inputx + src_support as f64).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, width as i64) as u32;
+
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputx = inputx as f32 - 0.5;
+
+            batch_lefts.push(left as usize);
+            let ws_start = batch_ws.len();
+            let mut sum = 0.0;
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputx) / sratio);
+                batch_ws.push(w);
+                sum += w;
+            }
+            for w in batch_ws[ws_start..].iter_mut() {
+                *w /= sum;
+            }
+            batch_starts.push(batch_ws.len());
         }
-        for w in ws.iter_mut() {
-            *w /= sum;
-        }
 
+        // apply weights to every row in this batch
         for y in 0..height {
-            let mut t = [0.0; MAX_CHANNEL];
+            let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
+            let start = y as usize * out_stride + batch_start * nchannels;
+            let end = y as usize * out_stride + batch_end * nchannels;
+            let out_batch = &mut out_raw[start..end];
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(left + i as u32, y);
+            for (b, dst) in out_batch.chunks_exact_mut(nchannels).enumerate() {
+                let left = batch_lefts[b];
+                let ws = &batch_ws[batch_starts[b]..batch_starts[b + 1]];
 
-                for (t, &c) in t.iter_mut().zip(p.channels()) {
-                    *t += c * w;
+                let mut t = [0.0f32; MAX_CHANNEL];
+
+                for (i, &w) in ws.iter().enumerate() {
+                    let base = (left + i) * MAX_CHANNEL;
+                    for (tc, src) in t.iter_mut().zip(&src_row[base..base + MAX_CHANNEL]) {
+                        *tc += *src * w;
+                    }
+                }
+
+                // Write directly to the output slice, bypassing put_pixel's bounds checks.
+                for (&tc, pc) in t.iter().zip(dst.iter_mut()) {
+                    *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
                 }
             }
-
-            for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {
-                *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
-            }
-
-            out.put_pixel(outx, y, pix_temp);
         }
+
+        batch_start = batch_end;
     }
 
     out
@@ -492,8 +532,8 @@ pub fn interpolate_bilinear<P: Pixel>(
 fn vertical_sample<I, P, S>(image: &I, new_height: u32, filter: &mut Filter) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let (width, height) = image.dimensions();
 
@@ -593,8 +633,8 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + Enlargeable + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
 {
     // Maximum support channels for `ThumbnailSum`.
     assert!(P::CHANNEL_COUNT as usize <= MAX_CHANNEL);
@@ -866,8 +906,8 @@ where
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32; 9]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -941,11 +981,7 @@ pub fn resize<I: GenericImageView>(
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     // Check if there is nothing to sample from.
     let is_empty = {
         let (width, height) = image.dimensions();
@@ -1007,10 +1043,7 @@ where
 pub fn blur<I: GenericImageView>(
     image: &I,
     radius: f32,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     gaussian_blur_indirect(image, GaussianBlurParameters::new_from_radius(radius))
 }
 
@@ -1026,10 +1059,7 @@ where
 pub fn blur_advanced<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     gaussian_blur_indirect(image, parameters)
 }
 
@@ -1443,10 +1473,7 @@ pub(crate) fn gaussian_blur_dyn_image(
 fn gaussian_blur_indirect<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     match I::Pixel::CHANNEL_COUNT {
         1 => gaussian_blur_indirect_impl::<I, 1>(image, parameters),
         2 => gaussian_blur_indirect_impl::<I, 2>(image, parameters),
@@ -1459,10 +1486,7 @@ where
 fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
     image: &I,
     parameters: GaussianBlurParameters,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-where
-    I::Pixel: 'static,
-{
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
     let mut transient = vec![0f32; image.width() as usize * image.height() as usize * CN];
     let transient_chunks = transient.as_chunks_mut::<CN>().0.iter_mut();
     for (pixel, dst) in image.pixels().zip(transient_chunks) {
@@ -1574,8 +1598,8 @@ where
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut tmp = blur_advanced(image, GaussianBlurParameters::new_from_sigma(sigma));
 

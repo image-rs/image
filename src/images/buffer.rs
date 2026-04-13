@@ -1025,8 +1025,8 @@ where
     /// assert_eq!(img.dimensions(), (16, 8));
     /// ```
     pub fn crop_in_place(&mut self, selection: Rect) {
-        let selection = selection.crop_dimms(self);
-        assert!(selection.test_in_bounds(self).is_ok());
+        let selection = selection.shrink_to_bounds_of(self);
+        assert!(selection.test_in_bounds_of(self).is_ok());
 
         fn copy_within<T: Copy>(data: &mut [T], src: usize, len: usize, dst: usize) {
             if src == dst || len == 0 {
@@ -1371,7 +1371,7 @@ where
     ) -> ImageResult<()> {
         let (width, height) = view.dimensions();
         let pix_stride = usize::from(<Self::Pixel as Pixel>::CHANNEL_COUNT);
-        Rect::from_image_at(&view, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(&view, x, y).test_in_bounds_of(self)?;
 
         if width == 0 || height == 0 || pix_stride == 0 {
             return Ok(());

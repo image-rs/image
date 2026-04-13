@@ -117,11 +117,6 @@ name = "copy_from"
 harness = false
 
 [[bench]]
-path = "benches/fast_blur.rs"
-name = "fast_blur"
-harness = false
-
-[[bench]]
 path = "benches/blur.rs"
 name = "blur"
 harness = false
@@ -129,6 +124,11 @@ harness = false
 [[bench]]
 path = "benches/convert.rs"
 name = "convert"
+harness = false
+
+[[bench]]
+path = "benches/imageops.rs"
+name = "imageops"
 harness = false
 
 [[test]]

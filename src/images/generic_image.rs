@@ -95,7 +95,7 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        rect.test_in_bounds(self)?;
+        rect.test_in_bounds_of(self)?;
         Ok(SubImage::new(self, rect))
     }
 
@@ -225,7 +225,7 @@ pub trait GenericImage: GenericImageView {
 
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
-        Rect::from_image_at(other, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(other, x, y).test_in_bounds_of(self)?;
 
         for k in 0..other.height() {
             for i in 0..other.width() {
@@ -246,7 +246,7 @@ pub trait GenericImage: GenericImageView {
     ) -> ImageResult<()> {
         // Even though the implementation is the same, do not just call `Self::copy_from` here to
         // avoid circular dependencies in careless implementations.
-        Rect::from_image_at(&samples, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(&samples, x, y).test_in_bounds_of(self)?;
 
         for k in 0..samples.height() {
             for i in 0..samples.width() {

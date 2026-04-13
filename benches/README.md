@@ -1,6 +1,13 @@
 # Getting started with benchmarking
 
-To run the benchmarks you need a nightly rust toolchain.
-Then you launch it with
+To run all benchmarks, use:
 
-    cargo +nightly bench --features=benchmarks
+```bash
+cargo bench
+```
+
+To run a specific benchmark, use:
+
+```bash
+cargo bench --bench <benchmark_name>
+```

@@ -910,9 +910,9 @@ mod tests {
 
     #[test]
     fn encode_bad_color_type() {
-        // regression test for issue #1663
+        // regression test for issues #1663 and #2787
         let image = DynamicImage::new_rgb32f(1, 1);
         let mut target = Cursor::new(vec![]);
-        let _ = image.write_to(&mut target, ImageFormat::Png);
+        assert!(image.write_to(&mut target, ImageFormat::Png).is_ok());
     }
 }

@@ -822,6 +822,19 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         self.exif_metadata = exif;
         Ok(())
     }
+
+    fn make_compatible_img(
+        &self,
+        _: crate::io::encoder::MethodSealedToImage,
+        img: &DynamicImage,
+    ) -> Option<DynamicImage> {
+        use ColorType::*;
+        match img.color() {
+            Rgb32F => Some(img.to_rgb16().into()),
+            Rgba32F => Some(img.to_rgba16().into()),
+            L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,
+        }
+    }
 }
 
 impl ImageError {

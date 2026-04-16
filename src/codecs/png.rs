@@ -178,6 +178,10 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         self.color_type
     }
 
+    fn icc_profile_name(&mut self) -> ImageResult<Option<&String>> {
+        Ok(self.reader.info().icc_profile_name.as_ref())
+    }
+
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }

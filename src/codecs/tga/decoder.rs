@@ -76,20 +76,22 @@ impl TgaOrientation {
     }
 }
 
-/// This contains the nearest integers to the rational numbers
-/// `(255 x) / 31`, for each `x` between 0 and 31, inclusive.
-static LOOKUP_TABLE_5_BIT_TO_8_BIT: [u8; 32] = [
-    0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173,
-    181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
-];
-
 /// Convert TGA's 15/16-bit pixel format to its 24 bit pixel format
 fn expand_rgb15_to_rgb24(data: [u8; 2]) -> [u8; 3] {
+    /// Converts a 5-bit unorm to a 8-bit unorm.
+    /// This is equivalent to `round(x * 255 / 31)`.
+    /// Source: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
+    #[inline(always)]
+    fn unorm5_to_unorm8(x: u16) -> u8 {
+        debug_assert!(x <= 31);
+        ((x * 2108 + 92) >> 8) as u8
+    }
+
     let val = u16::from_le_bytes(data);
     [
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[(val & 0b11111) as usize],
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[((val >> 5) & 0b11111) as usize],
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[((val >> 10) & 0b11111) as usize],
+        unorm5_to_unorm8(val & 0b11111),
+        unorm5_to_unorm8((val >> 5) & 0b11111),
+        unorm5_to_unorm8((val >> 10) & 0b11111),
     ]
 }
 

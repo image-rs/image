@@ -765,14 +765,14 @@ impl Bitfield {
     /// All constants come from the following site and were adjusted to use a
     /// shift of 8: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
     const FACTOR_ADDEND: [(u32, u32); 8] = [
-        (1 << 8, 0),   // len=8: round(x * 255 / 255) = (x * 256 + 0) >> 8
-        (255 << 8, 0), // len=1: round(x * 255 / 1)   = (x * 65280 + 0) >> 8
-        (85 << 8, 0),  // len=2: round(x * 255 / 3)   = (x * 21760 + 0) >> 8
-        (9344, 0),     // len=3: round(x * 255 / 7)   = (x * 9344 + 0) >> 8
-        (17 << 8, 0),  // len=4: round(x * 255 / 15)  = (x * 4352 + 0) >> 8
-        (2108, 92),    // len=5: round(x * 255 / 31)  = (x * 2108 + 92) >> 8
-        (1036, 132),   // len=6: round(x * 255 / 63)  = (x * 1036 + 132) >> 8
-        (516, 0),      // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
+        (0x01_00, 0),    // len=8: round(x * 255 / 255) = (x * 256 + 0) >> 8
+        (0xff_00, 0),    // len=1: round(x * 255 / 1)   = (x * 65280 + 0) >> 8
+        (0x55_00, 0),    // len=2: round(x * 255 / 3)   = (x * 21760 + 0) >> 8
+        (0x24_80, 0),    // len=3: round(x * 255 / 7)   = (x * 9344 + 0) >> 8
+        (0x11_00, 0),    // len=4: round(x * 255 / 15)  = (x * 4352 + 0) >> 8
+        (0x08_3c, 0x5C), // len=5: round(x * 255 / 31)  = (x * 2108 + 92) >> 8
+        (0x04_0c, 0x84), // len=6: round(x * 255 / 63)  = (x * 1036 + 132) >> 8
+        (0x02_04, 0),    // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
     ];
 
     const fn from_len_shift(len: u32, shift: u32) -> Self {

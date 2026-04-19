@@ -39,6 +39,15 @@ pub trait ImageDecoder {
         Ok(None)
     }
 
+    /// Returns the raw [Extended XMP](https://en.wikipedia.org/wiki/Extensible_Metadata_Platform) metadata, if present.
+    ///
+    /// This is typically used in JPEG files when the XMP data exceeds 64KB.
+    /// Returns `Ok(Some((guid, data)))` where `guid` is the 128-bit GUID (as a 32-character hex string)
+    /// and `data` is the concatenated extended XMP data.
+    fn extended_xmp_metadata(&mut self) -> ImageResult<Option<(String, Vec<u8>)>> {
+        Ok(None)
+    }
+
     /// Returns the raw [IPTC](https://en.wikipedia.org/wiki/IPTC_Information_Interchange_Model) chunk, if it is present.
     ///
     /// For formats that don't support embedded profiles this function should always return `Ok(None)`.
@@ -151,6 +160,9 @@ impl<T: ?Sized + ImageDecoder> ImageDecoder for Box<T> {
     }
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).xmp_metadata()
+    }
+    fn extended_xmp_metadata(&mut self) -> ImageResult<Option<(String, Vec<u8>)>> {
+        (**self).extended_xmp_metadata()
     }
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
         (**self).iptc_metadata()

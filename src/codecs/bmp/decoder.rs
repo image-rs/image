@@ -34,38 +34,23 @@ const BI_CMYK: u32 = 11;
 const BI_CMYKRLE8: u32 = 12;
 const BI_CMYKRLE4: u32 = 13;
 
-static LOOKUP_TABLE_3_BIT_TO_8_BIT: [u8; 8] = [0, 36, 73, 109, 146, 182, 219, 255];
-static LOOKUP_TABLE_4_BIT_TO_8_BIT: [u8; 16] = [
-    0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255,
-];
-static LOOKUP_TABLE_5_BIT_TO_8_BIT: [u8; 32] = [
-    0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173,
-    181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
-];
-static LOOKUP_TABLE_6_BIT_TO_8_BIT: [u8; 64] = [
-    0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93,
-    97, 101, 105, 109, 113, 117, 121, 125, 130, 134, 138, 142, 146, 150, 154, 158, 162, 166, 170,
-    174, 178, 182, 186, 190, 194, 198, 202, 206, 210, 215, 219, 223, 227, 231, 235, 239, 243, 247,
-    251, 255,
-];
-
 static R5_G5_B5_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 5, shift: 10 },
-    g: Bitfield { len: 5, shift: 5 },
-    b: Bitfield { len: 5, shift: 0 },
-    a: Bitfield { len: 0, shift: 0 },
+    r: Bitfield::from_len_shift(5, 10),
+    g: Bitfield::from_len_shift(5, 5),
+    b: Bitfield::from_len_shift(5, 0),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 8, shift: 24 },
-    g: Bitfield { len: 8, shift: 16 },
-    b: Bitfield { len: 8, shift: 8 },
-    a: Bitfield { len: 0, shift: 0 },
+    r: Bitfield::from_len_shift(8, 24),
+    g: Bitfield::from_len_shift(8, 16),
+    b: Bitfield::from_len_shift(8, 8),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_A8_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 8, shift: 16 },
-    g: Bitfield { len: 8, shift: 8 },
-    b: Bitfield { len: 8, shift: 0 },
-    a: Bitfield { len: 8, shift: 24 },
+    r: Bitfield::from_len_shift(8, 16),
+    g: Bitfield::from_len_shift(8, 8),
+    b: Bitfield::from_len_shift(8, 0),
+    a: Bitfield::from_len_shift(8, 24),
 };
 
 const RLE_ESCAPE: u8 = 0;
@@ -770,12 +755,39 @@ fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 struct Bitfield {
     shift: u32,
     len: u32,
+    factor_addend: (u32, u32),
 }
 
 impl Bitfield {
+    /// Factors and addends such that `((data * factor + addend) >> 8) as u8`
+    /// maps the `data` value to the nearest value in the full 0-255 range.
+    ///
+    /// All constants come from the following site and were adjusted to use a
+    /// shift of 8: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
+    const FACTOR_ADDEND: [(u32, u32); 8] = [
+        (0x01_00, 0),    // len=8: round(x * 255 / 255) = (x * 256 + 0) >> 8
+        (0xff_00, 0),    // len=1: round(x * 255 / 1)   = (x * 65280 + 0) >> 8
+        (0x55_00, 0),    // len=2: round(x * 255 / 3)   = (x * 21760 + 0) >> 8
+        (0x24_80, 0),    // len=3: round(x * 255 / 7)   = (x * 9344 + 0) >> 8
+        (0x11_00, 0),    // len=4: round(x * 255 / 15)  = (x * 4352 + 0) >> 8
+        (0x08_3c, 0x5C), // len=5: round(x * 255 / 31)  = (x * 2108 + 92) >> 8
+        (0x04_0c, 0x84), // len=6: round(x * 255 / 63)  = (x * 1036 + 132) >> 8
+        (0x02_04, 0),    // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
+    ];
+
+    const fn from_len_shift(len: u32, shift: u32) -> Self {
+        debug_assert!(len <= 8);
+        debug_assert!(shift + len <= 32);
+        Bitfield {
+            shift,
+            len,
+            factor_addend: Self::FACTOR_ADDEND[(len % 8) as usize],
+        }
+    }
+
     fn from_mask(mask: u32, max_len: u32) -> ImageResult<Bitfield> {
         if mask == 0 {
-            return Ok(Bitfield { shift: 0, len: 0 });
+            return Ok(Bitfield::from_len_shift(0, 0));
         }
         let mut shift = mask.trailing_zeros();
         let mut len = (!(mask >> shift)).trailing_zeros();
@@ -789,23 +801,19 @@ impl Bitfield {
             shift += len - 8;
             len = 8;
         }
-        Ok(Bitfield { shift, len })
+        Ok(Bitfield::from_len_shift(len, shift))
     }
 
+    #[inline]
     fn read(&self, data: u32) -> u8 {
-        let data = data >> self.shift;
-        match self.len {
-            0 => 0,
-            1 => ((data & 0b1) * 0xff) as u8,
-            2 => ((data & 0b11) * 0x55) as u8,
-            3 => LOOKUP_TABLE_3_BIT_TO_8_BIT[(data & 0b00_0111) as usize],
-            4 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b00_1111) as usize],
-            5 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b01_1111) as usize],
-            6 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data & 0b11_1111) as usize],
-            7 => (((data & 0x7f) << 1) | ((data & 0x7f) >> 6)) as u8,
-            8 => (data & 0xff) as u8,
-            _ => panic!(),
-        }
+        debug_assert!(self.len <= 8);
+
+        // This performs branch-less UNORM conversion using the multiply-add
+        // method. See `FACTOR_ADDEND` above for more information.
+        let (factor, addend) = self.factor_addend;
+        let mask = (1 << self.len) - 1;
+        let data = (data >> self.shift) & mask;
+        ((data * factor + addend) >> 8) as u8
     }
 }
 
@@ -2185,7 +2193,7 @@ mod test {
     #[test]
     fn test_bitfield_len() {
         for len in 1..9 {
-            let bitfield = Bitfield { shift: 0, len };
+            let bitfield = Bitfield::from_len_shift(len, 0);
             for i in 0..(1 << len) {
                 let read = bitfield.read(i);
                 let calc = (f64::from(i) / f64::from((1 << len) - 1) * 255f64).round() as u8;

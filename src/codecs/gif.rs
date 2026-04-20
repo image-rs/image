@@ -366,8 +366,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         let image_buffer = if (frame.left, frame.top) == (0, 0)
             && (self.width, self.height) == frame_buffer.dimensions()
         {
-            for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
+            for (pixel, previous_pixel) in frame_buffer
+                .pixels_mut()
+                .zip(non_disposed_frame.pixels_mut())
+            {
                 blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
             }
             frame_buffer

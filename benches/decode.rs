@@ -1,7 +1,7 @@
-use std::{fs, iter, path};
+use std::{fs, hint::black_box, iter, path};
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use image::ImageFormat;
+use image::{AnimationDecoder, ImageFormat};
 
 #[derive(Clone, Copy)]
 struct BenchDef {
@@ -31,6 +31,14 @@ fn load_all(c: &mut Criterion) {
         BenchDef {
             dir: &["gif", "simple"],
             files: &["alpha_gif_a.gif", "sample_1.gif"],
+            format: ImageFormat::Gif,
+        },
+        BenchDef {
+            dir: &["gif", "anim"],
+            files: &[
+                "large-gif-anim-full-frame-replace.gif",
+                "large-gif-anim-combine.gif",
+            ],
             format: ImageFormat::Gif,
         },
         BenchDef {
@@ -95,12 +103,34 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     for file_name in def.files {
         let path: path::PathBuf = paths.clone().chain(iter::once(file_name)).collect();
         let buf = fs::read(path).unwrap();
+        let buf = buf.as_slice();
+
         group.bench_function(file_name.to_owned(), |b| {
             b.iter(|| {
-                image::load_from_memory_with_format(&buf, def.format).unwrap();
+                let r = image::load_from_memory_with_format(black_box(buf), black_box(def.format));
+                black_box(r.unwrap());
             });
         });
+
+        if decode_animation(buf, def.format).unwrap_or(0) > 1 {
+            group.bench_function("Animation: ".to_owned() + file_name, |b| {
+                b.iter(|| {
+                    let r = decode_animation(black_box(buf), black_box(def.format));
+                    black_box(r.unwrap());
+                });
+            });
+        }
     }
+}
+
+fn decode_animation(buf: &[u8], format: ImageFormat) -> image::ImageResult<usize> {
+    let reader = std::io::Cursor::new(buf);
+    let frames = match format {
+        ImageFormat::Gif => image::codecs::gif::GifDecoder::new(reader)?.into_frames(),
+        ImageFormat::WebP => image::codecs::webp::WebPDecoder::new(reader)?.into_frames(),
+        _ => panic!("Unsupported format for animation decoding"),
+    };
+    Ok(frames.count())
 }
 
 const IMAGE_DIR: [&str; 3] = [".", "tests", "images"];

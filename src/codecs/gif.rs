@@ -273,13 +273,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // begin looping over each frame
 
         let frame = match self.reader.next_frame_info() {
-            Ok(frame_info) => {
-                if let Some(frame) = frame_info {
-                    FrameInfo::new_from_frame(frame)
-                } else {
-                    // no more frames
-                    return None;
-                }
+            Ok(Some(frame_info)) => FrameInfo::new_from_frame(frame_info),
+            Ok(None) => {
+                // no more frames
+                return None;
             }
             Err(err) => match err {
                 gif::DecodingError::Io(ref e) => {

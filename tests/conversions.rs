@@ -106,6 +106,7 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
 
 #[cfg(feature = "tiff")]
 #[test]
+// This test is meant to match the behavior of libtiff first and foremost
 fn test_decode_8bit_cmyk() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from("tests/images/tiff/testsuite/cmyk_u8_edge_case.tif");
     let data = fs::read(img_path).expect("Test image missing");
@@ -123,6 +124,7 @@ fn test_decode_8bit_cmyk() -> Result<(), image::ImageError> {
 
 #[cfg(feature = "tiff")]
 #[test]
+// This test is meant to match the behavior of libtiff first and foremost
 fn test_decode_8bit_cmyk_truncation() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from("tests/images/tiff/testsuite/cmyk_u8_trunc_case.tif");
     let data = fs::read(img_path).expect("Test image missing");

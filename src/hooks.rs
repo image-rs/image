@@ -242,10 +242,7 @@ mod tests {
             Some(&[0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff]),
         );
 
-        const TEST_INPUT_IMAGE: [u8; 16] = [
-            b'H', b'E', b'A', b'D', b'J', b'U', b'N', b'K', b'M', b'O', b'C', b'K', b'm', b'o',
-            b'r', b'e',
-        ];
+        const TEST_INPUT_IMAGE: [u8; 16] = *b"HEADJUNKMOCKmore";
         assert_eq!(
             guess_format_extension(&TEST_INPUT_IMAGE),
             Some(OsStr::new(MOCK_HOOK_EXTENSION).to_ascii_lowercase())

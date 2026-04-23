@@ -97,3 +97,43 @@ fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
 
     assert!(result.is_err());
 }
+
+#[cfg(feature = "tiff")]
+#[test]
+// This test is meant to match the behavior of libtiff first and foremost
+fn test_decode_8bit_cmyk() -> Result<(), image::ImageError> {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/cmyk_u8_edge_case.tif");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let mut reader = ImageReader::from_decoder(Box::new(tiff_decoder));
+
+    let img = reader.peek_layout()?;
+    assert_eq!(img.layout.color, image::ColorType::Rgb8);
+
+    let mut buffer = vec![0u8; img.total_bytes() as usize];
+    reader.decode_into(&mut buffer)?;
+    assert_eq!(buffer, vec![190, 190, 190]);
+
+    Ok(())
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+// This test is meant to match the behavior of libtiff first and foremost
+fn test_decode_8bit_cmyk_truncation() -> Result<(), image::ImageError> {
+    let img_path = PathBuf::from("tests/images/tiff/testsuite/cmyk_u8_trunc_case.tif");
+    let data = fs::read(img_path).expect("Test image missing");
+
+    let tiff_decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let mut reader = ImageReader::from_decoder(Box::new(tiff_decoder));
+
+    let img = reader.peek_layout()?;
+    assert_eq!(img.layout.color, image::ColorType::Rgb8);
+
+    let mut buffer = vec![0u8; img.total_bytes() as usize];
+    reader.decode_into(&mut buffer)?;
+    assert_eq!(buffer, vec![126, 126, 126]);
+
+    Ok(())
+}

@@ -284,7 +284,9 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         // Bind to a variable to avoid repeated `.unwrap()` calls
         let non_disposed_frame = self.non_disposed_frame.as_mut().unwrap();
 
-        // blend and dispose into the current non-disposed frame.
+        // if `frame_buffer`'s frame exactly matches the entire image, then
+        // use it directly, else create a new buffer to hold the composited
+        // image.
         if let Some((frame_start, frame_len)) = frame_start_len {
             // We can blend pixels in a fully contiguous region instead of row-by-row.
             let non_disposed_data =

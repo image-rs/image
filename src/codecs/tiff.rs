@@ -677,26 +677,30 @@ fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
-    let c = f32::from(cmyk[0]);
-    let m = f32::from(cmyk[1]);
-    let y = f32::from(cmyk[2]);
-    let kf = 1. - f32::from(cmyk[3]) / 255.;
+    let c = cmyk[0] as u32;
+    let m = cmyk[1] as u32;
+    let y = cmyk[2] as u32;
+    let k = cmyk[3] as u32;
+
+    let k_inv = 255 - k;
     [
-        ((255. - c) * kf) as u8,
-        ((255. - m) * kf) as u8,
-        ((255. - y) * kf) as u8,
+        (((255 - c) * k_inv) / 255) as u8,
+        (((255 - m) * k_inv) / 255) as u8,
+        (((255 - y) * k_inv) / 255) as u8,
     ]
 }
 
 fn cmyk_to_rgb16(cmyk: &[u16; 4]) -> [u16; 3] {
-    let c = f32::from(cmyk[0]);
-    let m = f32::from(cmyk[1]);
-    let y = f32::from(cmyk[2]);
-    let kf = 1. - f32::from(cmyk[3]) / 65535.;
+    let c = cmyk[0] as u64;
+    let m = cmyk[1] as u64;
+    let y = cmyk[2] as u64;
+    let k = cmyk[3] as u64;
+
+    let k_inv = 65535 - k;
     [
-        ((65535. - c) * kf) as u16,
-        ((65535. - m) * kf) as u16,
-        ((65535. - y) * kf) as u16,
+        (((65535 - c) * k_inv) / 65535) as u16,
+        (((65535 - m) * k_inv) / 65535) as u16,
+        (((65535 - y) * k_inv) / 65535) as u16,
     ]
 }
 

@@ -68,9 +68,9 @@ pic-scale-safe = "0.1.5"
 num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
-criterion = "0.5.0"
 libtest-mimic = "0.8.1"
 walkdir = "2.5.0"
+criterion = { version = "4.3.0", package = "codspeed-criterion-compat" }
 
 [features]
 default = ["rayon", "default-formats"]

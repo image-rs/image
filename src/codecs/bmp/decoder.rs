@@ -418,9 +418,6 @@ impl<'a> Iterator for RowIterator<'a> {
 /// All errors that can occur when attempting to parse a BMP
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum DecoderError {
-    // Failed to decompress RLE data.
-    CorruptRleData,
-
     /// The bitfield mask interleaves set and unset bits
     BitfieldMaskNonContiguous,
     /// Bitfield mask invalid (e.g. too long for specified type)
@@ -467,7 +464,6 @@ enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::CorruptRleData => f.write_str("Corrupt RLE data"),
             DecoderError::BitfieldMaskNonContiguous => f.write_str("Non-contiguous bitfield mask"),
             DecoderError::BitfieldMaskInvalid => f.write_str("Invalid bitfield mask"),
             DecoderError::BitfieldMaskMissing(bb) => {
@@ -659,7 +655,7 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
             pixel[1] = rgb[1];
             pixel[2] = rgb[2];
         } else {
-            return false;
+            break;
         }
     }
     true
@@ -683,7 +679,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     pixel[1] = rgb[1];
                     pixel[2] = rgb[2];
                 } else {
-                    return false;
+                    break;
                 }
                 n_pixels -= 1;
             };
@@ -1921,30 +1917,34 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                     pixel_iter.for_each(|p| p.fill(0));
 
                                     for _ in 1..y_delta {
-                                        let row =
-                                            row_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                        row.fill(0);
+                                        if let Some(row) = row_iter.next() {
+                                            row.fill(0);
+                                        } else {
+                                            return Ok(());
+                                        }
                                     }
 
-                                    current_row += y_delta as u32;
-
-                                    pixel_iter = row_iter
-                                        .next()
-                                        .ok_or(DecoderError::CorruptRleData)?
-                                        .chunks_exact_mut(num_channels);
+                                    if let Some(next_row) = row_iter.next() {
+                                        pixel_iter = next_row.chunks_exact_mut(num_channels);
+                                    } else {
+                                        return Ok(());
+                                    }
 
                                     for _ in 0..x {
-                                        pixel_iter
-                                            .next()
-                                            .ok_or(DecoderError::CorruptRleData)?
-                                            .fill(0);
+                                        if let Some(pixel) = pixel_iter.next() {
+                                            pixel.fill(0);
+                                        } else {
+                                            break;
+                                        }
                                     }
                                 }
 
                                 for _ in 0..x_delta {
-                                    let pixel =
-                                        pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                    pixel.fill(0);
+                                    if let Some(pixel) = pixel_iter.next() {
+                                        pixel.fill(0);
+                                    } else {
+                                        break;
+                                    }
                                 }
                                 x += x_delta as u32;
                             }
@@ -1956,27 +1956,25 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         let mut length = count;
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_8bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        set_8bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
-                                            return Err(DecoderError::CorruptRleData.into());
-                                        }
+                                        );
                                     }
                                     ImageType::RLE4 => {
                                         let mut length = count.div_ceil(2);
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_4bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        set_4bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
-                                            return Err(DecoderError::CorruptRleData.into());
-                                        }
+                                        );
                                     }
                                     ImageType::RLE24 => {
                                         for _ in 0..count {
@@ -2017,14 +2015,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             }
                             ImageType::RLE4 => {
                                 let palette_index = rle_reader.read_byte()?;
-                                if !set_4bit_pixel_run(
+                                // Silently truncate if run overflows the row
+                                // (matches RLE8 encoded run behavior).
+                                set_4bit_pixel_run(
                                     &mut pixel_iter,
                                     p.unwrap(),
                                     repeat(&palette_index),
                                     n_pixels,
-                                ) {
-                                    return Err(DecoderError::CorruptRleData.into());
-                                }
+                                );
                             }
                             ImageType::RLE24 => {
                                 let b = rle_reader.read_byte()?;

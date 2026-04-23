@@ -452,10 +452,7 @@ enum DecoderError {
     HeaderTooSmall(u32),
 
     /// The palette is bigger than allowed by the bit count of the BMP
-    PaletteSizeExceeded {
-        colors_used: u32,
-        bit_count: u16,
-    },
+    PaletteSizeExceeded { colors_used: u32, bit_count: u16 },
 
     /// read_image_data was called before read_metadata completed
     MetadataNotRead,

@@ -896,13 +896,17 @@ where
 
 /// Perform a 3x3 box filter on the supplied image.
 ///
-/// # Arguments:
+/// # Arguments
 ///
 /// * `image` - source image.
 /// * `kernel` - is an array of the filter weights of length 9.
 ///
+/// # Notes
+///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
+///
+/// This operations uses the clamp/replicate abyss policy. I.e. `aaa|abcdef|fff`.
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32; 9]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -924,6 +928,9 @@ where
 
     let (width, height) = image.dimensions();
     let mut out = image.buffer_like();
+    if width == 0 || height == 0 {
+        return out;
+    }
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -933,16 +940,16 @@ where
         sum => 1.0 / sum,
     };
 
-    for y in 1..height - 1 {
-        for x in 1..width - 1 {
+    for y in 0..height {
+        for x in 0..width {
             let mut t = [0.0; MAX_CHANNEL];
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let x0 = x as isize + a;
-                let y0 = y as isize + b;
+                let x0 = (x as isize + a).clamp(0, (width - 1) as isize);
+                let y0 = (y as isize + b).clamp(0, (height - 1) as isize);
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 

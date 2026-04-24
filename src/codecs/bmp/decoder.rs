@@ -418,9 +418,6 @@ impl<'a> Iterator for RowIterator<'a> {
 /// All errors that can occur when attempting to parse a BMP
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum DecoderError {
-    // Failed to decompress RLE data.
-    CorruptRleData,
-
     /// The bitfield mask interleaves set and unset bits
     BitfieldMaskNonContiguous,
     /// Bitfield mask invalid (e.g. too long for specified type)
@@ -455,13 +452,12 @@ enum DecoderError {
     HeaderTooSmall(u32),
 
     /// The palette is bigger than allowed by the bit count of the BMP
-    PaletteSizeExceeded {
-        colors_used: u32,
-        bit_count: u16,
-    },
+    PaletteSizeExceeded { colors_used: u32, bit_count: u16 },
 
     /// read_image_data was called before read_metadata completed
     MetadataNotRead,
+    /// Corrupt RLE data
+    CorruptRleData,
 }
 
 impl fmt::Display for DecoderError {
@@ -1921,30 +1917,43 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                     pixel_iter.for_each(|p| p.fill(0));
 
                                     for _ in 1..y_delta {
-                                        let row =
-                                            row_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                        row.fill(0);
+                                        if let Some(row) = row_iter.next() {
+                                            row.fill(0);
+                                        } else if self.spec_strictness == SpecCompliance::Strict {
+                                            return Err(DecoderError::CorruptRleData.into());
+                                        } else {
+                                            return Ok(());
+                                        }
                                     }
 
                                     current_row += y_delta as u32;
-
-                                    pixel_iter = row_iter
-                                        .next()
-                                        .ok_or(DecoderError::CorruptRleData)?
-                                        .chunks_exact_mut(num_channels);
+                                    if let Some(next_row) = row_iter.next() {
+                                        pixel_iter = next_row.chunks_exact_mut(num_channels);
+                                    } else if self.spec_strictness == SpecCompliance::Strict {
+                                        return Err(DecoderError::CorruptRleData.into());
+                                    } else {
+                                        return Ok(());
+                                    }
 
                                     for _ in 0..x {
-                                        pixel_iter
-                                            .next()
-                                            .ok_or(DecoderError::CorruptRleData)?
-                                            .fill(0);
+                                        if let Some(pixel) = pixel_iter.next() {
+                                            pixel.fill(0);
+                                        } else if self.spec_strictness == SpecCompliance::Strict {
+                                            return Err(DecoderError::CorruptRleData.into());
+                                        } else {
+                                            break;
+                                        }
                                     }
                                 }
 
                                 for _ in 0..x_delta {
-                                    let pixel =
-                                        pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                    pixel.fill(0);
+                                    if let Some(pixel) = pixel_iter.next() {
+                                        pixel.fill(0);
+                                    } else if self.spec_strictness == SpecCompliance::Strict {
+                                        return Err(DecoderError::CorruptRleData.into());
+                                    } else {
+                                        break;
+                                    }
                                 }
                                 x += x_delta as u32;
                             }
@@ -1956,12 +1965,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         let mut length = count;
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_8bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        let success = set_8bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
+                                        );
+                                        if self.spec_strictness == SpecCompliance::Strict
+                                            && !success
+                                        {
                                             return Err(DecoderError::CorruptRleData.into());
                                         }
                                     }
@@ -1969,12 +1982,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         let mut length = count.div_ceil(2);
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_4bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        let success = set_4bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
+                                        );
+                                        if self.spec_strictness == SpecCompliance::Strict
+                                            && !success
+                                        {
                                             return Err(DecoderError::CorruptRleData.into());
                                         }
                                     }
@@ -2017,12 +2034,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             }
                             ImageType::RLE4 => {
                                 let palette_index = rle_reader.read_byte()?;
-                                if !set_4bit_pixel_run(
+                                // Silently truncate if run overflows the row
+                                // (matches RLE8 encoded run behavior).
+                                let success = set_4bit_pixel_run(
                                     &mut pixel_iter,
                                     p.unwrap(),
                                     repeat(&palette_index),
                                     n_pixels,
-                                ) {
+                                );
+                                if self.spec_strictness == SpecCompliance::Strict && !success {
                                     return Err(DecoderError::CorruptRleData.into());
                                 }
                             }
@@ -2722,5 +2742,55 @@ mod test {
                 "{description}: expected error in strict mode, but got Ok"
             );
         }
+    }
+
+    /// Test that strict mode correctly rejects RLE files with known corruptions.
+    ///
+    /// - `rle_overflow.bmp`: The image header specifies a width of 2. However, the RLE data
+    ///   contains an absolute run of 3 pixels (`00 03 ...`), which overflows the row boundary.
+    /// - `badrle.bmp`: The image height is 64. However, the RLE data contains multiple Delta skip
+    ///   instructions that move the cursor past the end of the image.
+    #[test]
+    fn test_strict_mode_fails_on_rle_errors() {
+        let test_files = [
+            "tests/images/bmp/images/lenient/rle_overflow.bmp",
+            "tests/images/bmp/images/lenient/badrle.bmp",
+        ];
+
+        for path in &test_files {
+            let data = std::fs::read(path).expect("Test image missing");
+
+            // Strict mode must fail on these images during full decode
+            let strict_result =
+                BmpDecoder::new_with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                    .and_then(|d| {
+                        let mut buf = vec![0u8; d.total_bytes() as usize];
+                        d.read_image(buf.as_mut_slice())
+                    });
+            assert!(
+                strict_result.is_err(),
+                "{path}: expected error in strict mode, but got Ok"
+            );
+        }
+    }
+
+    #[test]
+    fn test_decode_bmp_rle_overflow() {
+        let data = std::fs::read("tests/images/bmp/images/lenient/rle_overflow.bmp")
+            .expect("Test image missing");
+        let decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+        let result = decoder.read_image(&mut buffer);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_decode_bmp_badrle() {
+        let data = std::fs::read("tests/images/bmp/images/lenient/badrle.bmp")
+            .expect("Test image missing");
+        let decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+        let result = decoder.read_image(&mut buffer);
+        assert!(result.is_ok());
     }
 }

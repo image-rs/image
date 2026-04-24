@@ -1,5 +1,6 @@
 //! Types describing image metadata
 pub(crate) mod cicp;
+mod moxcms;
 
 use std::{
     io::{Cursor, Read},
@@ -12,6 +13,15 @@ pub use self::cicp::{
     Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics, CicpTransform,
     CicpVideoFullRangeFlag,
 };
+
+pub(crate) trait CmsProvider {
+    fn transform(&self, from: Cicp, to: Cicp) -> Option<CicpTransform>;
+    fn parse_icc(&self, icc: &[u8]) -> Option<Cicp>;
+}
+
+pub(crate) fn cms_provider() -> &'static dyn CmsProvider {
+    &moxcms::Moxcms
+}
 
 /// Describes the transformations to be applied to the image.
 /// Compatible with [Exif orientation](https://web.archive.org/web/20200412005226/https://www.impulseadventure.com/photo/exif-orientation.html).
@@ -75,21 +85,24 @@ impl Orientation {
     /// Extracts the image orientation from a raw Exif chunk.
     ///
     /// You can obtain the Exif chunk using
-    /// [ImageDecoder::exif_metadata](crate::ImageDecoder::exif_metadata).
+    /// [`DecodedImageAttributes::exif_metadata`](crate::io::DecodedImageMetadata::exif_metadata).
+    /// With a decoder, [ImageDecoder::exif_metadata](crate::ImageDecoder::exif_metadata) can be
+    /// used to fetch the metadata in some states as indicated by
+    /// [`DecodedImageMetadata::icc_profile`](crate::io::DecodedImageMetadata::icc_profile).
     ///
-    /// It is more convenient to use [ImageDecoder::orientation](crate::ImageDecoder::orientation)
-    /// than to invoke this function.
-    /// Only use this function if you extract and process the Exif chunk separately.
+    /// You usually only use this function if you extract and process more Exif chunk separately.
     #[must_use]
     pub fn from_exif_chunk(chunk: &[u8]) -> Option<Self> {
         Self::from_exif_chunk_inner(chunk).map(|res| res.0)
     }
 
-    /// Extracts the image orientation from a raw Exif chunk and sets the orientation in the Exif chunk to `Orientation::NoTransforms`.
-    /// This is useful if you want to apply the orientation yourself, and then encode the image with the rest of the Exif chunk intact.
+    /// Extracts the image orientation from a raw Exif chunk and sets the orientation in the Exif
+    /// chunk to [`Orientation::NoTransforms`]. This is useful if you want to apply the orientation
+    /// yourself, and then encode the image with the rest of the Exif chunk intact.
     ///
-    /// If the orientation data is not cleared from the Exif chunk after you apply the orientation data yourself,
-    /// the image will end up being rotated once again by any software that correctly handles Exif, leading to an incorrect result.
+    /// If the orientation data is not cleared from the Exif chunk after you apply the orientation
+    /// data yourself, the image will end up being rotated once again by any software that
+    /// correctly handles Exif, leading to an incorrect result.
     ///
     /// If the Exif value is present but invalid, `None` is returned and the Exif chunk is not modified.
     #[must_use]
@@ -162,7 +175,7 @@ enum ExifEndian {
 }
 
 /// The number of times animated image should loop over.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LoopCount {
     /// Loop the image Infinitely
     Infinite,

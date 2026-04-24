@@ -22,6 +22,7 @@ use crate::color::ExtendedColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::{ColorType, ImageDecoder, ImageEncoder, ImageFormat};
 
 const MAGIC: &[u8] = b"farbfeld";
@@ -40,14 +41,16 @@ fn parse_header(r: &mut dyn Read) -> ImageResult<(u32, u32)> {
     let width = u32::from_be_bytes(header[8..12].try_into().unwrap());
     let height = u32::from_be_bytes(header[12..16].try_into().unwrap());
 
-    if crate::utils::check_dimension_overflow(
-        width, height, 8, // ExtendedColorType is always rgba16
-    ) {
+    // ExtendedColorType is always rgba16
+    let layout = crate::ImageLayout::new(width, height, ColorType::Rgba16);
+
+    if layout.total_bytes_overflows_u64() {
         return Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Farbfeld.into(),
                 UnsupportedErrorKind::GenericFeature(format!(
-                    "Image dimensions ({width}x{height}) are too large"
+                    "Image dimensions ({}x{}) are too large",
+                    width, height
                 )),
             ),
         ));
@@ -86,23 +89,17 @@ impl<R: Read> FarbfeldDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let FarbfeldDecoder { width, height, .. } = *self;
+        Ok(DecoderPreparedImage::new(width, height, ColorType::Rgba16))
     }
 
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgba16
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.reader.read_exact(buf)?;
         u16_be_to_ne(buf);
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

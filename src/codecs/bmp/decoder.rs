@@ -18,6 +18,7 @@ const BITMAPV2HEADER_SIZE: u32 = 52;
 const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
+const FILE_HEADER_SIZE: u64 = 14;
 
 const OS2_V2_MAX_HEADER_SIZE: u32 = 64;
 const OS2_V2_MIN_HEADER_SIZE: u32 = 16;
@@ -319,6 +320,9 @@ enum MetadataProgress {
 /// Carried through metadata phases to avoid redundant state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HeaderOffsets {
+    /// Absolute file offset where the DIB header ends (before any extra
+    /// bitmask bytes or palette). This is the minimum valid data_offset.
+    bmp_header_end: u64,
     /// Offset where palette data starts (after headers).
     palette_offset: u64,
     /// ICC profile metadata if present.
@@ -1068,8 +1072,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         // Read entire 14-byte file header
-        const FILE_HEADER_SIZE: usize = 14;
-        let mut buffer = [0u8; FILE_HEADER_SIZE];
+        let mut buffer = [0u8; FILE_HEADER_SIZE as usize];
         self.reader.read_exact(&mut buffer)?;
 
         // Check signature
@@ -1368,9 +1371,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
 
                 // For no_file_header mode, capture data_offset now (after palette read)
-                // before ICC profile reading potentially changes reader position
+                // before ICC profile reading potentially changes reader position.
+                // For normal mode, clamp data_offset if it points into the DIB header
+                // (between FILE_HEADER_SIZE and bmp_header_end). Such values are invalid
+                // because they overlap with header data.
                 if self.no_file_header {
                     self.data_offset = self.reader.stream_position()?;
+                } else if self.data_offset >= FILE_HEADER_SIZE
+                    && self.data_offset < offsets.bmp_header_end
+                {
+                    self.data_offset = offsets.bmp_header_end;
                 }
 
                 // Always progress to ReadingIccProfile next
@@ -1502,6 +1512,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
         Ok(HeaderOffsets {
+            bmp_header_end,
             palette_offset,
             icc_profile,
         })
@@ -2722,5 +2733,37 @@ mod test {
                 "{description}: expected error in strict mode, but got Ok"
             );
         }
+    }
+
+    /// A BMP with data_offset=34 points into the middle of the DIB header,
+    /// which is invalid. The decoder should clamp it to bmp_header_end (54)
+    /// and produce the same output as a correctly-formed file.
+    #[test]
+    fn test_invalid_data_offset_into_dib_header() {
+        let data: Vec<u8> = vec![
+            0x42, 0x4D, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
+        ];
+
+        // Same BMP but with the correct data_offset = 54 (0x36)
+        let mut reference = data.clone();
+        reference[10] = 0x36;
+
+        // Decode both
+        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let mut buf = vec![0u8; decoder.total_bytes() as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        let ref_decoder = BmpDecoder::new(Cursor::new(&reference)).unwrap();
+        let mut ref_buf = vec![0u8; ref_decoder.total_bytes() as usize];
+        ref_decoder.read_image(&mut ref_buf).unwrap();
+
+        assert_eq!(
+            buf, ref_buf,
+            "BMP with invalid data_offset=34 should decode identically to data_offset=54"
+        );
     }
 }

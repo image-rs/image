@@ -1586,16 +1586,19 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 
 /// Performs an unsharpen mask on the supplied image.
 ///
-/// # Arguments:
+/// # Arguments
 ///
-/// * `sigma` - is the amount to blur the image by.
-/// * `threshold` - is the threshold for minimal brightness change that will be sharpened.
+/// - `sigma` - The amount to blur the image by.
+/// - `threshold` - The threshold between 0 and 1 that removes sharpening from
+///   areas with little contrast.
+///
+/// # Notes
 ///
 /// This method typically assumes that the input is scene-linear light.
 /// If it is not, color distortion may occur.
 ///
 /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking) for more information.
-pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
+pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
@@ -1603,8 +1606,11 @@ where
 {
     let mut tmp = blur_advanced(image, GaussianBlurParameters::new_from_sigma(sigma));
 
-    let max = S::DEFAULT_MAX_VALUE;
-    let max: i32 = NumCast::from(max).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
+
+    let threshold = threshold * (max - min);
+
     let (width, height) = image.dimensions();
 
     for y in 0..height {
@@ -1613,13 +1619,13 @@ where
             let b = tmp.get_pixel_mut(x, y);
 
             let p = a.map2(b, |c, d| {
-                let ic: i32 = NumCast::from(c).unwrap();
-                let id: i32 = NumCast::from(d).unwrap();
+                let c_f: f32 = NumCast::from(c).unwrap();
+                let d_f: f32 = NumCast::from(d).unwrap();
 
-                let diff = ic - id;
+                let diff = c_f - d_f;
 
                 if diff.abs() > threshold {
-                    let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
+                    let e = clamp(c_f + diff, min, max);
 
                     NumCast::from(e).unwrap()
                 } else {

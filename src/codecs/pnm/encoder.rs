@@ -442,7 +442,7 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
-                ExtendedColorType::Rgb8 => (),
+                ExtendedColorType::Rgb8 | ExtendedColorType::Rgb16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::Generic(
@@ -461,12 +461,13 @@ impl<'a> CheckedDimensions<'a> {
                 ..
             } => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ExtendedColorType::L1) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ExtendedColorType::La8) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ExtendedColorType::La1) => (),
 
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L1) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L8) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L16) => (),
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La8) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La16) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb8) => (),
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb16) => (),
@@ -511,7 +512,7 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             ExtendedColorType::Unknown(n) if n <= 16 => (1 << n) - 1,
-            ExtendedColorType::L1 => 1,
+            ExtendedColorType::L1 | ExtendedColorType::La1 => 1,
             ExtendedColorType::L8
             | ExtendedColorType::La8
             | ExtendedColorType::Rgb8

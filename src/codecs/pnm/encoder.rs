@@ -419,9 +419,10 @@ impl<'a> CheckedDimensions<'a> {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PBM format only support luma color types".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PBM format only supports luma color types, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -432,9 +433,10 @@ impl<'a> CheckedDimensions<'a> {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PGM format only support luma color types".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PGM format only supports luma color types, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -445,9 +447,10 @@ impl<'a> CheckedDimensions<'a> {
                 ExtendedColorType::Rgb8 | ExtendedColorType::Rgb16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PPM format only support ExtendedColorType::Rgb8".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PPM format only supports Rgb8 or Rgb16, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -485,9 +488,10 @@ impl<'a> CheckedDimensions<'a> {
                 }
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "Invalid color type for selected PAM color type".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "Invalid color type {:?} for selected PAM color type {:?}",
+                            color, tupltype
+                        )),
                     )))
                 }
             },

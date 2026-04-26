@@ -1643,8 +1643,7 @@ impl GrayImage {
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
 
         let bytes = &mut *buffer;
-        for i in 0..entries {
-            let read_index = entries - 1 - i;
+        for read_index in (0..entries).rev() {
             let write_index = read_index * 4;
 
             let palette_index = bytes[read_index];

@@ -275,6 +275,23 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         Ok(())
     }
 
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        // XMP is stored in an APP1 segment with namespace prefix "http://ns.adobe.com/xap/1.0/\0"
+        const XMP_NAMESPACE_PREFIX: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
+
+        let mut data = Vec::with_capacity(XMP_NAMESPACE_PREFIX.len() + xmp.len());
+        data.extend_from_slice(XMP_NAMESPACE_PREFIX);
+        data.extend_from_slice(&xmp);
+
+        self.encoder.add_app_segment(1, data).map_err(|_| {
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Jpeg.into(),
+                UnsupportedErrorKind::GenericFeature("XMP metadata too large".to_string()),
+            )
+        })?;
+        Ok(())
+    }
+
     fn make_compatible_img(
         &self,
         _: crate::io::encoder::MethodSealedToImage,
@@ -399,6 +416,30 @@ mod tests {
             .expect("Error decoding ICC")
             .expect("ICC is empty");
         assert_eq!(icc, decoded_icc);
+    }
+
+    #[test]
+    fn roundtrip_xmp() {
+        let img = [255u8, 0, 0, 255];
+
+        let xmp = b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF></rdf:RDF></x:xmpmeta>".to_vec();
+
+        let mut encoded_img = Vec::new();
+        {
+            let mut encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
+            encoder.set_xmp_metadata(xmp.clone()).unwrap();
+            encoder
+                .write_image(&img[..], 2, 2, ExtendedColorType::L8)
+                .expect("Could not encode image");
+        }
+
+        let mut decoder =
+            JpegDecoder::new(Cursor::new(encoded_img)).expect("Could not decode image");
+        let decoded_xmp = decoder
+            .xmp_metadata()
+            .expect("Error decoding XMP")
+            .expect("XMP is empty");
+        assert_eq!(xmp, decoded_xmp);
     }
 
     #[test]

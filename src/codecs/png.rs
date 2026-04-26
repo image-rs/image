@@ -596,7 +596,7 @@ pub struct PngEncoder<W: Write> {
     filter: FilterType,
     icc_profile: Vec<u8>,
     exif_metadata: Vec<u8>,
-    xmp_metadata: Vec<u8>,
+    xmp_metadata: Option<String>,
 }
 
 /// DEFLATE compression level of a PNG encoder. The default setting is `Fast`.
@@ -650,7 +650,7 @@ impl<W: Write> PngEncoder<W> {
             filter: FilterType::default(),
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
-            xmp_metadata: Vec::new(),
+            xmp_metadata: None,
         }
     }
 
@@ -677,7 +677,7 @@ impl<W: Write> PngEncoder<W> {
             filter,
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
-            xmp_metadata: Vec::new(),
+            xmp_metadata: None,
         }
     }
 
@@ -744,10 +744,7 @@ impl<W: Write> PngEncoder<W> {
         let mut encoder =
             png::Encoder::with_info(self.w, info).map_err(|e| ImageError::IoError(e.into()))?;
 
-        if !self.xmp_metadata.is_empty() {
-            let xmp_text = String::from_utf8(self.xmp_metadata).map_err(|e| {
-                ImageError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-            })?;
+        if let Some(xmp_text) = self.xmp_metadata {
             encoder
                 .add_itxt_chunk(XMP_KEY.to_string(), xmp_text)
                 .map_err(|e| ImageError::IoError(e.into()))?;
@@ -836,7 +833,12 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     }
 
     fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
-        self.xmp_metadata = xmp;
+        self.xmp_metadata = Some(String::from_utf8(xmp).map_err(|_| {
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Png.into(),
+                UnsupportedErrorKind::GenericFeature("XMP metadata is not valid UTF-8".to_string()),
+            )
+        })?);
         Ok(())
     }
 

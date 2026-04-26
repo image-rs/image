@@ -1629,7 +1629,7 @@ pub trait ConvertBuffer<T> {
 impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
-    /// adjust it's alpha value accordingly.
+    /// adjust its alpha value accordingly.
     #[must_use]
     pub fn expand_palette(
         self,
@@ -1647,22 +1647,15 @@ impl GrayImage {
             let write_index = read_index * 4;
 
             let palette_index = bytes[read_index];
-            let pixel = &mut bytes[write_index..write_index + 4];
 
             let (r, g, b) = palette[palette_index as usize];
-            let a = if let Some(t_idx) = transparent_idx {
-                if t_idx == palette_index {
-                    0
-                } else {
-                    255
-                }
+            let a = if Some(palette_index) == transparent_idx {
+                0
             } else {
                 255
             };
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
-            pixel[3] = a;
+
+            bytes[write_index..][..4].copy_from_slice(&[r, g, b, a]);
         }
 
         buffer

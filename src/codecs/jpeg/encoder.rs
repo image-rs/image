@@ -275,15 +275,14 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         Ok(())
     }
 
-    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+    fn set_xmp_metadata(&mut self, mut xmp: Vec<u8>) -> Result<(), UnsupportedError> {
         // XMP is stored in an APP1 segment with namespace prefix "http://ns.adobe.com/xap/1.0/\0"
         const XMP_NAMESPACE_PREFIX: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 
-        let mut data = Vec::with_capacity(XMP_NAMESPACE_PREFIX.len() + xmp.len());
-        data.extend_from_slice(XMP_NAMESPACE_PREFIX);
-        data.extend_from_slice(&xmp);
+        xmp.extend_from_slice(XMP_NAMESPACE_PREFIX);
+        xmp.rotate_right(XMP_NAMESPACE_PREFIX.len());
 
-        self.encoder.add_app_segment(1, data).map_err(|_| {
+        self.encoder.add_app_segment(1, xmp).map_err(|_| {
             UnsupportedError::from_format_and_kind(
                 ImageFormat::Jpeg.into(),
                 UnsupportedErrorKind::GenericFeature("XMP metadata too large".to_string()),

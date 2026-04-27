@@ -327,6 +327,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
         // blend the current frame with the non-disposed frame, then update
         // the non-disposed frame according to the disposal method.
+        #[inline]
         fn blend_and_dispose_pixel(
             dispose: DisposalMethod,
             previous: &mut Rgba<u8>,
@@ -360,6 +361,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // if `frame_buffer`'s frame exactly matches the entire image, then
         // use it directly, else create a new buffer to hold the composited
         // image.
+
+        // binding to variable makes it clear to the compiler that the value does not change in the loop,
+        // improves benchmarks by 10%
+        let disposal_method = frame.disposal_method;
         let image_buffer = if (frame.left, frame.top) == (0, 0)
             && (self.width, self.height) == frame_buffer.dimensions()
         {
@@ -367,7 +372,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                 .pixels_mut()
                 .zip(non_disposed_frame.pixels_mut())
             {
-                blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
+                blend_and_dispose_pixel(disposal_method, previous_pixel, pixel);
             }
             frame_buffer
         } else {
@@ -382,7 +387,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
                 if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
                     let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
-                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
+                    blend_and_dispose_pixel(disposal_method, previous_pixel, &mut pixel);
                     pixel
                 } else {
                     // out of bounds, return pixel from previous frame

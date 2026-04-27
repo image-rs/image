@@ -327,6 +327,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
         // blend the current frame with the non-disposed frame, then update
         // the non-disposed frame according to the disposal method.
+        #[inline]
         fn blend_and_dispose_pixel(
             dispose: DisposalMethod,
             previous: &mut Rgba<u8>,

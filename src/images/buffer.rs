@@ -14,6 +14,7 @@ use crate::flat::{FlatSamples, SampleLayout, ViewOfPixel};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
+use crate::utils::vec_try_with_capacity;
 use crate::{
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
@@ -984,6 +985,27 @@ where
     #[track_caller]
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel;
+    }
+
+    /// Same as `Self::crop_in_place` but not in place.
+    pub(crate) fn crop(&self, selection: Rect) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let selection = selection.shrink_to_bounds_of(self);
+        assert!(selection.test_in_bounds_of(self).is_ok());
+
+        let data_len = Self::image_buffer_len(selection.width, selection.height).unwrap();
+        let mut data = vec_try_with_capacity::<P::Subpixel>(data_len)
+            .expect("capacity overflow for cropped image");
+        let row_pitch = data_len / selection.height as usize;
+
+        for y in 0..selection.height {
+            let sy = selection.y + y;
+            let source = self.pixel_indices_unchecked(selection.x, sy).start;
+            data.extend_from_slice(&self.data[source..source + row_pitch]);
+        }
+
+        let mut out = ImageBuffer::from_raw(selection.width, selection.height, data).unwrap();
+        out.color = self.color;
+        out
     }
 
     /// Crop this image in place, removing pixels outside of the bounding rectangle.

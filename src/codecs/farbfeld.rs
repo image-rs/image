@@ -59,7 +59,7 @@ fn parse_header(r: &mut dyn Read) -> ImageResult<(u32, u32)> {
     Ok((width, height))
 }
 
-fn u16_be_to_ne(data: &mut [u8]) {
+fn u16_swap_be_ne(data: &mut [u8]) {
     #[cfg(target_endian = "little")]
     {
         for [low, high] in data.as_chunks_mut::<2>().0 {
@@ -98,7 +98,7 @@ impl<R: Read> ImageDecoder for FarbfeldDecoder<R> {
         let layout = self.prepare_image()?;
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
         self.reader.read_exact(buf)?;
-        u16_be_to_ne(buf);
+        u16_swap_be_ne(buf);
         Ok(DecodedImageAttributes::default())
     }
 }
@@ -109,9 +109,9 @@ pub struct FarbfeldEncoder<W: Write> {
 }
 
 impl<W: Write> FarbfeldEncoder<W> {
-    /// Create a new encoder that writes its output to ```w```. The writer should be buffered.
-    pub fn new(buffered_writer: W) -> FarbfeldEncoder<W> {
-        FarbfeldEncoder { w: buffered_writer }
+    /// Create a new encoder that writes its output to ```w```.
+    pub fn new(w: W) -> FarbfeldEncoder<W> {
+        FarbfeldEncoder { w }
     }
 
     /// Encodes the image `data` (native endian) that has dimensions `width` and `height`.
@@ -138,9 +138,12 @@ impl<W: Write> FarbfeldEncoder<W> {
         self.w.write_all(&width.to_be_bytes())?;
         self.w.write_all(&height.to_be_bytes())?;
 
-        for &channel in data.as_chunks::<2>().0 {
-            self.w
-                .write_all(&u16::from_ne_bytes(channel).to_be_bytes())?;
+        let mut buf = [0_u8; 4096];
+        for chunk in data.chunks(buf.len()) {
+            let buf = &mut buf[..chunk.len()];
+            buf.copy_from_slice(chunk);
+            u16_swap_be_ne(buf);
+            self.w.write_all(buf)?;
         }
 
         Ok(())

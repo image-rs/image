@@ -14,7 +14,6 @@ use crate::flat::{FlatSamples, SampleLayout, ViewOfPixel};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
-use crate::utils::expand_packed;
 use crate::{
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
@@ -1630,7 +1629,7 @@ pub trait ConvertBuffer<T> {
 impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
-    /// adjust it's alpha value accordingly.
+    /// adjust its alpha value accordingly.
     #[must_use]
     pub fn expand_palette(
         self,
@@ -1642,22 +1641,23 @@ impl GrayImage {
         let entries = data.len();
         data.resize(entries.checked_mul(4).unwrap(), 0);
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
-        expand_packed(&mut buffer, 4, 8, |idx, pixel| {
-            let (r, g, b) = palette[idx as usize];
-            let a = if let Some(t_idx) = transparent_idx {
-                if t_idx == idx {
-                    0
-                } else {
-                    255
-                }
+
+        let bytes = &mut *buffer;
+        for read_index in (0..entries).rev() {
+            let write_index = read_index * 4;
+
+            let palette_index = bytes[read_index];
+
+            let (r, g, b) = palette[palette_index as usize];
+            let a = if Some(palette_index) == transparent_idx {
+                0
             } else {
                 255
             };
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
-            pixel[3] = a;
-        });
+
+            bytes[write_index..][..4].copy_from_slice(&[r, g, b, a]);
+        }
+
         buffer
     }
 }
@@ -2574,6 +2574,25 @@ mod test {
             target.iter().copied().map(usize::from).sum::<usize>(),
             255 + 9 + 8
         );
+    }
+
+    #[test]
+    fn expend_palette() {
+        let gray = GrayImage::from_fn(3, 1, |x, _| Luma([x as u8]));
+        let expanded = gray.expand_palette(&[(255, 0, 0), (1, 2, 3), (255, 255, 255)], None);
+
+        assert_eq!(expanded.get_pixel(0, 0), &Rgba([255, 0, 0, 255]));
+        assert_eq!(expanded.get_pixel(1, 0), &Rgba([1, 2, 3, 255]));
+        assert_eq!(expanded.get_pixel(2, 0), &Rgba([255, 255, 255, 255]));
+
+        // issue #2918
+        let indexes = GrayImage::from_pixel(2, 2, Luma([0]));
+        let expanded = indexes.expand_palette(&[(255, 255, 255)], None);
+
+        assert_eq!(expanded.get_pixel(1, 0), &Rgba([255, 255, 255, 255]));
+        assert_eq!(expanded.get_pixel(0, 1), &Rgba([255, 255, 255, 255]));
+        assert_eq!(expanded.get_pixel(1, 1), &Rgba([255, 255, 255, 255]));
+        assert_eq!(expanded.get_pixel(0, 0), &Rgba([255, 255, 255, 255]));
     }
 }
 

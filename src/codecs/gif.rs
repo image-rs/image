@@ -40,7 +40,6 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::metadata::LoopCount;
-use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
     Limits,
@@ -333,7 +332,11 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             previous: &mut Rgba<u8>,
             current: &mut Rgba<u8>,
         ) {
-            let pixel_alpha = current.channels()[3];
+            // Instead of only checking the alpha channel, use a bitmask to check
+            // the entire pixel and allow for better auto-vectorization.
+            // Makes it about 5% to 10% faster
+            const ALPHA_MASK: u32 = u32::from_ne_bytes([0, 0, 0, 255]);
+            let pixel_alpha = u32::from_ne_bytes(current.0) & ALPHA_MASK;
             if pixel_alpha == 0 {
                 *current = *previous;
             }

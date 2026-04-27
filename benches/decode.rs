@@ -128,7 +128,7 @@ fn decode_animation(buf: &[u8], format: ImageFormat) -> image::ImageResult<usize
     let frames = match format {
         ImageFormat::Gif => image::codecs::gif::GifDecoder::new(reader)?.into_frames(),
         ImageFormat::WebP => image::codecs::webp::WebPDecoder::new(reader)?.into_frames(),
-        _ => panic!("Unsupported format for animation decoding"),
+        _ => return Ok(0),
     };
     Ok(frames.count())
 }

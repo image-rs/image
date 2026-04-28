@@ -1243,6 +1243,28 @@ where
             phantom: PhantomData,
         })
     }
+
+    /// If the underlying samples are in row-major form and packed pixels, return
+    /// an iterator over the rows of the image.
+    pub(crate) fn iter_rows(&self) -> Option<impl Iterator<Item = &[P::Subpixel]> + '_> {
+        let layout = self.flat().layout;
+        let channels = P::CHANNEL_COUNT;
+        if layout.channel_stride != 1
+            || layout.channels != channels
+            || layout.width_stride != channels as usize
+        {
+            return None;
+        }
+
+        let data = self.samples().as_ref();
+        let row_len = layout.width as usize * channels as usize;
+        let row_stride = layout.height_stride;
+
+        Some((0..layout.height as usize).map(move |y| {
+            let start = y * row_stride;
+            &data[start..start + row_len]
+        }))
+    }
 }
 
 impl<Buffer, P: Pixel> ViewMut<Buffer, P>

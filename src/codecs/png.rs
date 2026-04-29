@@ -596,6 +596,7 @@ pub struct PngEncoder<W: Write> {
     filter: FilterType,
     icc_profile: Vec<u8>,
     exif_metadata: Vec<u8>,
+    xmp_metadata: Option<String>,
 }
 
 /// DEFLATE compression level of a PNG encoder. The default setting is `Fast`.
@@ -649,6 +650,7 @@ impl<W: Write> PngEncoder<W> {
             filter: FilterType::default(),
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
+            xmp_metadata: None,
         }
     }
 
@@ -675,6 +677,7 @@ impl<W: Write> PngEncoder<W> {
             filter,
             icc_profile: Vec::new(),
             exif_metadata: Vec::new(),
+            xmp_metadata: None,
         }
     }
 
@@ -740,6 +743,12 @@ impl<W: Write> PngEncoder<W> {
 
         let mut encoder =
             png::Encoder::with_info(self.w, info).map_err(|e| ImageError::IoError(e.into()))?;
+
+        if let Some(xmp_text) = self.xmp_metadata {
+            encoder
+                .add_itxt_chunk(XMP_KEY.to_string(), xmp_text)
+                .map_err(|e| ImageError::IoError(e.into()))?;
+        }
 
         encoder.set_color(ct);
         encoder.set_depth(bits);
@@ -820,6 +829,16 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
 
     fn set_exif_metadata(&mut self, exif: Vec<u8>) -> Result<(), UnsupportedError> {
         self.exif_metadata = exif;
+        Ok(())
+    }
+
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.xmp_metadata = Some(String::from_utf8(xmp).map_err(|_| {
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Png.into(),
+                UnsupportedErrorKind::GenericFeature("XMP metadata is not valid UTF-8".to_string()),
+            )
+        })?);
         Ok(())
     }
 
@@ -914,5 +933,27 @@ mod tests {
         let image = DynamicImage::new_rgb32f(1, 1);
         let mut target = Cursor::new(vec![]);
         assert!(image.write_to(&mut target, ImageFormat::Png).is_ok());
+    }
+
+    #[test]
+    fn roundtrip_xmp() {
+        let img = [255u8, 0, 0, 0, 255, 0, 0, 0, 255];
+        let xmp = b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF></rdf:RDF></x:xmpmeta>".to_vec();
+
+        let mut encoded = Vec::new();
+        {
+            let mut encoder = PngEncoder::new(&mut encoded);
+            encoder.set_xmp_metadata(xmp.clone()).unwrap();
+            encoder
+                .write_image(&img, 3, 1, ExtendedColorType::Rgb8)
+                .expect("Could not encode image");
+        }
+
+        let mut decoder = PngDecoder::new(Cursor::new(&encoded)).expect("Could not decode image");
+        let decoded_xmp = decoder
+            .xmp_metadata()
+            .expect("Error decoding XMP")
+            .expect("XMP is empty");
+        assert_eq!(xmp, decoded_xmp);
     }
 }

@@ -1373,7 +1373,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 // because they overlap with header data.
                 if self.no_file_header {
                     self.data_offset = self.reader.stream_position()?;
-                } else if self.data_offset >= FILE_HEADER_SIZE
+                } else if self.spec_strictness != SpecCompliance::Strict
+                    && self.data_offset >= FILE_HEADER_SIZE
                     && self.data_offset < offsets.bmp_header_end
                 {
                     self.data_offset = offsets.bmp_header_end;
@@ -2785,6 +2786,8 @@ mod test {
             buf, ref_buf,
             "BMP with invalid data_offset=34 should decode identically to data_offset=54"
         );
+    }
+
     /// Test that strict mode correctly rejects RLE files with known corruptions.
     ///
     /// - `rle_overflow.bmp`: The image header specifies a width of 2. However, the RLE data

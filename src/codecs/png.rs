@@ -849,6 +849,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     ) -> Option<DynamicImage> {
         use ColorType::*;
         match img.color() {
+            L32F => Some(img.to_luma16().into()),
+            La32F => Some(img.to_luma_alpha16().into()),
             Rgb32F => Some(img.to_rgb16().into()),
             Rgba32F => Some(img.to_rgba16().into()),
             L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,

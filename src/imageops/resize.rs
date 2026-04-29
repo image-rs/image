@@ -68,6 +68,14 @@ pub(crate) fn resize_impl(
             let resized = resize_rgba16(src.as_raw(), src_size, dst_size, 16, alg)?;
             ImageRgba16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
+        ImageLuma32F(src) => {
+            let resized = resize_plane_f32(src.as_raw(), src_size, dst_size, alg)?;
+            ImageLuma32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
+        }
+        ImageLumaA32F(src) => {
+            let resized = resize_luma_alpha_f32(src.as_raw(), src_size, dst_size, alg)?;
+            ImageLumaA32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
+        }
         ImageRgb32F(src) => {
             let resized = resize_rgb_f32(src.as_raw(), src_size, dst_size, alg)?;
             ImageRgb32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
@@ -113,6 +121,10 @@ fn premultiply_alpha(image: &mut DynamicImage) {
         DynamicImage::ImageRgba16(buf) => {
             premultiply_rgba16(buf.as_mut(), 16);
         }
+        DynamicImage::ImageLuma32F(_) => (),
+        DynamicImage::ImageLumaA32F(buf) => {
+            premultiply_luma_alpha_f32(buf.as_mut());
+        }
         DynamicImage::ImageRgb32F(_) => (),
         DynamicImage::ImageRgba32F(buf) => {
             premultiply_rgba_f32(buf.as_mut());
@@ -132,6 +144,8 @@ fn unpremultiply_alpha(image: &mut DynamicImage) {
         DynamicImage::ImageLumaA16(buf) => unpremultiply_la16(buf.as_mut(), 16),
         DynamicImage::ImageRgb16(_) => (),
         DynamicImage::ImageRgba16(buf) => unpremultiply_rgba16(buf.as_mut(), 16),
+        DynamicImage::ImageLuma32F(_) => (),
+        DynamicImage::ImageLumaA32F(buf) => unpremultiply_luma_alpha_f32(buf),
         DynamicImage::ImageRgb32F(_) => (),
         DynamicImage::ImageRgba32F(buf) => unpremultiply_rgba_f32(buf),
     }
@@ -148,6 +162,8 @@ fn has_constant_alpha(image: &DynamicImage) -> bool {
         DynamicImage::ImageLumaA16(buf) => has_constant_alpha_integer(buf),
         DynamicImage::ImageRgb16(_) => true,
         DynamicImage::ImageRgba16(buf) => has_constant_alpha_integer(buf),
+        DynamicImage::ImageLuma32F(_) => true,
+        DynamicImage::ImageLumaA32F(buf) => has_constant_alpha_f32(buf),
         DynamicImage::ImageRgb32F(_) => true,
         DynamicImage::ImageRgba32F(buf) => has_constant_alpha_f32(buf),
     }
@@ -185,7 +201,11 @@ where
 }
 
 #[must_use]
-fn has_constant_alpha_f32(img: &ImageBuffer<crate::Rgba<f32>, Vec<f32>>) -> bool {
+fn has_constant_alpha_f32<P, Container>(img: &ImageBuffer<P, Container>) -> bool
+where
+    P: Pixel<Subpixel = f32>,
+    Container: std::ops::Deref<Target = [f32]>,
+{
     // Optimizing correctly in presence of NaNs and infinities is tricky, so just do the naive thing for now
     let first_pixel_alpha = match img.pixels().next() {
         Some(pixel) => pixel.alpha(),

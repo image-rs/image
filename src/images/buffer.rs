@@ -1916,10 +1916,15 @@ pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
 pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
+/// An image buffer for 32-bit float grayscale pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type Gray32FImage = ImageBuffer<Luma<f32>, Vec<f32>>;
+/// An image buffer for 32-bit float grayscale + alpha pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type GrayAlpha32FImage = ImageBuffer<LumaA<f32>, Vec<f32>>;
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
 pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
-
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
 pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
@@ -1980,6 +1985,16 @@ impl From<DynamicImage> for Rgb32FImage {
 impl From<DynamicImage> for Rgba32FImage {
     fn from(value: DynamicImage) -> Self {
         value.into_rgba32f()
+    }
+}
+impl From<DynamicImage> for Gray32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma32f()
+    }
+}
+impl From<DynamicImage> for GrayAlpha32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma_alpha32f()
     }
 }
 

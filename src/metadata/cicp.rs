@@ -825,6 +825,18 @@ impl CicpTransform {
                         &mut ibuffer[..4 * count],
                     );
                 }
+                DynamicImage::ImageLuma32F(buf) => {
+                    CicpTransform::expand_luma_rgb(
+                        &buf.inner_pixels()[start_idx..end_idx],
+                        &mut ibuffer[..3 * count],
+                    );
+                }
+                DynamicImage::ImageLumaA32F(buf) => {
+                    CicpTransform::expand_luma_rgba(
+                        &buf.inner_pixels()[2 * start_idx..2 * end_idx],
+                        &mut ibuffer[..4 * count],
+                    );
+                }
                 DynamicImage::ImageRgb32F(buf) => {
                     CicpTransform::expand_rgb(
                         &buf.inner_pixels()[3 * start_idx..3 * end_idx],
@@ -891,11 +903,24 @@ impl CicpTransform {
                         &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
                     );
                 }
-
                 DynamicImage::ImageRgba16(buf) => {
                     CicpTransform::clamp_rgba(
                         &obuffer[..4 * count],
                         &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                    );
+                }
+                DynamicImage::ImageLuma32F(buf) => {
+                    CicpTransform::clamp_rgb_luma(
+                        &obuffer[..3 * count],
+                        &mut buf.inner_pixels_mut()[start_idx..end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA32F(buf) => {
+                    CicpTransform::clamp_rgba_luma(
+                        &obuffer[..4 * count],
+                        &mut buf.inner_pixels_mut()[2 * start_idx..2 * end_idx],
+                        self.output_coefs,
                     );
                 }
                 DynamicImage::ImageRgb32F(buf) => {

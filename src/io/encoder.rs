@@ -144,8 +144,8 @@ pub(crate) fn dynimage_conversion_8bit(img: &DynamicImage) -> Option<DynamicImag
 
     match img.color() {
         Rgb8 | Rgba8 | L8 | La8 => None,
-        L16 => Some(img.to_luma8().into()),
-        La16 => Some(img.to_luma_alpha8().into()),
+        L16 | L32F => Some(img.to_luma8().into()),
+        La16 | La32F => Some(img.to_luma_alpha8().into()),
         Rgb16 | Rgb32F => Some(img.to_rgb8().into()),
         Rgba16 | Rgba32F => Some(img.to_rgba8().into()),
     }

@@ -1631,47 +1631,13 @@ pub trait ConvertBuffer<T> {
 
 // concrete implementation Luma -> Rgba
 impl GrayImage {
-    /// Expands a color palette by re-using the existing buffer.
-    /// Assumes 8 bit per pixel. Uses an optionally transparent index to
-    /// adjust its alpha value accordingly.
-    #[must_use]
-    pub fn expand_palette(
-        self,
-        palette: &[(u8, u8, u8)],
-        transparent_idx: Option<u8>,
-    ) -> RgbaImage {
-        let (width, height) = self.dimensions();
-        let mut data = self.into_raw();
-        let entries = data.len();
-        data.resize(entries.checked_mul(4).unwrap(), 0);
-        let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
-
-        let bytes = &mut *buffer;
-        for read_index in (0..entries).rev() {
-            let write_index = read_index * 4;
-
-            let palette_index = bytes[read_index];
-
-            let (r, g, b) = palette[palette_index as usize];
-            let a = if Some(palette_index) == transparent_idx {
-                0
-            } else {
-                255
-            };
-
-            bytes[write_index..][..4].copy_from_slice(&[r, g, b, a]);
-        }
-
-        buffer
-    }
-
     /// Expands a color palette into an RGBA image. Uses an optionally
     /// transparent index to adjust its alpha value accordingly.
     ///
     /// Color indexes not in the palette are mapped to transparent black,
     /// i.e. (0, 0, 0, 0).
     #[must_use]
-    pub fn expand_palette_2(
+    pub fn expand_palette(
         &self,
         palette: &[(u8, u8, u8)],
         transparent_idx: Option<u8>,

@@ -5,7 +5,7 @@ use image::{
     buffer::ConvertBuffer,
     imageops::{self, FilterType},
     math::Rect,
-    DynamicImage, GrayImage, ImageBuffer, Luma, Rgb,
+    DynamicImage, GrayImage, ImageBuffer, Rgb,
 };
 
 pub fn bench_imageops(c: &mut Criterion) {
@@ -15,6 +15,7 @@ pub fn bench_imageops(c: &mut Criterion) {
     });
 
     let src_dyn = DynamicImage::from(src.clone());
+    let src_gray = src_dyn.to_luma8();
 
     c.bench_function("filter3x3", |b| {
         b.iter(|| imageops::filter3x3(&src, &[1.0, 1.0, 1.0, 1.0, -8.0, 1.0, 1.0, 1.0, 1.0]));
@@ -86,40 +87,10 @@ pub fn bench_imageops(c: &mut Criterion) {
         });
     });
 
-    for size in [64, 256, 1024, 2048] {
-        let img_gray = GrayImage::from_fn(size, size, |x, y| {
-            // "random" pixel values
-            Luma([((x * 13 + y * 7 + x * x + y * y * y) % 256) as u8])
-        });
+    c.bench_function("gray image expend_palette", |b| {
         let palette = &[(1, 2, 3); 256];
-
-        c.bench_function(&format!("gray image expend_palette {size}"), |b| {
-            b.iter_batched(
-                || img_gray.clone(),
-                |img| img.expand_palette(black_box(palette), black_box(None)),
-                criterion::BatchSize::LargeInput,
-            );
-        });
-
-        c.bench_function(
-            &format!("gray image expend_palette {size} no realloc"),
-            |b| {
-                b.iter_batched(
-                    || {
-                        let mut data = img_gray.clone().into_raw();
-                        data.reserve_exact((size * size * 3) as usize);
-                        ImageBuffer::from_raw(size, size, data).unwrap()
-                    },
-                    |img| img.expand_palette(black_box(palette), black_box(None)),
-                    criterion::BatchSize::LargeInput,
-                );
-            },
-        );
-
-        c.bench_function(&format!("gray image expend_palette_2 {size}"), |b| {
-            b.iter(|| img_gray.expand_palette_2(black_box(palette), black_box(None)));
-        });
-    }
+        b.iter(|| src_gray.expand_palette(black_box(palette), black_box(None)));
+    });
 }
 
 pub fn bench_resize(c: &mut Criterion) {

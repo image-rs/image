@@ -1,11 +1,11 @@
-use std::time::Duration;
+use std::{hint::black_box, time::Duration};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use image::{
     buffer::ConvertBuffer,
     imageops::{self, FilterType},
     math::Rect,
-    DynamicImage, GrayImage, ImageBuffer, Rgb,
+    DynamicImage, GrayImage, ImageBuffer, Luma, Rgb,
 };
 
 pub fn bench_imageops(c: &mut Criterion) {
@@ -85,6 +85,41 @@ pub fn bench_imageops(c: &mut Criterion) {
             })
         });
     });
+
+    for size in [64, 256, 1024, 2048] {
+        let img_gray = GrayImage::from_fn(size, size, |x, y| {
+            // "random" pixel values
+            Luma([((x * 13 + y * 7 + x * x + y * y * y) % 256) as u8])
+        });
+        let palette = &[(1, 2, 3); 256];
+
+        c.bench_function(&format!("gray image expend_palette {size}"), |b| {
+            b.iter_batched(
+                || img_gray.clone(),
+                |img| img.expand_palette(black_box(palette), black_box(None)),
+                criterion::BatchSize::LargeInput,
+            );
+        });
+
+        c.bench_function(
+            &format!("gray image expend_palette {size} no realloc"),
+            |b| {
+                b.iter_batched(
+                    || {
+                        let mut data = img_gray.clone().into_raw();
+                        data.reserve_exact((size * size * 3) as usize);
+                        ImageBuffer::from_raw(size, size, data).unwrap()
+                    },
+                    |img| img.expand_palette(black_box(palette), black_box(None)),
+                    criterion::BatchSize::LargeInput,
+                );
+            },
+        );
+
+        c.bench_function(&format!("gray image expend_palette_2 {size}"), |b| {
+            b.iter(|| img_gray.expand_palette_2(black_box(palette), black_box(None)));
+        });
+    }
 }
 
 pub fn bench_resize(c: &mut Criterion) {

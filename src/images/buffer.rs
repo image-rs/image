@@ -1664,6 +1664,36 @@ impl GrayImage {
 
         buffer
     }
+
+    /// Expands a color palette into an RGBA image. Uses an optionally
+    /// transparent index to adjust its alpha value accordingly.
+    ///
+    /// Color indexes not in the palette are mapped to transparent black,
+    /// i.e. (0, 0, 0, 0).
+    #[must_use]
+    pub fn expand_palette_2(
+        &self,
+        palette: &[(u8, u8, u8)],
+        transparent_idx: Option<u8>,
+    ) -> RgbaImage {
+        let (width, height) = self.dimensions();
+        let len = width as usize * height as usize;
+
+        let mut full_palette = [[0_u8; 4]; 256];
+        for ((r, g, b), entry) in palette.iter().zip(full_palette.iter_mut()) {
+            *entry = [*r, *g, *b, 255];
+        }
+        if let Some(palette_index) = transparent_idx {
+            full_palette[palette_index as usize][3] = 0;
+        }
+
+        let rgba_data: Vec<[u8; 4]> = self.as_raw()[..len]
+            .iter()
+            .map(|&palette_index| full_palette[palette_index as usize])
+            .collect();
+
+        ImageBuffer::from_vec(width, height, rgba_data.into_flattened()).unwrap()
+    }
 }
 
 /// This copies the color space information but is somewhat wrong, in numeric terms this conversion

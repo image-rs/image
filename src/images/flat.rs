@@ -1260,6 +1260,10 @@ where
         let row_len = layout.width as usize * channels as usize;
         let row_stride = layout.height_stride;
 
+        // Note: We do **NOT** assume row_len <= row_stride. Rows may overlap
+        // (or even all be the same slice when row_stride == 0). So the usual
+        // iter().chunks() strategy does not work here.
+
         Some((0..layout.height as usize).map(move |y| {
             let start = y * row_stride;
             &data[start..start + row_len]

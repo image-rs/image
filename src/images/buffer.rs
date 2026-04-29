@@ -272,6 +272,10 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
             }
         }
     }
+
+    pub(crate) fn into_slices(self) -> ChunksExactMut<'a, P::Subpixel> {
+        self.pixels
+    }
 }
 
 impl<'a, P: Pixel + 'a> Iterator for RowsMut<'a, P>

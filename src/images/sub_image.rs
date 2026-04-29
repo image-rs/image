@@ -80,11 +80,23 @@ impl<I> SubImage<I> {
         I: Deref,
         I::Target: GenericImageView + 'static,
     {
+        let w = self.inner.xstride;
+        let h = self.inner.ystride;
         let borrowed = &*self.inner.image;
-        let mut out = borrowed.buffer_with_dimensions(self.inner.xstride, self.inner.ystride);
+        let mut out = borrowed.buffer_with_dimensions(w, h);
 
-        for y in 0..self.inner.ystride {
-            for x in 0..self.inner.xstride {
+        // fast path for row-major packed views
+        if let Some(view) = self.to_pixel_view() {
+            if let Some(row_iter) = view.iter_rows() {
+                for (row, out_row) in row_iter.zip(out.rows_mut().into_slices()) {
+                    out_row.copy_from_slice(row);
+                }
+                return out;
+            }
+        }
+
+        for y in 0..h {
+            for x in 0..w {
                 let p = borrowed.get_pixel(x + self.inner.xoffset, y + self.inner.yoffset);
                 out.put_pixel(x, y, p);
             }

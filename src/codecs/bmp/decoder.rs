@@ -1476,7 +1476,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             // immediately after the header.
             //
             // `read_bitmasks` correctly reads these from earlier in the header itself but we must
-            // ensure the reader starts on the image data itself, not these extra mask bytes.   
+            // ensure the reader starts on the image data itself, not these extra mask bytes.
             if matches!(
                 self.bmp_header_type,
                 BMPHeaderType::Info | BMPHeaderType::V4 | BMPHeaderType::V5

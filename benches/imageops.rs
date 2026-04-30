@@ -87,7 +87,7 @@ pub fn bench_imageops(c: &mut Criterion) {
         });
     });
 
-    c.bench_function("gray image expend_palette", |b| {
+    c.bench_function("gray image expand_palette", |b| {
         let palette = &[(1, 2, 3); 256];
         b.iter(|| src_gray.expand_palette(black_box(palette), black_box(None)));
     });

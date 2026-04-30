@@ -564,8 +564,8 @@ fn allocate_row_buffer(size: usize) -> ImageResult<Vec<u8>> {
 /// last one, it performs a normal read. Otherwise, the special case applies:
 /// Apparently many BMPs are missing the final byte at the end of the file.
 /// This function checks if the stream is exactly one byte short of the
-/// required final scanline length. If so, it reads the available bytes, leaving
-/// the missing trailing byte as zero. Otherwise, it performs a normal `read_exact`.
+/// required final scanline length. If so, it reads the available bytes and
+/// explicitly zeroes the missing trailing byte. Otherwise, it performs a normal `read_exact`.
 fn read_scanline(
     reader: &mut (impl io::Read + Seek),
     buf: &mut [u8],
@@ -580,10 +580,15 @@ fn read_scanline(
         let current_pos = reader.stream_position()?;
         let end_pos = reader.seek(SeekFrom::End(0))?;
         reader.seek(SeekFrom::Start(current_pos))?;
-        let remaining = (end_pos - current_pos) as usize;
 
-        if buf.len() == remaining + 1 {
-            reader.read_exact(&mut buf[..remaining])?;
+        let Some((last, head)) = buf.split_last_mut() else {
+            // Empty row, nothing to read.
+            return Ok(());
+        };
+
+        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
+            reader.read_exact(head)?;
+            *last = b'\0';
             return Ok(());
         }
     }

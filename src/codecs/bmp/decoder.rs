@@ -564,6 +564,42 @@ fn allocate_row_buffer(size: usize) -> ImageResult<Vec<u8>> {
     Ok(buffer)
 }
 
+/// Checks if the current scanline is the last one or not. If it is not the
+/// last one, it performs a normal read. Otherwise, the special case applies:
+/// Apparently many BMPs are missing the final byte at the end of the file.
+/// This function checks if the stream is exactly one byte short of the
+/// required final scanline length. If so, it reads the available bytes and
+/// explicitly zeroes the missing trailing byte. Otherwise, it performs a normal `read_exact`.
+fn read_scanline(
+    reader: &mut (impl io::Read + Seek),
+    buf: &mut [u8],
+    current_file_row: &mut u32,
+    last_row: u32,
+    spec_strictness: SpecCompliance,
+) -> io::Result<()> {
+    let is_last_row = *current_file_row == last_row;
+    *current_file_row += 1;
+
+    if is_last_row && spec_strictness == SpecCompliance::Lenient {
+        let current_pos = reader.stream_position()?;
+        let end_pos = reader.seek(SeekFrom::End(0))?;
+        reader.seek(SeekFrom::Start(current_pos))?;
+
+        let Some((last, head)) = buf.split_last_mut() else {
+            // Empty row, nothing to read.
+            return Ok(());
+        };
+
+        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
+            reader.read_exact(head)?;
+            *last = b'\0';
+            return Ok(());
+        }
+    }
+
+    reader.read_exact(buf)
+}
+
 /// Convenience function to check if the combination of width, length and number of
 /// channels would result in a buffer that would overflow.
 fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
@@ -1645,6 +1681,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 .for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (self.height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1654,7 +1693,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut indices)?;
+                read_scanline(
+                    reader,
+                    &mut indices,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 if skip_palette {
                     row.clone_from_slice(&indices[0..width]);
                 } else {
@@ -1708,6 +1753,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1717,7 +1765,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<2>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1758,6 +1812,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1767,7 +1824,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<4>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1819,6 +1882,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1828,7 +1894,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
 
                 for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
                     let offset = match *format {
@@ -2836,5 +2908,37 @@ mod test {
         let mut buffer = vec![0u8; decoder.total_bytes() as usize];
         let result = decoder.read_image(&mut buffer);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_decode_truncated_bmp() {
+        use std::io::Cursor;
+
+        let data = vec![
+            0x42, 0x4D, 0x3A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00,
+            0x00,
+        ];
+
+        // Test Lenient mode
+        let decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
+        let mut buffer = vec![0u8; decoder.total_bytes() as usize];
+        let result = decoder.read_image(&mut buffer);
+        assert!(
+            result.is_ok(),
+            "Expected Ok in lenient mode for truncated file"
+        );
+
+        // Test Strict mode
+        let strict_decoder =
+            BmpDecoder::new_with_spec_compliance(Cursor::new(data), SpecCompliance::Strict)
+                .unwrap();
+        let result = strict_decoder.read_image(&mut buffer);
+        assert!(
+            result.is_err(),
+            "Expected error in strict mode for truncated file"
+        );
     }
 }

@@ -1492,7 +1492,11 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             self.reader.read_exact(&mut masks_buf)?;
             let alpha_mask = u32::from_le_bytes(masks_buf[12..16].try_into().unwrap());
             if alpha_mask != 0 {
-                // BI_RGB implies fixed BGRA layout; only 0xFF000000 is valid.
+                // BI_RGB implies fixed BGRA byte layout, so the only spec-valid
+                // alpha mask is 0xFF000000. In lenient mode we still treat any
+                // non-zero alpha_mask as "alpha present" because some encoders
+                // (e.g. older GDI+ versions) write incorrect mask values while
+                // still storing alpha in the high byte.
                 if self.spec_strictness == SpecCompliance::Strict && alpha_mask != 0xFF000000 {
                     return Err(DecoderError::BitfieldMaskInvalid.into());
                 }
@@ -2744,6 +2748,10 @@ mod test {
             (
                 "tests/images/bmp/images/lenient/rgb16-880.bmp",
                 "rgb16-880: zero blue mask should be rejected in strict mode",
+            ),
+            (
+                "tests/images/bmp/images/lenient/V5_A8_R8_G8_B8_Rgb_BadMask.bmp",
+                "V5_A8_R8_G8_B8_Rgb_BadMask: non-standard alpha mask under BI_RGB",
             ),
         ];
 

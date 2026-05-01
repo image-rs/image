@@ -1645,7 +1645,8 @@ impl GrayImage {
         let (width, height) = self.dimensions();
         let len = width as usize * height as usize;
 
-        let mut full_palette = [[0_u8; 4]; 256];
+        let mut full_palette = vec![[0_u8; 4]; 256];
+        let full_palette: &mut [[u8; 4]; 256] = full_palette.as_mut_slice().try_into().unwrap();
         for ((r, g, b), entry) in palette.iter().zip(full_palette.iter_mut()) {
             *entry = [*r, *g, *b, 255];
         }

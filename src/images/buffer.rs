@@ -1807,6 +1807,11 @@ impl From<DynamicImage> for GrayAlpha16Image {
     }
 }
 
+impl From<DynamicImage> for Rgb32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgb32f()
+    }
+}
 impl From<DynamicImage> for Rgba32FImage {
     fn from(value: DynamicImage) -> Self {
         value.into_rgba32f()

@@ -1,7 +1,6 @@
 use num_traits::Bounded;
 
 use crate::imageops::filter_1d::{SafeAdd, SafeMul};
-use crate::primitive_sealed::NearestFrom;
 use crate::{ImageBuffer, Pixel, Primitive};
 
 /// Approximation of Gaussian blur.
@@ -138,7 +137,7 @@ fn ceil_to_odd(x: usize) -> usize {
 
 #[inline]
 fn rounding_saturating_mul<T: Primitive>(v: f32, w: f32) -> T {
-    NearestFrom::nearest_from(v * w)
+    T::clamp_nearest_from(v * w)
 }
 
 fn box_blur_horizontal_pass_strategy<T, P: Primitive>(

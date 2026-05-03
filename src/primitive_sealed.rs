@@ -25,14 +25,40 @@ impl PrimitiveSealed for f64 {}
 /// Properties:
 /// - For a float -> int conversion:
 ///     - The float is rounded to the nearest integer.
-///       (An implementation may use a fast approximation instead of a precise rounding method.)
+///       (An implementation may use a fast approximation instead of precise rounding.)
 ///     - NaN is mapped to 0.
 ///     - Values outside the range of the integer type are clamped to the min or max value.
 /// - For a float -> float conversion:
 ///     - The float is clamped to the range `[0.0, 1.0]`.
 ///     - NaN is mapped to 0.0.
 pub(crate) trait NearestFrom<T> {
+    /// Returns the nearest value of `Self` to `value`.
+    ///
+    /// Properties:
+    /// - For a float -> int conversion:
+    ///     - The float is rounded to the nearest integer.
+    ///       (An implementation may use a fast approximation instead of precise rounding.)
+    ///     - NaN is mapped to 0.
+    ///     - Values outside the range of the integer type are clamped to the min or max value.
+    /// - For a float -> float conversion:
+    ///     - Values outside are clamped to +-inf.
+    ///     - NaN is kept as NaN.
+    ///     - Precision may be lost.
     fn nearest_from(value: T) -> Self;
+
+    /// Returns the nearest value of `Self` to `value` *within* the default
+    /// range of `Self`. This range is 0..=1 for floats and the full range of
+    /// the integer type for integers.
+    ///
+    /// If `Self` is an integer type, this is the same as `nearest_from`.
+    ///
+    /// Properties:
+    /// - For a float -> int conversion: Same as `nearest_from`.
+    /// - For a float -> float conversion:
+    ///     - The float is clamped to the range `[0.0, 1.0]`.
+    ///     - NaN is mapped to 0.0.
+    ///     - Precision may be lost.
+    fn clamp_nearest_from(value: T) -> Self;
 }
 
 impl NearestFrom<f32> for u8 {
@@ -43,32 +69,47 @@ impl NearestFrom<f32> for u8 {
         // an issue in practice.
         (value + 0.5) as u8
     }
+    fn clamp_nearest_from(value: f32) -> Self {
+        Self::nearest_from(value)
+    }
 }
 impl NearestFrom<f32> for u16 {
     fn nearest_from(value: f32) -> Self {
         (value + 0.5) as u16
     }
+    fn clamp_nearest_from(value: f32) -> Self {
+        Self::nearest_from(value)
+    }
 }
 impl NearestFrom<f32> for f32 {
-    #[allow(clippy::manual_clamp)] // to map NaN to 0.0
     fn nearest_from(value: f32) -> Self {
+        value
+    }
+    #[allow(clippy::manual_clamp)] // to map NaN to 0.0
+    fn clamp_nearest_from(value: f32) -> Self {
         value.max(0.0).min(1.0)
     }
 }
 impl NearestFrom<f32> for f64 {
-    #[allow(clippy::manual_clamp)] // to map NaN to 0.0
     fn nearest_from(value: f32) -> Self {
+        value as f64
+    }
+    #[allow(clippy::manual_clamp)] // to map NaN to 0.0
+    fn clamp_nearest_from(value: f32) -> Self {
         value.max(0.0).min(1.0) as f64
     }
 }
 
 macro_rules! impl_nearest_from_f32_for_ints {
-        ($($t:ty),+) => { $(
-            impl NearestFrom<f32> for $t {
-                fn nearest_from(value: f32) -> Self {
-                    value.round() as $t
-                }
+    ($($t:ty),+) => { $(
+        impl NearestFrom<f32> for $t {
+            fn nearest_from(value: f32) -> Self {
+                value.round() as $t
             }
-        )+ };
-    }
+            fn clamp_nearest_from(value: f32) -> Self {
+                Self::nearest_from(value)
+            }
+        }
+    )+ };
+}
 impl_nearest_from_f32_for_ints!(u32, u64, usize, i8, i16, i32, i64, isize);

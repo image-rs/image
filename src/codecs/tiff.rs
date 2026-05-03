@@ -22,6 +22,8 @@ use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 const TAG_XML_PACKET: Tag = Tag::Unknown(700);
 const TAG_YCBCR_COEFFICIENTS: Tag = Tag::Unknown(529);
 const TAG_YCBCR_SUBSAMPLING: Tag = Tag::Unknown(530);
+const TAG_RICHTIFFIPTC: Tag = Tag::Unknown(33723);
+const TAG_PHOTOSHOP: Tag = Tag::Unknown(34377);
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -431,6 +433,43 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         Ok(())
     }
 
+    fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let Some(decoder) = &mut self.inner else {
+            return Ok(None);
+        };
+
+        // Try Photoshop tag
+        if let Ok(data) = decoder.get_tag_u8_vec(TAG_PHOTOSHOP) {
+            if extract_iptc_from_photoshop_irb(&data).is_some() {
+                return Ok(Some(data));
+            }
+        }
+
+        // Try RichTIFFIPTC tag
+        if let Ok(value) = decoder.get_tag(TAG_RICHTIFFIPTC) {
+            // Standard representation: defined as UNDEFINED or BYTE.
+            if let Some(vec) = value.clone().into_u8_vec().ok().filter(|v| !v.is_empty()) {
+                return Ok(Some(vec));
+            }
+            // Fallback: Adobe software sometimes incorrectly writes this as LONG (u32).
+            // We convert the u32 integers back to raw little-endian bytes to recover the payload.
+            if let Some(vec) = value
+                .into_u32_vec()
+                .ok()
+                .map(|vec| {
+                    vec.into_iter()
+                        .flat_map(|v| v.to_le_bytes())
+                        .collect::<Vec<u8>>()
+                })
+                .filter(|v| !v.is_empty())
+            {
+                return Ok(Some(vec));
+            }
+        }
+
+        Ok(None)
+    }
+
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
@@ -738,4 +777,70 @@ mod tests {
             .expect("XMP is empty");
         assert_eq!(xmp, decoded_xmp);
     }
+}
+
+struct IrbReader<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> IrbReader<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Self { data }
+    }
+
+    fn read_slice(&mut self, len: usize) -> Option<&'a [u8]> {
+        if self.data.len() < len {
+            return None;
+        }
+        let (head, tail) = self.data.split_at(len);
+        self.data = tail;
+        Some(head)
+    }
+
+    fn read_u16(&mut self) -> Option<u16> {
+        let bytes = self.read_slice(2)?;
+        Some(u16::from_be_bytes([bytes[0], bytes[1]]))
+    }
+
+    fn read_u32(&mut self) -> Option<u32> {
+        let bytes = self.read_slice(4)?;
+        Some(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
+
+    fn skip_padding(&mut self, size: usize) {
+        if !size.is_multiple_of(2) && !self.data.is_empty() {
+            self.data = &self.data[1..];
+        }
+    }
+}
+
+fn extract_iptc_from_photoshop_irb(data: &[u8]) -> Option<&[u8]> {
+    const SIGNATURE: &[u8] = b"8BIM";
+    const IPTC_ID: u16 = 0x0404;
+    const MIN_IRB_BLOCK_SIZE: usize = 12;
+
+    let mut reader = IrbReader::new(data);
+
+    while reader.data.len() >= MIN_IRB_BLOCK_SIZE {
+        let sig = reader.read_slice(SIGNATURE.len())?;
+        if sig != SIGNATURE {
+            break;
+        }
+
+        let id = reader.read_u16()?;
+
+        let name_len = reader.read_slice(1)?[0] as usize;
+        reader.read_slice(name_len)?;
+        reader.skip_padding(1 + name_len);
+
+        let size = reader.read_u32()? as usize;
+        let block_data = reader.read_slice(size)?;
+
+        if id == IPTC_ID {
+            return Some(block_data);
+        }
+
+        reader.skip_padding(size);
+    }
+    None
 }

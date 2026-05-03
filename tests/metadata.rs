@@ -15,6 +15,7 @@ use image::codecs::tiff::TiffDecoder;
 #[cfg(feature = "webp")]
 use image::codecs::webp::WebPDecoder;
 
+#[cfg(feature = "tiff")]
 extern crate glob;
 extern crate image;
 
@@ -156,6 +157,87 @@ fn test_read_avif_compatible_brands() -> Result<(), image::ImageError> {
     // Verify decoder can successfully parse the file even though major_brand is "mif1"
     let decoder = AvifDecoder::new(Cursor::new(&data));
     assert!(decoder.is_ok());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff_no_iptc_metadata() -> Result<(), image::ImageError> {
+    const PATH: &str = "tests/images/tiff/testsuite/ycbcr_lzw_bt709.tif";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = decoder.iptc_metadata()?;
+    assert!(metadata.is_none());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff_both_tags_malformed() -> Result<(), image::ImageError> {
+    // The testfile contains the photoshop tag with invalid IRB data and RichTIFFIPTC tag with type UNDEFINED but count 0
+    const PATH: &str = "tests/images/tiff/testsuite/iptc_both_tags_malformed.tiff";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = decoder.iptc_metadata()?;
+    assert!(metadata.is_none());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff_standard_normal() -> Result<(), image::ImageError> {
+    const PATH: &str = "tests/images/tiff/testsuite/iptc_standard_normal.tiff";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = decoder.iptc_metadata()?;
+    assert!(metadata.is_some());
+
+    let expected_iptc_metadata = &[1, 2, 3, 4];
+    assert_eq!(expected_iptc_metadata, metadata.unwrap().as_slice());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff_standard() -> Result<(), image::ImageError> {
+    // The testfile was generated with the RichTIFFIPTC tag stored as LONG instead of UNDEFINED/BYTE to test the fallback recovery logic
+    const PATH: &str = "tests/images/tiff/testsuite/iptc_standard.tiff";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = decoder.iptc_metadata()?;
+    assert!(metadata.is_some());
+
+    let expected_iptc_metadata = &[1, 2, 3, 4];
+    assert_eq!(expected_iptc_metadata, metadata.unwrap().as_slice());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "tiff")]
+fn test_read_iptc_tiff_photoshop() -> Result<(), image::ImageError> {
+    const PATH: &str = "tests/images/tiff/testsuite/iptc_photoshop.tiff";
+    let img_path = PathBuf::from_str(PATH).unwrap();
+
+    let data = fs::read(img_path)?;
+    let mut decoder = TiffDecoder::new(std::io::Cursor::new(data))?;
+    let metadata = decoder.iptc_metadata()?;
+    assert!(metadata.is_some());
+
+    let expected_iptc_metadata = vec![b'8', b'B', b'I', b'M', 4, 4, 0, 0, 0, 0, 0, 4, 5, 6, 7, 8];
+    assert_eq!(expected_iptc_metadata, metadata.unwrap());
 
     Ok(())
 }

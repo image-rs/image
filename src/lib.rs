@@ -276,6 +276,7 @@ mod images;
 /// This is going to be internal.
 pub mod io;
 pub mod metadata;
+mod primitive_sealed;
 //TODO delete this module after a few releases
 mod traits;
 mod utils;

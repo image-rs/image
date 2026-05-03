@@ -126,7 +126,7 @@ impl_nearest_from_f32_for_ints!(u32, u64, usize, i8, i16, i32, i64, isize);
 /// For blur accumulators (`n <= kernel_size * 255`), this holds for all practical sizes.
 #[derive(Clone, Copy)]
 pub struct U8Weight {
-    reciprocal: u32, // ceil(2^32 / kernel_size)
+    reciprocal: u32,    // ceil(2^32 / kernel_size)
     rounding_bias: u32, // kernel_size / 2
 }
 
@@ -246,7 +246,7 @@ mod tests {
                 let got = w.apply(acc);
                 assert_eq!(got, expected, "ks={ks}, acc={acc}");
             }
-            assert_eq!(w.apply(0), ((0 + ks / 2) / ks) as u8);
+            assert_eq!(w.apply(0), ((ks / 2) / ks) as u8);
             assert_eq!(w.apply(max_acc), ((max_acc + ks / 2) / ks) as u8);
         }
     }

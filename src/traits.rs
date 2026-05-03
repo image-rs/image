@@ -254,8 +254,8 @@ pub(crate) mod private {
     impl From<ColorType> for LayoutWithColor {
         fn from(color: ColorType) -> LayoutWithColor {
             match color {
-                ColorType::L8 | ColorType::L16 => LayoutWithColor::Luma,
-                ColorType::La8 | ColorType::La16 => LayoutWithColor::LumaAlpha,
+                ColorType::L8 | ColorType::L16 | ColorType::L32F => LayoutWithColor::Luma,
+                ColorType::La8 | ColorType::La16 | ColorType::La32F => LayoutWithColor::LumaAlpha,
                 ColorType::Rgb8 | ColorType::Rgb16 | ColorType::Rgb32F => LayoutWithColor::Rgb,
                 ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Rgba32F => LayoutWithColor::Rgba,
             }

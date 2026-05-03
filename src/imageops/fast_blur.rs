@@ -135,7 +135,6 @@ fn ceil_to_odd(x: usize) -> usize {
     }
 }
 
-#[inline]
 fn box_blur_horizontal_pass_strategy<T: Pixel>(
     src: &[T::Subpixel],
     src_stride: usize,
@@ -205,7 +204,7 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
         .chunks_exact_mut(dst_stride)
         .zip(src.chunks_exact(src_stride))
     {
-        let mut sums = [P::ZERO; CN];
+        let mut sums = [P::EMPTY_ACCUMULATOR; CN];
 
         let chunk0 = &src[..CN];
 
@@ -318,7 +317,7 @@ fn box_blur_vertical_pass<P: Primitive>(
     // and then doing blur by averaging the whole row ( which is in buffer )
     // and subtracting and adding next and previous rows in horizontal manner.
 
-    let mut buffer = vec![P::ZERO; buf_size];
+    let mut buffer = vec![P::EMPTY_ACCUMULATOR; buf_size];
 
     for (x, bf) in buffer.iter_mut().enumerate() {
         let mut w = P::scale(src[x].to_acc(), edge_count);

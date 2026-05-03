@@ -160,7 +160,7 @@ pub trait BlurAccum: Copy + Sized {
     type Acc: Copy + Add<Output = Self::Acc> + AddAssign + Sub<Output = Self::Acc> + SubAssign;
     type Weight: Copy;
 
-    const ZERO: Self::Acc;
+    const EMPTY_ACCUMULATOR: Self::Acc;
 
     fn to_acc(self) -> Self::Acc;
     fn scale(acc: Self::Acc, count: usize) -> Self::Acc;
@@ -171,7 +171,7 @@ pub trait BlurAccum: Copy + Sized {
 impl BlurAccum for u8 {
     type Acc = u32;
     type Weight = U8Weight;
-    const ZERO: u32 = 0;
+    const EMPTY_ACCUMULATOR: u32 = 0;
     #[inline(always)]
     fn to_acc(self) -> u32 {
         self as u32
@@ -195,7 +195,7 @@ macro_rules! impl_blur_accum_f32 {
         impl BlurAccum for $t {
             type Acc = f32;
             type Weight = f32;
-            const ZERO: f32 = 0.0;
+            const EMPTY_ACCUMULATOR: f32 = 0.0;
             #[inline(always)]
             fn to_acc(self) -> f32 {
                 self.to_f32().unwrap()

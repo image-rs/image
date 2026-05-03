@@ -40,7 +40,6 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::metadata::LoopCount;
-use crate::traits::Pixel;
 use crate::{
     AnimationDecoder, ExtendedColorType, ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat,
     Limits,
@@ -273,13 +272,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // begin looping over each frame
 
         let frame = match self.reader.next_frame_info() {
-            Ok(frame_info) => {
-                if let Some(frame) = frame_info {
-                    FrameInfo::new_from_frame(frame)
-                } else {
-                    // no more frames
-                    return None;
-                }
+            Ok(Some(frame_info)) => FrameInfo::new_from_frame(frame_info),
+            Ok(None) => {
+                // no more frames
+                return None;
             }
             Err(err) => match err {
                 gif::DecodingError::Io(ref e) => {
@@ -330,12 +326,17 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
         // blend the current frame with the non-disposed frame, then update
         // the non-disposed frame according to the disposal method.
+        #[inline]
         fn blend_and_dispose_pixel(
             dispose: DisposalMethod,
             previous: &mut Rgba<u8>,
             current: &mut Rgba<u8>,
         ) {
-            let pixel_alpha = current.channels()[3];
+            // Instead of only checking the alpha channel, use a bitmask to check
+            // the entire pixel and allow for better auto-vectorization.
+            // Makes it about 5% to 10% faster
+            const ALPHA_MASK: u32 = u32::from_ne_bytes([0, 0, 0, 255]);
+            let pixel_alpha = u32::from_ne_bytes(current.0) & ALPHA_MASK;
             if pixel_alpha == 0 {
                 *current = *previous;
             }
@@ -363,12 +364,18 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // if `frame_buffer`'s frame exactly matches the entire image, then
         // use it directly, else create a new buffer to hold the composited
         // image.
+
+        // binding to variable makes it clear to the compiler that the value does not change in the loop,
+        // improves benchmarks by 10%
+        let disposal_method = frame.disposal_method;
         let image_buffer = if (frame.left, frame.top) == (0, 0)
             && (self.width, self.height) == frame_buffer.dimensions()
         {
-            for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = non_disposed_frame.get_pixel_mut(x, y);
-                blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
+            for (pixel, previous_pixel) in frame_buffer
+                .pixels_mut()
+                .zip(non_disposed_frame.pixels_mut())
+            {
+                blend_and_dispose_pixel(disposal_method, previous_pixel, pixel);
             }
             frame_buffer
         } else {
@@ -383,7 +390,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
                 if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
                     let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
-                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
+                    blend_and_dispose_pixel(disposal_method, previous_pixel, &mut pixel);
                     pixel
                 } else {
                     // out of bounds, return pixel from previous frame

@@ -136,26 +136,8 @@ fn ceil_to_odd(x: usize) -> usize {
 }
 
 #[inline]
-#[allow(clippy::manual_clamp)]
 fn rounding_saturating_mul<T: Primitive>(v: f32, w: f32) -> T {
-    // T::DEFAULT_MAX_VALUE is equal to 1.0 only in cases where storage type if `f32/f64`,
-    // that means it should be safe to round here.
-    if T::DEFAULT_MAX_VALUE.to_f32().unwrap() != 1.0 {
-        T::from(
-            (v * w)
-                .round()
-                .min(T::DEFAULT_MAX_VALUE.to_f32().unwrap())
-                .max(T::DEFAULT_MIN_VALUE.to_f32().unwrap()),
-        )
-        .unwrap()
-    } else {
-        T::from(
-            (v * w)
-                .min(T::DEFAULT_MAX_VALUE.to_f32().unwrap())
-                .max(T::DEFAULT_MIN_VALUE.to_f32().unwrap()),
-        )
-        .unwrap()
-    }
+    T::clamp_nearest_from(v * w)
 }
 
 fn box_blur_horizontal_pass_strategy<T, P: Primitive>(

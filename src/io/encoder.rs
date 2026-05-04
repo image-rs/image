@@ -80,6 +80,26 @@ pub trait ImageEncoder {
         ))
     }
 
+    /// Set the XMP metadata to use for the image.
+    ///
+    /// This function is a no-op for formats that don't support XMP metadata.
+    /// For formats that do support XMP metadata, the metadata will be embedded
+    /// in the image when it is saved.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the format does not support XMP metadata or if the
+    /// encoder doesn't implement saving XMP metadata yet.
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        let _ = xmp;
+        Err(UnsupportedError::from_format_and_kind(
+            ImageFormatHint::Unknown,
+            UnsupportedErrorKind::GenericFeature(
+                "XMP metadata is not supported for this format".into(),
+            ),
+        ))
+    }
+
     /// Convert the image to a compatible format for the encoder. This is used by the encoding
     /// methods on `DynamicImage`.
     ///

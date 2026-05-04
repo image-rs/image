@@ -17,6 +17,7 @@ use crate::imageops::filter_1d::{
     FilterImageSize,
 };
 use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
+use crate::primitive_sealed::NearestFrom;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::{clamp, is_integer, vec_try_with_capacity};
 use crate::{
@@ -118,36 +119,6 @@ pub(crate) struct Filter<'a> {
 
     /// The window on which this filter operates.
     pub(crate) support: f32,
-}
-
-struct FloatNearest(f32);
-
-// to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
-// Note that to_f64 by default calls to_i64 and thus needs to be overridden.
-impl ToPrimitive for FloatNearest {
-    // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
-    // If a usecase for full 32 bits is found its trivial to add
-    fn to_i8(&self) -> Option<i8> {
-        self.0.round().to_i8()
-    }
-    fn to_i16(&self) -> Option<i16> {
-        self.0.round().to_i16()
-    }
-    fn to_i64(&self) -> Option<i64> {
-        self.0.round().to_i64()
-    }
-    fn to_u8(&self) -> Option<u8> {
-        self.0.round().to_u8()
-    }
-    fn to_u16(&self) -> Option<u16> {
-        self.0.round().to_u16()
-    }
-    fn to_u64(&self) -> Option<u64> {
-        self.0.round().to_u64()
-    }
-    fn to_f64(&self) -> Option<f64> {
-        self.0.to_f64()
-    }
 }
 
 // sinc function: the ideal sampling filter.
@@ -261,8 +232,6 @@ where
     let mut out = ImageBuffer::new(new_width, height);
     out.copy_color_space_from(image);
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -357,7 +326,7 @@ where
 
                 // Write directly to the output slice, bypassing put_pixel's bounds checks.
                 for (&tc, pc) in t.iter().zip(dst.iter_mut()) {
-                    *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
+                    *pc = S::clamp_nearest_from(tc);
                 }
             }
         }
@@ -501,21 +470,12 @@ pub fn interpolate_bilinear<P: Pixel>(
     // was originally assert, but is actually not a cheap computation
     debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
-    // hack to see if primitive is an integer or a float
-    let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
-
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
         let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
         // this rounding may introduce quantization errors,
         // Specifically what is meant is that many samples may deviate
         // from the mean value of the originals, but it's not possible to fix that.
-        *c = <P::Subpixel as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
-            if v < 0.0 {
-                P::Subpixel::DEFAULT_MIN_VALUE
-            } else {
-                P::Subpixel::DEFAULT_MAX_VALUE
-            }
-        });
+        *c = <P::Subpixel as NearestFrom<f32>>::nearest_from(v);
     }
 
     Some(out)
@@ -1671,7 +1631,7 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
     let mut out = image.buffer_like();
     let transient_dst_chunks = transient_dst.as_chunks_mut::<CN>().0.iter_mut();
     for (dst, src) in out.pixels_mut().zip(transient_dst_chunks) {
-        let pix = src.map(|v| NumCast::from(FloatNearest(v)).unwrap());
+        let pix = src.map(NearestFrom::<f32>::nearest_from);
         *dst = *Pixel::from_slice(&pix);
     }
 

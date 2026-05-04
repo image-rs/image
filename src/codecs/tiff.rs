@@ -530,6 +530,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
 pub struct TiffEncoder<W> {
     w: W,
     icc: Option<Vec<u8>>,
+    xmp: Option<Vec<u8>>,
 }
 
 fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3]]) {
@@ -553,26 +554,30 @@ fn ycbcr_to_rgb8(ycbcr: &[[u8; 3]], lr: f32, lg: f32, lb: f32, out: &mut [[u8; 3
 }
 
 fn cmyk_to_rgb(cmyk: &[u8; 4]) -> [u8; 3] {
-    let c = f32::from(cmyk[0]);
-    let m = f32::from(cmyk[1]);
-    let y = f32::from(cmyk[2]);
-    let kf = 1. - f32::from(cmyk[3]) / 255.;
+    let c = cmyk[0] as u32;
+    let m = cmyk[1] as u32;
+    let y = cmyk[2] as u32;
+    let k = cmyk[3] as u32;
+
+    let k_inv = 255 - k;
     [
-        ((255. - c) * kf) as u8,
-        ((255. - m) * kf) as u8,
-        ((255. - y) * kf) as u8,
+        (((255 - c) * k_inv) / 255) as u8,
+        (((255 - m) * k_inv) / 255) as u8,
+        (((255 - y) * k_inv) / 255) as u8,
     ]
 }
 
 fn cmyk_to_rgb16(cmyk: &[u16; 4]) -> [u16; 3] {
-    let c = f32::from(cmyk[0]);
-    let m = f32::from(cmyk[1]);
-    let y = f32::from(cmyk[2]);
-    let kf = 1. - f32::from(cmyk[3]) / 65535.;
+    let c = cmyk[0] as u64;
+    let m = cmyk[1] as u64;
+    let y = cmyk[2] as u64;
+    let k = cmyk[3] as u64;
+
+    let k_inv = 65535 - k;
     [
-        ((65535. - c) * kf) as u16,
-        ((65535. - m) * kf) as u16,
-        ((65535. - y) * kf) as u16,
+        (((65535 - c) * k_inv) / 65535) as u16,
+        (((65535 - m) * k_inv) / 65535) as u16,
+        (((65535 - y) * k_inv) / 65535) as u16,
     ]
 }
 
@@ -607,7 +612,11 @@ fn u8_slice_as_pod<P: bytemuck::Pod>(buf: &[u8]) -> ImageResult<std::borrow::Cow
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
-        TiffEncoder { w, icc: None }
+        TiffEncoder {
+            w,
+            icc: None,
+            xmp: None,
+        }
     }
 
     /// Private wrapper function to encode the image with a generic color type. This is used to reduce code duplication in the public `write_image` function.
@@ -626,16 +635,18 @@ impl<W: Write + Seek> TiffEncoder<W> {
         let mut img_encoder = encoder
             .new_image::<C>(width, height)
             .map_err(ImageError::from_tiff_encode)?;
-        if let Some(icc_profile) = self.icc {
-            // An ICC device profile is embedded, in its entirety, as a single TIFF field or Image File Directory (IFD) entry in
-            // the IFD containing the corresponding image data. An IFD should contain no more than one embedded profile.
-            // A TIFF file may contain more than one image, and so, more than one IFD. Each IFD may have its own
-            // embedded profile.
-            // -- Specification ICC.1:2004-10 (Profile version 4.2.0.0), https://www.color.org/icc1V42.pdf
-            let ifd_encoder = img_encoder.encoder(); // low-level TIFF directory encoder
-            ifd_encoder
-                .write_tag(Tag::IccProfile, icc_profile.as_slice())
-                .map_err(ImageError::from_tiff_encode)?;
+        if self.icc.is_some() || self.xmp.is_some() {
+            let ifd_encoder = img_encoder.encoder();
+            if let Some(icc_profile) = self.icc {
+                ifd_encoder
+                    .write_tag(Tag::IccProfile, icc_profile.as_slice())
+                    .map_err(ImageError::from_tiff_encode)?;
+            }
+            if let Some(xmp) = self.xmp {
+                ifd_encoder
+                    .write_tag(TAG_XML_PACKET, xmp.as_slice())
+                    .map_err(ImageError::from_tiff_encode)?;
+            }
         }
         img_encoder
             .write_data(&data)
@@ -690,5 +701,41 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
     fn set_icc_profile(&mut self, icc_profile: Vec<u8>) -> Result<(), UnsupportedError> {
         self.icc = Some(icc_profile);
         Ok(())
+    }
+
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.xmp = Some(xmp);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use crate::{ExtendedColorType, ImageDecoder as _, ImageEncoder};
+
+    use super::{TiffDecoder, TiffEncoder};
+
+    #[test]
+    fn roundtrip_xmp() {
+        let img = [255u8, 0, 0, 0, 255, 0, 0, 0, 255];
+        let xmp = b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF></rdf:RDF></x:xmpmeta>".to_vec();
+
+        let mut encoded = Vec::new();
+        {
+            let mut encoder = TiffEncoder::new(Cursor::new(&mut encoded));
+            encoder.set_xmp_metadata(xmp.clone()).unwrap();
+            encoder
+                .write_image(&img, 3, 1, ExtendedColorType::Rgb8)
+                .expect("Could not encode image");
+        }
+
+        let mut decoder = TiffDecoder::new(Cursor::new(&encoded)).expect("Could not decode image");
+        let decoded_xmp = decoder
+            .xmp_metadata()
+            .expect("Error decoding XMP")
+            .expect("XMP is empty");
+        assert_eq!(xmp, decoded_xmp);
     }
 }

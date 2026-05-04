@@ -88,7 +88,9 @@ impl<I> SubImage<I> {
         // fast path for row-major packed views
         if let Some(view) = self.to_pixel_view() {
             if let Some(row_iter) = view.iter_rows() {
-                for (row, out_row) in row_iter.zip(out.rows_mut()) {
+                let row_len = (w as usize) * <DerefPixel<I> as Pixel>::CHANNEL_COUNT as usize;
+                for (row, out_row) in row_iter.zip(out.inner_pixels_mut().chunks_exact_mut(row_len))
+                {
                     out_row.copy_from_slice(row);
                 }
                 return out;

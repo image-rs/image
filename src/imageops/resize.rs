@@ -161,7 +161,7 @@ where
     P::Subpixel:
         Copy + PartialEq + BitXor<P::Subpixel, Output = P::Subpixel> + AddAssign + Into<u64>,
 {
-    let first_pixel_alpha = *match img.pixels().next() {
+    let first_pixel_alpha = *match img.pixels().first() {
         Some(pixel) => pixel.channels().last().unwrap(), // there doesn't seem to be a better way to retrieve the alpha channel
         None => return true,                             // empty input image
     };
@@ -173,7 +173,7 @@ where
     // and only compare the sum of divergences on every row, which should be 0
     let mut sum_of_diffs: u64 = 0;
     for row in img.rows() {
-        row.for_each(|pixel| {
+        row.iter().for_each(|pixel| {
             let alpha = pixel.alpha();
             sum_of_diffs += alpha.bitxor(first_pixel_alpha).into();
         });
@@ -187,11 +187,12 @@ where
 #[must_use]
 fn has_constant_alpha_f32(img: &ImageBuffer<crate::Rgba<f32>, Vec<f32>>) -> bool {
     // Optimizing correctly in presence of NaNs and infinities is tricky, so just do the naive thing for now
-    let first_pixel_alpha = match img.pixels().next() {
+    let first_pixel_alpha = match img.pixels().first() {
         Some(pixel) => pixel.alpha(),
         None => return true, // empty input image
     };
     img.pixels()
+        .iter()
         .map(|pixel| pixel.channels().last().unwrap())
         .all(|alpha| *alpha == first_pixel_alpha)
 }

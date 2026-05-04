@@ -474,6 +474,15 @@ pub trait Pixel: Copy + Clone {
     /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
+    /// Returns a view into a slice.
+    fn slice_from_slice(slice: &[Self::Subpixel]) -> &[Self];
+
+    /// Returns mutable view into a mutable slice.
+    fn slice_from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut [Self];
+
+    fn to_subpixel_slice(slice: &[Self]) -> &[Self::Subpixel];
+    fn to_subpixel_slice_mut(slice: &mut [Self]) -> &mut [Self::Subpixel];
+
     /// Create a pixel from setting all channels to the same value.
     fn broadcast(_: Self::Subpixel) -> Self;
 

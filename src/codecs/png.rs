@@ -426,7 +426,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                     }
                 } else {
                     // The first frame is always a background frame.
-                    current.pixels_mut().for_each(|pixel| {
+                    current.pixels_mut().iter_mut().for_each(|pixel| {
                         *pixel = Rgba::from([0, 0, 0, 0]);
                     });
                 }

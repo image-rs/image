@@ -445,11 +445,11 @@ mod test {
             image2.par_enumerate_pixels().collect::<Vec<_>>()
         );
         assert_eq!(
-            image1.pixels_mut().collect::<Vec<_>>(),
+            image1.pixels_mut().iter().collect::<Vec<_>>(),
             image2.par_pixels_mut().collect::<Vec<_>>()
         );
         assert_eq!(
-            image1.pixels().collect::<Vec<_>>(),
+            image1.pixels().iter().collect::<Vec<_>>(),
             image2.par_pixels().collect::<Vec<_>>()
         );
     }

@@ -389,22 +389,26 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
     #[allow(clippy::modulo_one)]
     fn slice_from_slice(slice: &[T]) -> &[ $ident<T>] {
         assert_eq!(slice.len() % $channels, 0);
-        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, slice.len() / $channels) }
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, len) }
     }
 
     #[track_caller]
     #[allow(clippy::modulo_one)]
     fn slice_from_slice_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
         assert_eq!(slice.len() % $channels, 0);
-        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, slice.len() / $channels) }
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, len) }
     }
 
     fn to_subpixel_slice(slice: &[$ident<T>]) -> &[T] {
-        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const T, slice.len() * $channels) }
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const T, len) }
     }
 
     fn to_subpixel_slice_mut(slice: &mut [$ident<T>]) -> &mut [T] {
-        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut T, slice.len() * $channels) }
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut T, len) }
     }
 
     fn broadcast(val: T) -> $ident<T> {

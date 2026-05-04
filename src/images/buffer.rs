@@ -575,8 +575,9 @@ where
         &self.data[..len]
     }
 
-    /// Returns an iterator over the pixels of this image.
-    /// The iteration order is x = 0 to width then y = 0 to height
+    /// Returns a slice for the pixels of this image.
+    ///
+    /// The index order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> &[P] {
         let subpixels = self.inner_pixels();
         <P as Pixel>::slice_from_slice(subpixels)
@@ -748,7 +749,7 @@ where
         &mut self.data[..len]
     }
 
-    /// Returns an iterator over the mutable pixels of this image.
+    /// Returns a mutable slice of the pixels of this image.
     pub fn pixels_mut(&mut self) -> &mut [P] {
         let subpixels = self.inner_pixels_mut();
         <P as Pixel>::slice_from_slice_mut(subpixels)

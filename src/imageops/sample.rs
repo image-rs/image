@@ -523,13 +523,9 @@ where
 
     let src_stride = width as usize * MAX_CHANNEL;
 
-    // Sliding window cache for pre-converted source rows.  When the kernel has
-    // enough taps that source rows are reused across consecutive output rows
-    // (max_ks > sratio), a small circular buffer avoids redundant conversion.
-    // The capacity is max_ks+1, guaranteeing all taps for any single output row
-    // fit — so the inner loop never needs a cache-miss fallback.
-    // When the filter is trivial (e.g. Nearest) or the image is too wide for
-    // the memory budget, the cache is disabled entirely.
+    // Sliding window cache for pre-converted source rows.
+    // Disable cache when the filter is trivial (e.g. Nearest)
+    // or the image is too wide for the memory budget.
     let src_row_budget = MAX_WEIGHT_FLOATS / src_stride.max(1);
     let cache_capacity = if max_ks > sratio as usize && src_row_budget >= max_ks + 1 {
         max_ks + 1

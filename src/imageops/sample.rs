@@ -527,7 +527,7 @@ where
     // Disable cache when the filter is trivial (e.g. Nearest)
     // or the image is too wide for the memory budget.
     let src_row_budget = MAX_WEIGHT_FLOATS / src_stride.max(1);
-    let cache_capacity = if max_ks > sratio as usize && src_row_budget >= max_ks + 1 {
+    let cache_capacity = if max_ks > sratio as usize && src_row_budget > max_ks {
         max_ks + 1
     } else {
         0

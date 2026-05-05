@@ -423,9 +423,9 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         }
 
         if bit_depth == 8 {
-            let ref_y = self.picture.plane_data(PlanarImageComponent::Y);
-            let ref_u = self.picture.plane_data(PlanarImageComponent::U);
-            let ref_v = self.picture.plane_data(PlanarImageComponent::V);
+            let ref_y = self.picture.plane(PlanarImageComponent::Y);
+            let ref_u = self.picture.plane(PlanarImageComponent::U);
+            let ref_v = self.picture.plane(PlanarImageComponent::V);
 
             let image = YuvPlanarImage {
                 y_plane: ref_y,
@@ -481,7 +481,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                 }
 
                 let stride = picture.stride(PlanarImageComponent::Y) as usize;
-                let plane = picture.plane_data(PlanarImageComponent::Y);
+                let plane = picture.plane(PlanarImageComponent::Y);
 
                 for (buf, slice) in Iterator::zip(
                     buf.chunks_exact_mut(width as usize * 4),
@@ -523,7 +523,7 @@ impl<R: Read> AvifDecoder<R> {
         yuv_range: YuvIntensityRange,
         matrix_strategy: YuvMatrixStrategy,
     ) -> ImageResult<()> {
-        let y_dav1d_plane = self.picture.plane_data(PlanarImageComponent::Y);
+        let y_dav1d_plane = self.picture.plane(PlanarImageComponent::Y);
 
         let (width, height) = (self.picture.width(), self.picture.height());
         let bit_depth = self.picture.bit_depth();
@@ -540,8 +540,8 @@ impl<R: Read> AvifDecoder<R> {
             height as usize,
         );
 
-        let u_dav1d_plane = self.picture.plane_data(PlanarImageComponent::U);
-        let v_dav1d_plane = self.picture.plane_data(PlanarImageComponent::V);
+        let u_dav1d_plane = self.picture.plane(PlanarImageComponent::U);
+        let v_dav1d_plane = self.picture.plane(PlanarImageComponent::V);
         let mut u_plane_view = Plane16View::default();
         let mut v_plane_view = Plane16View::default();
 
@@ -660,7 +660,7 @@ impl<R: Read> AvifDecoder<R> {
                 )));
             }
 
-            let a_dav1d_plane = picture.plane_data(PlanarImageComponent::Y);
+            let a_dav1d_plane = picture.plane(PlanarImageComponent::Y);
             let a_plane_view = transmute_y_plane16(
                 a_dav1d_plane,
                 picture.stride(PlanarImageComponent::Y) as usize,

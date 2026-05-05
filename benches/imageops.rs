@@ -1,10 +1,11 @@
-use std::time::Duration;
+use std::{hint::black_box, time::Duration};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use image::{
     buffer::ConvertBuffer,
     imageops::{self, FilterType},
-    GrayImage, ImageBuffer, Rgb,
+    math::Rect,
+    DynamicImage, GrayImage, ImageBuffer, Rgb,
 };
 
 pub fn bench_imageops(c: &mut Criterion) {
@@ -12,6 +13,9 @@ pub fn bench_imageops(c: &mut Criterion) {
         // "random" pixel values
         Rgb([x as u8, (y / 8) as u8, ((x * 13 + y) % 256) as u8])
     });
+
+    let src_dyn = DynamicImage::from(src.clone());
+    let src_gray = src_dyn.to_luma8();
 
     c.bench_function("filter3x3", |b| {
         b.iter(|| imageops::filter3x3(&src, &[1.0, 1.0, 1.0, 1.0, -8.0, 1.0, 1.0, 1.0, 1.0]));
@@ -70,6 +74,22 @@ pub fn bench_imageops(c: &mut Criterion) {
 
     c.bench_function("unsharpen", |b| {
         b.iter(|| imageops::unsharpen(&src, 2.0, 0));
+    });
+
+    c.bench_function("dyn image crop", |b| {
+        b.iter(|| {
+            src_dyn.crop(Rect {
+                x: 13,
+                y: 45,
+                width: 1500,
+                height: 725,
+            })
+        });
+    });
+
+    c.bench_function("gray image expand_palette", |b| {
+        let palette = &[(1, 2, 3); 256];
+        b.iter(|| src_gray.expand_palette(black_box(palette), black_box(None)));
     });
 }
 

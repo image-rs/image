@@ -103,6 +103,11 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
         Ok(())
     }
 
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        self.inner.set_xmp_metadata(xmp);
+        Ok(())
+    }
+
     fn make_compatible_img(
         &self,
         _: crate::io::encoder::MethodSealedToImage,
@@ -123,7 +128,7 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ImageEncoder, RgbaImage};
+    use crate::{ImageDecoder as _, ImageEncoder, RgbaImage};
 
     #[test]
     fn write_webp() {
@@ -144,5 +149,33 @@ mod tests {
             .to_rgba8();
 
         assert_eq!(img, img2);
+    }
+
+    #[test]
+    fn roundtrip_xmp() {
+        let img = RgbaImage::from_raw(10, 6, (0..240).collect()).unwrap();
+        let xmp = b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF></rdf:RDF></x:xmpmeta>".to_vec();
+
+        let mut output = Vec::new();
+        {
+            let mut encoder = super::WebPEncoder::new_lossless(&mut output);
+            encoder.set_xmp_metadata(xmp.clone()).unwrap();
+            encoder
+                .write_image(
+                    img.inner_pixels(),
+                    img.width(),
+                    img.height(),
+                    crate::ExtendedColorType::Rgba8,
+                )
+                .unwrap();
+        }
+
+        let mut decoder = crate::codecs::webp::WebPDecoder::new(std::io::Cursor::new(&output))
+            .expect("Could not decode image");
+        let decoded_xmp = decoder
+            .xmp_metadata()
+            .expect("Error decoding XMP")
+            .expect("XMP is empty");
+        assert_eq!(xmp, decoded_xmp);
     }
 }

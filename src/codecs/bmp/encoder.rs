@@ -12,13 +12,13 @@ const BITMAPINFOHEADER_SIZE: u32 = 40;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 
 /// The representation of a BMP encoder.
-pub struct BmpEncoder<'a, W: 'a> {
-    writer: &'a mut W,
+pub struct BmpEncoder<W> {
+    writer: W,
 }
 
-impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
+impl<W: Write> BmpEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
-    pub fn new(w: &'a mut W) -> Self {
+    pub fn new(w: W) -> Self {
         BmpEncoder { writer: w }
     }
 
@@ -299,7 +299,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     }
 }
 
-impl<W: Write> ImageEncoder for BmpEncoder<'_, W> {
+impl<W: Write> ImageEncoder for BmpEncoder<W> {
     #[track_caller]
     fn write_image(
         mut self,

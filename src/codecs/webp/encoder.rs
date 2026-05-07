@@ -137,7 +137,7 @@ mod tests {
         let mut output = Vec::new();
         super::WebPEncoder::new_lossless(&mut output)
             .write_image(
-                img.inner_pixels(),
+                img.subpixels(),
                 img.width(),
                 img.height(),
                 crate::ExtendedColorType::Rgba8,
@@ -162,7 +162,7 @@ mod tests {
             encoder.set_xmp_metadata(xmp.clone()).unwrap();
             encoder
                 .write_image(
-                    img.inner_pixels(),
+                    img.subpixels(),
                     img.width(),
                     img.height(),
                     crate::ExtendedColorType::Rgba8,

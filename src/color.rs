@@ -385,12 +385,12 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
     }
 
-    fn slice_from_slice(slice: &[T]) -> &[ $ident<T>] {
+    fn pixels_from_channels(slice: &[T]) -> &[ $ident<T>] {
         let len = slice.len() / $channels;
         unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, len) }
     }
 
-    fn slice_from_slice_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
+    fn pixels_from_channels_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
         let len = slice.len() / $channels;
         unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, len) }
     }

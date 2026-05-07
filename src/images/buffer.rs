@@ -580,7 +580,7 @@ where
     /// The index order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> &[P] {
         let subpixels = self.inner_pixels();
-        <P as Pixel>::slice_from_slice(subpixels)
+        <P as Pixel>::pixels_from_channels(subpixels)
     }
 
     /// Returns an iterator over the rows of this image.
@@ -752,7 +752,7 @@ where
     /// Returns a mutable slice of the pixels of this image.
     pub fn pixels_mut(&mut self) -> &mut [P] {
         let subpixels = self.inner_pixels_mut();
-        <P as Pixel>::slice_from_slice_mut(subpixels)
+        <P as Pixel>::pixels_from_channels_mut(subpixels)
     }
 
     /// Returns an iterator over the mutable rows of this image.

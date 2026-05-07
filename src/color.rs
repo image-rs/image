@@ -385,18 +385,12 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
     }
 
-    #[track_caller]
-    #[allow(clippy::modulo_one)]
     fn slice_from_slice(slice: &[T]) -> &[ $ident<T>] {
-        assert_eq!(slice.len() % $channels, 0);
         let len = slice.len() / $channels;
         unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, len) }
     }
 
-    #[track_caller]
-    #[allow(clippy::modulo_one)]
     fn slice_from_slice_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
-        assert_eq!(slice.len() % $channels, 0);
         let len = slice.len() / $channels;
         unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, len) }
     }

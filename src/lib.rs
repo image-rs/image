@@ -181,8 +181,8 @@ pub mod error;
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::images::buffer::{
-        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
-        Pixels, PixelsMut, Rows, RowsMut,
+        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut, Rows,
+        RowsMut,
     };
 
     #[cfg(feature = "rayon")]
@@ -279,6 +279,7 @@ mod images;
 /// This is going to be internal.
 pub mod io;
 pub mod metadata;
+mod primitive_sealed;
 //TODO delete this module after a few releases
 mod traits;
 mod utils;

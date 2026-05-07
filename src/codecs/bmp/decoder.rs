@@ -19,6 +19,7 @@ const BITMAPV2HEADER_SIZE: u32 = 52;
 const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
+const FILE_HEADER_SIZE: u64 = 14;
 
 const OS2_V2_MAX_HEADER_SIZE: u32 = 64;
 const OS2_V2_MIN_HEADER_SIZE: u32 = 16;
@@ -65,8 +66,13 @@ const ALPHA_OPAQUE: u8 = 0xFF;
 /// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 
-/// The value of the V5 header field indicating an embedded ICC profile ("MBED").
-const PROFILE_EMBEDDED: u32 = 0x4D424544;
+/// The value of the V5 header field indicating an embedded ICC profile.
+const PROFILE_EMBEDDED: u32 = u32::from_be_bytes(*b"MBED");
+
+// BMP color space type constants (bV4CSType / bV5CSType).
+const LCS_CALIBRATED_RGB: u32 = 0x00000000;
+const LCS_SRGB: u32 = u32::from_be_bytes(*b"sRGB");
+const LCS_WINDOWS_COLOR_SPACE: u32 = u32::from_be_bytes(*b"Win ");
 
 /// During progressive decoding, the decoder applies transforms (e.g. a vertical
 /// flip for bottom-up BMP files) as it writes rows into the output buffer.
@@ -277,6 +283,137 @@ impl ParsedIccProfile {
     }
 }
 
+/// Color space data parsed from V4/V5 BMP headers.
+#[derive(Debug, Clone)]
+enum ColorSpaceInfo {
+    /// LCS_CALIBRATED_RGB: endpoint and gamma values specified in the header.
+    CalibratedRgb(CalibratedRgb),
+    /// LCS_sRGB or LCS_WINDOWS_COLOR_SPACE: sRGB color space.
+    Srgb,
+    /// PROFILE_EMBEDDED: ICC profile data embedded in the file.
+    EmbeddedIcc(ParsedIccProfile),
+}
+
+impl ColorSpaceInfo {
+    /// Parse color space information from a V4/V5 header buffer.
+    /// The buffer should start after the 4-byte size field.
+    /// Note: Caller must ensure buffer has at least 104 bytes (V4 header minus size field);
+    /// this method does not validate.
+    #[track_caller]
+    fn parse(buffer: &[u8], bmp_header_size: u32, bmp_header_offset: u64) -> Option<Self> {
+        // bV4CSType at offset 56 from header start = offset 52 from after size field.
+        let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
+
+        match cs_type {
+            LCS_CALIBRATED_RGB => {
+                let read_u32 = |offset: usize| -> u32 {
+                    u32::from_le_bytes(buffer[offset..offset + 4].try_into().unwrap())
+                };
+
+                // FXPT2DOT30 (2.30 fixed-point) → f32.
+                let fxpt2dot30 = |val: u32| -> f32 { val as f32 * (1.0 / (1u64 << 30) as f32) };
+                // FXPT16DOT16 (16.16 fixed-point) → f32.
+                let fxpt16dot16 = |val: u32| -> f32 { val as f32 / 65536.0 };
+
+                // CIEXYZTRIPLE: 9 FXPT2DOT30 values at offsets 60-95 from header
+                // start (56-91 from after size field). Layout:
+                //   RedX, RedY, RedZ, GreenX, GreenY, GreenZ, BlueX, BlueY, BlueZ
+                // We read only X and Y per primary (Z is implicit: Z = 1 - X - Y
+                // for chromaticity, but BMP stores raw CIE XYZ values).
+                let rx = fxpt2dot30(read_u32(56));
+                let ry = fxpt2dot30(read_u32(60));
+                let gx = fxpt2dot30(read_u32(68));
+                let gy = fxpt2dot30(read_u32(72));
+                let bx = fxpt2dot30(read_u32(80));
+                let by = fxpt2dot30(read_u32(84));
+
+                // Gamma values at offsets 96-107 from header start (92-103 from after size).
+                let gamma_r = fxpt16dot16(read_u32(92));
+                let gamma_g = fxpt16dot16(read_u32(96));
+                let gamma_b = fxpt16dot16(read_u32(100));
+
+                // Validate: Y values must be non-zero (used as denominators in
+                // XYZ→chromaticity conversion by color management libraries).
+                if ry == 0.0 || gy == 0.0 || by == 0.0 {
+                    return None;
+                }
+
+                Some(ColorSpaceInfo::CalibratedRgb(CalibratedRgb {
+                    rx,
+                    ry,
+                    gx,
+                    gy,
+                    bx,
+                    by,
+                    gamma_r,
+                    gamma_g,
+                    gamma_b,
+                }))
+            }
+            LCS_SRGB | LCS_WINDOWS_COLOR_SPACE => Some(ColorSpaceInfo::Srgb),
+            PROFILE_EMBEDDED if bmp_header_size >= BITMAPV5HEADER_SIZE => {
+                ParsedIccProfile::parse(buffer, bmp_header_offset).map(ColorSpaceInfo::EmbeddedIcc)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Calibrated RGB color space parameters from a BMP V4/V5 header.
+///
+/// When the header's `bV4CSType` is `LCS_CALIBRATED_RGB`, these fields
+/// carry the CIE XYZ endpoint coordinates for the RGB primaries and
+/// per-channel gamma values, parsed from the FXPT2DOT30 / FXPT16DOT16
+/// fixed-point fields in the header.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CalibratedRgb {
+    /// Red primary CIE X coordinate (FXPT2DOT30).
+    rx: f32,
+    /// Red primary CIE Y coordinate (FXPT2DOT30).
+    ry: f32,
+    /// Green primary CIE X coordinate (FXPT2DOT30).
+    gx: f32,
+    /// Green primary CIE Y coordinate (FXPT2DOT30).
+    gy: f32,
+    /// Blue primary CIE X coordinate (FXPT2DOT30).
+    bx: f32,
+    /// Blue primary CIE Y coordinate (FXPT2DOT30).
+    by: f32,
+    /// Red channel gamma (FXPT16DOT16).
+    gamma_r: f32,
+    /// Green channel gamma (FXPT16DOT16).
+    gamma_g: f32,
+    /// Blue channel gamma (FXPT16DOT16).
+    gamma_b: f32,
+}
+
+impl CalibratedRgb {
+    /// Build a moxcms `ColorProfile` from the calibrated RGB primaries and gamma.
+    fn to_color_profile(self) -> moxcms::ColorProfile {
+        let primaries = moxcms::ColorPrimaries {
+            red: moxcms::Chromaticity::new(self.rx, self.ry),
+            green: moxcms::Chromaticity::new(self.gx, self.gy),
+            blue: moxcms::Chromaticity::new(self.bx, self.by),
+        };
+
+        let mut profile = moxcms::ColorProfile::new_srgb();
+        profile.update_rgb_colorimetry(moxcms::WHITE_POINT_D65, primaries);
+
+        // Clear inherited CICP metadata from the sRGB base profile.
+        profile.cicp = None;
+
+        // Use gamma directly as the TRC exponent via a parametric curve
+        // (ICC type 0: Y = X^gamma).  This preserves full s15Fixed16 precision
+        // when serialised to ICC bytes.
+        let safe_gamma = |g: f32| if g > 0.0 { g } else { 1.0 };
+        let parametric_trc = |g: f32| moxcms::ToneReprCurve::Parametric(vec![safe_gamma(g)]);
+        profile.red_trc = Some(parametric_trc(self.gamma_r));
+        profile.green_trc = Some(parametric_trc(self.gamma_g));
+        profile.blue_trc = Some(parametric_trc(self.gamma_b));
+        profile
+    }
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
     Palette,
@@ -320,6 +457,9 @@ enum MetadataProgress {
 /// Carried through metadata phases to avoid redundant state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HeaderOffsets {
+    /// Absolute file offset where the DIB header ends (before any extra
+    /// bitmask bytes or palette). This is the minimum valid data_offset.
+    bmp_header_end: u64,
     /// Offset where palette data starts (after headers).
     palette_offset: u64,
     /// ICC profile metadata if present.
@@ -559,6 +699,42 @@ fn allocate_row_buffer(size: usize) -> ImageResult<Vec<u8>> {
     })?;
     buffer.resize(size, 0);
     Ok(buffer)
+}
+
+/// Checks if the current scanline is the last one or not. If it is not the
+/// last one, it performs a normal read. Otherwise, the special case applies:
+/// Apparently many BMPs are missing the final byte at the end of the file.
+/// This function checks if the stream is exactly one byte short of the
+/// required final scanline length. If so, it reads the available bytes and
+/// explicitly zeroes the missing trailing byte. Otherwise, it performs a normal `read_exact`.
+fn read_scanline(
+    reader: &mut (impl io::Read + Seek),
+    buf: &mut [u8],
+    current_file_row: &mut u32,
+    last_row: u32,
+    spec_strictness: SpecCompliance,
+) -> io::Result<()> {
+    let is_last_row = *current_file_row == last_row;
+    *current_file_row += 1;
+
+    if is_last_row && spec_strictness == SpecCompliance::Lenient {
+        let current_pos = reader.stream_position()?;
+        let end_pos = reader.seek(SeekFrom::End(0))?;
+        reader.seek(SeekFrom::Start(current_pos))?;
+
+        let Some((last, head)) = buf.split_last_mut() else {
+            // Empty row, nothing to read.
+            return Ok(());
+        };
+
+        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
+            reader.read_exact(head)?;
+            *last = b'\0';
+            return Ok(());
+        }
+    }
+
+    reader.read_exact(buf)
 }
 
 /// Convenience function to check if the combination of width, length and number of
@@ -1065,8 +1241,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         // Read entire 14-byte file header
-        const FILE_HEADER_SIZE: usize = 14;
-        let mut buffer = [0u8; FILE_HEADER_SIZE];
+        let mut buffer = [0u8; FILE_HEADER_SIZE as usize];
         self.reader.read_exact(&mut buffer)?;
 
         // Check signature
@@ -1365,9 +1540,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
 
                 // For no_file_header mode, capture data_offset now (after palette read)
-                // before ICC profile reading potentially changes reader position
+                // before ICC profile reading potentially changes reader position.
+                // For normal mode, clamp data_offset if it points into the DIB header
+                // (between FILE_HEADER_SIZE and bmp_header_end). Such values are invalid
+                // because they overlap with header data.
                 if self.no_file_header {
                     self.data_offset = self.reader.stream_position()?;
+                } else if self.spec_strictness != SpecCompliance::Strict
+                    && self.data_offset >= FILE_HEADER_SIZE
+                    && self.data_offset < offsets.bmp_header_end
+                {
+                    self.data_offset = offsets.bmp_header_end;
                 }
 
                 // Always progress to ReadingIccProfile next
@@ -1476,20 +1659,51 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     BitfieldCompression::Rgb => 12,  // 3 masks * 4 bytes
                 };
             }
+        } else if self.image_type == ImageType::RGB32 && bmp_header_size >= BITMAPV4HEADER_SIZE {
+            // V4/V5 headers may declare an alpha channel via alpha_mask even under BI_RGB.
+            let mut masks_buf = [0u8; 16];
+            self.reader.read_exact(&mut masks_buf)?;
+            let alpha_mask = u32::from_le_bytes(masks_buf[12..16].try_into().unwrap());
+            if alpha_mask != 0 {
+                // BI_RGB implies fixed BGRA byte layout, so the only spec-valid
+                // alpha mask is 0xFF000000. In lenient mode we still treat any
+                // non-zero alpha_mask as "alpha present" because some encoders
+                // (e.g. older GDI+ versions) write incorrect mask values while
+                // still storing alpha in the high byte.
+                if self.spec_strictness == SpecCompliance::Strict && alpha_mask != 0xFF000000 {
+                    return Err(DecoderError::BitfieldMaskInvalid.into());
+                }
+                self.add_alpha_channel = true;
+                self.image_type = ImageType::RGBA32;
+            }
         };
 
-        // Parse ICC profile metadata from V5 header (but don't read the profile data yet)
+        // Parse color space fields from V4/V5 header
         let mut icc_profile = None;
-        if bmp_header_size >= BITMAPV5HEADER_SIZE {
-            // Read the full V5 header into a buffer for ICC profile metadata parsing
-            // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+        if bmp_header_size >= BITMAPV4HEADER_SIZE {
+            // Read the header into a buffer for color space parsing.
+            // Buffer starts after the 4-byte size field.
             let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
             let current_pos = self.reader.stream_position()?;
             self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
             self.reader.read_exact(&mut header_buffer)?;
 
-            // Extract ICC profile metadata for later reading
-            icc_profile = ParsedIccProfile::parse(&header_buffer, bmp_header_offset);
+            // Extract color space info and handle non-Copy variants immediately
+            match ColorSpaceInfo::parse(&header_buffer, bmp_header_size, bmp_header_offset) {
+                Some(ColorSpaceInfo::CalibratedRgb(params)) => {
+                    // Synthesize an ICC profile from the calibrated RGB parameters
+                    // and store it directly — no file read needed.
+                    if let Ok(encoded) = params.to_color_profile().encode() {
+                        self.icc_profile = Some(encoded);
+                    }
+                }
+                Some(ColorSpaceInfo::EmbeddedIcc(icc)) => {
+                    icc_profile = Some(icc);
+                }
+                // LCS_sRGB / LCS_WINDOWS_COLOR_SPACE: the caller treats
+                // "no ICC profile" as sRGB, so nothing to store.
+                Some(ColorSpaceInfo::Srgb) | None => {}
+            }
 
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
@@ -1499,6 +1713,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
         Ok(HeaderOffsets {
+            bmp_header_end,
             palette_offset,
             icc_profile,
         })
@@ -1634,6 +1849,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 .for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (self.height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1643,7 +1861,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut indices)?;
+                read_scanline(
+                    reader,
+                    &mut indices,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 if skip_palette {
                     row.clone_from_slice(&indices[0..width]);
                 } else {
@@ -1697,6 +1921,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1706,7 +1933,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<2>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1747,6 +1980,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1756,7 +1992,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<4>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1808,6 +2050,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1817,7 +2062,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
 
                 for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
                     let offset = match *format {
@@ -2344,6 +2595,32 @@ mod test {
         );
     }
 
+    #[test]
+    fn test_calibrated_rgb_icc_profile() {
+        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should synthesize an ICC profile.
+        let data = std::fs::read("tests/images/bmp/images/pal8v4.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(
+            profile.is_some(),
+            "pal8v4: should have a synthesized ICC profile from calibrated RGB parameters"
+        );
+        validate_icc_profile(
+            &profile.unwrap(),
+            "pal8v4.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
+
+        // pal8v5.bmp uses LCS_sRGB — no ICC profile needed.
+        let data = std::fs::read("tests/images/bmp/images/pal8v5.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        assert!(
+            decoder.icc_profile().unwrap().is_none(),
+            "pal8v5: should have no ICC profile (LCS_sRGB)"
+        );
+    }
+
     /// A reader that simulates partial data availability for testing resumable decoding.
     /// It wraps a byte slice and limits how many bytes can be read before returning UnexpectedEof.
     struct PartialReader {
@@ -2723,6 +3000,10 @@ mod test {
                 "tests/images/bmp/images/lenient/rgb16-880.bmp",
                 "rgb16-880: zero blue mask should be rejected in strict mode",
             ),
+            (
+                "tests/images/bmp/images/lenient/V5_A8_R8_G8_B8_Rgb_BadMask.bmp",
+                "V5_A8_R8_G8_B8_Rgb_BadMask: non-standard alpha mask under BI_RGB",
+            ),
         ];
 
         for (path, description) in &questionable_files {
@@ -2748,6 +3029,40 @@ mod test {
                 "{description}: expected error in strict mode, but got Ok"
             );
         }
+    }
+
+    /// A BMP with data_offset=34 points into the middle of the DIB header,
+    /// which is invalid. The decoder should clamp it to bmp_header_end (54)
+    /// and produce the same output as a correctly-formed file.
+    #[test]
+    fn test_invalid_data_offset_into_dib_header() {
+        let data: Vec<u8> = vec![
+            0x42, 0x4D, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
+        ];
+
+        // Same BMP but with the correct data_offset = 54 (0x36)
+        let mut reference = data.clone();
+        reference[10] = 0x36;
+
+        // Decode both
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0u8; len as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        let mut ref_decoder = BmpDecoder::new(Cursor::new(&reference)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut ref_buf = vec![0u8; len as usize];
+        ref_decoder.read_image(&mut ref_buf).unwrap();
+
+        assert_eq!(
+            buf, ref_buf,
+            "BMP with invalid data_offset=34 should decode identically to data_offset=54"
+        );
     }
 
     /// Test that strict mode correctly rejects RLE files with known corruptions.
@@ -2801,5 +3116,39 @@ mod test {
         let mut buffer = vec![0u8; len as usize];
         let result = decoder.read_image(&mut buffer);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_decode_truncated_bmp() {
+        use std::io::Cursor;
+
+        let data = vec![
+            0x42, 0x4D, 0x3A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00,
+            0x00,
+        ];
+
+        // Test Lenient mode
+        let decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
+        let mut decoder = crate::ImageReader::from_decoder(Box::new(decoder));
+        let result = decoder.decode();
+        assert!(
+            result.is_ok(),
+            "Expected Ok in lenient mode for truncated file"
+        );
+
+        // Test Strict mode
+        let strict_decoder =
+            BmpDecoder::new_with_spec_compliance(Cursor::new(data), SpecCompliance::Strict)
+                .unwrap();
+        let mut decoder = crate::ImageReader::from_decoder(Box::new(strict_decoder));
+        let result = decoder.decode();
+
+        assert!(
+            result.is_err(),
+            "Expected error in strict mode for truncated file"
+        );
     }
 }

@@ -452,7 +452,7 @@ mod test {
             let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
             assert_eq!(exr_pixels.dimensions(), hdr.dimensions());
 
-            for (expected, found) in hdr.pixels().zip(exr_pixels.pixels()) {
+            for (expected, found) in hdr.pixels().iter().zip(exr_pixels.pixels().iter()) {
                 for (expected, found) in expected.0.iter().zip(found.0.iter()) {
                     // the large tolerance seems to be caused by
                     // the RGBE u8x4 pixel quantization of the hdr image format
@@ -513,7 +513,7 @@ mod test {
 
         assert_eq!(rgba.dimensions(), rgb.dimensions());
 
-        for (Rgb(rgb), Rgba(rgba)) in rgb.pixels().zip(rgba.pixels()) {
+        for (Rgb(rgb), Rgba(rgba)) in rgb.pixels().iter().zip(rgba.pixels().iter()) {
             assert_eq!(rgb, &rgba[..3]);
         }
     }
@@ -555,6 +555,10 @@ mod test {
 
         // the following is not a simple assert_eq, as in case of an error,
         // the whole image would be printed to the console, which takes forever
-        assert!(original.pixels().zip(cropped.pixels()).all(|(a, b)| a == b));
+        assert!(original
+            .pixels()
+            .iter()
+            .zip(cropped.pixels().iter())
+            .all(|(a, b)| a == b));
     }
 }

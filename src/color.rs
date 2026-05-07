@@ -5,7 +5,6 @@ use num_traits::{NumCast, Zero};
 use crate::{
     error::TryFromExtendedColorError,
     traits::{Enlargeable, Pixel, Primitive},
-    utils::is_integer,
 };
 
 /// An enumeration over supported color types and bit depths
@@ -384,6 +383,26 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
     fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
+    }
+
+    fn pixels_from_channels(slice: &[T]) -> &[ $ident<T>] {
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, len) }
+    }
+
+    fn pixels_from_channels_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, len) }
+    }
+
+    fn pixels_as_channels(slice: &[$ident<T>]) -> &[T] {
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const T, len) }
+    }
+
+    fn pixels_as_channels_mut(slice: &mut [$ident<T>]) -> &mut [T] {
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut T, len) }
     }
 
     fn broadcast(val: T) -> $ident<T> {
@@ -841,17 +860,6 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
-/// Converts a f32 to a primitive type T with rounding when T is an integer.
-///
-/// E.g. 3.6 -> 4 for u8, but 3.6 -> 3.6 for f32.
-#[inline]
-fn from_f32_rounded<T: Primitive>(x: f32) -> T {
-    // We assume that integers perform truncation when casting from float.
-    // With this assumption, rounding can done simply adding 0.5 before the cast.
-    // Of course, adding 0.5 must ONLY be done for integer types.
-    NumCast::from(if is_integer::<T>() { x + 0.5 } else { x }).unwrap()
-}
-
 impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t = T::DEFAULT_MAX_VALUE;
@@ -879,8 +887,8 @@ impl<T: Primitive> Blend for LumaA<T> {
         let out_luma = out_luma_a / alpha_final;
 
         *self = LumaA([
-            from_f32_rounded(max_t * out_luma),
-            from_f32_rounded(max_t * alpha_final),
+            T::nearest_from(max_t * out_luma),
+            T::nearest_from(max_t * alpha_final),
         ]);
     }
 }
@@ -947,10 +955,10 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Cast back to our initial type on return
         *self = Rgba([
-            from_f32_rounded(max_t * out_r),
-            from_f32_rounded(max_t * out_g),
-            from_f32_rounded(max_t * out_b),
-            from_f32_rounded(max_t * alpha_final),
+            T::nearest_from(max_t * out_r),
+            T::nearest_from(max_t * out_g),
+            T::nearest_from(max_t * out_b),
+            T::nearest_from(max_t * alpha_final),
         ]);
     }
 }

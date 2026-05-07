@@ -6,6 +6,7 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
 use crate::color::{Luma, LumaA, Rgb, Rgba};
+use crate::primitive_sealed::PrimitiveSealed;
 use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
@@ -33,27 +34,10 @@ impl EncodableLayout for [f32] {
     }
 }
 
-mod sealed {
-    pub trait PrimitiveSealed: Sized {}
-}
-
-impl sealed::PrimitiveSealed for usize {}
-impl sealed::PrimitiveSealed for u8 {}
-impl sealed::PrimitiveSealed for u16 {}
-impl sealed::PrimitiveSealed for u32 {}
-impl sealed::PrimitiveSealed for u64 {}
-impl sealed::PrimitiveSealed for isize {}
-impl sealed::PrimitiveSealed for i8 {}
-impl sealed::PrimitiveSealed for i16 {}
-impl sealed::PrimitiveSealed for i32 {}
-impl sealed::PrimitiveSealed for i64 {}
-impl sealed::PrimitiveSealed for f32 {}
-impl sealed::PrimitiveSealed for f64 {}
-
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive:
-    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + sealed::PrimitiveSealed
+    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + PrimitiveSealed
 {
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
@@ -489,6 +473,22 @@ pub trait Pixel: Copy + Clone {
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
+
+    /// Returns a slice of pixels from a slice of subpixels.
+    ///
+    /// If `slice.len()` is not a multiple of `CHANNEL_COUNT`, the longest prefix of whole pixels is returned.
+    fn pixels_from_channels(slice: &[Self::Subpixel]) -> &[Self];
+
+    /// Returns a mutable slice of pixels from a mutable slice of subpixels.
+    ///
+    /// If `slice.len()` is not a multiple of `CHANNEL_COUNT`, the longest prefix of whole pixels is returned.
+    fn pixels_from_channels_mut(slice: &mut [Self::Subpixel]) -> &mut [Self];
+
+    /// Returns a slice of subpixels from a slice of pixels.
+    fn pixels_as_channels(slice: &[Self]) -> &[Self::Subpixel];
+
+    /// Returns a mutable slice of subpixels from a mutable slice of pixels.
+    fn pixels_as_channels_mut(slice: &mut [Self]) -> &mut [Self::Subpixel];
 
     /// Create a pixel from setting all channels to the same value.
     fn broadcast(_: Self::Subpixel) -> Self;

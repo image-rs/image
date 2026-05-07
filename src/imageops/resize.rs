@@ -171,13 +171,13 @@ where
     //
     // Instead of doing that we scan every row first with cheap arithmetic instructions
     // and only compare the sum of divergences on every row, which should be 0
-    let mut sum_of_diffs = <P::Subpixel as Zero>::zero();
+    let mut diff_acc = <P::Subpixel as Zero>::zero();
     for row in img.rows() {
         row.iter().for_each(|pixel| {
             let alpha = pixel.alpha();
-            sum_of_diffs |= alpha.bitxor(first_pixel_alpha);
+            diff_acc |= alpha.bitxor(first_pixel_alpha);
         });
-        if !sum_of_diffs.is_zero() {
+        if !diff_acc.is_zero() {
             return false;
         }
     }

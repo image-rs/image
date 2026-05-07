@@ -720,7 +720,7 @@ impl DynamicImage {
         dynamic_map!(
             *self,
             ref image_buffer,
-            bytemuck::cast_slice(image_buffer.as_raw())
+            bytemuck::cast_slice(image_buffer.subpixels())
         )
     }
 

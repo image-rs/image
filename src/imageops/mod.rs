@@ -531,11 +531,9 @@ mod tests {
         let image_blurred_gauss = image
             .blur_advanced(GaussianBlurParameters::new_from_sigma(50.0))
             .to_rgb8();
-        let image_blurred_gauss_samples = image_blurred_gauss.as_flat_samples();
-        let image_blurred_gauss_bytes = image_blurred_gauss_samples.as_slice();
+        let image_blurred_gauss_bytes = image_blurred_gauss.subpixels();
         let image_blurred_fast = image.fast_blur(50.0).to_rgb8();
-        let image_blurred_fast_samples = image_blurred_fast.as_flat_samples();
-        let image_blurred_fast_bytes = image_blurred_fast_samples.as_slice();
+        let image_blurred_fast_bytes = image_blurred_fast.subpixels();
 
         let error = image_blurred_gauss_bytes
             .iter()

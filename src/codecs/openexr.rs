@@ -353,7 +353,7 @@ mod test {
     fn write_rgb_image(write: impl Write + Seek, image: &Rgb32FImage) -> ImageResult<()> {
         write_buffer(
             write,
-            bytemuck::cast_slice(image.as_raw().as_slice()),
+            bytemuck::cast_slice(image.subpixels()),
             image.width(),
             image.height(),
             ExtendedColorType::Rgb32F,
@@ -366,7 +366,7 @@ mod test {
     fn write_rgba_image(write: impl Write + Seek, image: &Rgba32FImage) -> ImageResult<()> {
         write_buffer(
             write,
-            bytemuck::cast_slice(image.as_raw().as_slice()),
+            bytemuck::cast_slice(image.subpixels()),
             image.width(),
             image.height(),
             ExtendedColorType::Rgba32F,

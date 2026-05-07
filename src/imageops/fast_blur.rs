@@ -35,7 +35,7 @@ pub fn fast_blur<P: Pixel>(
         return input_buffer.clone();
     }
 
-    let samples = input_buffer.as_flat_samples().samples;
+    let samples = input_buffer.subpixels();
 
     let destination_size = match (width as usize)
         .safe_mul(height as usize)

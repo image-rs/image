@@ -1497,7 +1497,6 @@ impl GrayImage {
         transparent_idx: Option<u8>,
     ) -> RgbaImage {
         let (width, height) = self.dimensions();
-        let len = width as usize * height as usize;
 
         let mut full_palette = vec![[0_u8; 4]; 256];
         let full_palette: &mut [[u8; 4]; 256] = full_palette.as_mut_slice().try_into().unwrap();
@@ -1508,7 +1507,8 @@ impl GrayImage {
             full_palette[palette_index as usize][3] = 0;
         }
 
-        let rgba_data: Vec<[u8; 4]> = self.as_raw()[..len]
+        let rgba_data: Vec<[u8; 4]> = self
+            .subpixels()
             .iter()
             .map(|&palette_index| full_palette[palette_index as usize])
             .collect();

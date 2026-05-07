@@ -572,6 +572,7 @@ where
     /// Returns a slice of the subpixels of this image.
     ///
     /// This is guaranteed to contain exactly `width * height * channels` subpixels.
+    #[doc(alias = "channels")]
     pub fn subpixels(&self) -> &[P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &self.data[..len]

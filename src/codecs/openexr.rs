@@ -539,10 +539,6 @@ mod test {
 
         // the following is not a simple assert_eq, as in case of an error,
         // the whole image would be printed to the console, which takes forever
-        assert!(original
-            .pixels()
-            .iter()
-            .zip(cropped.pixels().iter())
-            .all(|(a, b)| a == b));
+        assert!(original.pixels() == cropped.pixels());
     }
 }

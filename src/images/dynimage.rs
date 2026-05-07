@@ -744,7 +744,7 @@ impl DynamicImage {
         dynamic_map!(
             *self,
             ref mut image_buffer,
-            bytemuck::cast_slice_mut(image_buffer.inner_pixels_mut())
+            bytemuck::cast_slice_mut(image_buffer.subpixels_mut())
         )
     }
 

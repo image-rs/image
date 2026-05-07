@@ -290,7 +290,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         if let Some((frame_start, frame_len)) = frame_start_len {
             // We can blend pixels in a fully contiguous region instead of row-by-row.
             let non_disposed_data =
-                &mut non_disposed_frame.inner_pixels_mut()[frame_start..][..frame_len];
+                &mut non_disposed_frame.subpixels_mut()[frame_start..][..frame_len];
             let frame_data = &mut buf[frame_start..][..frame_len];
             blend_and_dispose_region(frame.disposal_method, non_disposed_data, frame_data);
         } else {
@@ -310,8 +310,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                 }
 
                 let start = y as usize * row_len;
-                let non_disposed_data =
-                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let non_disposed_data = &mut non_disposed_frame.subpixels_mut()[start..][..row_len];
                 let frame_data = &mut buf[start..][..row_len];
                 frame_data.copy_from_slice(non_disposed_data);
             }
@@ -323,8 +322,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
 
                 let start = y as usize * row_len;
 
-                let non_disposed_data =
-                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let non_disposed_data = &mut non_disposed_frame.subpixels_mut()[start..][..row_len];
                 let frame_data = &mut buf[start..][..row_len];
 
                 non_disposed_data[..row_skip].copy_from_slice(&frame_data[..row_skip]);
@@ -345,8 +343,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
                 }
 
                 let start = y as usize * row_len;
-                let non_disposed_data =
-                    &mut non_disposed_frame.inner_pixels_mut()[start..][..row_len];
+                let non_disposed_data = &mut non_disposed_frame.subpixels_mut()[start..][..row_len];
                 let frame_data = &mut buf[start..][..row_len];
                 frame_data.copy_from_slice(non_disposed_data);
             }

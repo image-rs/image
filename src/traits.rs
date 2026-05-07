@@ -484,6 +484,12 @@ pub trait Pixel: Copy + Clone {
     /// If `slice.len()` is not a multiple of `CHANNEL_COUNT`, the longest prefix of whole pixels is returned.
     fn pixels_from_channels_mut(slice: &mut [Self::Subpixel]) -> &mut [Self];
 
+    /// Returns a slice of subpixels from a slice of pixels.
+    fn pixels_as_channels(slice: &[Self]) -> &[Self::Subpixel];
+
+    /// Returns a mutable slice of subpixels from a mutable slice of pixels.
+    fn pixels_as_channels_mut(slice: &mut [Self]) -> &mut [Self::Subpixel];
+
     /// Create a pixel from setting all channels to the same value.
     fn broadcast(_: Self::Subpixel) -> Self;
 

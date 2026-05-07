@@ -1536,7 +1536,7 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 
     let mut out = image.buffer_like();
     let transient_dst_chunks = transient_dst.as_chunks_mut::<CN>().0.iter_mut();
-    for (dst, src) in out.pixels_mut().zip(transient_dst_chunks) {
+    for (dst, src) in out.pixels_mut().iter_mut().zip(transient_dst_chunks) {
         let pix = src.map(NearestFrom::<f32>::nearest_from);
         *dst = *Pixel::from_slice(&pix);
     }

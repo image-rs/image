@@ -1,140 +1,11 @@
-use rayon::iter::plumbing::*;
+use rayon::iter::{plumbing::*, IntoParallelRefIterator, IntoParallelRefMutIterator};
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use rayon::slice::{ChunksExact, ChunksExactMut, ParallelSlice, ParallelSliceMut};
+use rayon::slice::{Iter, IterMut};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::traits::Pixel;
 use crate::ImageBuffer;
-
-/// Parallel iterator over pixel refs.
-#[derive(Clone)]
-pub struct PixelsPar<'a, P>
-where
-    P: Pixel + Sync + 'a,
-    P::Subpixel: Sync + 'a,
-{
-    chunks: ChunksExact<'a, P::Subpixel>,
-}
-
-impl<'a, P> ParallelIterator for PixelsPar<'a, P>
-where
-    P: Pixel + Sync + 'a,
-    P::Subpixel: Sync + 'a,
-{
-    type Item = &'a P;
-
-    fn drive_unindexed<C>(self, consumer: C) -> C::Result
-    where
-        C: UnindexedConsumer<Self::Item>,
-    {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
-            .drive_unindexed(consumer)
-    }
-
-    fn opt_len(&self) -> Option<usize> {
-        Some(self.len())
-    }
-}
-
-impl<'a, P> IndexedParallelIterator for PixelsPar<'a, P>
-where
-    P: Pixel + Sync + 'a,
-    P::Subpixel: Sync + 'a,
-{
-    fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
-            .drive(consumer)
-    }
-
-    fn len(&self) -> usize {
-        self.chunks.len()
-    }
-
-    fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice(v))
-            .with_producer(callback)
-    }
-}
-
-impl<P> fmt::Debug for PixelsPar<'_, P>
-where
-    P: Pixel + Sync,
-    P::Subpixel: Sync + fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("PixelsPar")
-            .field("chunks", &self.chunks)
-            .finish()
-    }
-}
-
-/// Parallel iterator over mutable pixel refs.
-pub struct PixelsMutPar<'a, P>
-where
-    P: Pixel + Send + Sync + 'a,
-    P::Subpixel: Send + Sync + 'a,
-{
-    chunks: ChunksExactMut<'a, P::Subpixel>,
-}
-
-impl<'a, P> ParallelIterator for PixelsMutPar<'a, P>
-where
-    P: Pixel + Send + Sync + 'a,
-    P::Subpixel: Send + Sync + 'a,
-{
-    type Item = &'a mut P;
-
-    fn drive_unindexed<C>(self, consumer: C) -> C::Result
-    where
-        C: UnindexedConsumer<Self::Item>,
-    {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
-            .drive_unindexed(consumer)
-    }
-
-    fn opt_len(&self) -> Option<usize> {
-        Some(self.len())
-    }
-}
-
-impl<'a, P> IndexedParallelIterator for PixelsMutPar<'a, P>
-where
-    P: Pixel + Send + Sync + 'a,
-    P::Subpixel: Send + Sync + 'a,
-{
-    fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Result {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
-            .drive(consumer)
-    }
-
-    fn len(&self) -> usize {
-        self.chunks.len()
-    }
-
-    fn with_producer<CB: ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
-        self.chunks
-            .map(|v| <P as Pixel>::from_slice_mut(v))
-            .with_producer(callback)
-    }
-}
-
-impl<P> fmt::Debug for PixelsMutPar<'_, P>
-where
-    P: Pixel + Send + Sync,
-    P::Subpixel: Send + Sync + fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("PixelsMutPar")
-            .field("chunks", &self.chunks)
-            .finish()
-    }
-}
 
 /// Parallel iterator over pixel refs and their coordinates.
 #[derive(Clone)]
@@ -143,7 +14,7 @@ where
     P: Pixel + Sync + 'a,
     P::Subpixel: Sync + 'a,
 {
-    pixels: PixelsPar<'a, P>,
+    pixels: Iter<'a, P>,
     width: u32,
 }
 
@@ -213,8 +84,8 @@ where
 
 impl<P> fmt::Debug for EnumeratePixelsPar<'_, P>
 where
-    P: Pixel + Sync,
-    P::Subpixel: Sync + fmt::Debug,
+    P: Pixel + Sync + fmt::Debug,
+    P::Subpixel: Sync,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixelsPar")
@@ -230,7 +101,7 @@ where
     P: Pixel + Send + Sync + 'a,
     P::Subpixel: Send + Sync + 'a,
 {
-    pixels: PixelsMutPar<'a, P>,
+    pixels: IterMut<'a, P>,
     width: u32,
 }
 
@@ -300,8 +171,8 @@ where
 
 impl<P> fmt::Debug for EnumeratePixelsMutPar<'_, P>
 where
-    P: Pixel + Send + Sync,
-    P::Subpixel: Send + Sync + fmt::Debug,
+    P: Pixel + Send + Sync + fmt::Debug,
+    P::Subpixel: Send + Sync,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixelsMutPar")
@@ -317,25 +188,13 @@ where
     P::Subpixel: Sync,
     Container: Deref<Target = [P::Subpixel]>,
 {
-    /// Returns a parallel iterator over the pixels of this image, usable with `rayon`.
-    /// See [`pixels`] for more information.
-    ///
-    /// [`pixels`]: #method.pixels
-    pub fn par_pixels(&self) -> PixelsPar<'_, P> {
-        PixelsPar {
-            chunks: self
-                .inner_pixels()
-                .par_chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
-        }
-    }
-
     /// Returns a parallel iterator over the pixels of this image and their coordinates, usable with `rayon`.
     /// See [`enumerate_pixels`] for more information.
     ///
     /// [`enumerate_pixels`]: #method.enumerate_pixels
     pub fn par_enumerate_pixels(&self) -> EnumeratePixelsPar<'_, P> {
         EnumeratePixelsPar {
-            pixels: self.par_pixels(),
+            pixels: self.pixels().par_iter(),
             width: self.width(),
         }
     }
@@ -347,18 +206,6 @@ where
     P::Subpixel: Send + Sync,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    /// Returns a parallel iterator over the mutable pixels of this image, usable with `rayon`.
-    /// See [`pixels_mut`] for more information.
-    ///
-    /// [`pixels_mut`]: #method.pixels_mut
-    pub fn par_pixels_mut(&mut self) -> PixelsMutPar<'_, P> {
-        PixelsMutPar {
-            chunks: self
-                .inner_pixels_mut()
-                .par_chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
-        }
-    }
-
     /// Returns a parallel iterator over the mutable pixels of this image and their coordinates, usable with `rayon`.
     /// See [`enumerate_pixels_mut`] for more information.
     ///
@@ -366,7 +213,7 @@ where
     pub fn par_enumerate_pixels_mut(&mut self) -> EnumeratePixelsMutPar<'_, P> {
         let width = self.width();
         EnumeratePixelsMutPar {
-            pixels: self.par_pixels_mut(),
+            pixels: self.pixels_mut().par_iter_mut(),
             width,
         }
     }
@@ -408,8 +255,8 @@ mod test {
 
         assert_eq!(image.par_enumerate_pixels_mut().len(), len);
         assert_eq!(image.par_enumerate_pixels().len(), len);
-        assert_eq!(image.par_pixels_mut().len(), len);
-        assert_eq!(image.par_pixels().len(), len);
+        assert_eq!(image.pixels_mut().len(), len);
+        assert_eq!(image.pixels().len(), len);
     }
 
     #[test]
@@ -443,14 +290,6 @@ mod test {
         assert_eq!(
             image1.enumerate_pixels().collect::<Vec<_>>(),
             image2.par_enumerate_pixels().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            image1.pixels_mut().collect::<Vec<_>>(),
-            image2.par_pixels_mut().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            image1.pixels().collect::<Vec<_>>(),
-            image2.par_pixels().collect::<Vec<_>>()
         );
     }
 }

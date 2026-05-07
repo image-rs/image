@@ -373,7 +373,8 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         {
             for (pixel, previous_pixel) in frame_buffer
                 .pixels_mut()
-                .zip(non_disposed_frame.pixels_mut())
+                .iter_mut()
+                .zip(non_disposed_frame.pixels_mut().iter_mut())
             {
                 blend_and_dispose_pixel(disposal_method, previous_pixel, pixel);
             }

@@ -132,6 +132,8 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+    /// Passed a buffer not sized according to a layout.
+    BufferSizeMismatch,
     /// An operation expected a concrete color space but another was found.
     CicpMismatch {
         /// The cicp that was expected.
@@ -444,6 +446,9 @@ impl fmt::Display for ParameterError {
                 write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+            ParameterErrorKind::BufferSizeMismatch => {
+                write!(fmt, "The buffer length is incorrect",)
+            }
             ParameterErrorKind::CicpMismatch { expected, found } => {
                 write!(
                     fmt,

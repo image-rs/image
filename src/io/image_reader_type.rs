@@ -814,7 +814,7 @@ impl<'stream> ImageReader<'stream> {
     /// The iterator will end (start returning `None`) when the decoder indicates that no more
     /// images are present in the stream by setting [`ImageDecoder::more_images`] to
     /// [`SequenceControl::None`]. Decoding can return
-    /// [`ParameterError`](`crate::error::ParameterError`) in [`ImageDecoder::peek_layout`] or
+    /// [`ParameterError`](`crate::error::ParameterError`) in [`ImageDecoder::prepare_image`] or
     /// [`ImageDecoder::read_image`] with kind set to [`None`](crate::io::SequenceControl::None),
     /// which is also treated as end of stream. This may be used by decoders which can not
     /// determine the number of images in advance.

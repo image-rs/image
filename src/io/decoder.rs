@@ -6,7 +6,7 @@ use crate::Delay;
 /// The interface for `image` to utilize in reading image files.
 ///
 /// Please carefully consider consuming this interface directly and prefer interaction with an
-/// [`ImageReader`]. This is one directional of a protocol between `image` and format decoders. In
+/// [`ImageReader`](crate::ImageReader). This is one directional of a protocol between `image` and format decoders. In
 /// the general case, an implementation can expect calls to be made in the following order:
 ///
 /// ```text,bnf
@@ -171,9 +171,6 @@ pub trait ImageDecoder {
     }
 
     /// Consume the rest of the file, including any trailer.
-    ///
-    /// This method should ensure that metadata that used [`DecodedMetadataHint::AfterFinish`] has
-    /// all been ingested and can be retrieved.
     fn finish(&mut self) -> ImageResult<()> {
         Ok(())
     }

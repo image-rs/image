@@ -253,12 +253,12 @@ where
         vec_try_with_capacity(batch_size + 1).expect("capacity overflow in horizontal_sample");
 
     // Rgba32FImage per row
-    let src_raw = image.as_raw();
+    let src_raw = image.subpixels();
     let src_stride = width as usize * MAX_CHANNEL;
 
     let nchannels = P::CHANNEL_COUNT as usize;
     let out_stride = col_count * nchannels;
-    let out_raw = out.as_mut();
+    let out_raw = out.subpixels_mut();
 
     let mut batch_start = 0;
     while batch_start < col_count {
@@ -1284,9 +1284,9 @@ pub(crate) fn gaussian_blur_dyn_image(
 
     let mut target = match image {
         DynamicImage::ImageLuma8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_plane(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1298,9 +1298,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLumaA8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_la(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1312,9 +1312,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgb8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_rgb(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1326,9 +1326,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_rgba(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1340,9 +1340,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLuma16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_plane_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1354,9 +1354,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLumaA16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_la_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1368,9 +1368,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgb16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_rgb_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1382,9 +1382,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_rgba_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1396,9 +1396,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgb32F(img) => {
-            let mut dest_image = vec![0f32; img.len()];
+            let mut dest_image = vec![0f32; img.subpixels().len()];
             filter_2d_sep_rgb_f32(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1410,9 +1410,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba32F(img) => {
-            let mut dest_image = vec![0f32; img.len()];
+            let mut dest_image = vec![0f32; img.subpixels().len()];
             filter_2d_sep_rgba_f32(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,

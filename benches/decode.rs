@@ -1,7 +1,7 @@
 use std::{fs, hint::black_box, iter, path};
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use image::{AnimationDecoder, ImageFormat};
+use image::{ImageFormat, ImageReader};
 
 #[derive(Clone, Copy)]
 struct BenchDef {
@@ -126,8 +126,14 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
 fn decode_animation(buf: &[u8], format: ImageFormat) -> image::ImageResult<usize> {
     let reader = std::io::Cursor::new(buf);
     let frames = match format {
-        ImageFormat::Gif => image::codecs::gif::GifDecoder::new(reader)?.into_frames(),
-        ImageFormat::WebP => image::codecs::webp::WebPDecoder::new(reader)?.into_frames(),
+        ImageFormat::Gif => {
+            ImageReader::from_decoder(Box::new(image::codecs::gif::GifDecoder::new(reader)?))
+                .into_frames()
+        }
+        ImageFormat::WebP => {
+            ImageReader::from_decoder(Box::new(image::codecs::webp::WebPDecoder::new(reader)?))
+                .into_frames()
+        }
         _ => return Ok(0),
     };
     Ok(frames.count())

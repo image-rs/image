@@ -6,7 +6,8 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::image_reader_type::SpecCompliance;
+use crate::io::DecoderPreparedImage;
+use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
 use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -272,8 +273,9 @@ impl<R: Read> HdrDecoder<R> {
         };
 
         // color type is always rgb8
-        if crate::utils::check_dimension_overflow(width, height, ColorType::Rgb8.bytes_per_pixel())
-        {
+        let layout = crate::ImageLayout::new(width, height, ColorType::Rgb8);
+
+        if layout.total_bytes_overflows_u64() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Hdr.into(),
@@ -302,12 +304,9 @@ impl<R: Read> HdrDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.meta.width, self.meta.height)
-    }
-
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgb32F
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let HdrMetadata { width, height, .. } = self.meta;
+        Ok(DecoderPreparedImage::new(width, height, ColorType::Rgb32F))
     }
 
     fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
@@ -319,12 +318,13 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         Ok(())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Don't read anything if image is empty
         if self.meta.width == 0 || self.meta.height == 0 {
-            return Ok(());
+            return Ok(DecodedImageAttributes::default());
         }
 
         let mut scanline = vec![Default::default(); self.meta.width as usize];
@@ -343,11 +343,7 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
             }
         }
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes::default())
     }
 }
 

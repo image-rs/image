@@ -88,8 +88,8 @@ impl<I> SubImage<I> {
         // fast path for row-major packed views
         if let Some(view) = self.to_pixel_view() {
             if let Some(row_iter) = view.iter_rows() {
-                for (row, out_row) in row_iter.zip(out.rows_mut().into_slices()) {
-                    out_row.copy_from_slice(row);
+                for (row, out_row) in row_iter.zip(out.rows_mut()) {
+                    Pixel::pixels_as_channels_mut(out_row).copy_from_slice(row);
                 }
                 return out;
             }

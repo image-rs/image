@@ -20,157 +20,31 @@ use crate::{
 };
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
-/// Iterate over pixel refs.
-pub struct Pixels<'a, P: Pixel + 'a>
-where
-    P::Subpixel: 'a,
-{
-    chunks: ChunksExact<'a, P::Subpixel>,
-}
-
-impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    type Item = &'a P;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<&'a P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_slice(v))
-    }
-
-    #[inline(always)]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a, P: Pixel + 'a> ExactSizeIterator for Pixels<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    fn len(&self) -> usize {
-        self.chunks.len()
-    }
-}
-
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    #[inline(always)]
-    fn next_back(&mut self) -> Option<&'a P> {
-        self.chunks.next_back().map(|v| <P as Pixel>::from_slice(v))
-    }
-}
-
-impl<P: Pixel> Clone for Pixels<'_, P> {
-    fn clone(&self) -> Self {
-        Pixels {
-            chunks: self.chunks.clone(),
-        }
-    }
-}
-
-impl<P: Pixel> fmt::Debug for Pixels<'_, P>
-where
-    P::Subpixel: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Pixels")
-            .field("chunks", &self.chunks)
-            .finish()
-    }
-}
-
-/// Iterate over mutable pixel refs.
-pub struct PixelsMut<'a, P: Pixel + 'a>
-where
-    P::Subpixel: 'a,
-{
-    chunks: ChunksExactMut<'a, P::Subpixel>,
-}
-
-impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    type Item = &'a mut P;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<&'a mut P> {
-        self.chunks.next().map(|v| <P as Pixel>::from_slice_mut(v))
-    }
-
-    #[inline(always)]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a, P: Pixel + 'a> ExactSizeIterator for PixelsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    fn len(&self) -> usize {
-        self.chunks.len()
-    }
-}
-
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    #[inline(always)]
-    fn next_back(&mut self) -> Option<&'a mut P> {
-        self.chunks
-            .next_back()
-            .map(|v| <P as Pixel>::from_slice_mut(v))
-    }
-}
-
-impl<P: Pixel> fmt::Debug for PixelsMut<'_, P>
-where
-    P::Subpixel: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("PixelsMut")
-            .field("chunks", &self.chunks)
-            .finish()
-    }
-}
-
 /// Iterate over rows of an image
 ///
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
 ///
 /// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
-pub struct Rows<'a, P: Pixel + 'a>
-where
-    <P as Pixel>::Subpixel: 'a,
-{
-    pixels: ChunksExact<'a, P::Subpixel>,
+pub struct Rows<'a, P: Pixel + 'a> {
+    pixels: ChunksExact<'a, P>,
 }
 
 impl<'a, P: Pixel + 'a> Rows<'a, P> {
     /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
     /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
-    fn with_image(pixels: &'a [P::Subpixel], width: u32, height: u32) -> Self {
-        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
-        if row_len == 0 {
+    fn with_image(pixels: &'a [P], width: u32, height: u32) -> Self {
+        assert_eq!(
+            Some(pixels.len()),
+            (width as usize).checked_mul(height as usize)
+        );
+
+        if width == 0 {
             Rows {
                 pixels: [].chunks_exact(1),
             }
         } else {
-            let pixels = pixels
-                .get(..row_len * height as usize)
-                .expect("Pixel buffer has too few subpixels");
-            // Rows are physically present. In particular, height is smaller than `usize::MAX` as
-            // all subpixels can be indexed.
             Rows {
-                pixels: pixels.chunks_exact(row_len),
+                pixels: pixels.chunks_exact(width as usize),
             }
         }
     }
@@ -180,15 +54,11 @@ impl<'a, P: Pixel + 'a> Iterator for Rows<'a, P>
 where
     P::Subpixel: 'a,
 {
-    type Item = Pixels<'a, P>;
+    type Item = &'a [P];
 
     #[inline(always)]
-    fn next(&mut self) -> Option<Pixels<'a, P>> {
-        let row = self.pixels.next()?;
-        Some(Pixels {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
-        })
+    fn next(&mut self) -> Option<&'a [P]> {
+        self.pixels.next()
     }
 
     #[inline(always)]
@@ -212,12 +82,8 @@ where
     P::Subpixel: 'a,
 {
     #[inline(always)]
-    fn next_back(&mut self) -> Option<Pixels<'a, P>> {
-        let row = self.pixels.next_back()?;
-        Some(Pixels {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
-        })
+    fn next_back(&mut self) -> Option<&'a [P]> {
+        self.pixels.next_back()
     }
 }
 
@@ -231,7 +97,7 @@ impl<P: Pixel> Clone for Rows<'_, P> {
 
 impl<P: Pixel> fmt::Debug for Rows<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Rows")
@@ -245,36 +111,28 @@ where
 /// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
 ///
 /// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
-pub struct RowsMut<'a, P: Pixel + 'a>
-where
-    <P as Pixel>::Subpixel: 'a,
-{
-    pixels: ChunksExactMut<'a, P::Subpixel>,
+pub struct RowsMut<'a, P: Pixel + 'a> {
+    pixels: ChunksExactMut<'a, P>,
 }
 
 impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
     /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
     /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
-    fn with_image(pixels: &'a mut [P::Subpixel], width: u32, height: u32) -> Self {
-        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
-        if row_len == 0 {
+    fn with_image(pixels: &'a mut [P], width: u32, height: u32) -> Self {
+        assert_eq!(
+            Some(pixels.len()),
+            (width as usize).checked_mul(height as usize)
+        );
+
+        if width == 0 {
             RowsMut {
                 pixels: [].chunks_exact_mut(1),
             }
         } else {
-            let pixels = pixels
-                .get_mut(..row_len * height as usize)
-                .expect("Pixel buffer has too few subpixels");
-            // Rows are physically present. In particular, height is smaller than `usize::MAX` as
-            // all subpixels can be indexed.
             RowsMut {
-                pixels: pixels.chunks_exact_mut(row_len),
+                pixels: pixels.chunks_exact_mut(width as usize),
             }
         }
-    }
-
-    pub(crate) fn into_slices(self) -> ChunksExactMut<'a, P::Subpixel> {
-        self.pixels
     }
 }
 
@@ -282,15 +140,11 @@ impl<'a, P: Pixel + 'a> Iterator for RowsMut<'a, P>
 where
     P::Subpixel: 'a,
 {
-    type Item = PixelsMut<'a, P>;
+    type Item = &'a mut [P];
 
     #[inline(always)]
-    fn next(&mut self) -> Option<PixelsMut<'a, P>> {
-        let row = self.pixels.next()?;
-        Some(PixelsMut {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
-        })
+    fn next(&mut self) -> Option<&'a mut [P]> {
+        self.pixels.next()
     }
 
     #[inline(always)]
@@ -314,18 +168,14 @@ where
     P::Subpixel: 'a,
 {
     #[inline(always)]
-    fn next_back(&mut self) -> Option<PixelsMut<'a, P>> {
-        let row = self.pixels.next_back()?;
-        Some(PixelsMut {
-            // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
-        })
+    fn next_back(&mut self) -> Option<&'a mut [P]> {
+        self.pixels.next_back()
     }
 }
 
 impl<P: Pixel> fmt::Debug for RowsMut<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("RowsMut")
@@ -339,7 +189,7 @@ pub struct EnumeratePixels<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: Pixels<'a, P>,
+    pixels: std::slice::Iter<'a, P>,
     x: u32,
     y: u32,
     width: u32,
@@ -389,7 +239,7 @@ impl<P: Pixel> Clone for EnumeratePixels<'_, P> {
 
 impl<P: Pixel> fmt::Debug for EnumeratePixels<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixels")
@@ -428,7 +278,7 @@ where
                     x: 0,
                     y,
                     width: self.width,
-                    pixels: r,
+                    pixels: r.iter(),
                 },
             )
         })
@@ -461,7 +311,7 @@ impl<P: Pixel> Clone for EnumerateRows<'_, P> {
 
 impl<P: Pixel> fmt::Debug for EnumerateRows<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRows")
@@ -477,7 +327,7 @@ pub struct EnumeratePixelsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: PixelsMut<'a, P>,
+    pixels: std::slice::IterMut<'a, P>,
     x: u32,
     y: u32,
     width: u32,
@@ -518,7 +368,7 @@ where
 
 impl<P: Pixel> fmt::Debug for EnumeratePixelsMut<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumeratePixelsMut")
@@ -557,7 +407,7 @@ where
                     x: 0,
                     y,
                     width: self.width,
-                    pixels: r,
+                    pixels: r.iter_mut(),
                 },
             )
         })
@@ -581,7 +431,7 @@ where
 
 impl<P: Pixel> fmt::Debug for EnumerateRowsMut<'_, P>
 where
-    P::Subpixel: fmt::Debug,
+    P: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EnumerateRowsMut")
@@ -719,20 +569,23 @@ where
         self.height
     }
 
-    // TODO: choose name under which to expose.
-    pub(crate) fn inner_pixels(&self) -> &[P::Subpixel] {
+    /// Returns a slice of the subpixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height * channels` subpixels.
+    #[doc(alias = "channels")]
+    pub fn subpixels(&self) -> &[P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &self.data[..len]
     }
 
-    /// Returns an iterator over the pixels of this image.
-    /// The iteration order is x = 0 to width then y = 0 to height
-    pub fn pixels(&self) -> Pixels<'_, P> {
-        Pixels {
-            chunks: self
-                .inner_pixels()
-                .chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
-        }
+    /// Returns a slice for the pixels of this image.
+    ///
+    /// The index order is x = 0 to width then y = 0 to height.
+    ///
+    /// This is guaranteed to contain exactly `width * height` subpixels.
+    pub fn pixels(&self) -> &[P] {
+        let subpixels = self.subpixels();
+        <P as Pixel>::pixels_from_channels(subpixels)
     }
 
     /// Returns an iterator over the rows of this image.
@@ -741,7 +594,7 @@ where
     /// yield any item when the width of the image is `0` or a pixel type without any channels is
     /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows(&self) -> Rows<'_, P> {
-        Rows::with_image(&self.data, self.width, self.height)
+        Rows::with_image(self.pixels(), self.width, self.height)
     }
 
     /// Enumerates over the pixels of the image.
@@ -751,7 +604,7 @@ where
     /// Starting from the top left.
     pub fn enumerate_pixels(&self) -> EnumeratePixels<'_, P> {
         EnumeratePixels {
-            pixels: self.pixels(),
+            pixels: self.pixels().iter(),
             x: 0,
             y: 0,
             width: self.width,
@@ -895,19 +748,20 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    // TODO: choose name under which to expose.
-    pub(crate) fn inner_pixels_mut(&mut self) -> &mut [P::Subpixel] {
+    /// Returns a mutable slice of the subpixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height * channels` subpixels.
+    pub fn subpixels_mut(&mut self) -> &mut [P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &mut self.data[..len]
     }
 
-    /// Returns an iterator over the mutable pixels of this image.
-    pub fn pixels_mut(&mut self) -> PixelsMut<'_, P> {
-        PixelsMut {
-            chunks: self
-                .inner_pixels_mut()
-                .chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
-        }
+    /// Returns a mutable slice of the pixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height` pixels.
+    pub fn pixels_mut(&mut self) -> &mut [P] {
+        let subpixels = self.subpixels_mut();
+        <P as Pixel>::pixels_from_channels_mut(subpixels)
     }
 
     /// Returns an iterator over the mutable rows of this image.
@@ -916,7 +770,9 @@ where
     /// yield any item when the width of the image is `0` or a pixel type without any channels is
     /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows_mut(&mut self) -> RowsMut<'_, P> {
-        RowsMut::with_image(&mut self.data, self.width, self.height)
+        let width = self.width;
+        let height = self.height;
+        RowsMut::with_image(self.pixels_mut(), width, height)
     }
 
     /// Enumerates over the pixels of the image.
@@ -925,7 +781,7 @@ where
     pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<'_, P> {
         let width = self.width;
         EnumeratePixelsMut {
-            pixels: self.pixels_mut(),
+            pixels: self.pixels_mut().iter_mut(),
             x: 0,
             y: 0,
             width,
@@ -1125,7 +981,7 @@ where
     {
         save_buffer(
             path,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1152,7 +1008,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1179,7 +1035,7 @@ where
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1202,7 +1058,7 @@ where
     {
         // This is valid as the subpixel is u8.
         encoder.write_image(
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1387,7 +1243,7 @@ where
 
         let (sw, sh) = view.strides_wh();
         let view_samples: &[_] = view.samples();
-        let inner = self.inner_pixels_mut();
+        let inner = self.subpixels_mut();
 
         let img_pixel_indices_unchecked =
             |x: u32, y: u32| (y as usize * img_sh + x as usize) * pix_stride;
@@ -1495,9 +1351,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
-        for p in buf.pixels_mut() {
-            *p = pixel;
-        }
+        buf.pixels_mut().fill(pixel);
         buf
     }
 
@@ -1553,7 +1407,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// assert_eq!(img.into_vec().len(), 16 * 16 * 3);
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        let need = self.inner_pixels().len();
+        let need = self.subpixels().len();
         self.data.truncate(need);
         self.data.shrink_to_fit();
     }
@@ -1643,7 +1497,6 @@ impl GrayImage {
         transparent_idx: Option<u8>,
     ) -> RgbaImage {
         let (width, height) = self.dimensions();
-        let len = width as usize * height as usize;
 
         let mut full_palette = vec![[0_u8; 4]; 256];
         let full_palette: &mut [[u8; 4]; 256] = full_palette.as_mut_slice().try_into().unwrap();
@@ -1654,7 +1507,8 @@ impl GrayImage {
             full_palette[palette_index as usize][3] = 0;
         }
 
-        let rgba_data: Vec<[u8; 4]> = self.as_raw()[..len]
+        let rgba_data: Vec<[u8; 4]> = self
+            .subpixels()
             .iter()
             .map(|&palette_index| full_palette[palette_index as usize])
             .collect();
@@ -1693,7 +1547,7 @@ where
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);
         buffer.copy_color_space_from(self);
-        for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
+        for (to, from) in buffer.pixels_mut().iter_mut().zip(self.pixels().iter()) {
             to.from_color(from);
         }
         buffer
@@ -1786,7 +1640,7 @@ where
     {
         let vec = self
             .color
-            .cast_pixels::<SelfPixel, IntoPixel>(self.inner_pixels(), &|| [0.2126, 0.7152, 0.0722]);
+            .cast_pixels::<SelfPixel, IntoPixel>(self.subpixels(), &|| [0.2126, 0.7152, 0.0722]);
         let mut buffer = ImageBuffer::from_vec(self.width, self.height, vec)
             .expect("cast_pixels returned the right number of pixels");
         buffer.copy_color_space_from(self);
@@ -1824,8 +1678,8 @@ where
         let transform = options
             .as_transform_fn::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
 
-        let from = from.inner_pixels();
-        let into = self.inner_pixels_mut();
+        let from = from.subpixels();
+        let into = self.subpixels_mut();
 
         debug_assert_eq!(
             from.len() / usize::from(FromType::CHANNEL_COUNT),
@@ -1859,8 +1713,8 @@ where
         let (width, height) = self.dimensions();
         let mut target = ImageBuffer::new(width, height);
 
-        let from = self.inner_pixels();
-        let into = target.inner_pixels_mut();
+        let from = self.subpixels();
+        let into = target.subpixels_mut();
 
         transform(from, into);
 
@@ -2056,7 +1910,7 @@ mod test {
     fn mut_iter() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
-            let val = a.pixels_mut().next().unwrap();
+            let val = a.pixels_mut().first_mut().unwrap();
             *val = Rgb([42, 0, 0]);
         }
         assert_eq!(a.data[0], 42);
@@ -2067,9 +1921,9 @@ mod test {
         let mut image = RgbImage::new(0, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
-        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.pixels_mut().len(), 0);
         assert_eq!(image.rows().count(), 0);
-        assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.pixels().len(), 0);
     }
 
     #[test]
@@ -2077,9 +1931,9 @@ mod test {
         let mut image = RgbImage::new(0, 2);
 
         assert_eq!(image.rows_mut().count(), 0);
-        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.pixels_mut().len(), 0);
         assert_eq!(image.rows().count(), 0);
-        assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.pixels().len(), 0);
     }
 
     #[test]
@@ -2087,18 +1941,18 @@ mod test {
         let mut image = RgbImage::new(2, 0);
 
         assert_eq!(image.rows_mut().count(), 0);
-        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.pixels_mut().len(), 0);
         assert_eq!(image.rows().count(), 0);
-        assert_eq!(image.pixels().count(), 0);
+        assert_eq!(image.pixels().len(), 0);
     }
 
     #[test]
     fn pixels_on_large_buffer() {
         let mut image = RgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
 
-        assert_eq!(image.pixels().count(), 1);
+        assert_eq!(image.pixels().len(), 1);
         assert_eq!(image.enumerate_pixels().count(), 1);
-        assert_eq!(image.pixels_mut().count(), 1);
+        assert_eq!(image.pixels_mut().len(), 1);
         assert_eq!(image.enumerate_pixels_mut().count(), 1);
 
         assert_eq!(image.rows().count(), 1);
@@ -2216,14 +2070,6 @@ mod test {
 
         let mut image = RgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
 
-        let iter = image.pixels();
-        let exact_len = ExactSizeIterator::len(&iter);
-        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
-
-        let iter = image.pixels_mut();
-        let exact_len = ExactSizeIterator::len(&iter);
-        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
-
         let iter = image.rows();
         let exact_len = ExactSizeIterator::len(&iter);
         assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
@@ -2311,7 +2157,7 @@ mod test {
             .apply_color_space(Cicp::DISPLAY_P3, Default::default())
             .expect("supported transform");
 
-        buffer.pixels().for_each(|&p| {
+        buffer.pixels().iter().for_each(|&p| {
             assert_eq!(p, Rgb([234u8, 51, 35]));
         });
     }

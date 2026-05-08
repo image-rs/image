@@ -537,7 +537,7 @@ where
     let mut indices = ImageBuffer::new(image.width(), image.height());
     indices.set_rgb_primaries(CicpColorPrimaries::Unspecified);
     indices.set_transfer_function(CicpTransferCharacteristics::Unspecified);
-    for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
+    for (pixel, idx) in image.pixels().iter().zip(indices.pixels_mut().iter_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8]);
     }
     indices
@@ -585,7 +585,7 @@ mod test {
         let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
-        assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0xFF, 0]);
         assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0]);
     }
 

@@ -1,21 +1,20 @@
-use std::io::{BufRead, Read, Seek};
+use std::io::{BufRead, Seek};
 
 use image_webp::LoopCount;
 
-use crate::buffer::ConvertBuffer;
-use crate::error::{DecodingError, ImageError, ImageResult};
-use crate::metadata::Orientation;
-use crate::{
-    AnimationDecoder, ColorType, Delay, Frame, Frames, ImageDecoder, ImageFormat, RgbImage, Rgba,
-    RgbaImage,
+use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::io::{
+    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
+    FormatAttributes, SequenceControl,
 };
+use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Rgba};
 
 /// WebP Image format decoder.
 ///
 /// Supports both lossless and lossy WebP images.
 pub struct WebPDecoder<R> {
     inner: image_webp::WebPDecoder<R>,
-    orientation: Option<Orientation>,
+    current: u32,
 }
 
 impl<R: BufRead + Seek> WebPDecoder<R> {
@@ -23,7 +22,7 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
     pub fn new(r: R) -> ImageResult<Self> {
         Ok(Self {
             inner: image_webp::WebPDecoder::new(r).map_err(ImageError::from_webp_decode)?,
-            orientation: None,
+            current: 0,
         })
     }
 
@@ -41,28 +40,69 @@ impl<R: BufRead + Seek> WebPDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        self.inner.dimensions()
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.inner.has_alpha() {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgb8
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
+            // As per extended file format description:
+            // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
+            icc: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::InHeader,
+            xmp: DecodedMetadataHint::InHeader,
+            ..FormatAttributes::default()
         }
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn animation_attributes(&mut self) -> Option<DecodedAnimationAttributes> {
+        let loop_count = match self.inner.loop_count() {
+            LoopCount::Forever => crate::metadata::LoopCount::Infinite,
+            LoopCount::Times(n) => crate::metadata::LoopCount::Finite(n.into()),
+        };
 
-        self.inner
-            .read_image(buf)
-            .map_err(ImageError::from_webp_decode)
+        Some(DecodedAnimationAttributes { loop_count })
     }
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let (width, height) = self.inner.dimensions();
+        let color = if self.inner.has_alpha() {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
+        };
+
+        Ok(DecoderPreparedImage::new(width, height, color))
+    }
+
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let is_animated = self.inner.is_animated();
+
+        if is_animated && self.current == self.inner.num_frames() {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::NoMoreData,
+            )));
+        }
+
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+
+        // `read_frame` panics if the image is not animated.
+        let delay = if is_animated {
+            let delay = self
+                .inner
+                .read_frame(buf)
+                .map_err(ImageError::from_webp_decode)?;
+            Some(Delay::from_numer_denom_ms(delay, 1))
+        } else {
+            self.inner
+                .read_image(buf)
+                .map_err(ImageError::from_webp_decode)?;
+            None
+        };
+
+        self.current += 1;
+
+        Ok(DecodedImageAttributes {
+            delay,
+            ..DecodedImageAttributes::default()
+        })
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
@@ -77,12 +117,6 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .exif_metadata()
             .map_err(ImageError::from_webp_decode)?;
 
-        self.orientation = Some(
-            exif.as_ref()
-                .and_then(|exif| Orientation::from_exif_chunk(exif))
-                .unwrap_or(Orientation::NoTransforms),
-        );
-
         Ok(exif)
     }
 
@@ -92,67 +126,12 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .map_err(ImageError::from_webp_decode)
     }
 
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        // `exif_metadata` caches the orientation, so call it if `orientation` hasn't been set yet.
-        if self.orientation.is_none() {
-            let _ = self.exif_metadata()?;
+    fn more_images(&self) -> SequenceControl {
+        if self.current == self.inner.num_frames() {
+            SequenceControl::None
+        } else {
+            SequenceControl::MaybeMore
         }
-        Ok(self.orientation.unwrap())
-    }
-}
-
-impl<'a, R: 'a + BufRead + Seek> AnimationDecoder<'a> for WebPDecoder<R> {
-    fn loop_count(&self) -> crate::metadata::LoopCount {
-        match self.inner.loop_count() {
-            LoopCount::Forever => crate::metadata::LoopCount::Infinite,
-            LoopCount::Times(n) => crate::metadata::LoopCount::Finite(n.into()),
-        }
-    }
-
-    fn into_frames(self) -> Frames<'a> {
-        struct FramesInner<R: Read + Seek> {
-            decoder: WebPDecoder<R>,
-            current: u32,
-        }
-        impl<R: BufRead + Seek> Iterator for FramesInner<R> {
-            type Item = ImageResult<Frame>;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                if self.current == self.decoder.inner.num_frames() {
-                    return None;
-                }
-                self.current += 1;
-                let (width, height) = self.decoder.inner.dimensions();
-
-                let (img, delay) = if self.decoder.inner.has_alpha() {
-                    let mut img = RgbaImage::new(width, height);
-                    match self.decoder.inner.read_frame(&mut img) {
-                        Ok(delay) => (img, delay),
-                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
-                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
-                    }
-                } else {
-                    let mut img = RgbImage::new(width, height);
-                    match self.decoder.inner.read_frame(&mut img) {
-                        Ok(delay) => (img.convert(), delay),
-                        Err(image_webp::DecodingError::NoMoreFrames) => return None,
-                        Err(e) => return Some(Err(ImageError::from_webp_decode(e))),
-                    }
-                };
-
-                Some(Ok(Frame::from_parts(
-                    img,
-                    0,
-                    0,
-                    Delay::from_numer_denom_ms(delay, 1),
-                )))
-            }
-        }
-
-        Frames::new(Box::new(FramesInner {
-            decoder: self,
-            current: 0,
-        }))
     }
 }
 
@@ -160,6 +139,9 @@ impl ImageError {
     fn from_webp_decode(e: image_webp::DecodingError) -> Self {
         match e {
             image_webp::DecodingError::IoError(e) => ImageError::IoError(e),
+            image_webp::DecodingError::NoMoreFrames => {
+                ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+            }
             _ => ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e)),
         }
     }

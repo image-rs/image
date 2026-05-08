@@ -36,25 +36,6 @@ pub(crate) struct U8Weight {
     rounding_bias: u32, // kernel_size / 2
 }
 
-impl U8Weight {
-    #[inline]
-    fn new(kernel_size: u32) -> Self {
-        debug_assert!(kernel_size >= 2);
-        Self {
-            // ceil(2^32 / ks) = floor((2^32 - 1) / ks) + 1 = (u32::MAX / ks) + 1
-            reciprocal: (u32::MAX / kernel_size) + 1,
-            rounding_bias: kernel_size / 2,
-        }
-    }
-
-    /// Compute `(acc + bias) / kernel_size` using reciprocal multiplication.
-    #[inline(always)]
-    fn apply(self, acc: u32) -> u8 {
-        let n = acc + self.rounding_bias;
-        ((n as u64 * self.reciprocal as u64) >> 32) as u8
-    }
-}
-
 impl BlurAccumulator<u8> for u32 {
     type Weight = U8Weight;
     const ZERO: u32 = 0;
@@ -68,11 +49,18 @@ impl BlurAccumulator<u8> for u32 {
     }
     #[inline(always)]
     fn create_weight(kernel_size: usize) -> U8Weight {
-        U8Weight::new(kernel_size as u32)
+        let ks = kernel_size as u32;
+        debug_assert!(ks >= 2);
+        U8Weight {
+            // ceil(2^32 / ks) = floor((2^32 - 1) / ks) + 1 = (u32::MAX / ks) + 1
+            reciprocal: (u32::MAX / ks) + 1,
+            rounding_bias: ks / 2,
+        }
     }
     #[inline(always)]
     fn to_store(self, weight: U8Weight) -> u8 {
-        weight.apply(self)
+        let n = self + weight.rounding_bias;
+        ((n as u64 * weight.reciprocal as u64) >> 32) as u8
     }
 }
 
@@ -445,17 +433,17 @@ fn box_blur_vertical_pass<P: Primitive>(
 
 #[cfg(test)]
 mod tests {
-    use super::U8Weight;
+    use super::BlurAccumulator;
     use crate::{DynamicImage, GrayAlphaImage, GrayImage, RgbImage, RgbaImage};
 
     #[test]
     fn u8_weight_exhaustive_small() {
         for ks in (3u32..=51).step_by(2) {
-            let w = U8Weight::new(ks);
+            let w = <u32 as BlurAccumulator<u8>>::create_weight(ks as usize);
             let max_acc = ks * 255;
             for acc in 0..=max_acc {
                 let expected = ((acc + ks / 2) / ks) as u8;
-                let got = w.apply(acc);
+                let got = acc.to_store(w);
                 assert_eq!(got, expected, "ks={ks}, acc={acc}");
             }
         }
@@ -464,16 +452,16 @@ mod tests {
     #[test]
     fn u8_weight_sampled_large() {
         for ks in (53u32..=1025).step_by(2) {
-            let w = U8Weight::new(ks);
+            let w = <u32 as BlurAccumulator<u8>>::create_weight(ks as usize);
             let max_acc = ks * 255;
             let step = (max_acc / 10_000).max(1) as usize;
             for acc in (0..=max_acc).step_by(step) {
                 let expected = ((acc + ks / 2) / ks) as u8;
-                let got = w.apply(acc);
+                let got = acc.to_store(w);
                 assert_eq!(got, expected, "ks={ks}, acc={acc}");
             }
-            assert_eq!(w.apply(0), ((ks / 2) / ks) as u8);
-            assert_eq!(w.apply(max_acc), ((max_acc + ks / 2) / ks) as u8);
+            assert_eq!(0u32.to_store(w), ((ks / 2) / ks) as u8);
+            assert_eq!(max_acc.to_store(w), ((max_acc + ks / 2) / ks) as u8);
         }
     }
 

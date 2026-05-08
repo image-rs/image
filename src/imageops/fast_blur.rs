@@ -14,6 +14,9 @@ pub(crate) trait BlurAccumulator<T>:
 
     const ZERO: Self;
 
+    /// Largest kernel size for which this accumulator is exact.
+    const MAX_KERNEL_SIZE: usize;
+
     /// Lift a single source sample into the accumulator type.
     fn from_primitive(value: T) -> Self;
     /// Multiply an accumulator by an integer count (used for edge replication).
@@ -39,6 +42,9 @@ pub(crate) struct U8Weight {
 impl BlurAccumulator<u8> for u32 {
     type Weight = U8Weight;
     const ZERO: u32 = 0;
+    // u32 stays exact while sum_max = kernel_size * u8::MAX fits in u32.
+    // 2^24 * 255 < 2^32 - 2^24 (also leaves headroom for the rounding bias add).
+    const MAX_KERNEL_SIZE: usize = 1 << 24;
     #[inline(always)]
     fn from_primitive(value: u8) -> u32 {
         value as u32
@@ -67,6 +73,8 @@ impl BlurAccumulator<u8> for u32 {
 impl<T: Primitive> BlurAccumulator<T> for f32 {
     type Weight = f32;
     const ZERO: f32 = 0.0;
+    // No hard overflow
+    const MAX_KERNEL_SIZE: usize = usize::MAX;
     #[inline(always)]
     fn from_primitive(value: T) -> f32 {
         value.to_f32().unwrap()
@@ -225,14 +233,44 @@ fn box_blur_horizontal_pass_strategy<T: Pixel>(
     width: u32,
     radius: usize,
 ) {
+    type Acc<P> = <P as WithBlurAcc>::BlurAcc;
+    let kernel_size = radius * 2 + 1;
+    if kernel_size <= Acc::<T::Subpixel>::MAX_KERNEL_SIZE {
+        box_blur_horizontal_pass_dispatch_cn::<T, Acc<T::Subpixel>>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
+    } else {
+        // fall back to f32, which has no overflow ceiling
+        box_blur_horizontal_pass_dispatch_cn::<T, f32>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
+    }
+}
+
+fn box_blur_horizontal_pass_dispatch_cn<T: Pixel, A: BlurAccumulator<T::Subpixel>>(
+    src: &[T::Subpixel],
+    src_stride: usize,
+    dst: &mut [T::Subpixel],
+    dst_stride: usize,
+    width: u32,
+    radius: usize,
+) {
     if T::CHANNEL_COUNT == 1 {
-        box_blur_horizontal_pass::<T::Subpixel, 1>(src, src_stride, dst, dst_stride, width, radius);
+        box_blur_horizontal_pass::<T::Subpixel, A, 1>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
     } else if T::CHANNEL_COUNT == 2 {
-        box_blur_horizontal_pass::<T::Subpixel, 2>(src, src_stride, dst, dst_stride, width, radius);
+        box_blur_horizontal_pass::<T::Subpixel, A, 2>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
     } else if T::CHANNEL_COUNT == 3 {
-        box_blur_horizontal_pass::<T::Subpixel, 3>(src, src_stride, dst, dst_stride, width, radius);
+        box_blur_horizontal_pass::<T::Subpixel, A, 3>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
     } else if T::CHANNEL_COUNT == 4 {
-        box_blur_horizontal_pass::<T::Subpixel, 4>(src, src_stride, dst, dst_stride, width, radius);
+        box_blur_horizontal_pass::<T::Subpixel, A, 4>(
+            src, src_stride, dst, dst_stride, width, radius,
+        );
     } else {
         unimplemented!("More than 4 channels is not yet implemented");
     }
@@ -247,19 +285,22 @@ fn box_blur_vertical_pass_strategy<T: Pixel>(
     height: u32,
     radius: usize,
 ) {
-    box_blur_vertical_pass::<T::Subpixel>(
-        src,
-        src_stride,
-        dst,
-        dst_stride,
-        width,
-        height,
-        radius,
-        T::CHANNEL_COUNT as usize,
-    );
+    type Acc<P> = <P as WithBlurAcc>::BlurAcc;
+    let kernel_size = radius * 2 + 1;
+    let n = T::CHANNEL_COUNT as usize;
+    if kernel_size <= Acc::<T::Subpixel>::MAX_KERNEL_SIZE {
+        box_blur_vertical_pass::<T::Subpixel, Acc<T::Subpixel>>(
+            src, src_stride, dst, dst_stride, width, height, radius, n,
+        );
+    } else {
+        // fall back to f32, which has no overflow ceiling
+        box_blur_vertical_pass::<T::Subpixel, f32>(
+            src, src_stride, dst, dst_stride, width, height, radius, n,
+        );
+    }
 }
 
-fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
+fn box_blur_horizontal_pass<P: Primitive, A: BlurAccumulator<P>, const CN: usize>(
     src: &[P],
     src_stride: usize,
     dst: &mut [P],
@@ -270,7 +311,6 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
     assert!(width > 0, "Width must be sanitized before this method");
     test_radius_size(width as usize, radius);
 
-    type Acc<P> = <P as WithBlurAcc>::BlurAcc;
     let kernel_size = radius * 2 + 1;
     let edge_count = (kernel_size / 2) + 1;
     let half_kernel = kernel_size / 2;
@@ -286,20 +326,20 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
         .chunks_exact_mut(dst_stride)
         .zip(src.chunks_exact(src_stride))
     {
-        let mut sums = [Acc::<P>::ZERO; CN];
+        let mut sums = [A::ZERO; CN];
 
         let chunk0 = &src[..CN];
 
         // replicate edge
         for c in 0..CN {
-            sums[c] = Acc::<P>::from_primitive(chunk0[c]).scale(edge_count);
+            sums[c] = A::from_primitive(chunk0[c]).scale(edge_count);
         }
 
         for x in 1..=half_kernel {
             let px = x.min(width_bound) * CN;
             let chunk = &src[px..px + CN];
             for c in 0..CN {
-                sums[c] += Acc::<P>::from_primitive(chunk[c]);
+                sums[c] += A::from_primitive(chunk[c]);
             }
         }
 
@@ -309,14 +349,14 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = sums[c].to_store(Acc::<P>::create_weight(kernel_size));
+                dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
             }
 
             let next_chunk = &src[next..next + CN];
             let previous_chunk = &src[previous..previous + CN];
             for c in 0..CN {
-                sums[c] += Acc::<P>::from_primitive(next_chunk[c]);
-                sums[c] -= Acc::<P>::from_primitive(previous_chunk[c]);
+                sums[c] += A::from_primitive(next_chunk[c]);
+                sums[c] -= A::from_primitive(previous_chunk[c]);
             }
         }
 
@@ -340,11 +380,11 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
                 .zip(advanced_kernel_part_chunks)
             {
                 for c in 0..CN {
-                    dst_chunk[c] = sums[c].to_store(Acc::<P>::create_weight(kernel_size));
+                    dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
                 }
                 for c in 0..CN {
-                    sums[c] += Acc::<P>::from_primitive(src_next[c]);
-                    sums[c] -= Acc::<P>::from_primitive(src_previous[c]);
+                    sums[c] += A::from_primitive(src_next[c]);
+                    sums[c] -= A::from_primitive(src_previous[c]);
                 }
             }
 
@@ -357,21 +397,21 @@ fn box_blur_horizontal_pass<P: Primitive, const CN: usize>(
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = sums[c].to_store(Acc::<P>::create_weight(kernel_size));
+                dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
             }
 
             let next_chunk = &src[next..next + CN];
             let previous_chunk = &src[previous..previous + CN];
             for c in 0..CN {
-                sums[c] += Acc::<P>::from_primitive(next_chunk[c]);
-                sums[c] -= Acc::<P>::from_primitive(previous_chunk[c]);
+                sums[c] += A::from_primitive(next_chunk[c]);
+                sums[c] -= A::from_primitive(previous_chunk[c]);
             }
         }
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn box_blur_vertical_pass<P: Primitive>(
+fn box_blur_vertical_pass<P: Primitive, A: BlurAccumulator<P>>(
     src: &[P],
     src_stride: usize,
     dst: &mut [P],
@@ -385,7 +425,6 @@ fn box_blur_vertical_pass<P: Primitive>(
     assert!(height > 0, "Height must be sanitized before this method");
     test_radius_size(width as usize, radius);
 
-    type Acc<P> = <P as WithBlurAcc>::BlurAcc;
     let kernel_size = radius * 2 + 1;
     let edge_count = (kernel_size / 2) + 1;
     let half_kernel = kernel_size / 2;
@@ -399,13 +438,13 @@ fn box_blur_vertical_pass<P: Primitive>(
     // and then doing blur by averaging the whole row ( which is in buffer )
     // and subtracting and adding next and previous rows in horizontal manner.
 
-    let mut buffer = vec![Acc::<P>::ZERO; buf_size];
+    let mut buffer = vec![A::ZERO; buf_size];
 
     for (x, bf) in buffer.iter_mut().enumerate() {
-        let mut w = Acc::<P>::from_primitive(src[x]).scale(edge_count);
+        let mut w = A::from_primitive(src[x]).scale(edge_count);
         for y in 1..=half_kernel {
             let y_src_shift = y.min(height_bound) * src_stride;
-            w += Acc::<P>::from_primitive(src[y_src_shift + x]);
+            w += A::from_primitive(src[y_src_shift + x]);
         }
         *bf = w;
     }
@@ -424,9 +463,8 @@ fn box_blur_vertical_pass<P: Primitive>(
             .zip(dst_row.iter_mut())
         {
             let acc = *buf;
-            *dst = acc.to_store(Acc::<P>::create_weight(kernel_size));
-            *buf =
-                acc + Acc::<P>::from_primitive(*src_next) - Acc::<P>::from_primitive(*src_previous);
+            *dst = acc.to_store(A::create_weight(kernel_size));
+            *buf = acc + A::from_primitive(*src_next) - A::from_primitive(*src_previous);
         }
     }
 }

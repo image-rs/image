@@ -756,14 +756,25 @@ impl DynamicImage {
         dynamic_map!(self, ref mut p, p.shrink_to_fit());
     }
 
-    /// Return this image's pixels as a byte vector. If the `ImageBuffer`
-    /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
-    /// is returned.
+    /// Return this image's pixels as a byte vector.
+    ///
+    /// If the `ImageBuffer` container is `Vec<u8>`, this operation is free.
+    /// Otherwise, a copy is returned.
+    ///
+    /// This is equivalent to `self.as_bytes().to_vec()`, but may be more efficient.
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
         dynamic_map!(self, image_buffer, {
-            match bytemuck::allocation::try_cast_vec(image_buffer.into_raw()) {
+            // Truncate the underlying buffer to the actual length of the pixel data to be
+            // consistent with `as_bytes` and `as_mut_bytes`.
+            // Calling `.subpixels()` has the side effect of panicking if the buffer is too short.
+            // This ensures correctness and consistency.
+            let len = image_buffer.subpixels().len();
+            let mut raw = image_buffer.into_raw();
+            raw.truncate(len);
+
+            match bytemuck::allocation::try_cast_vec(raw) {
                 Ok(vec) => vec,
                 Err((_, vec)) => {
                     // Fallback: vector requires an exact alignment and size match

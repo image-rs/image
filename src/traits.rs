@@ -6,7 +6,7 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
 use crate::color::{Luma, LumaA, Rgb, Rgba};
-use crate::primitive_sealed::{BlurAccum, PrimitiveSealed};
+use crate::primitive_sealed::{PrimitiveSealed, WithBlurAcc};
 use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
@@ -37,7 +37,7 @@ impl EncodableLayout for [f32] {
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive:
-    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + PrimitiveSealed + BlurAccum
+    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + PrimitiveSealed + WithBlurAcc
 {
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.

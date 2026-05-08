@@ -7,7 +7,7 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// This trait is `pub` but not exported, so it cannot be implemented outside
 /// this crate.
 #[allow(private_bounds)]
-pub trait PrimitiveSealed: Sized + NearestFrom<f32> {}
+pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc {}
 
 impl PrimitiveSealed for usize {}
 impl PrimitiveSealed for u8 {}
@@ -121,8 +121,7 @@ impl_nearest_from_f32_for_ints!(u32, u64, usize, i8, i16, i32, i64, isize);
 ///
 /// `u8` uses an integer (`u32`) accumulator for speed; everything else goes
 /// through `f32`.
-#[allow(private_bounds)]
-pub trait WithBlurAcc: Sized {
+pub(crate) trait WithBlurAcc: Sized {
     type BlurAcc: BlurAccumulator<Self>;
 }
 

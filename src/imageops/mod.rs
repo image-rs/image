@@ -27,7 +27,7 @@ pub use self::colorops::{
 
 mod affine;
 mod colorops;
-mod fast_blur;
+pub(crate) mod fast_blur;
 mod filter_1d;
 pub(crate) mod resize;
 mod sample;

@@ -38,43 +38,43 @@ pub(crate) fn resize_impl(
     use DynamicImage::*;
     let mut resized = match image {
         ImageLuma8(src) => {
-            let resized = resize_plane8(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_plane8(src.subpixels(), src_size, dst_size, alg)?;
             ImageLuma8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageLumaA8(src) => {
-            let resized = resize_plane8_with_alpha(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_plane8_with_alpha(src.subpixels(), src_size, dst_size, alg)?;
             ImageLumaA8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgb8(src) => {
-            let resized = resize_rgb8(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_rgb8(src.subpixels(), src_size, dst_size, alg)?;
             ImageRgb8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgba8(src) => {
-            let resized = resize_rgba8(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_rgba8(src.subpixels(), src_size, dst_size, alg)?;
             ImageRgba8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageLuma16(src) => {
-            let resized = resize_plane16(src.as_raw(), src_size, dst_size, 16, alg)?;
+            let resized = resize_plane16(src.subpixels(), src_size, dst_size, 16, alg)?;
             ImageLuma16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageLumaA16(src) => {
-            let resized = resize_plane16_with_alpha(src.as_raw(), src_size, dst_size, 16, alg)?;
+            let resized = resize_plane16_with_alpha(src.subpixels(), src_size, dst_size, 16, alg)?;
             ImageLumaA16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgb16(src) => {
-            let resized = resize_rgb16(src.as_raw(), src_size, dst_size, 16, alg)?;
+            let resized = resize_rgb16(src.subpixels(), src_size, dst_size, 16, alg)?;
             ImageRgb16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgba16(src) => {
-            let resized = resize_rgba16(src.as_raw(), src_size, dst_size, 16, alg)?;
+            let resized = resize_rgba16(src.subpixels(), src_size, dst_size, 16, alg)?;
             ImageRgba16(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgb32F(src) => {
-            let resized = resize_rgb_f32(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_rgb_f32(src.subpixels(), src_size, dst_size, alg)?;
             ImageRgb32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
         ImageRgba32F(src) => {
-            let resized = resize_rgba_f32(src.as_raw(), src_size, dst_size, alg)?;
+            let resized = resize_rgba_f32(src.subpixels(), src_size, dst_size, alg)?;
             ImageRgba32F(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
         }
     };
@@ -100,23 +100,23 @@ fn premultiply_alpha(image: &mut DynamicImage) {
     match image {
         DynamicImage::ImageLuma8(_) => (),
         DynamicImage::ImageLumaA8(buf) => {
-            premultiply_la8(buf.as_mut());
+            premultiply_la8(buf.subpixels_mut());
         }
         DynamicImage::ImageRgb8(_) => (),
         DynamicImage::ImageRgba8(buf) => {
-            premultiply_rgba8(buf.as_mut());
+            premultiply_rgba8(buf.subpixels_mut());
         }
         DynamicImage::ImageLuma16(_) => (),
         DynamicImage::ImageLumaA16(buf) => {
-            premultiply_la16(buf.as_mut(), 16);
+            premultiply_la16(buf.subpixels_mut(), 16);
         }
         DynamicImage::ImageRgb16(_) => (),
         DynamicImage::ImageRgba16(buf) => {
-            premultiply_rgba16(buf.as_mut(), 16);
+            premultiply_rgba16(buf.subpixels_mut(), 16);
         }
         DynamicImage::ImageRgb32F(_) => (),
         DynamicImage::ImageRgba32F(buf) => {
-            premultiply_rgba_f32(buf.as_mut());
+            premultiply_rgba_f32(buf.subpixels_mut());
         }
     }
 }
@@ -126,15 +126,15 @@ fn unpremultiply_alpha(image: &mut DynamicImage) {
     use pic_scale_safe::*;
     match image {
         DynamicImage::ImageLuma8(_) => (),
-        DynamicImage::ImageLumaA8(buf) => unpremultiply_la8(buf.as_mut()),
+        DynamicImage::ImageLumaA8(buf) => unpremultiply_la8(buf.subpixels_mut()),
         DynamicImage::ImageRgb8(_) => (),
-        DynamicImage::ImageRgba8(buf) => unpremultiply_rgba8(buf.as_mut()),
+        DynamicImage::ImageRgba8(buf) => unpremultiply_rgba8(buf.subpixels_mut()),
         DynamicImage::ImageLuma16(_) => (),
-        DynamicImage::ImageLumaA16(buf) => unpremultiply_la16(buf.as_mut(), 16),
+        DynamicImage::ImageLumaA16(buf) => unpremultiply_la16(buf.subpixels_mut(), 16),
         DynamicImage::ImageRgb16(_) => (),
-        DynamicImage::ImageRgba16(buf) => unpremultiply_rgba16(buf.as_mut(), 16),
+        DynamicImage::ImageRgba16(buf) => unpremultiply_rgba16(buf.subpixels_mut(), 16),
         DynamicImage::ImageRgb32F(_) => (),
-        DynamicImage::ImageRgba32F(buf) => unpremultiply_rgba_f32(buf),
+        DynamicImage::ImageRgba32F(buf) => unpremultiply_rgba_f32(buf.subpixels_mut()),
     }
 }
 

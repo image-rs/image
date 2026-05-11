@@ -569,17 +569,22 @@ where
         self.height
     }
 
-    // TODO: choose name under which to expose.
-    pub(crate) fn inner_pixels(&self) -> &[P::Subpixel] {
+    /// Returns a slice of the subpixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height * channels` subpixels.
+    #[doc(alias = "channels")]
+    pub fn subpixels(&self) -> &[P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &self.data[..len]
     }
 
     /// Returns a slice for the pixels of this image.
     ///
-    /// The index order is x = 0 to width then y = 0 to height
+    /// The index order is x = 0 to width then y = 0 to height.
+    ///
+    /// This is guaranteed to contain exactly `width * height` subpixels.
     pub fn pixels(&self) -> &[P] {
-        let subpixels = self.inner_pixels();
+        let subpixels = self.subpixels();
         <P as Pixel>::pixels_from_channels(subpixels)
     }
 
@@ -743,15 +748,19 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    // TODO: choose name under which to expose.
-    pub(crate) fn inner_pixels_mut(&mut self) -> &mut [P::Subpixel] {
+    /// Returns a mutable slice of the subpixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height * channels` subpixels.
+    pub fn subpixels_mut(&mut self) -> &mut [P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &mut self.data[..len]
     }
 
     /// Returns a mutable slice of the pixels of this image.
+    ///
+    /// This is guaranteed to contain exactly `width * height` pixels.
     pub fn pixels_mut(&mut self) -> &mut [P] {
-        let subpixels = self.inner_pixels_mut();
+        let subpixels = self.subpixels_mut();
         <P as Pixel>::pixels_from_channels_mut(subpixels)
     }
 
@@ -972,7 +981,7 @@ where
     {
         save_buffer(
             path,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -999,7 +1008,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1026,7 +1035,7 @@ where
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1049,7 +1058,7 @@ where
     {
         // This is valid as the subpixel is u8.
         encoder.write_image(
-            self.inner_pixels().as_bytes(),
+            self.subpixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1234,7 +1243,7 @@ where
 
         let (sw, sh) = view.strides_wh();
         let view_samples: &[_] = view.samples();
-        let inner = self.inner_pixels_mut();
+        let inner = self.subpixels_mut();
 
         let img_pixel_indices_unchecked =
             |x: u32, y: u32| (y as usize * img_sh + x as usize) * pix_stride;
@@ -1342,9 +1351,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
-        for p in buf.pixels_mut() {
-            *p = pixel;
-        }
+        buf.pixels_mut().fill(pixel);
         buf
     }
 
@@ -1400,7 +1407,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// assert_eq!(img.into_vec().len(), 16 * 16 * 3);
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        let need = self.inner_pixels().len();
+        let need = self.subpixels().len();
         self.data.truncate(need);
         self.data.shrink_to_fit();
     }
@@ -1490,7 +1497,6 @@ impl GrayImage {
         transparent_idx: Option<u8>,
     ) -> RgbaImage {
         let (width, height) = self.dimensions();
-        let len = width as usize * height as usize;
 
         let mut full_palette = vec![[0_u8; 4]; 256];
         let full_palette: &mut [[u8; 4]; 256] = full_palette.as_mut_slice().try_into().unwrap();
@@ -1501,7 +1507,8 @@ impl GrayImage {
             full_palette[palette_index as usize][3] = 0;
         }
 
-        let rgba_data: Vec<[u8; 4]> = self.as_raw()[..len]
+        let rgba_data: Vec<[u8; 4]> = self
+            .subpixels()
             .iter()
             .map(|&palette_index| full_palette[palette_index as usize])
             .collect();
@@ -1633,7 +1640,7 @@ where
     {
         let vec = self
             .color
-            .cast_pixels::<SelfPixel, IntoPixel>(self.inner_pixels(), &|| [0.2126, 0.7152, 0.0722]);
+            .cast_pixels::<SelfPixel, IntoPixel>(self.subpixels(), &|| [0.2126, 0.7152, 0.0722]);
         let mut buffer = ImageBuffer::from_vec(self.width, self.height, vec)
             .expect("cast_pixels returned the right number of pixels");
         buffer.copy_color_space_from(self);
@@ -1671,8 +1678,8 @@ where
         let transform = options
             .as_transform_fn::<FromType, SelfPixel>(from.color_space(), self.color_space())?;
 
-        let from = from.inner_pixels();
-        let into = self.inner_pixels_mut();
+        let from = from.subpixels();
+        let into = self.subpixels_mut();
 
         debug_assert_eq!(
             from.len() / usize::from(FromType::CHANNEL_COUNT),
@@ -1706,8 +1713,8 @@ where
         let (width, height) = self.dimensions();
         let mut target = ImageBuffer::new(width, height);
 
-        let from = self.inner_pixels();
-        let into = target.inner_pixels_mut();
+        let from = self.subpixels();
+        let into = target.subpixels_mut();
 
         transform(from, into);
 

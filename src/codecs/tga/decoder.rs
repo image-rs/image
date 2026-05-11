@@ -1,6 +1,6 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
-use crate::error::DecodingError;
-use crate::io::ReadExt;
+use crate::error::{DecodingError, LimitError, LimitErrorKind};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, ReadExt};
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -388,21 +388,23 @@ impl<R: Read> TgaDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        fn try_dimensions(value: usize) -> ImageResult<u32> {
+            value
+                .try_into()
+                .map_err(|_| LimitError::from_kind(LimitErrorKind::DimensionError))
+                .map_err(ImageError::Limits)
+        }
+
+        let width = try_dimensions(self.width)?;
+        let height = try_dimensions(self.height)?;
+
+        Ok(DecoderPreparedImage::new(width, height, self.color_type))
     }
 
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type
-            .unwrap_or_else(|| self.color_type().into())
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Decode the raw data
         //
@@ -454,10 +456,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         self.reverse_encoding_in_output(buf);
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            original_color_type: self.original_color_type,
+            ..DecodedImageAttributes::default()
+        })
     }
 }

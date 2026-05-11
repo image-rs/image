@@ -1,11 +1,13 @@
 //! Module for crate-private traits implemented for all primitive types.
 
+use crate::imageops::fast_blur::BlurAccumulator;
+
 /// Crate-private trait to seal the [`Primitive`](crate::Primitive) trait.
 ///
 /// This trait is `pub` but not exported, so it cannot be implemented outside
 /// this crate.
 #[allow(private_bounds)]
-pub trait PrimitiveSealed: Sized + NearestFrom<f32> {}
+pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc {}
 
 impl PrimitiveSealed for usize {}
 impl PrimitiveSealed for u8 {}
@@ -113,3 +115,26 @@ macro_rules! impl_nearest_from_f32_for_ints {
     )+ };
 }
 impl_nearest_from_f32_for_ints!(u32, u64, usize, i8, i16, i32, i64, isize);
+
+/// Crate-private companion to [`Primitive`] that picks the box-blur
+/// accumulator type for each primitive.
+///
+/// `u8` uses an integer (`u32`) accumulator for speed; everything else goes
+/// through `f32`.
+pub(crate) trait WithBlurAcc: Sized {
+    type BlurAcc: BlurAccumulator<Self>;
+}
+
+impl WithBlurAcc for u8 {
+    type BlurAcc = u32;
+}
+
+macro_rules! impl_with_blur_acc_f32 {
+    ($($t:ty),+) => { $(
+        impl WithBlurAcc for $t {
+            type BlurAcc = f32;
+        }
+    )+ };
+}
+
+impl_with_blur_acc_f32!(u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);

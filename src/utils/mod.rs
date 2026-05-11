@@ -81,13 +81,6 @@ fn interleave_planes_inner<const PLANES: usize, const N: usize>(
     }
 }
 
-/// Checks if the provided dimensions would cause an overflow.
-#[allow(dead_code)]
-// When no image formats that use it are enabled
-pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel: u8) -> bool {
-    u64::from(width) * u64::from(height) > u64::MAX / u64::from(bytes_per_pixel)
-}
-
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn vec_copy_to_u8<T>(vec: &[T]) -> Vec<u8>

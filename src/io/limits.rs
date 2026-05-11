@@ -72,6 +72,13 @@ impl Limits {
         Ok(())
     }
 
+    pub(crate) fn check_layout_dimensions(
+        &self,
+        layout: &crate::io::DecoderPreparedImage,
+    ) -> ImageResult<()> {
+        self.check_dimensions(layout.layout.width, layout.layout.height)
+    }
+
     /// This function checks the `max_image_width` and `max_image_height` limits given
     /// the image width and height.
     pub fn check_dimensions(&self, width: u32, height: u32) -> ImageResult<()> {

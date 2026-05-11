@@ -5,7 +5,7 @@
 //! Everything that references pic-scale-safe crate is contained to this file
 //! so that it could easily be made an optional dependency in the future.
 
-use std::ops::{BitOrAssign, BitXor};
+use std::ops::{BitAndAssign, BitOrAssign, BitXor};
 
 use crate::{imageops::FilterType, DynamicImage, ImageBuffer, Pixel};
 use num_traits::Zero;
@@ -154,30 +154,68 @@ fn has_constant_alpha(image: &DynamicImage) -> bool {
     }
 }
 
+trait BitDifferenceAccumulator: Pixel {
+    type Acc: Copy + Zero + Eq + BitXor<Output = Self::Acc> + BitOrAssign + BitAndAssign;
+    const ALPHA_MASK: Self;
+    fn to_acc(pixel: Self) -> Self::Acc;
+}
+impl BitDifferenceAccumulator for crate::LumaA<u8> {
+    type Acc = u16;
+    const ALPHA_MASK: Self = Self([0, u8::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        u16::from_ne_bytes(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::LumaA<u16> {
+    type Acc = u32;
+    const ALPHA_MASK: Self = Self([0, u16::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        bytemuck::cast(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::Rgba<u8> {
+    type Acc = u32;
+    const ALPHA_MASK: Self = Self([0, 0, 0, u8::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        u32::from_ne_bytes(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::Rgba<u16> {
+    type Acc = u64;
+    const ALPHA_MASK: Self = Self([0, 0, 0, u16::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        bytemuck::cast(pixel.0)
+    }
+}
 #[must_use]
 fn has_constant_alpha_integer<P, Container>(img: &ImageBuffer<P, Container>) -> bool
 where
-    P: Pixel,
+    P: Pixel + BitDifferenceAccumulator,
     Container: std::ops::Deref<Target = [P::Subpixel]>,
-    P::Subpixel: Copy + PartialEq + BitXor<P::Subpixel, Output = P::Subpixel> + BitOrAssign,
 {
-    let first_pixel_alpha = match img.pixels().first() {
-        Some(pixel) => pixel.alpha(),
-        None => return true, // empty input image
-    };
     // A naive, slower implementation that branches on every pixel:
     //
     // img.pixels().iter().all(|pixel| pixel.alpha() == first_pixel_alpha);
     //
-    // Instead of doing that we scan every row first with cheap arithmetic instructions
-    // and only compare the sum of divergences on every row, which should be 0
-    let mut diff_acc = <P::Subpixel as Zero>::zero();
+    // Instead of doing that, we
+    // 1. scan every row first with cheap arithmetic instructions and only
+    //    compare the sum of divergences on every row (which should be 0) and
+    // 2. perform bitwise operations on whole pixels (instead of just the alpha
+    //    channel) to allow for auto-vectorization.
+
+    let first_pixel = match img.pixels().first() {
+        Some(pixel) => P::to_acc(*pixel),
+        None => return true, // empty input image
+    };
+
+    let mask = P::to_acc(P::ALPHA_MASK);
+    let mut diff_acc = P::Acc::zero();
     for row in img.rows() {
         row.iter().for_each(|pixel| {
-            let alpha = pixel.alpha();
-            diff_acc |= alpha.bitxor(first_pixel_alpha);
+            diff_acc |= P::to_acc(*pixel).bitxor(first_pixel);
         });
-        if !diff_acc.is_zero() {
+        diff_acc &= mask; // mask out everything but the alpha channel
+        if diff_acc != P::Acc::zero() {
             return false;
         }
     }

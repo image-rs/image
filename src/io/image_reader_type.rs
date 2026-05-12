@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Seek};
 use std::path::Path;
 
 use crate::error::{
@@ -298,13 +298,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
-        let cur = self.inner.stream_position()?;
         let len = io::copy(
             // Accept shorter files but read at most 16 bytes.
             &mut self.inner.by_ref().take(16),
             &mut Cursor::new(&mut start[..]),
         )?;
-        self.inner.seek(SeekFrom::Start(cur))?;
+        self.inner.seek_relative(-(len as i64))?;
         let start = &start[..len as usize];
 
         if let Some(extension) = hooks::guess_format_extension(start) {

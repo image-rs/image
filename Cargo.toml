@@ -109,6 +109,10 @@ avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 serde = ["dep:serde"]
 
+[[example]]
+name = "bmp_1bit_encoding"
+required-features = ["bmp"]
+
 [[bench]]
 path = "benches/decode.rs"
 name = "decode"

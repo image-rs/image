@@ -9,17 +9,21 @@ use image::codecs::bmp::BmpEncoder;
 use image::ExtendedColorType;
 
 fn main() {
-    // Create an 8x8 checkerboard pattern
-    // Each pixel is 0 (black) or 1 (white)
+    // Create an 8x8 checkerboard pattern in packed 1-bit format
+    // L1 format packs 8 pixels per byte, MSB first:
+    //   Bit 7 = pixel 0, Bit 6 = pixel 1, ..., Bit 0 = pixel 7
     let width = 8;
     let height = 8;
     let mut image_data = Vec::new();
 
     for y in 0..height {
-        for x in 0..width {
-            let pixel = if (x + y) % 2 == 0 { 0 } else { 1 };
-            image_data.push(pixel);
+        let mut byte = 0u8;
+        for x in 0..8 {
+            // Checkerboard: alternating 0 (black) and 1 (white)
+            let bit_val = if (x + y) % 2 == 0 { 0 } else { 1 };
+            byte |= bit_val << (7 - x);
         }
+        image_data.push(byte);
     }
 
     // Example 1: Encode with default black/white palette
@@ -53,14 +57,4 @@ fn main() {
         "Saved checkerboard_custom.bmp with red/blue palette ({} bytes)",
         output_custom.len()
     );
-
-    // Example 3: Convert existing image to 1-bit
-    println!("\nTo convert an existing image to 1-bit BMP:");
-    println!("  let img = image::open(\"input.png\")?;");
-    println!("  let gray = img.into_luma8();");
-    println!("  let l1_data: Vec<u8> = gray.as_raw().iter()");
-    println!("      .map(|&v| if v > 127 {{ 1 }} else {{ 0 }})");
-    println!("      .collect();");
-    println!("  BmpEncoder::new(&mut output)");
-    println!("      .encode(&l1_data, gray.width(), gray.height(), ExtendedColorType::L1)?;");
 }

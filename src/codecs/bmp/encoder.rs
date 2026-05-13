@@ -66,12 +66,7 @@ impl<W: Write> BmpEncoder<W> {
             )));
         }
 
-        // For L1, accept unpacked data (1 byte per pixel) for easier use
-        let expected_buffer_len = if color_type == ExtendedColorType::L1 {
-            (width as u64) * (height as u64) // 1 byte per pixel, unpacked
-        } else {
-            color_type.buffer_size(width, height)
-        };
+        let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
             image.len() as u64,
@@ -355,31 +350,16 @@ impl<W: Write> BmpEncoder<W> {
         }
 
         // write image data
-        // Each pixel in the input is a byte (0 or 1), pack 8 pixels into 1 byte
-        let y_stride = width as usize;
+        // Input is already packed: 8 pixels per byte, MSB first
+        // Bit 7 = pixel 0, Bit 6 = pixel 1, ..., Bit 0 = pixel 7
+        let bytes_per_row = width.div_ceil(8) as usize;
         for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (row as usize) * y_stride;
-            let row_data = &image[row_start..row_start + y_stride];
+            let row_start = (row as usize) * bytes_per_row;
+            let row_end = row_start + bytes_per_row;
 
-            // Pack 8 pixels per byte (MSB first as per BMP spec)
-            let mut col = 0;
-            while col < width {
-                let mut byte = 0u8;
-                for bit_pos in 0..8 {
-                    if col + bit_pos < width {
-                        let pixel_idx = (col + bit_pos) as usize;
-                        // Each input pixel is 0 or 1, shift to correct bit position
-                        // MSB first: bit 7 is leftmost pixel
-                        if row_data[pixel_idx] != 0 {
-                            byte |= 1 << (7 - bit_pos);
-                        }
-                    }
-                }
-                self.writer.write_u8(byte)?;
-                col += 8;
-            }
-
+            // Write the packed bytes directly
+            self.writer.write_all(&image[row_start..row_end])?;
             self.write_row_pad(row_padding)?;
         }
 
@@ -564,10 +544,10 @@ mod tests {
     #[test]
     fn round_trip_1bit() {
         // 8x2 image with alternating pattern
-        let image = vec![
-            0, 1, 0, 1, 0, 1, 0, 1, // row 1
-            1, 0, 1, 0, 1, 0, 1, 0, // row 2
-        ];
+        // Row 1: [0,1,0,1,0,1,0,1] = 0b01010101 = 0x55
+        // Row 2: [1,0,1,0,1,0,1,0] = 0b10101010 = 0xAA
+        // Packed format: MSB = pixel 0, LSB = pixel 7
+        let image = vec![0x55, 0xAA];
         let decoded = round_trip_image(&image, 8, 2, ExtendedColorType::L1);
         // Decoder expands to RGB
         assert_eq!(8 * 2 * 3, decoded.len());
@@ -582,7 +562,9 @@ mod tests {
     #[test]
     fn round_trip_1bit_non_multiple_of_8() {
         // 7x1 image (width not divisible by 8)
-        let image = vec![1, 0, 1, 0, 1, 0, 1];
+        // Pixels: [1,0,1,0,1,0,1] packed into bits 7-1 (bit 0 unused)
+        // Binary: 0b10101010 = 0xAA
+        let image = vec![0xAA];
         let decoded = round_trip_image(&image, 7, 1, ExtendedColorType::L1);
         assert_eq!(7 * 3, decoded.len());
 
@@ -594,12 +576,15 @@ mod tests {
 
     #[test]
     fn round_trip_1bit_single_pixel() {
-        let image = vec![1]; // single white pixel
+        // Single white pixel: bit 7 = 1, rest unused
+        // Binary: 0b10000000 = 0x80
+        let image = vec![0x80];
         let decoded = round_trip_image(&image, 1, 1, ExtendedColorType::L1);
         assert_eq!(3, decoded.len());
         assert_eq!(&decoded[..], &[255, 255, 255]);
 
-        let image = vec![0]; // single black pixel
+        // Single black pixel: all bits 0
+        let image = vec![0x00];
         let decoded = round_trip_image(&image, 1, 1, ExtendedColorType::L1);
         assert_eq!(3, decoded.len());
         assert_eq!(&decoded[..], &[0, 0, 0]);
@@ -608,7 +593,9 @@ mod tests {
     #[test]
     fn round_trip_1bit_9px() {
         // 9 pixels (tests packing across byte boundary)
-        let image = vec![1, 1, 1, 1, 1, 1, 1, 1, 0];
+        // Byte 1: [1,1,1,1,1,1,1,1] = 0b11111111 = 0xFF
+        // Byte 2: [0,_,_,_,_,_,_,_] = 0b00000000 = 0x00 (pixel 8=0, rest unused)
+        let image = vec![0xFF, 0x00];
         let decoded = round_trip_image(&image, 9, 1, ExtendedColorType::L1);
         assert_eq!(9 * 3, decoded.len());
 
@@ -623,7 +610,9 @@ mod tests {
     #[test]
     fn round_trip_1bit_with_custom_palette() {
         // Test custom palette encoding
-        let image = vec![0, 1, 0, 1]; // 4 pixels
+        // 4 pixels: [0,1,0,1] packed into bits 7-4
+        // Binary: 0b01010000 = 0x50
+        let image = vec![0x50];
         let palette = vec![
             [255, 0, 0], // red for 0
             [0, 0, 255], // blue for 1
@@ -654,8 +643,22 @@ mod tests {
     #[test]
     fn round_trip_1bit_various_widths() {
         // Test various widths to ensure padding works correctly
+        // Generate packed data for all-white pixels
         for width in 1..=17 {
-            let image = vec![1; width as usize];
+            let mut image = Vec::new();
+            let mut remaining = width;
+            while remaining > 0 {
+                let bits_in_byte = remaining.min(8);
+                // Create byte with 'bits_in_byte' MSBs set to 1
+                let byte = if bits_in_byte == 8 {
+                    0xFF
+                } else {
+                    0xFF << (8 - bits_in_byte)
+                };
+                image.push(byte);
+                remaining -= bits_in_byte;
+            }
+
             let decoded = round_trip_image(&image, width, 1, ExtendedColorType::L1);
             assert_eq!(width as usize * 3, decoded.len());
             // All pixels should be white
@@ -681,12 +684,18 @@ mod tests {
 
     #[test]
     fn round_trip_1bit_checkerboard() {
-        // 8x8 checkerboard pattern
+        // 8x8 checkerboard pattern (packed format)
+        // Row 0: [0,1,0,1,0,1,0,1] = 0x55
+        // Row 1: [1,0,1,0,1,0,1,0] = 0xAA
+        // Pattern repeats...
         let mut image = Vec::new();
         for y in 0..8 {
+            let mut byte = 0u8;
             for x in 0..8 {
-                image.push(if (x + y) % 2 == 0 { 0 } else { 1 });
+                let bit_val = if (x + y) % 2 == 0 { 0 } else { 1 };
+                byte |= bit_val << (7 - x);
             }
+            image.push(byte);
         }
 
         let decoded = round_trip_image(&image, 8, 8, ExtendedColorType::L1);

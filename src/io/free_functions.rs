@@ -68,7 +68,28 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
         #[cfg(feature = "jpeg")]
         ImageFormat::Jpeg => Box::new(jpeg::JpegEncoder::new(buffered_write)),
         #[cfg(feature = "pnm")]
-        ImageFormat::Pnm => Box::new(pnm::PnmEncoder::new(buffered_write)),
+        ImageFormat::Pbm => Box::new(
+            pnm::PnmEncoder::new(buffered_write)
+                .with_subtype(pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary)),
+        ),
+        #[cfg(feature = "pnm")]
+        ImageFormat::Pgm => Box::new(
+            pnm::PnmEncoder::new(buffered_write)
+                .with_subtype(pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary)),
+        ),
+        #[cfg(feature = "pnm")]
+        ImageFormat::Ppm => Box::new(
+            pnm::PnmEncoder::new(buffered_write)
+                .with_subtype(pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary)),
+        ),
+        #[cfg(feature = "pnm")]
+        ImageFormat::Pnm => {
+            Box::new(pnm::PnmEncoder::new(buffered_write).with_dynamic_pnm_header())
+        }
+        #[cfg(feature = "pnm")]
+        ImageFormat::Pam => Box::new(
+            pnm::PnmEncoder::new(buffered_write).with_subtype(pnm::PnmSubtype::ArbitraryMap),
+        ),
         #[cfg(feature = "gif")]
         ImageFormat::Gif => Box::new(gif::GifEncoder::new(buffered_write)),
         #[cfg(feature = "ico")]
@@ -121,13 +142,13 @@ static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 21] = [
     (b"\0\0\0\0ftypavif", b"\xFF\xFF\0\0", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], b"", ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
     (b"qoif", b"", ImageFormat::Qoi),
-    (b"P1", b"", ImageFormat::Pnm),
-    (b"P2", b"", ImageFormat::Pnm),
-    (b"P3", b"", ImageFormat::Pnm),
-    (b"P4", b"", ImageFormat::Pnm),
-    (b"P5", b"", ImageFormat::Pnm),
-    (b"P6", b"", ImageFormat::Pnm),
-    (b"P7", b"", ImageFormat::Pnm),
+    (b"P1", b"", ImageFormat::Pbm),
+    (b"P2", b"", ImageFormat::Pgm),
+    (b"P3", b"", ImageFormat::Ppm),
+    (b"P4", b"", ImageFormat::Pbm),
+    (b"P5", b"", ImageFormat::Pgm),
+    (b"P6", b"", ImageFormat::Ppm),
+    (b"P7", b"", ImageFormat::Pam),
     (b"farbfeld", b"", ImageFormat::Farbfeld),
 ];
 
@@ -196,13 +217,15 @@ fn test_guess_format_agrees_with_extension() {
     for fmt in ImageFormat::all() {
         use ImageFormat::*;
         let found = found.contains(&fmt);
-        if matches!(
-            fmt,
-            Bmp | Farbfeld | Gif | Ico | Hdr | Jpeg | OpenExr | Png | Pnm | Qoi | Tiff | WebP
-        ) {
-            assert!(found, "No {fmt:?} test files found");
-        } else {
-            assert!(!found, "Add `{fmt:?}` to test_guess_format");
+        match fmt {
+            Pnm => (), // Pnm images are always detected as one of Pbm, Pgm, Ppm
+            Bmp | Farbfeld | Gif | Ico | Hdr | Jpeg | OpenExr | Png | Pbm | Pgm | Ppm | Pam
+            | Qoi | Tiff | WebP => {
+                assert!(found, "No {fmt:?} test files found");
+            }
+            _ => {
+                assert!(!found, "Add `{fmt:?}` to test_guess_format");
+            }
         }
     }
 

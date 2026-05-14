@@ -34,48 +34,6 @@ impl EncodableLayout for [f32] {
     }
 }
 
-mod sealed {
-    pub trait PrimitiveSealed: Sized {
-        fn swizzle_rgb_bgr(pixels: &mut [Self]) {
-            for pixel in pixels.as_chunks_mut::<3>().0 {
-                pixel.swap(0, 2);
-            }
-        }
-        fn swizzle_rgba_bgra(pixels: &mut [Self]) {
-            for pix in pixels.as_chunks_mut::<4>().0 {
-                pix.swap(0, 2);
-            }
-        }
-    }
-}
-
-impl sealed::PrimitiveSealed for usize {}
-impl sealed::PrimitiveSealed for u8 {
-    fn swizzle_rgb_bgr(pixels: &mut [Self]) {
-        for pixel in pixels.as_chunks_mut::<3>().0 {
-            pixel.reverse();
-        }
-    }
-    fn swizzle_rgba_bgra(pixels: &mut [Self]) {
-        for pix in pixels.as_chunks_mut::<4>().0 {
-            let bgra = u32::from_be_bytes(*pix);
-            let argb = bgra.swap_bytes();
-            let rgba = argb.rotate_left(8);
-            *pix = rgba.to_be_bytes();
-        }
-    }
-}
-impl sealed::PrimitiveSealed for u16 {}
-impl sealed::PrimitiveSealed for u32 {}
-impl sealed::PrimitiveSealed for u64 {}
-impl sealed::PrimitiveSealed for isize {}
-impl sealed::PrimitiveSealed for i8 {}
-impl sealed::PrimitiveSealed for i16 {}
-impl sealed::PrimitiveSealed for i32 {}
-impl sealed::PrimitiveSealed for i64 {}
-impl sealed::PrimitiveSealed for f32 {}
-impl sealed::PrimitiveSealed for f64 {}
-
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive:

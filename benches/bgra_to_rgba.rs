@@ -3,6 +3,7 @@ use std::time::Duration;
 use criterion::{criterion_group, criterion_main, Criterion};
 use image::{ImageBuffer, Rgb, RgbImage, Rgba, RgbaImage};
 
+// variant wiht the old default, before https://github.com/image-rs/image/pull/2712
 pub fn from_raw_bgra_old(width: u32, height: u32, container: Vec<u8>) -> Option<RgbaImage> {
     let mut img = RgbaImage::from_raw(width, height, container)?;
     for pix in img.pixels_mut() {
@@ -10,6 +11,7 @@ pub fn from_raw_bgra_old(width: u32, height: u32, container: Vec<u8>) -> Option<
     }
     Some(img)
 }
+// variant without the new Rgba<u8> specialized optimisation
 pub fn from_raw_bgra_newdefault(width: u32, height: u32, container: Vec<u8>) -> Option<RgbaImage> {
     let mut img = RgbaImage::from_raw(width, height, container)?;
     for pix in img.as_chunks_mut::<4>().0 {

@@ -7,7 +7,7 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// This trait is `pub` but not exported, so it cannot be implemented outside
 /// this crate.
 #[allow(private_bounds)]
-pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc {}
+pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle {}
 
 impl PrimitiveSealed for usize {}
 impl PrimitiveSealed for u8 {}
@@ -21,6 +21,47 @@ impl PrimitiveSealed for i32 {}
 impl PrimitiveSealed for i64 {}
 impl PrimitiveSealed for f32 {}
 impl PrimitiveSealed for f64 {}
+
+/// Defines specialized methods for rgb<->bgr and rgba<->bgra swizzles
+///
+/// By default, uses as_chunks_mut and swaps the first and third elements in the pixel slice.
+/// For u8 rgba however, benchmarks have shown that interpreting the 4 bytes as a u32 and swap+rotate
+/// ends up autovectorizing better.
+// Note: no attempts have been made to find if a similar optimization could apply to primitives beyond u8 or to bgr instead of bgra.
+pub(crate) trait BgraSwizzle: Sized {
+    fn swizzle_rgb_bgr(pixels: &mut [Self]) {
+        for pixel in pixels.as_chunks_mut::<3>().0 {
+            pixel.swap(0, 2);
+        }
+    }
+    fn swizzle_rgba_bgra(pixels: &mut [Self]) {
+        for pix in pixels.as_chunks_mut::<4>().0 {
+            pix.swap(0, 2);
+        }
+    }
+}
+
+impl BgraSwizzle for usize {}
+impl BgraSwizzle for u8 {
+    fn swizzle_rgba_bgra(pixels: &mut [Self]) {
+        for pix in pixels.as_chunks_mut::<4>().0 {
+            let bgra = u32::from_be_bytes(*pix);
+            let argb = bgra.swap_bytes(); // reverses order of pixels (bytes)
+            let rgba = argb.rotate_left(8); // rotate first byte to last place
+            *pix = rgba.to_be_bytes();
+        }
+    }
+}
+impl BgraSwizzle for u16 {}
+impl BgraSwizzle for u32 {}
+impl BgraSwizzle for u64 {}
+impl BgraSwizzle for isize {}
+impl BgraSwizzle for i8 {}
+impl BgraSwizzle for i16 {}
+impl BgraSwizzle for i32 {}
+impl BgraSwizzle for i64 {}
+impl BgraSwizzle for f32 {}
+impl BgraSwizzle for f64 {}
 
 /// Returns the nearest value of `Self` to a given value.
 ///

@@ -246,43 +246,11 @@ where
 
     let mut out = image.buffer_like();
 
-    let angle: f64 = NumCast::from(value).unwrap();
-
-    let cosv = angle.to_radians().cos();
-    let sinv = angle.to_radians().sin();
-    let matrix: [f64; 9] = [
-        // Reds
-        0.213 + cosv * 0.787 - sinv * 0.213,
-        0.715 - cosv * 0.715 - sinv * 0.715,
-        0.072 - cosv * 0.072 + sinv * 0.928,
-        // Greens
-        0.213 - cosv * 0.213 + sinv * 0.143,
-        0.715 + cosv * 0.285 + sinv * 0.140,
-        0.072 - cosv * 0.072 - sinv * 0.283,
-        // Blues
-        0.213 - cosv * 0.213 - sinv * 0.787,
-        0.715 - cosv * 0.715 + sinv * 0.715,
-        0.072 + cosv * 0.928 + sinv * 0.072,
-    ];
+    let rotation = HueRotation::new(value as f64);
 
     for (x, y, outpixel) in out.enumerate_pixels_mut() {
-        let mut pixel = image.get_pixel(x, y);
-        let channels = pixel.channels_mut();
-
-        let r = channels[0].to_f64().unwrap();
-        let g = channels[1].to_f64().unwrap();
-        let b = channels[2].to_f64().unwrap();
-
-        let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-        let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-        let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-        let max = 255f64;
-
-        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
-        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
-        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
-
-        *outpixel = pixel;
+        let pixel = image.get_pixel(x, y);
+        *outpixel = rotation.apply(pixel);
     }
 
     out
@@ -302,46 +270,58 @@ where
 
     let (width, height) = image.dimensions();
 
-    let angle: f64 = NumCast::from(value).unwrap();
-
-    let cosv = angle.to_radians().cos();
-    let sinv = angle.to_radians().sin();
-    let matrix: [f64; 9] = [
-        // Reds
-        0.213 + cosv * 0.787 - sinv * 0.213,
-        0.715 - cosv * 0.715 - sinv * 0.715,
-        0.072 - cosv * 0.072 + sinv * 0.928,
-        // Greens
-        0.213 - cosv * 0.213 + sinv * 0.143,
-        0.715 + cosv * 0.285 + sinv * 0.140,
-        0.072 - cosv * 0.072 - sinv * 0.283,
-        // Blues
-        0.213 - cosv * 0.213 - sinv * 0.787,
-        0.715 - cosv * 0.715 + sinv * 0.715,
-        0.072 + cosv * 0.928 + sinv * 0.072,
-    ];
+    let rotation = HueRotation::new(value as f64);
 
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let mut pixel = image.get_pixel(x, y);
-            let channels = pixel.channels_mut();
-
-            let r = channels[0].to_f64().unwrap();
-            let g = channels[1].to_f64().unwrap();
-            let b = channels[2].to_f64().unwrap();
-
-            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
-
-            channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
-            channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
-            channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
-
-            image.put_pixel(x, y, pixel);
+            let pixel = image.get_pixel(x, y);
+            image.put_pixel(x, y, rotation.apply(pixel));
         }
+    }
+}
+
+struct HueRotation {
+    matrix: [f64; 9],
+}
+impl HueRotation {
+    fn new(angle: f64) -> Self {
+        let cosv = angle.to_radians().cos();
+        let sinv = angle.to_radians().sin();
+
+        let matrix: [f64; 9] = [
+            // Reds
+            0.213 + cosv * 0.787 - sinv * 0.213,
+            0.715 - cosv * 0.715 - sinv * 0.715,
+            0.072 - cosv * 0.072 + sinv * 0.928,
+            // Greens
+            0.213 - cosv * 0.213 + sinv * 0.143,
+            0.715 + cosv * 0.285 + sinv * 0.140,
+            0.072 - cosv * 0.072 - sinv * 0.283,
+            // Blues
+            0.213 - cosv * 0.213 - sinv * 0.787,
+            0.715 - cosv * 0.715 + sinv * 0.715,
+            0.072 + cosv * 0.928 + sinv * 0.072,
+        ];
+
+        Self { matrix }
+    }
+    fn apply<P: Pixel>(&self, mut pixel: P) -> P {
+        let channels = pixel.channels_mut();
+        let r = channels[0].to_f64().unwrap();
+        let g = channels[1].to_f64().unwrap();
+        let b = channels[2].to_f64().unwrap();
+
+        let new_r = self.matrix[0] * r + self.matrix[1] * g + self.matrix[2] * b;
+        let new_g = self.matrix[3] * r + self.matrix[4] * g + self.matrix[5] * b;
+        let new_b = self.matrix[6] * r + self.matrix[7] * g + self.matrix[8] * b;
+        let max = 255f64;
+
+        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
+
+        pixel
     }
 }
 

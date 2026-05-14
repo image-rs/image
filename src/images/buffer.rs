@@ -20,169 +20,15 @@ use crate::{
 };
 use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
 
-/// Iterate over rows of an image
+/// Iterator over rows of an image.
 ///
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
-///
-/// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
-pub struct Rows<'a, P: Pixel + 'a> {
-    pixels: ChunksExact<'a, P>,
-}
+pub type Rows<'a, P> = ChunksExact<'a, P>;
 
-impl<'a, P: Pixel + 'a> Rows<'a, P> {
-    /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
-    /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
-    fn with_image(pixels: &'a [P], width: u32, height: u32) -> Self {
-        assert_eq!(
-            Some(pixels.len()),
-            (width as usize).checked_mul(height as usize)
-        );
-
-        if width == 0 {
-            Rows {
-                pixels: [].chunks_exact(1),
-            }
-        } else {
-            Rows {
-                pixels: pixels.chunks_exact(width as usize),
-            }
-        }
-    }
-}
-
-impl<'a, P: Pixel + 'a> Iterator for Rows<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    type Item = &'a [P];
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<&'a [P]> {
-        self.pixels.next()
-    }
-
-    #[inline(always)]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a, P: Pixel + 'a> ExactSizeIterator for Rows<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    fn len(&self) -> usize {
-        self.pixels.len()
-    }
-}
-
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for Rows<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    #[inline(always)]
-    fn next_back(&mut self) -> Option<&'a [P]> {
-        self.pixels.next_back()
-    }
-}
-
-impl<P: Pixel> Clone for Rows<'_, P> {
-    fn clone(&self) -> Self {
-        Rows {
-            pixels: self.pixels.clone(),
-        }
-    }
-}
-
-impl<P: Pixel> fmt::Debug for Rows<'_, P>
-where
-    P: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Rows")
-            .field("pixels", &self.pixels)
-            .finish()
-    }
-}
-
-/// Iterate over mutable rows of an image
+/// Iterator over mutable rows of an image.
 ///
 /// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
-///
-/// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
-pub struct RowsMut<'a, P: Pixel + 'a> {
-    pixels: ChunksExactMut<'a, P>,
-}
-
-impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
-    /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
-    /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
-    fn with_image(pixels: &'a mut [P], width: u32, height: u32) -> Self {
-        assert_eq!(
-            Some(pixels.len()),
-            (width as usize).checked_mul(height as usize)
-        );
-
-        if width == 0 {
-            RowsMut {
-                pixels: [].chunks_exact_mut(1),
-            }
-        } else {
-            RowsMut {
-                pixels: pixels.chunks_exact_mut(width as usize),
-            }
-        }
-    }
-}
-
-impl<'a, P: Pixel + 'a> Iterator for RowsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    type Item = &'a mut [P];
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<&'a mut [P]> {
-        self.pixels.next()
-    }
-
-    #[inline(always)]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a, P: Pixel + 'a> ExactSizeIterator for RowsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    fn len(&self) -> usize {
-        self.pixels.len()
-    }
-}
-
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for RowsMut<'a, P>
-where
-    P::Subpixel: 'a,
-{
-    #[inline(always)]
-    fn next_back(&mut self) -> Option<&'a mut [P]> {
-        self.pixels.next_back()
-    }
-}
-
-impl<P: Pixel> fmt::Debug for RowsMut<'_, P>
-where
-    P: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("RowsMut")
-            .field("pixels", &self.pixels)
-            .finish()
-    }
-}
+pub type RowsMut<'a, P> = ChunksExactMut<'a, P>;
 
 /// Enumerate the pixels of an image.
 pub struct EnumeratePixels<'a, P: Pixel + 'a>
@@ -594,7 +440,7 @@ where
     /// yield any item when the width of the image is `0` or a pixel type without any channels is
     /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows(&self) -> Rows<'_, P> {
-        Rows::with_image(self.pixels(), self.width, self.height)
+        self.pixels().chunks_exact(self.width.max(1) as usize)
     }
 
     /// Enumerates over the pixels of the image.
@@ -771,8 +617,7 @@ where
     /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows_mut(&mut self) -> RowsMut<'_, P> {
         let width = self.width;
-        let height = self.height;
-        RowsMut::with_image(self.pixels_mut(), width, height)
+        self.pixels_mut().chunks_exact_mut(width.max(1) as usize)
     }
 
     /// Enumerates over the pixels of the image.

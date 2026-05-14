@@ -18,7 +18,7 @@ use crate::{ImageEncoder, ImageFormat};
 use byteorder_lite::{BigEndian, WriteBytesExt};
 
 enum HeaderStrategy {
-    Dynamic,
+    DynamicPnm,
     Subtype(PnmSubtype),
     Chosen(PnmHeader),
 }
@@ -82,23 +82,25 @@ enum TupleEncoding<'a> {
 impl<W: Write> PnmEncoder<W> {
     /// Create new `PnmEncoder` from the `writer`.
     ///
-    /// The encoded images will have some `pnm` format. If more control over the image type is
-    /// required, use either one of `with_subtype` or `with_header`. For more information on the
-    /// behaviour, see `with_dynamic_header`.
+    /// By default, this will create an image in PAM format, not PNM. If a different
+    /// format or more control over the image type is required, use any of `with_subtype`,
+    /// `with_header`, or `with_dynamic_pnm_header`.
+    ///
+    /// For more information on the default behaviour, see `with_dynamic_header`.
     pub fn new(writer: W) -> Self {
         PnmEncoder {
             writer,
-            header: HeaderStrategy::Dynamic,
+            header: HeaderStrategy::Subtype(PnmSubtype::ArbitraryMap),
         }
     }
 
-    /// Encode a specific pnm subtype image.
+    /// Encode a specific PNM subtype or PAM image.
     ///
     /// The magic number and encoding type will be chosen as provided while the rest of the header
     /// data will be generated dynamically. Trying to encode incompatible images (e.g. encoding an
     /// RGB image as Graymap) will result in an error.
     ///
-    /// This will overwrite the effect of earlier calls to `with_header` and `with_dynamic_header`.
+    /// This will overwrite the effect of earlier calls to set the header or subtype.
     pub fn with_subtype(self, subtype: PnmSubtype) -> Self {
         PnmEncoder {
             writer: self.writer,
@@ -114,7 +116,7 @@ impl<W: Write> PnmEncoder<W> {
     ///
     /// Choose this option if you want a lossless decoding/encoding round trip.
     ///
-    /// This will overwrite the effect of earlier calls to `with_subtype` and `with_dynamic_header`.
+    /// This will overwrite the effect of earlier calls to set the header or subtype.
     pub fn with_header(self, header: PnmHeader) -> Self {
         PnmEncoder {
             writer: self.writer,
@@ -122,17 +124,33 @@ impl<W: Write> PnmEncoder<W> {
         }
     }
 
-    /// Create the header dynamically for each image.
+    /// Encode a PAM image.
     ///
-    /// This is the default option upon creation of the encoder. With this, most images should be
-    /// encodable but the specific format chosen is out of the users control. The pnm subtype is
-    /// chosen arbitrarily by the library.
+    /// This is equivalent to `with_subtype(PnmSubtype::ArbitraryMap)`.
     ///
-    /// This will overwrite the effect of earlier calls to `with_subtype` and `with_header`.
+    /// This will overwrite the effect of earlier calls to set the header or subtype.
     pub fn with_dynamic_header(self) -> Self {
         PnmEncoder {
             writer: self.writer,
-            header: HeaderStrategy::Dynamic,
+            header: HeaderStrategy::Subtype(PnmSubtype::ArbitraryMap),
+        }
+    }
+
+    /// Automatically choose a PNM header for each image.
+    ///
+    /// With this, most images without an alpha channel should be encodable but the specific
+    /// format chosen is out of the users control.
+    ///
+    /// The chosen format will be one of PBM (black and white), PGM (grayscale), or PPM (color).
+    ///
+    /// To encode an image with an alpha channel, use `with_subtype(PnmSubtype::Arbitrary)`
+    /// to configure a PAM header.
+    ///
+    /// This will overwrite the effect of earlier calls to set the header or subtype.
+    pub fn with_dynamic_pnm_header(self) -> Self {
+        PnmEncoder {
+            writer: self.writer,
+            header: HeaderStrategy::DynamicPnm,
         }
     }
 
@@ -201,27 +219,24 @@ impl<W: Write> PnmEncoder<W> {
         height: u32,
         color: ExtendedColorType,
     ) -> ImageResult<()> {
-        match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(samples, width, height, color),
+        let header = match self.header {
+            HeaderStrategy::DynamicPnm => &Self::choose_dynamic_pnm_header(width, height, color)?,
             HeaderStrategy::Subtype(subtype) => {
-                self.write_subtyped_header(subtype, samples, width, height, color)
+                &Self::choose_subtyped_header(subtype, width, height, color)?
             }
-            HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, samples, width, height, color)
-            }
-        }
+            HeaderStrategy::Chosen(ref header) => header,
+        };
+        Self::write_with_header(&mut self.writer, header, samples, width, height, color)
     }
 
-    /// Choose any valid pnm format that the image can be expressed in and write its header.
+    /// Choose any valid PNM format that the image can be expressed in and write its header.
     ///
     /// Returns how the body should be written if successful.
-    fn write_dynamic_header(
-        &mut self,
-        image: FlatSamples,
+    fn choose_pam_header(
         width: u32,
         height: u32,
         color: ExtendedColorType,
-    ) -> ImageResult<()> {
+    ) -> ImageResult<PnmHeader> {
         let depth = u32::from(color.channel_count());
         let (maxval, tupltype) = match color {
             ExtendedColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
@@ -244,7 +259,7 @@ impl<W: Write> PnmEncoder<W> {
             }
         };
 
-        let header = PnmHeader {
+        Ok(PnmHeader {
             decoded: HeaderRecord::Arbitrary(ArbitraryHeader {
                 width,
                 height,
@@ -253,43 +268,58 @@ impl<W: Write> PnmEncoder<W> {
                 tupltype: Some(tupltype),
             }),
             encoded: None,
-        };
-
-        Self::write_with_header(&mut self.writer, &header, image, width, height, color)
+        })
     }
 
-    /// Try to encode the image with the chosen format, give its corresponding pixel encoding type.
-    fn write_subtyped_header(
-        &mut self,
-        subtype: PnmSubtype,
-        image: FlatSamples,
+    /// Choose any valid PNM format that the image can be expressed in and write its header.
+    ///
+    /// Returns how the body should be written if successful.
+    fn choose_dynamic_pnm_header(
         width: u32,
         height: u32,
         color: ExtendedColorType,
-    ) -> ImageResult<()> {
-        let header = match (subtype, color) {
-            (PnmSubtype::ArbitraryMap, color) => {
-                return self.write_dynamic_header(image, width, height, color)
+    ) -> ImageResult<PnmHeader> {
+        let subtype = match color {
+            ExtendedColorType::L1 => PnmSubtype::Bitmap(SampleEncoding::Binary),
+            ExtendedColorType::L8 | ExtendedColorType::L16 => {
+                PnmSubtype::Graymap(SampleEncoding::Binary)
             }
-            (PnmSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PnmHeader {
-                decoded: HeaderRecord::Pixmap(PixmapHeader {
-                    encoding,
-                    width,
-                    height,
-                    maxval: 255,
-                }),
-                encoded: None,
-            },
-            (PnmSubtype::Graymap(encoding), ExtendedColorType::L8) => PnmHeader {
-                decoded: HeaderRecord::Graymap(GraymapHeader {
-                    encoding,
-                    width,
-                    height,
-                    maxwhite: 255,
-                }),
-                encoded: None,
-            },
-            (PnmSubtype::Bitmap(encoding), ExtendedColorType::L8 | ExtendedColorType::L1) => {
+            ExtendedColorType::Rgb8 | ExtendedColorType::Rgb16 => {
+                PnmSubtype::Pixmap(SampleEncoding::Binary)
+            }
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Pnm.into(),
+                        UnsupportedErrorKind::Color(color),
+                    ),
+                ))
+            }
+        };
+        Self::choose_subtyped_header(subtype, width, height, color)
+    }
+
+    /// Choose how to encode the image with the chosen format, given its corresponding pixel encoding type.
+    fn choose_subtyped_header(
+        subtype: PnmSubtype,
+        width: u32,
+        height: u32,
+        color: ExtendedColorType,
+    ) -> ImageResult<PnmHeader> {
+        Ok(match subtype {
+            PnmSubtype::Bitmap(encoding) => {
+                if !matches!(
+                    color,
+                    ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16
+                ) {
+                    return Err(ImageError::Unsupported(
+                        UnsupportedError::from_format_and_kind(
+                            ImageFormat::Pnm.into(),
+                            UnsupportedErrorKind::Color(color),
+                        ),
+                    ));
+                }
+
                 PnmHeader {
                     decoded: HeaderRecord::Bitmap(BitmapHeader {
                         encoding,
@@ -299,17 +329,56 @@ impl<W: Write> PnmEncoder<W> {
                     encoded: None,
                 }
             }
-            (_, _) => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Pnm.into(),
-                        UnsupportedErrorKind::Color(color),
-                    ),
-                ))
-            }
-        };
+            PnmSubtype::Graymap(encoding) => {
+                let maxwhite = match color {
+                    ExtendedColorType::L8 => 0xff,
+                    ExtendedColorType::L16 => 0xffff,
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Pnm.into(),
+                                UnsupportedErrorKind::Color(color),
+                            ),
+                        ))
+                    }
+                };
 
-        Self::write_with_header(&mut self.writer, &header, image, width, height, color)
+                PnmHeader {
+                    decoded: HeaderRecord::Graymap(GraymapHeader {
+                        encoding,
+                        height,
+                        width,
+                        maxwhite,
+                    }),
+                    encoded: None,
+                }
+            }
+            PnmSubtype::Pixmap(encoding) => {
+                let maxval = match color {
+                    ExtendedColorType::Rgb8 => 0xff,
+                    ExtendedColorType::Rgb16 => 0xffff,
+                    _ => {
+                        return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Pnm.into(),
+                                UnsupportedErrorKind::Color(color),
+                            ),
+                        ))
+                    }
+                };
+
+                PnmHeader {
+                    decoded: HeaderRecord::Pixmap(PixmapHeader {
+                        encoding,
+                        height,
+                        width,
+                        maxval,
+                    }),
+                    encoded: None,
+                }
+            }
+            PnmSubtype::ArbitraryMap => Self::choose_pam_header(width, height, color)?,
+        })
     }
 
     /// Try to encode the image with the chosen header, checking if values are correct.
@@ -419,9 +488,10 @@ impl<'a> CheckedDimensions<'a> {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PBM format only support luma color types".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PBM format only supports luma color types, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -432,9 +502,10 @@ impl<'a> CheckedDimensions<'a> {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PGM format only support luma color types".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PGM format only supports luma color types, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -442,12 +513,13 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
-                ExtendedColorType::Rgb8 => (),
+                ExtendedColorType::Rgb8 | ExtendedColorType::Rgb16 => (),
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "PPM format only support ExtendedColorType::Rgb8".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "PPM format only supports Rgb8 or Rgb16, not {:?}",
+                            color
+                        )),
                     )))
                 }
             },
@@ -461,12 +533,13 @@ impl<'a> CheckedDimensions<'a> {
                 ..
             } => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ExtendedColorType::L1) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ExtendedColorType::La8) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ExtendedColorType::La1) => (),
 
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L1) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L8) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L16) => (),
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La8) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La16) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb8) => (),
                 (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb16) => (),
@@ -484,9 +557,10 @@ impl<'a> CheckedDimensions<'a> {
                 }
                 _ => {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(
-                            "Invalid color type for selected PAM color type".to_owned(),
-                        ),
+                        ParameterErrorKind::Generic(format!(
+                            "Invalid color type {:?} for selected PAM color type {:?}",
+                            color, tupltype
+                        )),
                     )))
                 }
             },
@@ -511,7 +585,7 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             ExtendedColorType::Unknown(n) if n <= 16 => (1 << n) - 1,
-            ExtendedColorType::L1 => 1,
+            ExtendedColorType::L1 | ExtendedColorType::La1 => 1,
             ExtendedColorType::L8
             | ExtendedColorType::La8
             | ExtendedColorType::Rgb8

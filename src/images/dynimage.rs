@@ -1074,9 +1074,13 @@ impl DynamicImage {
     ///
     /// * `kernel` - array contains filter.
     ///
+    /// # Notes
+    ///
     /// This method typically assumes that the input is scene-linear light. It operates on pixel
     /// channel values directly without taking into account color space data. If it is not, color
     /// distortion may occur.
+    ///
+    /// This operations uses the clamp/replicate abyss policy. I.e. `aaa|abcdef|fff`.
     #[must_use]
     pub fn filter3x3(&self, kernel: &[f32; 9]) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::filter3x3(p, kernel))

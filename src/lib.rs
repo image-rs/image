@@ -138,12 +138,16 @@ pub use crate::images::sub_image::SubImage;
 
 pub use crate::images::buffer::{
     ConvertColorOptions,
+    Gray16Image,
+    GrayAlpha16Image,
     GrayAlphaImage,
     GrayImage,
     // Image types
     ImageBuffer,
+    Rgb16Image,
     Rgb32FImage,
     RgbImage,
+    Rgba16Image,
     Rgba32FImage,
     RgbaImage,
 };

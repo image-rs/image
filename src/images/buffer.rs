@@ -1759,13 +1759,13 @@ pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
-pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
+pub type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer
-pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
+pub type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale image buffer
-pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+pub type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
-pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
+pub type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.

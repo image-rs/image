@@ -456,7 +456,7 @@ pub trait Pixel: Copy + Clone {
     #[inline]
     fn alpha(&self) -> Self::Subpixel {
         if Self::HAS_ALPHA {
-            *self.to_luma_alpha().channels().last().unwrap()
+            self.to_rgba().0[3]
         } else {
             Self::Subpixel::DEFAULT_MAX_VALUE
         }

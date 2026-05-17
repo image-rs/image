@@ -46,7 +46,7 @@ impl BgraSwizzle for u8 {
     fn swizzle_rgba_bgra(pixels: &mut [Self]) {
         for pix in pixels.as_chunks_mut::<4>().0 {
             let bgra = u32::from_be_bytes(*pix);
-            let argb = bgra.swap_bytes(); // reverses order of pixels (bytes)
+            let argb = bgra.swap_bytes(); // reverses order of channels (bytes)
             let rgba = argb.rotate_left(8); // rotate first byte to last place
             *pix = rgba.to_be_bytes();
         }

@@ -1175,7 +1175,7 @@ where
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel,
-    Container: Deref<Target = [P::Subpixel]> + Deref,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     type Pixel = P;
 

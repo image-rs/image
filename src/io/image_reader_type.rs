@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Seek};
 use std::path::Path;
 
 use crate::error::{
@@ -298,13 +298,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
-        let cur = self.inner.stream_position()?;
         let len = io::copy(
             // Accept shorter files but read at most 16 bytes.
             &mut self.inner.by_ref().take(16),
             &mut Cursor::new(&mut start[..]),
         )?;
-        self.inner.seek(SeekFrom::Start(cur))?;
+        self.inner.seek_relative(-(len as i64))?;
         let start = &start[..len as usize];
 
         if let Some(extension) = hooks::guess_format_extension(start) {
@@ -814,7 +813,7 @@ impl<'stream> ImageReader<'stream> {
     /// The iterator will end (start returning `None`) when the decoder indicates that no more
     /// images are present in the stream by setting [`ImageDecoder::more_images`] to
     /// [`SequenceControl::None`]. Decoding can return
-    /// [`ParameterError`](`crate::error::ParameterError`) in [`ImageDecoder::peek_layout`] or
+    /// [`ParameterError`](`crate::error::ParameterError`) in [`ImageDecoder::prepare_image`] or
     /// [`ImageDecoder::read_image`] with kind set to [`None`](crate::io::SequenceControl::None),
     /// which is also treated as end of stream. This may be used by decoders which can not
     /// determine the number of images in advance.

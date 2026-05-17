@@ -265,6 +265,9 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
+    let min = S::DEFAULT_MIN_VALUE.to_f64().unwrap();
+    let max = S::DEFAULT_MAX_VALUE.to_f64().unwrap();
+
     for (x, y, outpixel) in out.enumerate_pixels_mut() {
         let mut pixel = image.get_pixel(x, y);
         let channels = pixel.channels_mut();
@@ -276,11 +279,10 @@ where
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-        let max = 255f64;
 
-        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
-        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
-        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
+        channels[0] = NumCast::from(clamp(new_r, min, max)).unwrap();
+        channels[1] = NumCast::from(clamp(new_g, min, max)).unwrap();
+        channels[2] = NumCast::from(clamp(new_b, min, max)).unwrap();
 
         *outpixel = pixel;
     }
@@ -321,6 +323,9 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
 
+    let min: f64 = NumCast::from(<I::Pixel as Pixel>::Subpixel::DEFAULT_MIN_VALUE).unwrap();
+    let max: f64 = NumCast::from(<I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE).unwrap();
+
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
@@ -334,11 +339,10 @@ where
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
 
-            channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
-            channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
-            channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
+            channels[0] = NumCast::from(clamp(new_r, min, max)).unwrap();
+            channels[1] = NumCast::from(clamp(new_g, min, max)).unwrap();
+            channels[2] = NumCast::from(clamp(new_b, min, max)).unwrap();
 
             image.put_pixel(x, y, pixel);
         }

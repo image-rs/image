@@ -5,9 +5,10 @@
 //! Everything that references pic-scale-safe crate is contained to this file
 //! so that it could easily be made an optional dependency in the future.
 
-use std::ops::{AddAssign, BitXor};
+use std::ops::{BitAndAssign, BitOrAssign, BitXor};
 
 use crate::{imageops::FilterType, DynamicImage, ImageBuffer, Pixel};
+use num_traits::Zero;
 use pic_scale_safe::ResamplingFunction;
 
 pub(crate) fn resize_impl(
@@ -153,31 +154,68 @@ fn has_constant_alpha(image: &DynamicImage) -> bool {
     }
 }
 
+trait BitDifferenceAccumulator: Pixel {
+    type Acc: Copy + Zero + Eq + BitXor<Output = Self::Acc> + BitOrAssign + BitAndAssign;
+    const ALPHA_MASK: Self;
+    fn to_acc(pixel: Self) -> Self::Acc;
+}
+impl BitDifferenceAccumulator for crate::LumaA<u8> {
+    type Acc = u16;
+    const ALPHA_MASK: Self = Self([0, u8::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        u16::from_ne_bytes(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::LumaA<u16> {
+    type Acc = u32;
+    const ALPHA_MASK: Self = Self([0, u16::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        bytemuck::cast(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::Rgba<u8> {
+    type Acc = u32;
+    const ALPHA_MASK: Self = Self([0, 0, 0, u8::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        u32::from_ne_bytes(pixel.0)
+    }
+}
+impl BitDifferenceAccumulator for crate::Rgba<u16> {
+    type Acc = u64;
+    const ALPHA_MASK: Self = Self([0, 0, 0, u16::MAX]);
+    fn to_acc(pixel: Self) -> Self::Acc {
+        bytemuck::cast(pixel.0)
+    }
+}
 #[must_use]
 fn has_constant_alpha_integer<P, Container>(img: &ImageBuffer<P, Container>) -> bool
 where
-    P: Pixel,
+    P: Pixel + BitDifferenceAccumulator,
     Container: std::ops::Deref<Target = [P::Subpixel]>,
-    P::Subpixel:
-        Copy + PartialEq + BitXor<P::Subpixel, Output = P::Subpixel> + AddAssign + Into<u64>,
 {
-    let first_pixel_alpha = *match img.pixels().first() {
-        Some(pixel) => pixel.channels().last().unwrap(), // there doesn't seem to be a better way to retrieve the alpha channel
-        None => return true,                             // empty input image
-    };
     // A naive, slower implementation that branches on every pixel:
     //
-    // img.pixels().map(|pixel| pixel.channels().last().unwrap()).all(|alpha| alpha == first_pixel_alpha);
+    // img.pixels().iter().all(|pixel| pixel.alpha() == first_pixel_alpha);
     //
-    // Instead of doing that we scan every row first with cheap arithmetic instructions
-    // and only compare the sum of divergences on every row, which should be 0
-    let mut sum_of_diffs: u64 = 0;
+    // Instead of doing that, we
+    // 1. scan every row first with cheap arithmetic instructions and only
+    //    compare the sum of divergences on every row (which should be 0) and
+    // 2. perform bitwise operations on whole pixels (instead of just the alpha
+    //    channel) to allow for auto-vectorization.
+
+    let first_pixel = match img.pixels().first() {
+        Some(pixel) => P::to_acc(*pixel),
+        None => return true, // empty input image
+    };
+
+    let mask = P::to_acc(P::ALPHA_MASK);
+    let mut diff_acc = P::Acc::zero();
     for row in img.rows() {
         row.iter().for_each(|pixel| {
-            let alpha = pixel.alpha();
-            sum_of_diffs += alpha.bitxor(first_pixel_alpha).into();
+            diff_acc |= P::to_acc(*pixel).bitxor(first_pixel);
         });
-        if sum_of_diffs != 0 {
+        diff_acc &= mask; // mask out everything but the alpha channel
+        if diff_acc != P::Acc::zero() {
             return false;
         }
     }
@@ -193,8 +231,7 @@ fn has_constant_alpha_f32(img: &ImageBuffer<crate::Rgba<f32>, Vec<f32>>) -> bool
     };
     img.pixels()
         .iter()
-        .map(|pixel| pixel.channels().last().unwrap())
-        .all(|alpha| *alpha == first_pixel_alpha)
+        .all(|pixel| pixel.alpha() == first_pixel_alpha)
 }
 
 #[cfg(test)]

@@ -308,7 +308,7 @@ impl<W: Write> BmpEncoder<W> {
         &mut self,
         image: &[u8],
         width: u32,
-        height: u32,
+        _height: u32,
         row_padding: u32,
         palette: Option<&[[u8; 3]]>,
     ) -> io::Result<()> {

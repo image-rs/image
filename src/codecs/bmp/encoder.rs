@@ -710,4 +710,45 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn round_trip_1bit_13x3() {
+        // Create different patterns per row to verify correct encoding/decoding
+        // Row 0: [1,0,1,0,1,0,1,0, 1,1,1,1,1] = 0xAA, 0xF8
+        // Row 1: [0,1,0,1,0,1,0,1, 0,0,0,0,0] = 0x55, 0x00
+        // Row 2: [1,1,1,1,1,1,1,1, 1,0,1,0,1] = 0xFF, 0xA8
+        let image = vec![
+            0xAA, 0xF8, // Row 0
+            0x55, 0x00, // Row 1
+            0xFF, 0xA8, // Row 2
+        ];
+
+        let decoded = round_trip_image(&image, 13, 3, ExtendedColorType::L1);
+        assert_eq!(13 * 3 * 3, decoded.len());
+
+        // Row 0: [1,0,1,0,1,0,1,0, 1,1,1,1,1]
+        let row0_expected = [
+            255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, // pixels 0-3
+            255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, // pixels 4-7
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, // pixels 8-12
+        ];
+        assert_eq!(&decoded[0..39], &row0_expected);
+
+        // Row 1: [0,1,0,1,0,1,0,1, 0,0,0,0,0]
+        let row1_expected = [
+            0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, // pixels 0-3
+            0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, // pixels 4-7
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // pixels 8-12
+        ];
+        assert_eq!(&decoded[39..78], &row1_expected);
+
+        // Row 2: [1,1,1,1,1,1,1,1, 1,0,1,0,1]
+        let row2_expected = [
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // pixels 0-3
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, // pixels 4-7
+            255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, // pixels 8-12
+        ];
+        assert_eq!(&decoded[78..117], &row2_expected);
+    }
 }

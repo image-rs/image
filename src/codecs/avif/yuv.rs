@@ -67,13 +67,13 @@ impl Display for YuvConversionError {
             YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
                 f.write_fmt(format_args!(
                     "For plane {} expected size is {} but was received {}",
-                    plane, error_size.received, error_size.expected,
+                    plane, error_size.expected, error_size.received,
                 ))
             }
             YuvConversionError::RgbDestinationSizeMismatch(error_size) => {
                 f.write_fmt(format_args!(
                     "For RGB destination expected size is {} but was received {}",
-                    error_size.received, error_size.expected,
+                    error_size.expected, error_size.received,
                 ))
             }
         }
@@ -136,7 +136,7 @@ fn get_inverse_transform(
     let cr_coeff = (2f32 * (1f32 - kr)) * range_uv;
     let cb_coeff = (2f32 * (1f32 - kb)) * range_uv;
     let kg = 1.0f32 - kr - kb;
-    assert_ne!(kg, 0., "1.0f - kr - kg must not be 0");
+    assert_ne!(kg, 0., "1.0f - kr - kb must not be 0");
     let g_coeff_1 = (2f32 * ((1f32 - kr) * kr / kg)) * range_uv;
     let g_coeff_2 = (2f32 * ((1f32 - kb) * kb / kg)) * range_uv;
     let exact_transform = CbCrInverseTransform {

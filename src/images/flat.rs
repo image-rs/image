@@ -1582,7 +1582,7 @@ impl fmt::Display for Error {
                 }
             ),
             Error::ChannelCountMismatch(layout_channels, pixel_channels) => {
-                write!(f, "The channel count of the chosen pixel (={pixel_channels}) does agree with the layout (={layout_channels})")
+                write!(f, "The channel count of the chosen pixel (={pixel_channels}) does not agree with the layout (={layout_channels})")
             }
             Error::WrongColor(color) => {
                 write!(f, "The chosen color type does not match the hint {color:?}")

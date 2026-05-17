@@ -353,13 +353,9 @@ impl<W: Write> BmpEncoder<W> {
         // Input is already packed: 8 pixels per byte, MSB first
         // Bit 7 = pixel 0, Bit 6 = pixel 1, ..., Bit 0 = pixel 7
         let bytes_per_row = width.div_ceil(8) as usize;
-        for row in (0..height).rev() {
+        for row in image.chunks_exact(bytes_per_row).rev() {
             // from the bottom up
-            let row_start = (row as usize) * bytes_per_row;
-            let row_end = row_start + bytes_per_row;
-
-            // Write the packed bytes directly
-            self.writer.write_all(&image[row_start..row_end])?;
+            self.writer.write_all(row)?;
             self.write_row_pad(row_padding)?;
         }
 

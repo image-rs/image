@@ -1094,13 +1094,22 @@ impl DynamicImage {
     }
 
     /// Brighten the pixels of this image.
-    /// `value` is the amount to brighten each pixel by.
-    /// Negative values decrease the brightness and positive values increase it.
+    ///
+    /// # Arguments
+    ///
+    /// - `value`: The amount between -1 and 1 to brighten each pixel by.
+    ///   Negative values decrease the brightness and positive values increase it.
+    ///
+    ///   A value of 1 will make all pixels white and a value of -1 will make all pixels black. 0 will do nothing.
+    ///
+    /// # Notes
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
+    ///
+    /// This operation keeps the alpha channel unchanged.
     #[must_use]
-    pub fn brighten(&self, value: i32) -> DynamicImage {
+    pub fn brighten(&self, value: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
     }
 
@@ -2278,7 +2287,7 @@ mod test {
             &|img| img.unsharpen(1.0, 3),
             &|img| img.filter3x3(&[0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0]),
             &|img| img.adjust_contrast(0.5),
-            &|img| img.brighten(10),
+            &|img| img.brighten(0.1),
             &|img| img.huerotate(180),
         ];
 

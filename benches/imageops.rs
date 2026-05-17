@@ -22,7 +22,7 @@ pub fn bench_imageops(c: &mut Criterion) {
     });
 
     c.bench_function("brighten", |b| {
-        b.iter(|| imageops::brighten(&src, 100));
+        b.iter(|| imageops::brighten(&src, 0.3));
     });
 
     c.bench_function("contrast", |b| {

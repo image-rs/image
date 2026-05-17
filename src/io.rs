@@ -42,7 +42,7 @@ impl<R: io::Read> ReadExt for R {
 /// Communicate the layout of an image.
 ///
 /// Describes a packed rectangular layout with given bit-depth in
-/// [`ImageDecoder::peek_layout`](crate::ImageDecoder::peek_layout). Standard layouts from `image`
+/// [`ImageDecoder::prepare_image`](crate::ImageDecoder::prepare_image). Standard layouts from `image`
 /// are row-major with no padding between rows and pixels packed by consecutive channels.
 #[non_exhaustive]
 pub struct ImageLayout {
@@ -87,7 +87,7 @@ impl ImageLayout {
 
     /// The total number of bytes in the described image.
     ///
-    /// See also [`DecodedLayout::total_bytes`].
+    /// See also [`DecoderPreparedImage::total_bytes`].
     pub fn total_bytes(&self) -> u64 {
         let ImageLayout { width, height, .. } = *self;
         let total_pixels = u64::from(width) * u64::from(height);

@@ -76,47 +76,34 @@ impl<W: Write> BmpEncoder<W> {
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
-        let (dib_header_size, written_pixel_size, palette_color_count) =
+        let (dib_header_size, bits_per_pixel, palette_color_count) =
             written_pixel_info(color_type, palette)?;
 
-        // For 1-bit images, calculate bytes from bits; for others, written_pixel_size is already in bytes
-        let (padded_row, image_size) = if color_type == ExtendedColorType::L1 {
-            // 1-bit: width pixels / 8 bits per byte, rounded up
-            let row_bytes = width.div_ceil(8);
-            // each row must be padded to a multiple of 4 bytes
-            row_bytes
-                .checked_next_multiple_of(4)
-                .and_then(|v| {
-                    let image_bytes = v.checked_mul(height)?;
-                    Some((v, image_bytes))
-                })
-                .ok_or_else(|| {
-                    ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::DimensionMismatch,
-                    ))
-                })?
-        } else {
-            width
-                .checked_mul(written_pixel_size)
-                // each row must be padded to a multiple of 4 bytes
-                .and_then(|v| v.checked_next_multiple_of(4))
-                .and_then(|v| {
-                    let image_bytes = v.checked_mul(height)?;
-                    Some((v, image_bytes))
-                })
-                .ok_or_else(|| {
-                    ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::DimensionMismatch,
-                    ))
-                })?
-        };
+        // Calculate row size in bytes: (width * bits_per_pixel) / 8, rounded up
+        let row_bytes = (width as u64)
+            .checked_mul(bits_per_pixel as u64)
+            .map(|v| v.div_ceil(8))
+            .and_then(|v| u32::try_from(v).ok())
+            .ok_or_else(|| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?;
 
-        let row_padding = if color_type == ExtendedColorType::L1 {
-            let row_bytes = width.div_ceil(8);
-            padded_row - row_bytes
-        } else {
-            padded_row - width * written_pixel_size
-        };
+        // Each row must be padded to a multiple of 4 bytes
+        let (padded_row, image_size) = row_bytes
+            .checked_next_multiple_of(4)
+            .and_then(|v| {
+                let image_bytes = v.checked_mul(height)?;
+                Some((v, image_bytes))
+            })
+            .ok_or_else(|| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?;
+
+        let row_padding = padded_row - row_bytes;
 
         // all palette colors are BGRA
         let palette_size = palette_color_count.checked_mul(4).ok_or_else(|| {
@@ -160,14 +147,7 @@ impl<W: Write> BmpEncoder<W> {
         self.writer.write_i32::<LittleEndian>(width as i32)?;
         self.writer.write_i32::<LittleEndian>(height as i32)?;
         self.writer.write_u16::<LittleEndian>(1)?; // color planes
-                                                   // For 1-bit images, written_pixel_size is already 1 (bit), for others it's bytes
-        let bits_per_pixel = if color_type == ExtendedColorType::L1 {
-            1
-        } else {
-            written_pixel_size * 8
-        };
-        self.writer
-            .write_u16::<LittleEndian>(bits_per_pixel as u16)?; // bits per pixel
+        self.writer.write_u16::<LittleEndian>(bits_per_pixel)?; // bits per pixel
         if dib_header_size >= BITMAPV4HEADER_SIZE {
             // Assume BGRA32
             self.writer.write_u32::<LittleEndian>(3)?; // compression method - bitfields
@@ -392,28 +372,27 @@ impl<W: Write> ImageEncoder for BmpEncoder<W> {
     }
 }
 
-/// Returns a tuple representing: (dib header size, written pixel size in bits, palette color count).
-/// Note: For 1-bit images, written pixel size represents bits per pixel, not bytes.
+/// Returns a tuple representing: (dib header size, bits per pixel, palette color count).
 fn written_pixel_info(
     c: ExtendedColorType,
     palette: Option<&[[u8; 3]]>,
-) -> Result<(u32, u32, u32), ImageError> {
-    let (header, color_bytes, palette_count) = match c {
-        ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, Some(0)),
-        ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, Some(0)),
+) -> Result<(u32, u16, u32), ImageError> {
+    let (header, bits_per_pixel, palette_count) = match c {
+        ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 24, Some(0)),
+        ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 32, Some(0)),
         ExtendedColorType::L1 => (
             BITMAPINFOHEADER_SIZE,
-            1, // 1 bit per pixel
+            1,
             u32::try_from(palette.map(|p| p.len()).unwrap_or(2)).ok(),
         ),
         ExtendedColorType::L8 => (
             BITMAPINFOHEADER_SIZE,
-            1,
+            8,
             u32::try_from(palette.map(|p| p.len()).unwrap_or(256)).ok(),
         ),
         ExtendedColorType::La8 => (
             BITMAPINFOHEADER_SIZE,
-            1,
+            8,
             u32::try_from(palette.map(|p| p.len()).unwrap_or(256)).ok(),
         ),
         _ => {
@@ -433,7 +412,7 @@ fn written_pixel_info(
         ))
     })?;
 
-    Ok((header, color_bytes, palette_count))
+    Ok((header, bits_per_pixel, palette_count))
 }
 
 #[cfg(test)]

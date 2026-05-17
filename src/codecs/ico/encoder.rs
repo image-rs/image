@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::codecs::png::PngEncoder;
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::{ExtendedColorType, ImageEncoder};
+use crate::error::{EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -101,21 +101,33 @@ impl<W: Write> IcoEncoder<W> {
                 )),
             )));
         }
-        let num_images = images.len() as u16;
 
-        let mut offset = ICO_ICONDIR_SIZE + (ICO_DIRENTRY_SIZE * (images.len() as u32));
-        write_icondir(&mut self.w, num_images)?;
+        write_icondir(&mut self.w, images.len() as u16)?;
+
+        let mut offset = ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE * images.len() as u32;
         for image in images {
+            let Ok(data_size) = u32::try_from(image.encoded_image.len()) else {
+                return Err(ImageError::Encoding(EncodingError::new(
+                    ImageFormat::Ico.into(),
+                    "the encoded image data must be at most 4 GiB",
+                )));
+            };
+
             write_direntry(
                 &mut self.w,
                 image.width,
                 image.height,
                 image.color_type,
                 offset,
-                image.encoded_image.len() as u32,
+                data_size,
             )?;
 
-            offset += image.encoded_image.len() as u32;
+            offset = offset.checked_add(data_size).ok_or_else(|| {
+                ImageError::Encoding(EncodingError::new(
+                    ImageFormat::Ico.into(),
+                    "the total size of the ICO file must be at most 4 GiB",
+                ))
+            })?;
         }
         for image in images {
             self.w.write_all(&image.encoded_image)?;
@@ -186,4 +198,26 @@ fn write_direntry<W: Write>(
     // Image data offset, in bytes:
     w.write_u32::<LittleEndian>(data_start)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    // Test that the encoder rejects images that are too large to be represented in an ICO file.
+    #[test]
+    fn ico_too_large() {
+        // Allocate a 1 MiB ""image"" and make 65535 frames with it.
+        // This should result in a ICO file size of 64 GiB, which exceeds the 4 GiB limit for ICO files.
+        let data = vec![0; 1024 * 1024];
+        let frames: Vec<IcoFrame> = (0..=u16::MAX)
+            .map(|_| {
+                IcoFrame::with_encoded(data.as_slice(), 256, 256, ExtendedColorType::Rgba8).unwrap()
+            })
+            .collect();
+
+        let encoder = IcoEncoder::new(io::sink());
+        let res = encoder.encode_images(&frames);
+        assert!(res.is_err());
+    }
 }

@@ -73,7 +73,7 @@ pub fn bench_imageops(c: &mut Criterion) {
     });
 
     c.bench_function("unsharpen", |b| {
-        b.iter(|| imageops::unsharpen(&src, 2.0, 0));
+        b.iter(|| imageops::unsharpen(&src, 2.0, 0.0));
     });
 
     c.bench_function("dyn image crop", |b| {

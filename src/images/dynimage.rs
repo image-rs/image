@@ -1054,8 +1054,11 @@ impl DynamicImage {
     ///
     /// # Arguments
     ///
-    /// * `sigma` - value controls image flattening level.
-    /// * `threshold` - is a control of how much to sharpen.
+    /// - `sigma` - The amount to blur the image by.
+    /// - `threshold` - The threshold between 0 and 1 that removes sharpening from
+    ///   areas with little contrast.
+    ///
+    /// # Notes
     ///
     /// This method typically assumes that the input is scene-linear light. If it is not, color
     /// distortion may occur. It operates on pixel channel values directly without taking into
@@ -1064,7 +1067,7 @@ impl DynamicImage {
     /// See [Digital unsharp masking](https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking)
     /// for more information
     #[must_use]
-    pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
+    pub fn unsharpen(&self, sigma: f32, threshold: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
 
@@ -2275,7 +2278,7 @@ mod test {
                 )
             },
             &|img| img.fast_blur(1.0),
-            &|img| img.unsharpen(1.0, 3),
+            &|img| img.unsharpen(1.0, 0.02),
             &|img| img.filter3x3(&[0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0]),
             &|img| img.adjust_contrast(0.5),
             &|img| img.brighten(10),

@@ -16,14 +16,10 @@ use crate::imageops::filter_1d::{
     filter_2d_sep_rgb_u16, filter_2d_sep_rgba, filter_2d_sep_rgba_f32, filter_2d_sep_rgba_u16,
     FilterImageSize,
 };
-use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::primitive_sealed::NearestFrom;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::{clamp, is_integer, vec_try_with_capacity};
-use crate::{
-    DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
-};
+use crate::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, Rgba32FImage};
 
 const MAX_CHANNEL: usize = 4;
 

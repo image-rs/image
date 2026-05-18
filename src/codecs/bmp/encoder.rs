@@ -79,11 +79,8 @@ impl<W: Write> BmpEncoder<W> {
         let (dib_header_size, bits_per_pixel, palette_color_count) =
             written_pixel_info(color_type, palette)?;
 
-        // Calculate row size in bytes: (width * bits_per_pixel) / 8, rounded up
-        let row_bytes = (width as u64)
-            .checked_mul(bits_per_pixel as u64)
-            .map(|v| v.div_ceil(8))
-            .and_then(|v| u32::try_from(v).ok())
+        let row_bytes = u32::try_from((width as u64 * bits_per_pixel as u64).div_ceil(8))
+            .ok()
             .ok_or_else(|| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,

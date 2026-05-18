@@ -643,18 +643,8 @@ where
     /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
     /// the index is out of the bounds `(width, height)`.
     pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+        let range = self.pixel_indices(x, y)?;
+        self.data.get(range).map(<P as Pixel>::from_slice)
     }
 
     /// Test that the image fits inside the buffer.
@@ -821,18 +811,8 @@ where
     /// Gets a reference to the mutable pixel at location `(x, y)` or returns
     /// `None` if the index is out of the bounds `(width, height)`.
     pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get_mut(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
+        let range = self.pixel_indices(x, y)?;
+        self.data.get_mut(range).map(<P as Pixel>::from_slice_mut)
     }
 
     /// Puts a pixel at location `(x, y)`

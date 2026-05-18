@@ -224,8 +224,8 @@ impl YuvStandardMatrix {
                 kb: 0.0593f32,
             },
             YuvStandardMatrix::Smpte240 => YuvBias {
-                kr: 0.087f32,
-                kb: 0.212f32,
+                kr: 0.212f32,
+                kb: 0.087f32,
             },
             YuvStandardMatrix::Bt470_6 => YuvBias {
                 kr: 0.2220f32,

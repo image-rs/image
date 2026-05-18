@@ -208,6 +208,7 @@ where
 /// Tile an image by repeating it multiple times
 ///
 /// # Examples
+///
 /// ```no_run
 /// use image::RgbaImage;
 ///
@@ -217,13 +218,22 @@ where
 /// image::imageops::tile(&mut img, &tile);
 /// img.save("tiled_wallpaper.png").unwrap();
 /// ```
+///
+/// # Panics
+///
+/// Panics if either dimension of the top image is zero.
 pub fn tile<I, J>(bottom: &mut I, top: &J)
 where
     I: GenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
 {
-    for x in (0..bottom.width()).step_by(top.width() as usize) {
-        for y in (0..bottom.height()).step_by(top.height() as usize) {
+    let (top_width, top_height) = top.dimensions();
+    if top_width == 0 || top_height == 0 {
+        panic!("Cannot tile with an image with zero width or height");
+    }
+
+    for x in (0..bottom.width()).step_by(top_width as usize) {
+        for y in (0..bottom.height()).step_by(top_height as usize) {
             overlay(bottom, top, i64::from(x), i64::from(y));
         }
     }

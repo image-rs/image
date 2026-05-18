@@ -590,9 +590,8 @@ impl SampleWriter<'_> {
     }
 
     fn write_pbm_bits<V>(self, samples: &[V], width: u32) -> io::Result<()>
-    /* Default gives 0 for all primitives. TODO: replace this with `Zeroable` once it hits stable */
     where
-        V: Default + Eq + Copy,
+        V: num_traits::Zero + Eq + Copy,
     {
         // The length of an encoded scanline
         let line_width = (width - 1) / 8 + 1;
@@ -606,7 +605,7 @@ impl SampleWriter<'_> {
                 for i in 0..8 {
                     // Black pixels are encoded as 1s
                     if let Some(&v) = byte_bits.get(i) {
-                        if v == V::default() {
+                        if v.is_zero() {
                             byte |= 1u8 << (7 - i);
                         }
                     }

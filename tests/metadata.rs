@@ -92,7 +92,7 @@ fn test_read_iptc_jpeg() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(IPTC_JPG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut jpeg_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
+    let mut jpeg_decoder = JpegDecoder::new(std::io::Cursor::new(data));
     let metadata = jpeg_decoder.iptc_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, metadata.unwrap());
@@ -137,7 +137,7 @@ fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(IMG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut tiff_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
+    let mut tiff_decoder = JpegDecoder::new(std::io::Cursor::new(data));
     let metadata = tiff_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, &metadata.unwrap());

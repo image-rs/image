@@ -31,7 +31,7 @@ struct HeaderData {
 
 impl<R: BufRead + Seek> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
+    pub fn new(r: R) -> JpegDecoder<R> {
         let options = zune_core::options::DecoderOptions::default()
             .set_strict_mode(false)
             .set_max_width(usize::MAX)
@@ -41,21 +41,19 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
 
-        Ok(JpegDecoder {
+        JpegDecoder {
             decoder,
             header: None,
             spec_compliance: SpecCompliance::default(),
             limits,
             phantom: PhantomData,
-        })
+        }
     }
 
     /// Create a new decoder with the given spec compliance mode.
-    pub(crate) fn new_with_spec_compliance(
-        r: R,
-        spec: SpecCompliance,
-    ) -> ImageResult<JpegDecoder<R>> {
-        let mut this = Self::new(r)?;
+    pub(crate) fn new_with_spec_compliance(r: R, spec: SpecCompliance) -> JpegDecoder<R> {
+        let mut this = Self::new(r);
+
         this.spec_compliance = spec;
         this.decoder.set_options({
             this.decoder
@@ -63,7 +61,7 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
                 .set_strict_mode(matches!(spec, SpecCompliance::Strict))
         });
 
-        Ok(this)
+        this
     }
 
     fn ensure_headers(&mut self) -> ImageResult<(&mut zune_jpeg::JpegDecoder<R>, &HeaderData)> {
@@ -247,7 +245,7 @@ mod tests {
     #[test]
     fn test_exif_orientation() {
         let data = fs::read("tests/images/jpg/portrait_2.jpg").unwrap();
-        let decoder = JpegDecoder::new(Cursor::new(data)).unwrap();
+        let decoder = JpegDecoder::new(Cursor::new(data));
 
         let mut image = crate::DynamicImage::new_luma8(0, 0);
         let mut reader = crate::ImageReader::from_decoder(Box::new(decoder));
@@ -265,15 +263,14 @@ mod tests {
         image.truncate(image.len() - 1000); // simulate a truncated image
 
         // Default (lenient) mode: truncated image should be accepted
-        let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
+        let mut decoder = JpegDecoder::new(Cursor::new(&image));
         let layout = decoder.prepare_image().unwrap();
         let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_ok());
 
         // Strict mode: truncated image should be rejected
         let mut decoder =
-            JpegDecoder::new_with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict)
-                .unwrap();
+            JpegDecoder::new_with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict);
         let layout = decoder.prepare_image().unwrap();
         let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_err());

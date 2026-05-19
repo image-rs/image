@@ -207,7 +207,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
             ImageFormat::Jpeg => Box::new(jpeg::JpegDecoder::new_with_spec_compliance(
                 reader,
                 spec_compliance,
-            )?),
+            )),
             #[cfg(feature = "webp")]
             ImageFormat::WebP => Box::new(webp::WebPDecoder::new(reader)?),
             #[cfg(feature = "tiff")]

@@ -14,15 +14,19 @@ type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
 /// JPEG decoder
 pub struct JpegDecoder<R> {
-    input: zune_jpeg::JpegDecoder<R>,
-    orig_color_space: ZuneColorSpace,
+    decoder: zune_jpeg::JpegDecoder<R>,
     spec_compliance: SpecCompliance,
-    width: u16,
-    height: u16,
     limits: Limits,
+    header: Option<HeaderData>,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
     phantom: PhantomData<R>,
+}
+
+struct HeaderData {
+    orig_color_space: ZuneColorSpace,
+    width: u16,
+    height: u16,
 }
 
 impl<R: BufRead + Seek> JpegDecoder<R> {
@@ -33,39 +37,14 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
 
-        let mut decoder = zune_jpeg::JpegDecoder::new_with_options(r, options);
-        // Adjust ensure_headers if we do not run this in the constructor!
-        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
-        // now that we've decoded the headers we can `.unwrap()`
-        // all these functions that only fail if called before decoding the headers
-        let (width, height) = decoder.dimensions().unwrap();
-        // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
-        let width: u16 = width.try_into().unwrap();
-        let height: u16 = height.try_into().unwrap();
-        let orig_color_space = decoder.input_colorspace().expect("headers were decoded");
-
-        // Now configure the decoder color output.
-        decoder.set_options({
-            let requested_color = match orig_color_space {
-                ZuneColorSpace::RGB
-                | ZuneColorSpace::RGBA
-                | ZuneColorSpace::Luma
-                | ZuneColorSpace::LumaA => orig_color_space,
-                // Late failure
-                _ => ZuneColorSpace::RGB,
-            };
-
-            decoder.options().jpeg_set_out_colorspace(requested_color)
-        });
-
+        let decoder = zune_jpeg::JpegDecoder::new_with_options(r, options);
         // Limits are disabled by default in the constructor for all decoders
         let limits = Limits::no_limits();
+
         Ok(JpegDecoder {
-            input: decoder,
-            orig_color_space,
+            decoder,
+            header: None,
             spec_compliance: SpecCompliance::default(),
-            width,
-            height,
             limits,
             phantom: PhantomData,
         })
@@ -76,20 +55,66 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         r: R,
         spec: SpecCompliance,
     ) -> ImageResult<JpegDecoder<R>> {
-        let mut decoder = Self::new(r)?;
-        decoder.spec_compliance = spec;
-        decoder.input.set_options({
-            decoder
-                .input
+        let mut this = Self::new(r)?;
+        this.spec_compliance = spec;
+        this.decoder.set_options({
+            this.decoder
                 .options()
                 .set_strict_mode(matches!(spec, SpecCompliance::Strict))
         });
-        Ok(decoder)
+
+        Ok(this)
     }
 
-    fn ensure_headers(&mut self) -> ImageResult<&mut zune_jpeg::JpegDecoder<R>> {
+    fn ensure_headers(&mut self) -> ImageResult<(&mut zune_jpeg::JpegDecoder<R>, &HeaderData)> {
+        if self.header.is_none() {
+            // Adjust ensure_headers if we do not run this in the constructor!
+            self.decoder
+                .decode_headers()
+                .map_err(ImageError::from_jpeg)?;
+
+            // now that we've decoded the headers we can `.unwrap()`
+            // all these functions that only fail if called before decoding the headers
+            let (width, height) = self.decoder.dimensions().unwrap();
+            // JPEG can only express dimensions up to 65535x65535, so this conversion cannot fail
+            let width: u16 = width.try_into().unwrap();
+            let height: u16 = height.try_into().unwrap();
+
+            let orig_color_space = self
+                .decoder
+                .input_colorspace()
+                .expect("headers were decoded");
+
+            // configure the decoder color output based on the header information. By default it
+            // would do its own color space defaults and we want to setup those that are compatible
+            // with our wish of sRGB outputs.
+            self.decoder.set_options({
+                let requested_color = match orig_color_space {
+                    ZuneColorSpace::RGB
+                    | ZuneColorSpace::RGBA
+                    | ZuneColorSpace::Luma
+                    | ZuneColorSpace::LumaA => orig_color_space,
+                    // Late failure
+                    _ => ZuneColorSpace::RGB,
+                };
+
+                self.decoder
+                    .options()
+                    .jpeg_set_out_colorspace(requested_color)
+            });
+
+            self.header = Some(HeaderData {
+                orig_color_space,
+                width,
+                height,
+            });
+        }
+
+        // `unwrap` instead of match is used here due to lifetime overlaps in the codeflow
+        // otherwise, we could not quick return anyways.
+        let header = self.header.as_ref().unwrap();
         // Headers are already decoded in `new()` right now, so this is a no-op.
-        Ok(&mut self.input)
+        Ok((&mut self.decoder, header))
     }
 }
 
@@ -108,30 +133,31 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     }
 
     fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let (_, header) = self.ensure_headers()?;
         Ok(DecoderPreparedImage::new(
-            self.width.into(),
-            self.height.into(),
-            ColorType::from_jpeg(self.orig_color_space),
+            header.width.into(),
+            header.height.into(),
+            ColorType::from_jpeg(header.orig_color_space),
         ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let decoder = self.ensure_headers()?;
+        let (decoder, _) = self.ensure_headers()?;
         Ok(decoder.icc_profile())
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let decoder = self.ensure_headers()?;
+        let (decoder, _) = self.ensure_headers()?;
         Ok(decoder.exif().cloned())
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let decoder = self.ensure_headers()?;
+        let (decoder, _) = self.ensure_headers()?;
         Ok(decoder.xmp().cloned())
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
-        let decoder = self.ensure_headers()?;
+        let (decoder, _) = self.ensure_headers()?;
         Ok(decoder.iptc().cloned())
     }
 
@@ -152,7 +178,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             )));
         }
 
-        let decoder = self.ensure_headers()?;
+        let (decoder, _) = self.ensure_headers()?;
         decoder.decode_into(buf).map_err(|err| {
             ImageError::Decoding(DecodingError::new(ImageFormat::Jpeg.into(), err))
         })?;

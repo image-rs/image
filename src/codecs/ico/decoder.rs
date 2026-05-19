@@ -371,9 +371,16 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 // the mask is not required. Unfortunately, Wikipedia does not have a citation
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
+                    if width == 0 {
+                        return Ok(DecodedImageAttributes::default());
+                    }
+
                     let rgba = buf.as_chunks_mut::<4>().0;
                     let rows = rgba.chunks_exact_mut(width as usize);
-                    debug_assert_eq!(rows.len(), height as usize, "entry matches dimension");
+
+                    if rows.len() != height as usize {
+                        return Err(DecoderError::InvalidDataSize.into());
+                    }
 
                     // If there's an AND mask following the image, read and apply it.
                     // This from the bottom up (in terms of our coordinates).

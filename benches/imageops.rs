@@ -2,7 +2,6 @@ use std::{hint::black_box, time::Duration};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use image::{
-    buffer::ConvertBuffer,
     imageops::{self, FilterType},
     math::Rect,
     DynamicImage, GrayImage, ImageBuffer, Rgb,

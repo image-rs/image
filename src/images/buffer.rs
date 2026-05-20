@@ -1442,16 +1442,6 @@ where
     }
 }
 
-/// Provides color conversions for whole image buffers.
-pub trait ConvertBuffer<T> {
-    /// Converts `self` to a buffer of type T
-    ///
-    /// A generic implementation is provided to convert any image buffer to a image buffer
-    /// based on a `Vec<T>`.
-    fn convert(&self) -> T;
-}
-
-// concrete implementation Luma -> Rgba
 impl GrayImage {
     /// Expands a color palette into an RGBA image. Uses an optionally
     /// transparent index to adjust its alpha value accordingly.
@@ -1485,23 +1475,23 @@ impl GrayImage {
     }
 }
 
-/// This copies the color space information but is somewhat wrong, in numeric terms this conversion
-/// fails to actually convert rgb/luma with consistent treatment. But this trait impl is too
-/// generic to handle it correctly (missing any CICP related parameter for the coefficients) so the
-/// best effort here is to copy the metadata and have slighly incorrect color. May you've only been
-/// adding an alpha channel or converting sample types, which is fine.
-///
-/// It will very likely be deprecated in a future release.
-impl<Container, FromType: Pixel, ToType: Pixel>
-    ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
+impl<P: Pixel, Container> ImageBuffer<P, Container>
 where
-    Container: Deref<Target = [FromType::Subpixel]>,
-    ToType: FromColor<FromType>,
+    Container: Deref<Target = [P::Subpixel]>,
 {
+    /// Convert this image buffer to another pixel type, copying the color space information.
+    ///
+    /// The conversion uses [`FromColor`] and ignores color space information. The resulting image
+    /// will have the same color space as the original, which may lead to incorrect colors if the
+    /// source and target pixel types have different color types, e.g. `Rgb` and `Luma`.
+    /// In that case, the conversion is a best effort and may be inaccurate.
+    /// Conversions between alpha and non-alpha variants of Pixels are correct regarding the color space.
+    ///
     /// # Examples
+    ///
     /// Convert RGB image to gray image.
+    ///
     /// ```no_run
-    /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
     ///
     /// let image_path = "examples/fractal.png";
@@ -1511,7 +1501,10 @@ where
     ///
     /// let gray_image: GrayImage = image.convert();
     /// ```
-    fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
+    pub fn convert<ToType>(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>>
+    where
+        ToType: Pixel + FromColor<P>,
+    {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);
         buffer.copy_color_space_from(self);
@@ -2414,7 +2407,7 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use super::{GrayImage, ImageBuffer, Pixel, RgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {

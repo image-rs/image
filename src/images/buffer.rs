@@ -2407,7 +2407,7 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use super::{GrayImage, ImageBuffer, Pixel, RgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {

@@ -7,8 +7,8 @@ use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::imageops::{gaussian_blur_dyn_image, GaussianBlurParameters};
 use crate::images::buffer::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, Rgb32FImage, RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
+    Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer, Rgb16Image, Rgb32FImage,
+    RgbImage, Rgba16Image, Rgba32FImage, RgbaImage,
 };
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};

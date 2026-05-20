@@ -181,8 +181,7 @@ pub mod error;
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::images::buffer::{
-        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut, Rows,
-        RowsMut,
+        EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut, Rows, RowsMut,
     };
 
     #[cfg(feature = "rayon")]

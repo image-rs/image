@@ -8,7 +8,6 @@ use std::cmp::min;
 use std::io::Write;
 use std::mem::size_of;
 
-use crate::buffer::ConvertBuffer;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,

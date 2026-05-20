@@ -1056,7 +1056,7 @@ where
             width: 0,
             height: 0,
             _phantom: PhantomData,
-            color: Cicp::SRGB_LINEAR.into_rgb(),
+            color: Cicp::SRGB.into_rgb(),
             data: Default::default(),
         }
     }

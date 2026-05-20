@@ -196,7 +196,7 @@ mod tests {
     #[test] // This attribute marks the function as a test function.
     fn test_extraction_and_clearing() {
         let reader = Cursor::new(TEST_IMAGE);
-        let mut decoder = JpegDecoder::new(reader).expect("Failed to decode test image");
+        let mut decoder = JpegDecoder::new(reader);
         let mut exif_chunk = decoder
             .exif_metadata()
             .expect("Failed to extract Exif chunk")

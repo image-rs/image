@@ -320,7 +320,7 @@ mod tests {
     use super::super::{JpegDecoder, JpegEncoder};
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
-        let mut decoder = JpegDecoder::new(Cursor::new(encoded)).expect("Could not decode image");
+        let mut decoder = JpegDecoder::new(Cursor::new(encoded));
         let layout = decoder.prepare_image().unwrap();
         let mut decoded = vec![0; layout.total_bytes() as usize];
         decoder
@@ -403,8 +403,7 @@ mod tests {
                 .expect("Could not encode image");
         }
 
-        let mut decoder =
-            JpegDecoder::new(Cursor::new(encoded_img)).expect("Could not decode image");
+        let mut decoder = JpegDecoder::new(Cursor::new(encoded_img));
         let decoded_exif = decoder
             .exif_metadata()
             .expect("Error decoding Exif")
@@ -432,8 +431,7 @@ mod tests {
                 .expect("Could not encode image");
         }
 
-        let mut decoder =
-            JpegDecoder::new(Cursor::new(encoded_img)).expect("Could not decode image");
+        let mut decoder = JpegDecoder::new(Cursor::new(encoded_img));
         let decoded_xmp = decoder
             .xmp_metadata()
             .expect("Error decoding XMP")

@@ -1143,7 +1143,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     /// Create a new decoder with the given spec compliance mode.
-    pub(crate) fn new_with_spec_compliance(
+    pub(crate) fn with_spec_compliance(
         reader: R,
         spec: SpecCompliance,
     ) -> ImageResult<BmpDecoder<R>> {
@@ -3024,7 +3024,7 @@ mod test {
 
             // Strict mode: these files should be rejected
             assert!(
-                BmpDecoder::new_with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                BmpDecoder::with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
                     .is_err(),
                 "{description}: expected error in strict mode, but got Ok"
             );
@@ -3083,7 +3083,7 @@ mod test {
 
             // Strict mode must fail on these images during full decode
             let strict_result =
-                BmpDecoder::new_with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                BmpDecoder::with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
                     .and_then(|mut d| {
                         let len = d.prepare_image()?.total_bytes();
                         let mut buf = vec![0u8; len as usize];
@@ -3141,8 +3141,7 @@ mod test {
 
         // Test Strict mode
         let strict_decoder =
-            BmpDecoder::new_with_spec_compliance(Cursor::new(data), SpecCompliance::Strict)
-                .unwrap();
+            BmpDecoder::with_spec_compliance(Cursor::new(data), SpecCompliance::Strict).unwrap();
         let mut decoder = crate::ImageReader::from_decoder(Box::new(strict_decoder));
         let result = decoder.decode();
 

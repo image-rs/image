@@ -1,5 +1,5 @@
 use crate::error::{ImageError, ImageResult};
-use crate::flat::ViewOfPixel;
+use crate::flat::{ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -134,6 +134,8 @@ pub trait GenericImageView {
     /// [`GenericImageView`] trait itself does not demand from all its implementations.
     ///
     /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImage::to_pixel_view_mut`] for images that allow mutating pixels.
     ///
     /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
@@ -314,6 +316,22 @@ pub trait GenericImage: GenericImageView {
     {
         rect.assert_in_bounds_of(self);
         SubImage::new(self, rect)
+    }
+
+    /// If the buffer has a fitting layout, return a canonical mutable view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of generic
+    /// images access the sample data through a canonical descriptor of its layout directly instead
+    /// of pixel-by-pixel. This provides more efficient, batched, forms of access that the
+    /// [`GenericImage`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImageView::to_pixel_view`].
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        None
     }
 }
 

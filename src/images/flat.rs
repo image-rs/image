@@ -620,6 +620,12 @@ impl<Buffer> FlatSamples<Buffer> {
     /// Convert this descriptor into a readable image.
     ///
     /// An owned version of [`Self::as_view`] that uses the original buffer type.
+    ///
+    /// FIXME: before exposing this, consider if we want to have strong invariants related to
+    /// `AsRef` of `Buffer` or not. If we provide a generic one then we can not rely on the trait to
+    /// give us a stable address or anything but its pure interface. It may make it difficult to
+    /// introduce efficient code for the relevant case of `Buffer = &[T]`. We could introduce it
+    /// specifically for that buffer type.
     pub(crate) fn into_view<P>(self) -> Result<View<Buffer, P>, Error>
     where
         P: Pixel,
@@ -719,6 +725,43 @@ impl<Buffer> FlatSamples<Buffer> {
         Ok(ViewMut {
             inner: FlatSamples {
                 samples: as_mut,
+                layout: self.layout,
+                color_hint: self.color_hint,
+            },
+            phantom: PhantomData,
+        })
+    }
+
+    /// Turn this buffer into a mutable image.
+    ///
+    /// FIXME: before exposing this, consider if we want to have strong invariants related to
+    /// `AsMut` of `Buffer` or not. If we provide a generic one then we can not rely on the trait to
+    /// give us a stable address or anything but its pure interface. It may make it difficult to
+    /// introduce efficient code for the relevant case of `Buffer = &mut [T]`. We could introduce it
+    /// specifically for that buffer type.
+    pub(crate) fn into_view_mut<P>(mut self) -> Result<ViewMut<Buffer, P>, Error>
+    where
+        P: Pixel,
+        Buffer: AsMut<[P::Subpixel]>,
+    {
+        if !self.layout.is_normal(NormalForm::PixelPacked) {
+            return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
+        }
+
+        if self.layout.channels != P::CHANNEL_COUNT {
+            return Err(Error::ChannelCountMismatch(
+                self.layout.channels,
+                P::CHANNEL_COUNT,
+            ));
+        }
+
+        if !self.layout.fits(self.samples.as_mut().len()) {
+            return Err(Error::TooLarge);
+        }
+
+        Ok(ViewMut {
+            inner: FlatSamples {
+                samples: self.samples,
                 layout: self.layout,
                 color_hint: self.color_hint,
             },

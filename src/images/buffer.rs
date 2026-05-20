@@ -947,7 +947,7 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: Pixel + PixelWithColorType,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -957,24 +957,16 @@ where
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
-        P: PixelWithColorType,
     {
         save_buffer(
             path,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
     ///
@@ -983,26 +975,17 @@ where
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
             format,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Writes the buffer to a writer in the specified format.
     ///
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
@@ -1010,38 +993,27 @@ where
     pub fn write_to<W>(&self, writer: &mut W, format: ImageFormat) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
             format,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Writes the buffer with the given encoder.
     pub fn write_with_encoder<E>(&self, encoder: E) -> ImageResult<()>
     where
         E: ImageEncoder,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         encoder.write_image(
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
         )
     }
 }
@@ -1109,7 +1081,7 @@ where
 impl<P, Container> Clone for ImageBuffer<P, Container>
 where
     P: Pixel,
-    Container: Deref<Target = [P::Subpixel]> + Clone,
+    Container: Clone,
 {
     fn clone(&self) -> ImageBuffer<P, Container> {
         ImageBuffer {

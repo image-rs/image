@@ -204,7 +204,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
             #[cfg(feature = "gif")]
             ImageFormat::Gif => Box::new(gif::GifDecoder::new(reader)?),
             #[cfg(feature = "jpeg")]
-            ImageFormat::Jpeg => Box::new(jpeg::JpegDecoder::new_with_spec_compliance(
+            ImageFormat::Jpeg => Box::new(jpeg::JpegDecoder::with_spec_compliance(
                 reader,
                 spec_compliance,
             )),

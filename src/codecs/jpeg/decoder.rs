@@ -1,5 +1,4 @@
 use std::io::{BufRead, Seek};
-use std::marker::PhantomData;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -15,12 +14,8 @@ type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 /// JPEG decoder
 pub struct JpegDecoder<R> {
     decoder: zune_jpeg::JpegDecoder<R>,
-    spec_compliance: SpecCompliance,
     limits: Limits,
     header: Option<HeaderData>,
-    // For API compatibility with the previous jpeg_decoder wrapper.
-    // Can be removed later, which would be an API break.
-    phantom: PhantomData<R>,
 }
 
 struct HeaderData {
@@ -30,10 +25,15 @@ struct HeaderData {
 }
 
 impl<R: BufRead + Seek> JpegDecoder<R> {
-    /// Create a new decoder that decodes from the stream ```r```
+    /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> JpegDecoder<R> {
+        Self::with_spec_compliance(r, SpecCompliance::default())
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn with_spec_compliance(r: R, spec: SpecCompliance) -> JpegDecoder<R> {
         let options = zune_core::options::DecoderOptions::default()
-            .set_strict_mode(false)
+            .set_strict_mode(matches!(spec, SpecCompliance::Strict))
             .set_max_width(usize::MAX)
             .set_max_height(usize::MAX);
 
@@ -44,24 +44,8 @@ impl<R: BufRead + Seek> JpegDecoder<R> {
         JpegDecoder {
             decoder,
             header: None,
-            spec_compliance: SpecCompliance::default(),
             limits,
-            phantom: PhantomData,
         }
-    }
-
-    /// Create a new decoder with the given spec compliance mode.
-    pub(crate) fn new_with_spec_compliance(r: R, spec: SpecCompliance) -> JpegDecoder<R> {
-        let mut this = Self::new(r);
-
-        this.spec_compliance = spec;
-        this.decoder.set_options({
-            this.decoder
-                .options()
-                .set_strict_mode(matches!(spec, SpecCompliance::Strict))
-        });
-
-        this
     }
 
     fn ensure_headers(&mut self) -> ImageResult<(&mut zune_jpeg::JpegDecoder<R>, &HeaderData)> {
@@ -270,7 +254,7 @@ mod tests {
 
         // Strict mode: truncated image should be rejected
         let mut decoder =
-            JpegDecoder::new_with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict);
+            JpegDecoder::with_spec_compliance(Cursor::new(&image), SpecCompliance::Strict);
         let layout = decoder.prepare_image().unwrap();
         let mut buffer = vec![0u8; layout.total_bytes() as usize];
         assert!(decoder.read_image(&mut buffer).is_err());

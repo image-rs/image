@@ -215,14 +215,14 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
             #[cfg(feature = "tga")]
             ImageFormat::Tga => Box::new(tga::TgaDecoder::new(reader)?),
             #[cfg(feature = "bmp")]
-            ImageFormat::Bmp => Box::new(bmp::BmpDecoder::new_with_spec_compliance(
+            ImageFormat::Bmp => Box::new(bmp::BmpDecoder::with_spec_compliance(
                 reader,
                 spec_compliance,
             )?),
             #[cfg(feature = "ico")]
             ImageFormat::Ico => Box::new(ico::IcoDecoder::new(reader)?),
             #[cfg(feature = "hdr")]
-            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::new_with_spec_compliance(
+            ImageFormat::Hdr => Box::new(hdr::HdrDecoder::with_spec_compliance(
                 reader,
                 spec_compliance,
             )?),

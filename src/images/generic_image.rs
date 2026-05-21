@@ -238,7 +238,7 @@ pub trait GenericImage: GenericImageView {
         // override its `copy_from` with the intended effect by providing a non-trait inherent
         // method instead.
         if let Some(mut view) = self.to_pixel_view_mut() {
-            return view.inherent_copy_from(other, x, y);
+            return view.inner_copy_from(other, x, y);
         }
 
         // Do bounds checking here so we can use the non-bounds-checking

@@ -1410,12 +1410,7 @@ where
     }
 
     /// Copy from, assuming that the source is not a simple view layout.
-    pub(crate) fn inherent_copy_from<O>(
-        &mut self,
-        other: &O,
-        x: u32,
-        y: u32,
-    ) -> crate::ImageResult<()>
+    pub(crate) fn inner_copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> crate::ImageResult<()>
     where
         O: GenericImageView<Pixel = P>,
         // Note: not necessary for the implementation per-se but this allows the use of
@@ -1488,6 +1483,38 @@ where
                 let idx = layout.in_bounds_index(0, i + x, k + y);
                 let channels = &mut samples[idx..][..usize::from(P::CHANNEL_COUNT)];
                 *P::from_slice_mut(channels) = p;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn inner_copy_from_samples(
+        &mut self,
+        other: ViewOfPixel<'_, P>,
+        x: u32,
+        y: u32,
+    ) -> crate::ImageResult<()>
+    where
+        // Note: not necessary for the implementation per-se but this allows the use of
+        // `GenericImage`/`GenericImageView` methods and so `test_in_bounds_of`.
+        Buffer: AsRef<[P::Subpixel]>,
+    {
+        let target = Rect::from_image_at(&other, x, y);
+        target.test_in_bounds_of(self)?;
+
+        let in_layout = other.inner.layout;
+        let in_samples = other.image_slice();
+
+        let out_layout = self.inner.layout;
+        let out_samples = self.image_mut_slice();
+
+        for k in 0..target.height {
+            for i in 0..target.width {
+                let iidx = in_layout.in_bounds_index(0, i, k);
+                let oidx = out_layout.in_bounds_index(0, i + x, k + y);
+                out_samples[oidx..][..usize::from(P::CHANNEL_COUNT)]
+                    .copy_from_slice(&in_samples[iidx..][..usize::from(P::CHANNEL_COUNT)]);
             }
         }
 
@@ -1666,10 +1693,10 @@ where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
         if let Some(flat) = other.to_pixel_view() {
-            return self.copy_from_samples(flat, x, y);
+            return self.inner_copy_from_samples(flat, x, y);
         }
 
-        self.inherent_copy_from(other, x, y)
+        self.inner_copy_from(other, x, y)
     }
 }
 

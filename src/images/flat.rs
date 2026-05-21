@@ -1509,6 +1509,34 @@ where
         let out_layout = self.inner.layout;
         let out_samples = self.image_mut_slice();
 
+        // Check if we can make use of batch copies, row-by-row.
+        if in_layout.width_stride == P::CHANNEL_COUNT.into()
+            && out_layout.width_stride == P::CHANNEL_COUNT.into()
+        {
+            // See `inner_copy_from` where we have the same trick (chunks_exact_mut with 0 stride is
+            // not allowed).
+            let rows = out_samples.chunks_exact_mut({
+                if out_layout.height <= 1 {
+                    out_samples.len()
+                } else {
+                    out_layout.height_stride
+                }
+            });
+
+            let row_samples = target.width as usize * usize::from(P::CHANNEL_COUNT);
+            for (k, orow) in rows
+                .skip(target.y as usize)
+                .take(target.height as usize)
+                .enumerate()
+            {
+                let orow = &mut orow[target.x as usize * usize::from(P::CHANNEL_COUNT)..];
+                let irow = &in_samples[k * in_layout.height_stride..];
+                orow[..row_samples].copy_from_slice(&irow[..row_samples]);
+            }
+
+            return Ok(());
+        }
+
         for k in 0..target.height {
             for i in 0..target.width {
                 let iidx = in_layout.in_bounds_index(0, i, k);

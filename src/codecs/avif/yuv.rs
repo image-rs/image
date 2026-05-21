@@ -89,7 +89,7 @@ pub(crate) fn check_yuv_plane_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if plane.len() != stride * height {
+    if Some(plane.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::YuvPlaneSizeMismatch(
@@ -110,7 +110,7 @@ pub(crate) fn check_rgb_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if rgb_data.len() != stride * height {
+    if Some(rgb_data.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::RgbDestinationSizeMismatch(ErrorSize {

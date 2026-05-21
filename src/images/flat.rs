@@ -988,21 +988,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
     /// pixels of a single color, without any dynamic allocation.
     ///
-    /// ## Examples
-    ///
-    /// ```
-    /// # fn paint_something<T>(_: T) {}
-    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
-    ///
-    /// let background = Rgb([20, 20, 20]);
-    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);
-    ///
-    /// let mut image = RgbImage::new(200, 200);
-    /// paint_something(&mut image);
-    ///
-    /// // Reset the canvas
-    /// image.copy_from(&bg.as_view().unwrap(), 0, 0);
-    /// ```
+    /// See also [`View::with_monocolor`].
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Subpixel = Subpixel>,
@@ -1314,6 +1300,40 @@ where
     }
 }
 
+impl<'buf, P: Pixel> View<&'buf [P::Subpixel], P> {
+    /// Create a monocolor image from a single pixel.
+    ///
+    /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
+    /// pixels of a single color, without any dynamic allocation.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # fn paint_something<T>(_: T) {}
+    /// use image::{flat::View, GenericImage, RgbImage, Rgb};
+    ///
+    /// let gray = Rgb([20, 20, 20]);
+    /// let background = View::with_monocolor(&gray, 200, 200);
+    ///
+    /// let mut image = RgbImage::from_pixel(200, 200, gray);
+    /// paint_something(&mut image);
+    ///
+    /// // Reset the canvas
+    /// image.copy_from(&background, 0, 0);
+    /// ```
+    pub fn with_monocolor(pixel: &'buf P, width: u32, height: u32) -> Self
+    where
+        P::Subpixel: crate::Primitive,
+    {
+        // Reuse the validation, in case of `P::channels()` funny business. (View internally prefers
+        // using the constant ``CHANNEL_COUNT` where appropriate afterwards to avoid re-executing a
+        // potential adversarial trait impl).
+        FlatSamples::with_monocolor(pixel, width, height)
+            .into_view()
+            .unwrap()
+    }
+}
+
 impl<Buffer, P: Pixel> ViewMut<Buffer, P>
 where
     Buffer: AsMut<[P::Subpixel]>,
@@ -1510,8 +1530,8 @@ where
         let out_samples = self.image_mut_slice();
 
         // Check if we can make use of batch copies, row-by-row.
-        if in_layout.width_stride == P::CHANNEL_COUNT.into()
-            && out_layout.width_stride == P::CHANNEL_COUNT.into()
+        if in_layout.width_stride == usize::from(P::CHANNEL_COUNT)
+            && out_layout.width_stride == usize::from(P::CHANNEL_COUNT)
         {
             // See `inner_copy_from` where we have the same trick (chunks_exact_mut with 0 stride is
             // not allowed).
@@ -1965,5 +1985,137 @@ mod tests {
         let _: GrayAlphaImage = buffer
             .try_into_buffer()
             .unwrap_or_else(|(error, _)| panic!("Expected buffer to be convertible but {error:?}"));
+    }
+
+    #[test]
+    fn copy_buffer_like_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        let mut buffer = FlatSamples {
+            samples: [0; 12],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 2,
+                height: 3,
+                height_stride: 4,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(buffer.samples.as_chunks::<2>().0, [[0xff, 0xfe]; 6],);
+    }
+
+    #[test]
+    fn copy_heightstride_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 15],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 2,
+                height: 3,
+                height_stride: 5,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(
+            buffer.samples.as_chunks::<5>().0,
+            [[0xff, 0xfe, 0xff, 0xfe, 0]; 3],
+        );
+    }
+
+    #[test]
+    fn copy_widthstride_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 18],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 3,
+                height: 3,
+                height_stride: 6,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(
+            buffer.samples.as_chunks::<6>().0,
+            [[0xff, 0xfe, 0, 0xff, 0xfe, 0]; 3],
+        );
+    }
+
+    #[test]
+    fn copy_column_major_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 1, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 14],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 8,
+                height: 3,
+                height_stride: 2,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        // First column, i.e. first 3 pixels, affected.
+        assert_eq!(
+            view.image_slice()[0..6].as_chunks::<2>().0,
+            [[0xff, 0xfe]; 3],
+        );
+        // Everything else unchanged.
+        assert_eq!(view.image_slice()[6..], [0; 8]);
+
+        view.copy_from(&src, 1, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(view.image_slice()[6..8], [0, 0]);
+        assert_eq!(
+            view.image_slice()[8..].as_chunks::<2>().0,
+            [[0xff, 0xfe]; 3],
+        );
     }
 }

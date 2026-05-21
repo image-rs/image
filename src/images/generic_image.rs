@@ -221,8 +221,24 @@ pub trait GenericImage: GenericImageView {
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
+        // This makes it easy to keep the default implementation without sacrificing performance.
+        // It suffices for impls to override `copy_from_samples` for most of the gains.
         if let Some(flat) = other.to_pixel_view() {
             return self.copy_from_samples(flat, x, y);
+        }
+
+        // Note the order: for types that implement an efficient assignment *from* a basic view we
+        // also expect that they know how to iterate themselves efficiently, they can do their own
+        // View-To-View performance or may do eve better than that if their view is more complex for
+        // some reason. Their choice. On the other hand if the source is _not_ a simple view then it
+        // will likely need to go through individual `GenericImageView::get_pixel` calls. And in
+        // this case we can still save on iterator calls for the target. The customization point
+        // however does not exist; any trait impl that intends to make this fast would need to
+        // provide a full `copy_from` impl. We only need to avoid the recursion here: `ViewMut` will
+        // override its `copy_from` with the intended effect by providing a non-trait inherent
+        // method instead.
+        if let Some(mut view) = self.to_pixel_view_mut() {
+            return view.inherent_copy_from(other, x, y);
         }
 
         // Do bounds checking here so we can use the non-bounds-checking

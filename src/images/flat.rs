@@ -52,6 +52,7 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
+use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{GenericImage, GenericImageView, ImageBuffer};
 
@@ -295,7 +296,7 @@ impl SampleLayout {
 
         grouped.sort();
 
-        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
+        let [min_dim, mid_dim, max_dim] = grouped;
         assert!(min_dim.stride() <= mid_dim.stride() && mid_dim.stride() <= max_dim.stride());
 
         grouped
@@ -308,8 +309,7 @@ impl SampleLayout {
     /// dimension overflows `usize` with its stride we also consider this aliasing.
     #[must_use]
     pub fn has_aliased_samples(&self) -> bool {
-        let grouped = self.increasing_stride_dims();
-        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
+        let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
 
         let min_size = match min_dim.checked_len() {
             None => return true,
@@ -1408,6 +1408,91 @@ where
         let channels = self.inner.layout.channels;
         self.inner.shrink_to(channels, width, height);
     }
+
+    /// Copy from, assuming that the source is not a simple view layout.
+    pub(crate) fn inherent_copy_from<O>(
+        &mut self,
+        other: &O,
+        x: u32,
+        y: u32,
+    ) -> crate::ImageResult<()>
+    where
+        O: GenericImageView<Pixel = P>,
+        // Note: not necessary for the implementation per-se but this allows the use of
+        // `GenericImage`/`GenericImageView` methods and so `test_in_bounds_of`.
+        Buffer: AsRef<[P::Subpixel]>,
+    {
+        // Do bounds checking here so we can use the non-bounds-checking
+        // functions to copy pixels.
+        let target = Rect::from_image_at(other, x, y);
+        target.test_in_bounds_of(self)?;
+
+        if self.image_mut_slice().is_empty() {
+            // Apparently this is an empty image but the other is inbounds so it is *also* an empty
+            // image. Well, without anything to do let's signal success.
+            return Ok(());
+        }
+
+        let (c, w, h) = self.inner.layout.strides_cwh();
+        // This will be assumed to hold in the following.
+        debug_assert_eq!(
+            c, 1,
+            "Precondition for a `ViewMut`, each Pixel is a slice of channels"
+        );
+
+        if w == usize::from(P::CHANNEL_COUNT) {
+            let layout = self.inner.layout;
+            let buffer = self.image_mut_slice();
+
+            // Edge case: if we have a height of `1` then its height stride may be zero without
+            // violating the aliasing requirements. We will instead always use the whole slice in
+            // that case. Avoids the potential panic.
+            let row_len = if layout.height <= 1 { buffer.len() } else { h };
+            let rows = buffer.chunks_exact_mut(row_len);
+
+            // `ViewMut` has an actual invariant on its buffer size (even though it is generic) that
+            // is enforced by construction.
+            assert!(
+                // Since we verified `test_in_bounds_of´ and the target rectangle is a trustworthy
+                // value, not a generic interface, the addition on the right hand does not overflow
+                // `u32` as it still fits into our own height.
+                rows.len() >= (target.y + target.height) as usize,
+                "ViewMut buffer inconsistent with its layout"
+            );
+
+            for (k, row) in rows
+                .skip(target.y as usize)
+                .take(target.height as usize)
+                .enumerate()
+            {
+                // Adjust the row according to the target region.
+                let row = &mut row[target.x as usize * usize::from(P::CHANNEL_COUNT)..];
+                let row = &mut row[..target.width as usize * usize::from(P::CHANNEL_COUNT)];
+                let chunks = row.chunks_exact_mut(usize::from(P::CHANNEL_COUNT));
+
+                for (i, out_pix) in (0..target.width).zip(chunks) {
+                    let p = other.get_pixel(i, k as u32);
+                    *P::from_slice_mut(out_pix) = p;
+                }
+            }
+
+            return Ok(());
+        }
+
+        let layout = self.inner.layout;
+        let samples = self.image_mut_slice();
+
+        for k in 0..target.height {
+            for i in 0..target.width {
+                let p = other.get_pixel(i, k);
+                let idx = layout.in_bounds_index(0, i + x, k + y);
+                let channels = &mut samples[idx..][..usize::from(P::CHANNEL_COUNT)];
+                *P::from_slice_mut(channels) = p;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 // The out-of-bounds panic for single sample access similar to `slice::index`.
@@ -1574,6 +1659,17 @@ where
         let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
         *P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range]) = pixel;
+    }
+
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> crate::ImageResult<()>
+    where
+        O: GenericImageView<Pixel = Self::Pixel>,
+    {
+        if let Some(flat) = other.to_pixel_view() {
+            return self.copy_from_samples(flat, x, y);
+        }
+
+        self.inherent_copy_from(other, x, y)
     }
 }
 

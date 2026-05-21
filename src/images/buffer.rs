@@ -10,7 +10,7 @@ use crate::color::{FromColor, FromPrimitive, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::flat::{FlatSamples, SampleLayout, ViewOfPixel};
+use crate::flat::{FlatSamples, SampleLayout, ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
@@ -717,12 +717,39 @@ where
         }
     }
 
+    /// Return an image view on the raw sample buffer.
+    ///
+    /// This is related to [`Self::into_flat_samples`] and [`Self::as_flat_samples`] while
+    /// encapsulating the conversion into an implementation of [`GenericImageView`]. In contrast to
+    /// the generic [`GenericImageView::to_pixel_view`] this is not fallible.
+    ///
+    /// The result is similar to a [`crate::SubImage`] created from [`GenericImageView::try_view`]
+    /// but unlike that generic type it is not strongly tied to the `Self` type and underlying
+    /// buffer used.
+    ///
+    /// # Usage
+    ///
+    /// ```
+    /// use image::{RgbImage, GenericImageView, Rgb};
+    ///
+    /// let mut img = RgbImage::from_pixel(16, 16, Rgb([0xff, 0xab, 0xcd]));
+    /// let strided = img.as_pixel_view();
+    ///
+    /// // This borrows `img` and is still a `GenericImageView`.
+    /// assert_eq!(strided.get_pixel(8, 8), Rgb([0xff, 0xab, 0xcd]));
+    /// ```
+    pub fn as_pixel_view(&self) -> ViewOfPixel<'_, P> {
+        self.as_flat_samples()
+            .into_view()
+            .expect("buffer always uses a non-overlapping strided layout")
+    }
+
     /// Return a mutable view on the raw sample buffer.
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
     where
-        Container: AsMut<[P::Subpixel]>,
+        Container: DerefMut<Target = [P::Subpixel]>,
     {
         let layout = self.sample_layout();
         FlatSamples {
@@ -730,6 +757,36 @@ where
             layout,
             color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
+    }
+
+    /// Return a mutable image view on the raw sample buffer.
+    ///
+    /// This is related to [`Self::into_flat_samples`] and [`Self::as_flat_samples_mut`] while still
+    /// encapsulating the conversion into an implementation of [`GenericImage`]. In contrast to the
+    /// generic [`GenericImage::to_pixel_view_mut`] this is not fallible.
+    ///
+    /// The result is similar to a [`crate::SubImage`] created from [`GenericImage::sub_image`] but
+    /// unlike that generic type it is not strongly tied to the `Self` type and underlying buffer
+    /// used.
+    ///
+    /// # Usage
+    ///
+    /// ```
+    /// use image::{RgbImage, GenericImage, Rgb};
+    ///
+    /// let mut img = RgbImage::from_pixel(16, 16, Rgb([0xff, 0xab, 0xcd]));
+    /// let mut strided = img.as_pixel_view_mut();
+    ///
+    /// // This borrows `img` and is still a `GenericImage` (and a view).
+    /// strided.put_pixel(8, 8, Rgb([0x00, 0x00, 0x00]));
+    /// ```
+    pub fn as_pixel_view_mut(&mut self) -> ViewMutOfPixel<'_, P>
+    where
+        Container: DerefMut<Target = [P::Subpixel]>,
+    {
+        self.as_flat_samples_mut()
+            .into_view_mut()
+            .expect("buffer always uses a non-overlapping strided layout")
     }
 }
 
@@ -1140,7 +1197,7 @@ where
     }
 
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
-        self.as_flat_samples().into_view().ok()
+        Some(self.as_pixel_view())
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.
@@ -1264,6 +1321,10 @@ where
             }
         }
         true
+    }
+
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        Some(self.as_pixel_view_mut())
     }
 }
 

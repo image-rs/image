@@ -1,5 +1,5 @@
 use crate::error::{ImageError, ImageResult};
-use crate::flat::ViewOfPixel;
+use crate::flat::{ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -135,6 +135,8 @@ pub trait GenericImageView {
     ///
     /// Implementation of this method should be cheap to call.
     ///
+    /// See [`GenericImage::to_pixel_view_mut`] for images that allow mutating pixels.
+    ///
     /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         None
@@ -219,8 +221,24 @@ pub trait GenericImage: GenericImageView {
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
+        // This makes it easy to keep the default implementation without sacrificing performance.
+        // It suffices for impls to override `copy_from_samples` for most of the gains.
         if let Some(flat) = other.to_pixel_view() {
             return self.copy_from_samples(flat, x, y);
+        }
+
+        // Note the order: for types that implement an efficient assignment *from* a basic view we
+        // also expect that they know how to iterate themselves efficiently, they can do their own
+        // View-To-View performance or may do eve better than that if their view is more complex for
+        // some reason. Their choice. On the other hand if the source is _not_ a simple view then it
+        // will likely need to go through individual `GenericImageView::get_pixel` calls. And in
+        // this case we can still save on iterator calls for the target. The customization point
+        // however does not exist; any trait impl that intends to make this fast would need to
+        // provide a full `copy_from` impl. We only need to avoid the recursion here: `ViewMut` will
+        // override its `copy_from` with the intended effect by providing a non-trait inherent
+        // method instead.
+        if let Some(mut view) = self.to_pixel_view_mut() {
+            return view.inner_copy_from(other, x, y);
         }
 
         // Do bounds checking here so we can use the non-bounds-checking
@@ -314,6 +332,22 @@ pub trait GenericImage: GenericImageView {
     {
         rect.assert_in_bounds_of(self);
         SubImage::new(self, rect)
+    }
+
+    /// If the buffer has a fitting layout, return a canonical mutable view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of generic
+    /// images access the sample data through a canonical descriptor of its layout directly instead
+    /// of pixel-by-pixel. This provides more efficient, batched, forms of access that the
+    /// [`GenericImage`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImageView::to_pixel_view`].
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        None
     }
 }
 

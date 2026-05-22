@@ -399,6 +399,9 @@ fn get_matrix(david_matrix: MatrixCoefficients) -> Result<YuvMatrixStrategy, Ima
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        let layout = self.prepare_image()?;
+        limits.check_layout_dimensions(&layout)?;
         self.limits = limits;
         Ok(())
     }

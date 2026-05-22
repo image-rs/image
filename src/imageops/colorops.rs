@@ -31,18 +31,7 @@ pub fn grayscale_with_type<NewPixel, I: GenericImageView>(
 where
     NewPixel: Pixel + FromColor<Luma<Subpixel<I>>>,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
-    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
-
-    for (x, y, pixel) in image.pixels() {
-        let grayscale = pixel.to_luma();
-        let new_pixel = grayscale.into_color(); // no-op for luma->luma
-
-        out.put_pixel(x, y, new_pixel);
-    }
-
-    out
+    super::map_pixels(image, |pixel| pixel.to_luma().into_color())
 }
 
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
@@ -52,34 +41,16 @@ pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(
 where
     NewPixel: Pixel + FromColor<LumaA<Subpixel<I>>>,
 {
-    let (width, height) = image.dimensions();
-    let mut out = ImageBuffer::new(width, height);
-    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
-
-    for (x, y, pixel) in image.pixels() {
-        let grayscale = pixel.to_luma_alpha();
-        let new_pixel = grayscale.into_color(); // no-op for luma->luma
-
-        out.put_pixel(x, y, new_pixel);
-    }
-
-    out
+    super::map_pixels(image, |pixel| pixel.to_luma_alpha().into_color())
 }
 
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
-    // TODO find a way to use pixels?
-    let (width, height) = image.dimensions();
-
-    for y in 0..height {
-        for x in 0..width {
-            let mut p = image.get_pixel(x, y);
-            p.invert();
-
-            image.put_pixel(x, y, p);
-        }
-    }
+    super::map_pixels_in_place(image, |mut p| {
+        p.invert();
+        p
+    });
 }
 
 /// Adjust the contrast of the supplied image.

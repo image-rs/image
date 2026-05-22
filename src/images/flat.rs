@@ -1568,6 +1568,36 @@ where
 
         Ok(())
     }
+
+    /// If the underlying samples are in row-major form and packed pixels, return
+    /// an iterator over the rows of the image.
+    pub(crate) fn iter_rows_mut(
+        &mut self,
+    ) -> Option<impl Iterator<Item = &mut [P::Subpixel]> + '_> {
+        let layout = self.flat().layout;
+        let channels = P::CHANNEL_COUNT;
+        let row_len = layout.width as usize * channels as usize;
+        let row_stride = layout.height_stride;
+
+        if layout.channel_stride != 1
+            || layout.channels != channels
+            || layout.width_stride != channels as usize
+            || row_len > row_stride
+        {
+            return None;
+        }
+
+        let data = self.image_mut_slice();
+
+        // Note: We cannot used chunks_exact_mut. We allow row_stride > row_len,
+        // and `data` will be exactly `row_len + row_stride * (height - 1)` long.
+        // So the last row will be exactly `row_len` long, making `chunks_exact_mut(row_stride)` incorrect.
+
+        Some(
+            data.chunks_mut(row_stride)
+                .map(move |row| &mut row[..row_len]),
+        )
+    }
 }
 
 // The out-of-bounds panic for single sample access similar to `slice::index`.

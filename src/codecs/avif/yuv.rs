@@ -172,7 +172,7 @@ pub(crate) struct YuvChromaRange {
 
 impl YuvIntensityRange {
     pub(crate) const fn get_yuv_range(self, depth: u32) -> YuvChromaRange {
-        debug_assert!((8..=16).contains(&depth));
+        debug_assert!(matches!(depth, 8..=16));
 
         match self {
             YuvIntensityRange::Tv => YuvChromaRange {

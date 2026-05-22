@@ -316,6 +316,8 @@ fn box_blur_horizontal_pass<P: Primitive, A: BlurAccumulator<P>, const CN: usize
     let half_kernel = kernel_size / 2;
     let width_bound = width as usize - 1;
 
+    let weight = A::create_weight(kernel_size);
+
     // Horizontal blurring consists from 4 phases
     // 1 - Fill initial sliding window
     // 2 - Blur dangerous leading zone where clamping is required
@@ -349,7 +351,7 @@ fn box_blur_horizontal_pass<P: Primitive, A: BlurAccumulator<P>, const CN: usize
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
+                dst_chunk[c] = sums[c].to_store(weight);
             }
 
             let next_chunk = &src[next..next + CN];
@@ -380,7 +382,7 @@ fn box_blur_horizontal_pass<P: Primitive, A: BlurAccumulator<P>, const CN: usize
                 .zip(advanced_kernel_part_chunks)
             {
                 for c in 0..CN {
-                    dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
+                    dst_chunk[c] = sums[c].to_store(weight);
                 }
                 for c in 0..CN {
                     sums[c] += A::from_primitive(src_next[c]);
@@ -397,7 +399,7 @@ fn box_blur_horizontal_pass<P: Primitive, A: BlurAccumulator<P>, const CN: usize
 
             let dst_chunk = &mut dst[x * CN..x * CN + CN];
             for c in 0..CN {
-                dst_chunk[c] = sums[c].to_store(A::create_weight(kernel_size));
+                dst_chunk[c] = sums[c].to_store(weight);
             }
 
             let next_chunk = &src[next..next + CN];
@@ -430,6 +432,7 @@ fn box_blur_vertical_pass<P: Primitive, A: BlurAccumulator<P>>(
     let half_kernel = kernel_size / 2;
     let height_bound = height as usize - 1;
 
+    let weight = A::create_weight(kernel_size);
     let buf_size = width as usize * n;
 
     // Instead of summing each column separately we use here transient buffer that
@@ -463,7 +466,7 @@ fn box_blur_vertical_pass<P: Primitive, A: BlurAccumulator<P>>(
             .zip(dst_row.iter_mut())
         {
             let acc = *buf;
-            *dst = acc.to_store(A::create_weight(kernel_size));
+            *dst = acc.to_store(weight);
             *buf = acc + A::from_primitive(*src_next) - A::from_primitive(*src_previous);
         }
     }

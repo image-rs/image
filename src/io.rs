@@ -42,12 +42,8 @@ impl<R: io::Read> ReadExt for R {
 /// Communicate the layout of an image.
 ///
 /// Describes a packed rectangular layout with given bit-depth in
-/// [`ImageDecoder::peek_layout`](crate::ImageDecoder::peek_layout). Standard layouts from `image`
+/// [`ImageDecoder::prepare_image`](crate::ImageDecoder::prepare_image). Standard layouts from `image`
 /// are row-major with no padding between rows and pixels packed by consecutive channels.
-///
-/// For external crates constructing an instance, use [`ImageLayout::empty`] with the intended
-/// color type and then fill in all applicable fields. (It will become more convenient when Rust
-/// lets you use record update syntax but that won't work for now).
 #[non_exhaustive]
 pub struct ImageLayout {
     /// The color model of each pixel.
@@ -62,11 +58,21 @@ impl ImageLayout {
     /// A layout matching a [`DynamicImage`][`crate::DynamicImage`] of the given dimensions and
     /// color type.
     pub fn new(w: u32, h: u32, color: crate::ColorType) -> ImageLayout {
-        #[allow(deprecated)]
         ImageLayout {
+            color,
             width: w,
             height: h,
-            ..ImageLayout::empty(color)
+        }
+    }
+
+    /// A layout with no pixels, of the given [`ColorType`][`crate::ColorType`].
+    ///
+    /// This is equivalent to `ImageLayout::new(0, 0, color)`.
+    pub fn empty(color: crate::ColorType) -> Self {
+        ImageLayout {
+            color,
+            width: 0,
+            height: 0,
         }
     }
 
@@ -79,18 +85,9 @@ impl ImageLayout {
         (self.width, self.height)
     }
 
-    /// A layout with no pixels, of the given [`ColorType`][`crate::ColorType`].
-    pub fn empty(color: crate::ColorType) -> Self {
-        ImageLayout {
-            color,
-            width: 0,
-            height: 0,
-        }
-    }
-
     /// The total number of bytes in the described image.
     ///
-    /// See also [`DecodedLayout::total_bytes`].
+    /// See also [`DecoderPreparedImage::total_bytes`].
     pub fn total_bytes(&self) -> u64 {
         let ImageLayout { width, height, .. } = *self;
         let total_pixels = u64::from(width) * u64::from(height);

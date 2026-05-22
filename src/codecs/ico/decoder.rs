@@ -371,9 +371,22 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 // the mask is not required. Unfortunately, Wikipedia does not have a citation
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
+                    if width == 0 {
+                        return Ok(DecodedImageAttributes::default());
+                    }
+
+                    let rgba = buf.as_chunks_mut::<4>().0;
+                    let rows = rgba.chunks_exact_mut(width as usize);
+
+                    if rows.len() != height as usize {
+                        return Err(DecoderError::InvalidDataSize.into());
+                    }
+
                     // If there's an AND mask following the image, read and apply it.
-                    for y in 0..height {
+                    // This from the bottom up (in terms of our coordinates).
+                    for row in rows.rev() {
                         let mut x = 0;
+
                         for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
                             let mask_byte = r.read_u8()?;
@@ -381,10 +394,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                                 if x >= width {
                                     break;
                                 }
+
                                 if mask_byte & (1 << bit) != 0 {
                                     // Set alpha channel to transparent.
-                                    buf[((height - y - 1) * width + x) as usize * 4 + 3] = 0;
+                                    row[x as usize][3] = 0;
                                 }
+
                                 x += 1;
                             }
                         }

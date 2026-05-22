@@ -10,7 +10,7 @@ use crate::color::{FromColor, FromPrimitive, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::flat::{FlatSamples, SampleLayout, ViewOfPixel};
+use crate::flat::{FlatSamples, SampleLayout, ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::metadata::cicp::{CicpApplicable, CicpPixelCast, CicpRgb, ColorComponentForCicp};
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
@@ -18,7 +18,7 @@ use crate::{
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
 };
-use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat};
+use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat, Primitive};
 
 /// Iterate over rows of an image
 ///
@@ -643,18 +643,8 @@ where
     /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
     /// the index is out of the bounds `(width, height)`.
     pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+        let range = self.pixel_indices(x, y)?;
+        self.data.get(range).map(<P as Pixel>::from_slice)
     }
 
     /// Test that the image fits inside the buffer.
@@ -727,12 +717,39 @@ where
         }
     }
 
+    /// Return an image view on the raw sample buffer.
+    ///
+    /// This is related to [`Self::into_flat_samples`] and [`Self::as_flat_samples`] while
+    /// encapsulating the conversion into an implementation of [`GenericImageView`]. In contrast to
+    /// the generic [`GenericImageView::to_pixel_view`] this is not fallible.
+    ///
+    /// The result is similar to a [`crate::SubImage`] created from [`GenericImageView::try_view`]
+    /// but unlike that generic type it is not strongly tied to the `Self` type and underlying
+    /// buffer used.
+    ///
+    /// # Usage
+    ///
+    /// ```
+    /// use image::{RgbImage, GenericImageView, Rgb};
+    ///
+    /// let mut img = RgbImage::from_pixel(16, 16, Rgb([0xff, 0xab, 0xcd]));
+    /// let strided = img.as_pixel_view();
+    ///
+    /// // This borrows `img` and is still a `GenericImageView`.
+    /// assert_eq!(strided.get_pixel(8, 8), Rgb([0xff, 0xab, 0xcd]));
+    /// ```
+    pub fn as_pixel_view(&self) -> ViewOfPixel<'_, P> {
+        self.as_flat_samples()
+            .into_view()
+            .expect("buffer always uses a non-overlapping strided layout")
+    }
+
     /// Return a mutable view on the raw sample buffer.
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
     where
-        Container: AsMut<[P::Subpixel]>,
+        Container: DerefMut<Target = [P::Subpixel]>,
     {
         let layout = self.sample_layout();
         FlatSamples {
@@ -740,6 +757,36 @@ where
             layout,
             color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
+    }
+
+    /// Return a mutable image view on the raw sample buffer.
+    ///
+    /// This is related to [`Self::into_flat_samples`] and [`Self::as_flat_samples_mut`] while still
+    /// encapsulating the conversion into an implementation of [`GenericImage`]. In contrast to the
+    /// generic [`GenericImage::to_pixel_view_mut`] this is not fallible.
+    ///
+    /// The result is similar to a [`crate::SubImage`] created from [`GenericImage::sub_image`] but
+    /// unlike that generic type it is not strongly tied to the `Self` type and underlying buffer
+    /// used.
+    ///
+    /// # Usage
+    ///
+    /// ```
+    /// use image::{RgbImage, GenericImage, Rgb};
+    ///
+    /// let mut img = RgbImage::from_pixel(16, 16, Rgb([0xff, 0xab, 0xcd]));
+    /// let mut strided = img.as_pixel_view_mut();
+    ///
+    /// // This borrows `img` and is still a `GenericImage` (and a view).
+    /// strided.put_pixel(8, 8, Rgb([0x00, 0x00, 0x00]));
+    /// ```
+    pub fn as_pixel_view_mut(&mut self) -> ViewMutOfPixel<'_, P>
+    where
+        Container: DerefMut<Target = [P::Subpixel]>,
+    {
+        self.as_flat_samples_mut()
+            .into_view_mut()
+            .expect("buffer always uses a non-overlapping strided layout")
     }
 }
 
@@ -821,18 +868,8 @@ where
     /// Gets a reference to the mutable pixel at location `(x, y)` or returns
     /// `None` if the index is out of the bounds `(width, height)`.
     pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get_mut(i..i.checked_add(num_channels)?)
-            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
+        let range = self.pixel_indices(x, y)?;
+        self.data.get_mut(range).map(<P as Pixel>::from_slice_mut)
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -967,7 +1004,7 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel,
+    P: Pixel + PixelWithColorType,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -977,24 +1014,16 @@ where
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
-        P: PixelWithColorType,
     {
         save_buffer(
             path,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
     ///
@@ -1003,26 +1032,17 @@ where
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
             format,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Writes the buffer to a writer in the specified format.
     ///
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
@@ -1030,38 +1050,27 @@ where
     pub fn write_to<W>(&self, writer: &mut W, format: ImageFormat) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
             format,
         )
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel,
-    [P::Subpixel]: EncodableLayout,
-    Container: Deref<Target = [P::Subpixel]>,
-{
     /// Writes the buffer with the given encoder.
     pub fn write_with_encoder<E>(&self, encoder: E) -> ImageResult<()>
     where
         E: ImageEncoder,
-        P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         encoder.write_image(
             self.subpixels().as_bytes(),
             self.width(),
             self.height(),
-            <P as PixelWithColorType>::COLOR_TYPE,
+            P::COLOR_TYPE,
         )
     }
 }
@@ -1076,7 +1085,7 @@ where
             width: 0,
             height: 0,
             _phantom: PhantomData,
-            color: Cicp::SRGB_LINEAR.into_rgb(),
+            color: Cicp::SRGB.into_rgb(),
             data: Default::default(),
         }
     }
@@ -1129,7 +1138,7 @@ where
 impl<P, Container> Clone for ImageBuffer<P, Container>
 where
     P: Pixel,
-    Container: Deref<Target = [P::Subpixel]> + Clone,
+    Container: Clone,
 {
     fn clone(&self) -> ImageBuffer<P, Container> {
         ImageBuffer {
@@ -1175,7 +1184,7 @@ where
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel,
-    Container: Deref<Target = [P::Subpixel]> + Deref,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     type Pixel = P;
 
@@ -1188,7 +1197,7 @@ where
     }
 
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
-        self.as_flat_samples().into_view().ok()
+        Some(self.as_pixel_view())
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.
@@ -1313,6 +1322,10 @@ where
         }
         true
     }
+
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        Some(self.as_pixel_view_mut())
+    }
 }
 
 // concrete implementation for `Vec`-backed buffers
@@ -1425,25 +1438,19 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
 impl<S, Container> ImageBuffer<Rgb<S>, Container>
 where
     Rgb<S>: PixelWithColorType<Subpixel = S>,
+    S: Primitive,
     Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-
-        for pix in img.pixels_mut() {
-            pix.0.reverse();
-        }
-
+        S::swizzle_rgb_bgr(img.as_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `Bgr` channel order.
     pub fn into_raw_bgr(mut self) -> Container {
-        for pix in self.pixels_mut() {
-            pix.0.reverse();
-        }
-
+        S::swizzle_rgb_bgr(self.as_mut());
         self.into_raw()
     }
 }
@@ -1451,39 +1458,23 @@ where
 impl<S, Container> ImageBuffer<Rgba<S>, Container>
 where
     Rgba<S>: PixelWithColorType<Subpixel = S>,
+    S: Primitive,
     Container: DerefMut<Target = [S]>,
 {
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-
-        for pix in img.pixels_mut() {
-            pix.0[..3].reverse();
-        }
-
+        S::swizzle_rgba_bgra(img.as_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `BgrA` channel order.
     pub fn into_raw_bgra(mut self) -> Container {
-        for pix in self.pixels_mut() {
-            pix.0[..3].reverse();
-        }
-
+        S::swizzle_rgba_bgra(self.as_mut());
         self.into_raw()
     }
 }
 
-/// Provides color conversions for whole image buffers.
-pub trait ConvertBuffer<T> {
-    /// Converts `self` to a buffer of type T
-    ///
-    /// A generic implementation is provided to convert any image buffer to a image buffer
-    /// based on a `Vec<T>`.
-    fn convert(&self) -> T;
-}
-
-// concrete implementation Luma -> Rgba
 impl GrayImage {
     /// Expands a color palette into an RGBA image. Uses an optionally
     /// transparent index to adjust its alpha value accordingly.
@@ -1517,23 +1508,23 @@ impl GrayImage {
     }
 }
 
-/// This copies the color space information but is somewhat wrong, in numeric terms this conversion
-/// fails to actually convert rgb/luma with consistent treatment. But this trait impl is too
-/// generic to handle it correctly (missing any CICP related parameter for the coefficients) so the
-/// best effort here is to copy the metadata and have slighly incorrect color. May you've only been
-/// adding an alpha channel or converting sample types, which is fine.
-///
-/// It will very likely be deprecated in a future release.
-impl<Container, FromType: Pixel, ToType: Pixel>
-    ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
+impl<P: Pixel, Container> ImageBuffer<P, Container>
 where
-    Container: Deref<Target = [FromType::Subpixel]>,
-    ToType: FromColor<FromType>,
+    Container: Deref<Target = [P::Subpixel]>,
 {
+    /// Convert this image buffer to another pixel type, copying the color space information.
+    ///
+    /// The conversion uses [`FromColor`] and ignores color space information. The resulting image
+    /// will have the same color space as the original, which may lead to incorrect colors if the
+    /// source and target pixel types have different color types, e.g. `Rgb` and `Luma`.
+    /// In that case, the conversion is a best effort and may be inaccurate.
+    /// Conversions between alpha and non-alpha variants of Pixels are correct regarding the color space.
+    ///
     /// # Examples
+    ///
     /// Convert RGB image to gray image.
+    ///
     /// ```no_run
-    /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
     ///
     /// let image_path = "examples/fractal.png";
@@ -1543,7 +1534,10 @@ where
     ///
     /// let gray_image: GrayImage = image.convert();
     /// ```
-    fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
+    pub fn convert<ToType>(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>>
+    where
+        ToType: Pixel + FromColor<P>,
+    {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);
         buffer.copy_color_space_from(self);
@@ -1734,7 +1728,7 @@ where
         let transform =
             options.as_transform_fn::<SelfPixel, SelfPixel>(self.color_space(), color)?;
 
-        let mut scratch = [<SelfPixel::Subpixel as crate::Primitive>::DEFAULT_MIN_VALUE; 1200];
+        let mut scratch = [<SelfPixel::Subpixel as Primitive>::DEFAULT_MIN_VALUE; 1200];
         let chunk_len = scratch.len() / usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT)
             * usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT);
 
@@ -2446,7 +2440,7 @@ mod test {
 #[cfg(test)]
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use super::{GrayImage, ImageBuffer, Pixel, RgbImage};
 
     #[bench]
     fn conversion(b: &mut test::Bencher) {

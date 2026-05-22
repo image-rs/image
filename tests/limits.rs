@@ -117,7 +117,7 @@ fn jpeg() {
     assert!(load_through_reader(&image, ImageFormat::Jpeg, allocation_limits()).is_err());
 
     // JpegDecoder
-    let mut decoder = JpegDecoder::new(Cursor::new(&image)).unwrap();
+    let mut decoder = JpegDecoder::new(Cursor::new(&image));
     assert!(decoder.set_limits(width_height_limits()).is_err());
     // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

@@ -3,6 +3,7 @@ use image::{GenericImage, ImageBuffer, Rgba};
 
 pub fn bench_copy_from(c: &mut Criterion) {
     let at = image::math::Rect::from_xy_ranges(256..1280, 256..1280);
+    let mut c = c.benchmark_group("target: ImageBuffer");
 
     let mut target = ImageBuffer::from_pixel(2048, 2048, Rgba([0u8, 0, 0, 255]));
     let src = ImageBuffer::from_pixel(2048, 2048, Rgba([255u8, 0, 0, 255]));
@@ -45,6 +46,7 @@ pub fn bench_copy_from(c: &mut Criterion) {
 pub fn bench_copy_subimage_from(c: &mut Criterion) {
     let viewport = image::math::Rect::from_xy_ranges(256..1280, 256..1280);
     let at = image::math::Rect::from_xy_ranges(128..512, 128..512);
+    let mut c = c.benchmark_group("target: SubImage");
 
     let mut target = ImageBuffer::from_pixel(2048, 2048, Rgba([0u8, 0, 0, 255]));
     let mut target = target.sub_image(viewport);
@@ -85,5 +87,56 @@ pub fn bench_copy_subimage_from(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_copy_from, bench_copy_subimage_from);
+pub fn bench_view_copy_from(c: &mut Criterion) {
+    let at = image::math::Rect::from_xy_ranges(256..1280, 256..1280);
+    let mut c = c.benchmark_group("target: ViewMut");
+
+    let mut target = ImageBuffer::from_pixel(2048, 3072, Rgba([0u8, 0, 0, 255]));
+    // Set up a view that is a little bit strided  (a sub_image)..
+    let mut target = target.as_pixel_view_mut();
+    target.shrink_to(2048, 2048);
+
+    let src = ImageBuffer::from_pixel(2048, 2048, Rgba([255u8, 0, 0, 255]));
+    let part = ImageBuffer::from_pixel(at.width, at.height, Rgba([255u8, 0, 0, 255]));
+
+    let view = image::GenericImageView::view(&src, at);
+
+    const BG: Rgba<u8> = Rgba([0u8, 0, 0, 255]);
+    let samples = image::flat::FlatSamples::with_monocolor(&BG, at.width, at.height);
+    let singular = samples.as_view().unwrap();
+
+    let mut samples = src.as_flat_samples();
+    samples.layout.width = 1024;
+    samples.layout.width_stride *= 2;
+    samples.layout.height = 1024;
+    samples.layout.height_stride *= 2;
+    let skip = samples.as_view().unwrap();
+
+    c.bench_function("copy_from", |b| {
+        b.iter(|| target.copy_from(black_box(&src), 0, 0));
+    });
+
+    c.bench_function("copy_at", |b| {
+        b.iter(|| target.copy_from(black_box(&part), at.x, at.y));
+    });
+
+    c.bench_function("copy_view", |b| {
+        b.iter(|| target.copy_from(black_box(&*view), at.x, at.y));
+    });
+
+    c.bench_function("copy_fill", |b| {
+        b.iter(|| target.copy_from(black_box(&singular), at.x, at.y));
+    });
+
+    c.bench_function("copy_strides", |b| {
+        b.iter(|| target.copy_from(black_box(&skip), at.x, at.y));
+    });
+}
+
+criterion_group!(
+    benches,
+    bench_copy_from,
+    bench_copy_subimage_from,
+    bench_view_copy_from
+);
 criterion_main!(benches);

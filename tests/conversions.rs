@@ -1,4 +1,3 @@
-use image::buffer::ConvertBuffer;
 use image::{ImageBuffer, Rgb, Rgba};
 
 use std::fs;

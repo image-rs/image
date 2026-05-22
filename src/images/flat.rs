@@ -52,6 +52,7 @@ use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
+use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{GenericImage, GenericImageView, ImageBuffer};
 
@@ -295,7 +296,7 @@ impl SampleLayout {
 
         grouped.sort();
 
-        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
+        let [min_dim, mid_dim, max_dim] = grouped;
         assert!(min_dim.stride() <= mid_dim.stride() && mid_dim.stride() <= max_dim.stride());
 
         grouped
@@ -308,8 +309,7 @@ impl SampleLayout {
     /// dimension overflows `usize` with its stride we also consider this aliasing.
     #[must_use]
     pub fn has_aliased_samples(&self) -> bool {
-        let grouped = self.increasing_stride_dims();
-        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
+        let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
 
         let min_size = match min_dim.checked_len() {
             None => return true,
@@ -620,6 +620,12 @@ impl<Buffer> FlatSamples<Buffer> {
     /// Convert this descriptor into a readable image.
     ///
     /// An owned version of [`Self::as_view`] that uses the original buffer type.
+    ///
+    /// FIXME: before exposing this, consider if we want to have strong invariants related to
+    /// `AsRef` of `Buffer` or not. If we provide a generic one then we can not rely on the trait to
+    /// give us a stable address or anything but its pure interface. It may make it difficult to
+    /// introduce efficient code for the relevant case of `Buffer = &[T]`. We could introduce it
+    /// specifically for that buffer type.
     pub(crate) fn into_view<P>(self) -> Result<View<Buffer, P>, Error>
     where
         P: Pixel,
@@ -719,6 +725,43 @@ impl<Buffer> FlatSamples<Buffer> {
         Ok(ViewMut {
             inner: FlatSamples {
                 samples: as_mut,
+                layout: self.layout,
+                color_hint: self.color_hint,
+            },
+            phantom: PhantomData,
+        })
+    }
+
+    /// Turn this buffer into a mutable image.
+    ///
+    /// FIXME: before exposing this, consider if we want to have strong invariants related to
+    /// `AsMut` of `Buffer` or not. If we provide a generic one then we can not rely on the trait to
+    /// give us a stable address or anything but its pure interface. It may make it difficult to
+    /// introduce efficient code for the relevant case of `Buffer = &mut [T]`. We could introduce it
+    /// specifically for that buffer type.
+    pub(crate) fn into_view_mut<P>(mut self) -> Result<ViewMut<Buffer, P>, Error>
+    where
+        P: Pixel,
+        Buffer: AsMut<[P::Subpixel]>,
+    {
+        if !self.layout.is_normal(NormalForm::PixelPacked) {
+            return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
+        }
+
+        if self.layout.channels != P::CHANNEL_COUNT {
+            return Err(Error::ChannelCountMismatch(
+                self.layout.channels,
+                P::CHANNEL_COUNT,
+            ));
+        }
+
+        if !self.layout.fits(self.samples.as_mut().len()) {
+            return Err(Error::TooLarge);
+        }
+
+        Ok(ViewMut {
+            inner: FlatSamples {
+                samples: self.samples,
                 layout: self.layout,
                 color_hint: self.color_hint,
             },
@@ -945,21 +988,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
     /// pixels of a single color, without any dynamic allocation.
     ///
-    /// ## Examples
-    ///
-    /// ```
-    /// # fn paint_something<T>(_: T) {}
-    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
-    ///
-    /// let background = Rgb([20, 20, 20]);
-    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);
-    ///
-    /// let mut image = RgbImage::new(200, 200);
-    /// paint_something(&mut image);
-    ///
-    /// // Reset the canvas
-    /// image.copy_from(&bg.as_view().unwrap(), 0, 0);
-    /// ```
+    /// See also [`View::with_monocolor`].
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Subpixel = Subpixel>,
@@ -1271,6 +1300,40 @@ where
     }
 }
 
+impl<'buf, P: Pixel> View<&'buf [P::Subpixel], P> {
+    /// Create a monocolor image from a single pixel.
+    ///
+    /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
+    /// pixels of a single color, without any dynamic allocation.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # fn paint_something<T>(_: T) {}
+    /// use image::{flat::View, GenericImage, RgbImage, Rgb};
+    ///
+    /// let gray = Rgb([20, 20, 20]);
+    /// let background = View::with_monocolor(&gray, 200, 200);
+    ///
+    /// let mut image = RgbImage::from_pixel(200, 200, gray);
+    /// paint_something(&mut image);
+    ///
+    /// // Reset the canvas
+    /// image.copy_from(&background, 0, 0);
+    /// ```
+    pub fn with_monocolor(pixel: &'buf P, width: u32, height: u32) -> Self
+    where
+        P::Subpixel: crate::Primitive,
+    {
+        // Reuse the validation, in case of `P::channels()` funny business. (View internally prefers
+        // using the constant ``CHANNEL_COUNT` where appropriate afterwards to avoid re-executing a
+        // potential adversarial trait impl).
+        FlatSamples::with_monocolor(pixel, width, height)
+            .into_view()
+            .unwrap()
+    }
+}
+
 impl<Buffer, P: Pixel> ViewMut<Buffer, P>
 where
     Buffer: AsMut<[P::Subpixel]>,
@@ -1364,6 +1427,146 @@ where
     pub fn shrink_to(&mut self, width: u32, height: u32) {
         let channels = self.inner.layout.channels;
         self.inner.shrink_to(channels, width, height);
+    }
+
+    /// Copy from, assuming that the source is not a simple view layout.
+    pub(crate) fn inner_copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> crate::ImageResult<()>
+    where
+        O: GenericImageView<Pixel = P>,
+        // Note: not necessary for the implementation per-se but this allows the use of
+        // `GenericImage`/`GenericImageView` methods and so `test_in_bounds_of`.
+        Buffer: AsRef<[P::Subpixel]>,
+    {
+        // Do bounds checking here so we can use the non-bounds-checking
+        // functions to copy pixels.
+        let target = Rect::from_image_at(other, x, y);
+        target.test_in_bounds_of(self)?;
+
+        if self.image_mut_slice().is_empty() {
+            // Apparently this is an empty image but the other is inbounds so it is *also* an empty
+            // image. Well, without anything to do let's signal success.
+            return Ok(());
+        }
+
+        let (c, w, h) = self.inner.layout.strides_cwh();
+        // This will be assumed to hold in the following.
+        debug_assert_eq!(
+            c, 1,
+            "Precondition for a `ViewMut`, each Pixel is a slice of channels"
+        );
+
+        if w == usize::from(P::CHANNEL_COUNT) {
+            let layout = self.inner.layout;
+            let buffer = self.image_mut_slice();
+
+            // Edge case: if we have a height of `1` then its height stride may be zero without
+            // violating the aliasing requirements. We will instead always use the whole slice in
+            // that case. Avoids the potential panic.
+            let row_len = if layout.height <= 1 { buffer.len() } else { h };
+            let rows = buffer.chunks_exact_mut(row_len);
+
+            // `ViewMut` has an actual invariant on its buffer size (even though it is generic) that
+            // is enforced by construction.
+            assert!(
+                // Since we verified `test_in_bounds_of´ and the target rectangle is a trustworthy
+                // value, not a generic interface, the addition on the right hand does not overflow
+                // `u32` as it still fits into our own height.
+                rows.len() >= (target.y + target.height) as usize,
+                "ViewMut buffer inconsistent with its layout"
+            );
+
+            for (k, row) in rows
+                .skip(target.y as usize)
+                .take(target.height as usize)
+                .enumerate()
+            {
+                // Adjust the row according to the target region.
+                let row = &mut row[target.x as usize * usize::from(P::CHANNEL_COUNT)..];
+                let row = &mut row[..target.width as usize * usize::from(P::CHANNEL_COUNT)];
+                let chunks = row.chunks_exact_mut(usize::from(P::CHANNEL_COUNT));
+
+                for (i, out_pix) in (0..target.width).zip(chunks) {
+                    let p = other.get_pixel(i, k as u32);
+                    *P::from_slice_mut(out_pix) = p;
+                }
+            }
+
+            return Ok(());
+        }
+
+        let layout = self.inner.layout;
+        let samples = self.image_mut_slice();
+
+        for k in 0..target.height {
+            for i in 0..target.width {
+                let p = other.get_pixel(i, k);
+                let idx = layout.in_bounds_index(0, i + x, k + y);
+                let channels = &mut samples[idx..][..usize::from(P::CHANNEL_COUNT)];
+                *P::from_slice_mut(channels) = p;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn inner_copy_from_samples(
+        &mut self,
+        other: ViewOfPixel<'_, P>,
+        x: u32,
+        y: u32,
+    ) -> crate::ImageResult<()>
+    where
+        // Note: not necessary for the implementation per-se but this allows the use of
+        // `GenericImage`/`GenericImageView` methods and so `test_in_bounds_of`.
+        Buffer: AsRef<[P::Subpixel]>,
+    {
+        let target = Rect::from_image_at(&other, x, y);
+        target.test_in_bounds_of(self)?;
+
+        let in_layout = other.inner.layout;
+        let in_samples = other.image_slice();
+
+        let out_layout = self.inner.layout;
+        let out_samples = self.image_mut_slice();
+
+        // Check if we can make use of batch copies, row-by-row.
+        if in_layout.width_stride == usize::from(P::CHANNEL_COUNT)
+            && out_layout.width_stride == usize::from(P::CHANNEL_COUNT)
+        {
+            // See `inner_copy_from` where we have the same trick (chunks_exact_mut with 0 stride is
+            // not allowed).
+            let rows = out_samples.chunks_exact_mut({
+                if out_layout.height <= 1 {
+                    out_samples.len()
+                } else {
+                    out_layout.height_stride
+                }
+            });
+
+            let row_samples = target.width as usize * usize::from(P::CHANNEL_COUNT);
+            for (k, orow) in rows
+                .skip(target.y as usize)
+                .take(target.height as usize)
+                .enumerate()
+            {
+                let orow = &mut orow[target.x as usize * usize::from(P::CHANNEL_COUNT)..];
+                let irow = &in_samples[k * in_layout.height_stride..];
+                orow[..row_samples].copy_from_slice(&irow[..row_samples]);
+            }
+
+            return Ok(());
+        }
+
+        for k in 0..target.height {
+            for i in 0..target.width {
+                let iidx = in_layout.in_bounds_index(0, i, k);
+                let oidx = out_layout.in_bounds_index(0, i + x, k + y);
+                out_samples[oidx..][..usize::from(P::CHANNEL_COUNT)]
+                    .copy_from_slice(&in_samples[iidx..][..usize::from(P::CHANNEL_COUNT)]);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -1532,6 +1735,17 @@ where
         let pixel_range = base_index..base_index + channel_count;
         *P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range]) = pixel;
     }
+
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> crate::ImageResult<()>
+    where
+        O: GenericImageView<Pixel = Self::Pixel>,
+    {
+        if let Some(flat) = other.to_pixel_view() {
+            return self.inner_copy_from_samples(flat, x, y);
+        }
+
+        self.inner_copy_from(other, x, y)
+    }
 }
 
 impl From<Error> for ImageError {
@@ -1582,7 +1796,7 @@ impl fmt::Display for Error {
                 }
             ),
             Error::ChannelCountMismatch(layout_channels, pixel_channels) => {
-                write!(f, "The channel count of the chosen pixel (={pixel_channels}) does agree with the layout (={layout_channels})")
+                write!(f, "The channel count of the chosen pixel (={pixel_channels}) does not agree with the layout (={layout_channels})")
             }
             Error::WrongColor(color) => {
                 write!(f, "The chosen color type does not match the hint {color:?}")
@@ -1771,5 +1985,137 @@ mod tests {
         let _: GrayAlphaImage = buffer
             .try_into_buffer()
             .unwrap_or_else(|(error, _)| panic!("Expected buffer to be convertible but {error:?}"));
+    }
+
+    #[test]
+    fn copy_buffer_like_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        let mut buffer = FlatSamples {
+            samples: [0; 12],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 2,
+                height: 3,
+                height_stride: 4,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(buffer.samples.as_chunks::<2>().0, [[0xff, 0xfe]; 6],);
+    }
+
+    #[test]
+    fn copy_heightstride_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 15],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 2,
+                height: 3,
+                height_stride: 5,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(
+            buffer.samples.as_chunks::<5>().0,
+            [[0xff, 0xfe, 0xff, 0xfe, 0]; 3],
+        );
+    }
+
+    #[test]
+    fn copy_widthstride_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 2, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 18],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 3,
+                height: 3,
+                height_stride: 6,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(
+            buffer.samples.as_chunks::<6>().0,
+            [[0xff, 0xfe, 0, 0xff, 0xfe, 0]; 3],
+        );
+    }
+
+    #[test]
+    fn copy_column_major_view() {
+        let src = View::with_monocolor(&LumaA([0xffu8, 0xfe]), 1, 3);
+
+        // Each row has capacity for 5 channels, of which 4 are used.
+        let mut buffer = FlatSamples {
+            samples: [0; 14],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 2,
+                width_stride: 8,
+                height: 3,
+                height_stride: 2,
+            },
+            color_hint: None,
+        };
+
+        let mut view = buffer
+            .as_view_mut::<LumaA<u8>>()
+            .expect("This should be a valid mutable buffer");
+
+        view.copy_from(&src, 0, 0)
+            .expect("image fits into the target");
+
+        // First column, i.e. first 3 pixels, affected.
+        assert_eq!(
+            view.image_slice()[0..6].as_chunks::<2>().0,
+            [[0xff, 0xfe]; 3],
+        );
+        // Everything else unchanged.
+        assert_eq!(view.image_slice()[6..], [0; 8]);
+
+        view.copy_from(&src, 1, 0)
+            .expect("image fits into the target");
+
+        assert_eq!(view.image_slice()[6..8], [0, 0]);
+        assert_eq!(
+            view.image_slice()[8..].as_chunks::<2>().0,
+            [[0xff, 0xfe]; 3],
+        );
     }
 }

@@ -286,13 +286,13 @@ where
 macro_rules! define_ycgco_half_chroma {
     ($name: ident, $invoker: ident, $storage: ident, $cn: expr, $bp: expr, $description: expr) => {
         #[doc = concat!($description, "
-        
-        # Arguments
-        
-        * `image`: see [YuvPlanarImage]
-        * `rgb`: RGB image layout
-        * `range`: see [YuvIntensityRange]
-        * `matrix`: see [YuvStandardMatrix]")]
+
+# Arguments
+
+* `image`: see [YuvPlanarImage]
+* `rgb`: RGB image layout
+* `range`: see [YuvIntensityRange]
+* `matrix`: see [YuvStandardMatrix]")]
         pub(crate) fn $name(
             image: YuvPlanarImage<$storage>,
             rgb: &mut [$storage],
@@ -369,14 +369,14 @@ define_ycgco_half_chroma!(
 macro_rules! define_ycgcg_full_chroma {
     ($name: ident, $storage: ident, $cn: expr, $bp: expr, $description: expr) => {
         #[doc = concat!($description, "
-        
-        # Arguments
-        
-        * `image`: see [YuvPlanarImage]
-        * `rgba`: RGB image layout
-        * `range`: see [YuvIntensityRange]
-        * `matrix`: see [YuvStandardMatrix]
-        ")]
+
+# Arguments
+
+* `image`: see [YuvPlanarImage]
+* `rgba`: RGB image layout
+* `range`: see [YuvIntensityRange]
+* `matrix`: see [YuvStandardMatrix]
+")]
         pub(crate) fn $name(
             image: YuvPlanarImage<$storage>,
             rgba: &mut [$storage],

@@ -167,6 +167,11 @@ impl<W: Write> BmpEncoder<W> {
             }
         }
 
+        // done for empty images
+        if width == 0 || height == 0 {
+            return Ok(());
+        }
+
         // write image data
         match color_type {
             ExtendedColorType::Rgb8 => self.encode_rgb(image, width, height, row_padding, 3)?,

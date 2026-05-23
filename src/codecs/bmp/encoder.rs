@@ -66,6 +66,13 @@ impl<W: Write> BmpEncoder<W> {
             )));
         }
 
+        // width and height must be representable by a *signed* 32-bit integer
+        if width > i32::MAX as u32 || height > i32::MAX as u32 {
+            return Err(ImageError::Limits(crate::error::LimitError::from_kind(
+                crate::error::LimitErrorKind::DimensionError,
+            )));
+        }
+
         let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
@@ -79,28 +86,18 @@ impl<W: Write> BmpEncoder<W> {
         let (dib_header_size, bits_per_pixel, palette_color_count) =
             written_pixel_info(color_type, palette)?;
 
-        let row_bytes = u32::try_from((width as u64 * bits_per_pixel as u64).div_ceil(8))
-            .ok()
+        let row_bytes = (width as u64 * bits_per_pixel as u64).div_ceil(8);
+        let padded_row = row_bytes.next_multiple_of(4); // Each row must be padded to a multiple of 4 bytes
+        let row_padding = (padded_row - row_bytes) as u32;
+
+        let image_size = padded_row
+            .checked_mul(height as u64)
+            .and_then(|size| u32::try_from(size).ok())
             .ok_or_else(|| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
                 ))
             })?;
-
-        // Each row must be padded to a multiple of 4 bytes
-        let (padded_row, image_size) = row_bytes
-            .checked_next_multiple_of(4)
-            .and_then(|v| {
-                let image_bytes = v.checked_mul(height)?;
-                Some((v, image_bytes))
-            })
-            .ok_or_else(|| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?;
-
-        let row_padding = padded_row - row_bytes;
 
         // all palette colors are BGRA
         let palette_size = palette_color_count.checked_mul(4).ok_or_else(|| {
@@ -168,6 +165,11 @@ impl<W: Write> BmpEncoder<W> {
             for _ in 0..12 {
                 self.writer.write_u32::<LittleEndian>(0)?;
             }
+        }
+
+        // done for empty images
+        if width == 0 || height == 0 {
+            return Ok(());
         }
 
         // write image data
@@ -726,5 +728,19 @@ mod tests {
             255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, // pixels 8-12
         ];
         assert_eq!(&decoded[78..117], &row2_expected);
+    }
+
+    // Test that dimensions must be representable by i32
+    #[test]
+    fn dimensions_i32() {
+        // start with an image that can be encoded
+        BmpEncoder::new(std::io::sink())
+            .encode(&[], i32::MAX as u32, 0, ExtendedColorType::Rgb8)
+            .expect("width is representable by i32");
+
+        // now one that cannot be represented
+        BmpEncoder::new(std::io::sink())
+            .encode(&[], (i32::MAX as u32) + 1, 0, ExtendedColorType::Rgb8)
+            .expect_err("width is not representable by i32");
     }
 }

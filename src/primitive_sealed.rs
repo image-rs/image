@@ -7,7 +7,10 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// This trait is `pub` but not exported, so it cannot be implemented outside
 /// this crate.
 #[allow(private_bounds)]
-pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle {}
+pub trait PrimitiveSealed:
+    Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + RgbToLuma
+{
+}
 
 impl PrimitiveSealed for usize {}
 impl PrimitiveSealed for u8 {}
@@ -179,3 +182,58 @@ macro_rules! impl_with_blur_acc_f32 {
 }
 
 impl_with_blur_acc_f32!(u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);
+
+/// Coefficients to transform from sRGB to a CIE Y (luminance) value.
+///
+/// The coefficients are 2126/10000, 7152/10000, and 722/10000 for R, G, and B respectively.
+const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
+const SRGB_LUMA_DIV: u32 = 10000;
+pub(crate) trait RgbToLuma: Copy + Sized + crate::traits::Enlargeable {
+    #[inline]
+    fn rgb_to_luma(r: Self, g: Self, b: Self) -> Self {
+        use num_traits::NumCast;
+
+        let l = <Self::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * r.to_larger()
+            + <Self::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * g.to_larger()
+            + <Self::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * b.to_larger();
+        Self::clamp_from(l / <Self::Larger as NumCast>::from(SRGB_LUMA_DIV).unwrap())
+    }
+}
+impl RgbToLuma for usize {}
+impl RgbToLuma for u8 {
+    fn rgb_to_luma(r: u8, g: u8, b: u8) -> u8 {
+        // The following constants give the same results as:
+        //   ((r as u32 * 2126 + g as u32 * 7152 + b as u32 * 722 + 5000) / 10000) as u8
+        // Note that results are correctly rounded to the nearest integer.
+        const W_R: u32 = ((1_u64 << 24) * 2126).div_ceil(10000) as u32;
+        const W_G: u32 = ((1_u64 << 24) * 7152).div_ceil(10000) as u32;
+        const W_B: u32 = ((1_u64 << 24) * 722).div_ceil(10000) as u32;
+        ((r as u32 * W_R + g as u32 * W_G + b as u32 * W_B + 0x800000) >> 24) as u8
+    }
+}
+impl RgbToLuma for u16 {}
+impl RgbToLuma for u32 {}
+impl RgbToLuma for u64 {}
+impl RgbToLuma for isize {}
+impl RgbToLuma for i8 {}
+impl RgbToLuma for i16 {}
+impl RgbToLuma for i32 {}
+impl RgbToLuma for i64 {}
+impl RgbToLuma for f32 {
+    #[inline]
+    fn rgb_to_luma(r: f32, g: f32, b: f32) -> f32 {
+        const SCALE_R: f32 = SRGB_LUMA[0] as f32 / SRGB_LUMA_DIV as f32;
+        const SCALE_G: f32 = SRGB_LUMA[1] as f32 / SRGB_LUMA_DIV as f32;
+        const SCALE_B: f32 = SRGB_LUMA[2] as f32 / SRGB_LUMA_DIV as f32;
+        SCALE_R * r + SCALE_G * g + SCALE_B * b
+    }
+}
+impl RgbToLuma for f64 {
+    #[inline]
+    fn rgb_to_luma(r: f64, g: f64, b: f64) -> f64 {
+        const SCALE_R: f64 = SRGB_LUMA[0] as f64 / SRGB_LUMA_DIV as f64;
+        const SCALE_G: f64 = SRGB_LUMA[1] as f64 / SRGB_LUMA_DIV as f64;
+        const SCALE_B: f64 = SRGB_LUMA[2] as f64 / SRGB_LUMA_DIV as f64;
+        SCALE_R * r + SCALE_G * g + SCALE_B * b
+    }
+}

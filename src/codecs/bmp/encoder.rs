@@ -26,7 +26,9 @@ impl<W: Write> BmpEncoder<W> {
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    /// Panics if the buffer does not hold exactly the number of bytes required for the given
+    /// `width`, `height`, and color type, accounting for rows padded to whole bytes for
+    /// sub-byte color types: `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     #[track_caller]
     pub fn encode(
         &mut self,
@@ -43,7 +45,9 @@ impl<W: Write> BmpEncoder<W> {
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * c.bytes_per_pixel() != image.len()`.
+    /// Panics if the buffer does not hold exactly the number of bytes required for the given
+    /// `width`, `height`, and color type, accounting for rows padded to whole bytes for
+    /// sub-byte color types: `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     #[track_caller]
     pub fn encode_with_palette(
         &mut self,

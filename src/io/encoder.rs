@@ -32,7 +32,11 @@ pub trait ImageEncoder {
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * color_type.bytes_per_pixel() != buf.len()`.
+    /// Panics if `buf` does not hold exactly the number of bytes required for the given `width`,
+    /// `height`, and `color_type`. Pixel rows are laid out in row-major order. For color types
+    /// whose `bits_per_pixel()` is not a multiple of 8 (such as `L1`), each row is padded to a
+    /// whole number of bytes, so the expected length is
+    /// `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     fn write_image(
         self,
         buf: &[u8],

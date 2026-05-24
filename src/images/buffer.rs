@@ -1732,7 +1732,7 @@ where
         let chunk_len = scratch.len() / usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT)
             * usize::from(<SelfPixel as Pixel>::CHANNEL_COUNT);
 
-        for chunk in self.data.chunks_mut(chunk_len) {
+        for chunk in self.subpixels_mut().chunks_mut(chunk_len) {
             let scratch = &mut scratch[..chunk.len()];
             scratch.copy_from_slice(chunk);
             transform(scratch, chunk);

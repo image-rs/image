@@ -529,7 +529,7 @@ impl CicpTransform {
                     );
                 }
                 DynamicImage::ImageRgb16(buf) => {
-                    CicpTransform::clamp_rgba(
+                    CicpTransform::clamp_rgb(
                         &obuffer[..3 * count],
                         &mut buf.subpixels_mut()[3 * start_idx..3 * end_idx],
                     );

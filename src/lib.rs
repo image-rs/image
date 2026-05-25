@@ -47,8 +47,8 @@
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).
 //!
-//! [`save`]: enum.DynamicImage.html#method.save
-//! [`write_to`]: enum.DynamicImage.html#method.write_to
+//! [`save`]: DynamicImage::save
+//! [`write_to`]: DynamicImage::write_to
 //!
 //! # Image buffers
 //!
@@ -63,11 +63,6 @@
 //! * [`flat`] module containing types for interoperability with generic channel
 //!   matrices and foreign interfaces.
 //!
-//! [`GenericImageView`]: trait.GenericImageView.html
-//! [`GenericImage`]: trait.GenericImage.html
-//! [`ImageBuffer`]: struct.ImageBuffer.html
-//! [`DynamicImage`]: enum.DynamicImage.html
-//! [`flat`]: flat/index.html
 //!
 //! # Low level encoding/decoding API
 //!
@@ -107,10 +102,6 @@
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
 //! ```
-//!
-//! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
-//! [`ImageDecoder`]: trait.ImageDecoder.html
-//! [`ImageEncoder`]: trait.ImageEncoder.html
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]

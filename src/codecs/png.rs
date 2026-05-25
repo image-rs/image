@@ -401,9 +401,6 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
 /// An animated adapter of [`PngDecoder`].
 ///
 /// See [`PngDecoder::apng`] for more information.
-///
-/// [`PngDecoder`]: struct.PngDecoder.html
-/// [`PngDecoder::apng`]: struct.PngDecoder.html#method.apng
 pub struct ApngDecoder<R: BufRead + Seek> {
     inner: PngDecoder<R>,
     /// The current output buffer.

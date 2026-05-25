@@ -191,7 +191,7 @@ where
     /// Returns a parallel iterator over the pixels of this image and their coordinates, usable with `rayon`.
     /// See [`enumerate_pixels`] for more information.
     ///
-    /// [`enumerate_pixels`]: #method.enumerate_pixels
+    /// [`enumerate_pixels`]: Self::enumerate_pixels
     pub fn par_enumerate_pixels(&self) -> EnumeratePixelsPar<'_, P> {
         EnumeratePixelsPar {
             pixels: self.pixels().par_iter(),
@@ -209,7 +209,7 @@ where
     /// Returns a parallel iterator over the mutable pixels of this image and their coordinates, usable with `rayon`.
     /// See [`enumerate_pixels_mut`] for more information.
     ///
-    /// [`enumerate_pixels_mut`]: #method.enumerate_pixels_mut
+    /// [`enumerate_pixels_mut`]: Self::enumerate_pixels_mut
     pub fn par_enumerate_pixels_mut(&mut self) -> EnumeratePixelsMutPar<'_, P> {
         let width = self.width();
         EnumeratePixelsMutPar {

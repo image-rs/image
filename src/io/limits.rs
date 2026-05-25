@@ -25,8 +25,7 @@ pub struct LimitSupport {}
 /// The limit check should only ever fail if a limit will be exceeded or an unsupported strict
 /// limit is used.
 ///
-/// [`LimitSupport`]: ./struct.LimitSupport.html
-/// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
+/// [`ImageDecoder::set_limits`]: crate::ImageDecoder::set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
 #[non_exhaustive]
@@ -119,7 +118,7 @@ impl Limits {
 
     /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
     ///
-    /// [`reserve`]: #method.reserve
+    /// [`reserve`]: Self::reserve
     pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
         match u64::try_from(amount) {
             Ok(n) => self.reserve(n),
@@ -137,7 +136,7 @@ impl Limits {
     /// used to create an [`ImageBuffer`] and does all the math for you.
     ///
     /// [`ImageBuffer`]: crate::ImageBuffer
-    /// [`reserve`]: #method.reserve
+    /// [`reserve`]: Self::reserve
     pub fn reserve_buffer(
         &mut self,
         width: u32,
@@ -155,7 +154,7 @@ impl Limits {
     /// This function increases the `max_alloc` limit with amount. Should only be used
     /// together with [`reserve`].
     ///
-    /// [`reserve`]: #method.reserve
+    /// [`reserve`]: Self::reserve
     pub fn free(&mut self, amount: u64) {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             *max_alloc = max_alloc.saturating_add(amount);
@@ -164,7 +163,7 @@ impl Limits {
 
     /// This function acts identically to [`free`], but takes a `usize` for convenience.
     ///
-    /// [`free`]: #method.free
+    /// [`free`]: Self::free
     pub fn free_usize(&mut self, amount: usize) {
         match u64::try_from(amount) {
             Ok(n) => self.free(n),

@@ -38,9 +38,9 @@ pub trait ImageDecoder {
     /// **Note**: By default, _no_ limits are defined. This may be changed in future major version
     /// increases.
     ///
-    /// [`Limits`]: ./io/struct.Limits.html
-    /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
-    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
+    /// [`Limits`]: crate::Limits
+    /// [`Limits::check_support`]: crate::Limits::check_support
+    /// [`Limits::check_dimensions`]: crate::Limits::check_dimensions
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
         let layout = self.prepare_image()?;

@@ -72,14 +72,11 @@ use crate::{GenericImage, GenericImageView, ImageBuffer};
 /// single pixel as the backing storage for an arbitrarily sized read-only raster by mapping each
 /// pixel to the same samples by setting some strides to `0`.
 ///
-/// [`GenericImage`]: ../trait.GenericImage.html
-/// [`GenericImageView`]: ../trait.GenericImageView.html
-/// [`ImageBuffer::as_flat_samples`]: ../struct.ImageBuffer.html#method.as_flat_samples
-/// [`is_normal`]: #method.is_normal
-/// [`has_aliased_samples`]: #method.has_aliased_samples
-/// [`as_view`]: #method.as_view
-/// [`as_view_mut`]: #method.as_view_mut
-/// [`with_monocolor`]: #method.with_monocolor
+/// [`is_normal`]: Self::is_normal
+/// [`has_aliased_samples`]: Self::has_aliased_samples
+/// [`as_view`]: Self::as_view
+/// [`as_view_mut`]: Self::as_view_mut
+/// [`with_monocolor`]: Self::with_monocolor
 #[derive(Clone, Debug)]
 pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.

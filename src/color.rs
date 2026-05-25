@@ -294,8 +294,12 @@ impl ExtendedColorType {
         }
     }
 
-    /// Returns the number of bytes required to hold a width x height image of this color type.
-    pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
+    /// Returns the number of bytes required to hold a `width x height` image of this color type.
+    ///
+    /// Each pixel row occupies exactly `width * bits_per_pixel()` bits, rounded **up to the
+    /// nearest byte** (no additional row padding is added). The total is `row_bytes * height`,
+    /// saturating at [`u64::MAX`] for astronomically large inputs.
+    pub fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
         let row_pitch = (width as u64 * bpp).div_ceil(8);
         row_pitch.saturating_mul(height as u64)

@@ -1718,11 +1718,11 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// Create a new image from a byte slice
 ///
 /// This is just a simple wrapper that constructs an `std::io::Cursor` around the buffer and then
-/// calls `load` with that reader.
+/// calls [`load`] with that reader.
 ///
 /// Try [`ImageReaderOptions`] for more advanced uses.
 ///
-/// [`load`]: fn.load.html
+/// [`load`]: crate::load
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     // Note: this function (and `load_from_memory`) were supposed to be generic over `AsRef<[u8]>`

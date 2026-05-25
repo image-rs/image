@@ -51,7 +51,7 @@ pub trait GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: #method.in_bounds
+    /// [`in_bounds`]: Self::in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -197,7 +197,7 @@ pub trait GenericImage: GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
+    /// [`in_bounds`]: GenericImageView::in_bounds
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
@@ -215,8 +215,7 @@ pub trait GenericImage: GenericImageView {
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
     ///
-    /// [`GenericImageView::view`]: trait.GenericImageView.html#method.view
-    /// [`FlatSamples`]: flat/struct.FlatSamples.html
+    /// [`FlatSamples`]: crate::FlatSamples
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,

@@ -23,8 +23,6 @@ use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFor
 /// Iterate over rows of an image
 ///
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
-///
-/// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
 pub struct Rows<'a, P: Pixel + 'a> {
     pixels: ChunksExact<'a, P>,
 }
@@ -109,8 +107,6 @@ where
 /// Iterate over mutable rows of an image
 ///
 /// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
-///
-/// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
 pub struct RowsMut<'a, P: Pixel + 'a> {
     pixels: ChunksExactMut<'a, P>,
 }
@@ -453,20 +449,14 @@ where
 /// The crate defines a few type aliases with regularly used pixel types for your convenience, such
 /// as [`RgbImage`], [`GrayImage`] etc.
 ///
-/// [`GenericImage`]: trait.GenericImage.html
-/// [`GenericImageView`]: trait.GenericImageView.html
-/// [`RgbImage`]: type.RgbImage.html
-/// [`GrayImage`]: type.GrayImage.html
-///
 /// To convert between images of different Pixel types use [`DynamicImage`].
 ///
 /// You can retrieve a complete description of the buffer's layout and contents through
 /// [`as_flat_samples`] and [`as_flat_samples_mut`]. This can be handy to also use the contents in
 /// a foreign language, map it as a GPU host buffer or other similar tasks.
 ///
-/// [`DynamicImage`]: enum.DynamicImage.html
-/// [`as_flat_samples`]: #method.as_flat_samples
-/// [`as_flat_samples_mut`]: #method.as_flat_samples_mut
+/// [`as_flat_samples`]: Self::as_flat_samples
+/// [`as_flat_samples_mut`]: Self::as_flat_samples_mut
 ///
 /// ## Examples
 ///
@@ -1027,7 +1017,7 @@ where
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
     ///
-    /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
+    /// See [`save_buffer_with_format`](crate::save_buffer_with_format) for
     /// supported types.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where

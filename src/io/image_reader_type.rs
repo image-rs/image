@@ -81,7 +81,7 @@ enum Format {
 /// As a final fallback or if only a specific format must be used, the reader always allows manual
 /// specification of the supposed image format with [`set_format`].
 ///
-/// [`set_format`]: #method.set_format
+/// [`set_format`]: Self::set_format
 pub struct ImageReaderOptions<R: Read + Seek> {
     /// The reader. Should be buffered.
     inner: R,
@@ -102,8 +102,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// It is possible to guess the format based on the content of the read object with
     /// [`with_guessed_format`], or to set the format directly with [`set_format`].
     ///
-    /// [`with_guessed_format`]: #method.with_guessed_format
-    /// [`set_format`]: method.set_format
+    /// [`with_guessed_format`]: Self::with_guessed_format
+    /// [`set_format`]:Self::set_format
     pub fn new(buffered_reader: R) -> Self {
         ImageReaderOptions {
             inner: buffered_reader,
@@ -454,7 +454,7 @@ impl ImageReaderOptions<BufReader<File>> {
     /// If you want to inspect the content for a better guess on the format, which does not depend
     /// on file extensions, follow this call with a call to [`with_guessed_format`].
     ///
-    /// [`with_guessed_format`]: #method.with_guessed_format
+    /// [`with_guessed_format`]: Self::with_guessed_format
     pub fn open<P>(path: P) -> io::Result<Self>
     where
         P: AsRef<Path>,

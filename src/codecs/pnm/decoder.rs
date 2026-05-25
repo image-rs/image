@@ -40,7 +40,7 @@ enum DecoderError {
     HeaderLineUnknown(String),
     /// At least one of the required lines were missing from the header (are `None` here)
     ///
-    /// Same names as [`PnmHeaderLine`](enum.PnmHeaderLine.html)
+    /// Same names as [`PnmHeaderLine`]
     #[allow(missing_docs)]
     HeaderLineMissing {
         height: Option<u32>,

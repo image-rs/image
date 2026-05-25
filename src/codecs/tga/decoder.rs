@@ -1,6 +1,7 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
 use crate::error::{DecodingError, LimitError, LimitErrorKind};
 use crate::io::{DecodedImageAttributes, DecoderPreparedImage, ReadExt};
+use crate::primitive_sealed::BgraSwizzle;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -331,11 +332,8 @@ impl<R: Read> TgaDecoder<R> {
     fn reverse_encoding_in_output(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
-            ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_exact_mut(self.color_type.bytes_per_pixel().into()) {
-                    chunk.swap(0, 2);
-                }
-            }
+            ColorType::Rgb8 => BgraSwizzle::swizzle_rgb_bgr(pixels),
+            ColorType::Rgba8 => BgraSwizzle::swizzle_rgba_bgra(pixels),
             _ => {}
         }
     }

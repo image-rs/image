@@ -183,15 +183,15 @@ macro_rules! impl_with_blur_acc_f32 {
 
 impl_with_blur_acc_f32!(u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);
 
-/// Coefficients to transform from sRGB to a CIE Y (luminance) value.
-///
-/// The coefficients are 2126/10000, 7152/10000, and 722/10000 for R, G, and B respectively.
-const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
-const SRGB_LUMA_DIV: u32 = 10000;
+/// Converts sRGB to luma using standard coefficients for all primitives.
 pub(crate) trait RgbToLuma: Copy + Sized + crate::traits::Enlargeable {
     #[inline]
     fn rgb_to_luma(r: Self, g: Self, b: Self) -> Self {
         use num_traits::NumCast;
+
+        /// Coefficients to transform from sRGB to a CIE Y (luminance) value.
+        const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
+        const SRGB_LUMA_DIV: u32 = 10000;
 
         let l = <Self::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * r.to_larger()
             + <Self::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * g.to_larger()
@@ -222,18 +222,10 @@ impl RgbToLuma for i64 {}
 impl RgbToLuma for f32 {
     #[inline]
     fn rgb_to_luma(r: f32, g: f32, b: f32) -> f32 {
-        const SCALE_R: f32 = SRGB_LUMA[0] as f32 / SRGB_LUMA_DIV as f32;
-        const SCALE_G: f32 = SRGB_LUMA[1] as f32 / SRGB_LUMA_DIV as f32;
-        const SCALE_B: f32 = SRGB_LUMA[2] as f32 / SRGB_LUMA_DIV as f32;
+        const SCALE_R: f32 = 2126. / 10000.;
+        const SCALE_G: f32 = 7152. / 10000.;
+        const SCALE_B: f32 = 722. / 10000.;
         SCALE_R * r + SCALE_G * g + SCALE_B * b
     }
 }
-impl RgbToLuma for f64 {
-    #[inline]
-    fn rgb_to_luma(r: f64, g: f64, b: f64) -> f64 {
-        const SCALE_R: f64 = SRGB_LUMA[0] as f64 / SRGB_LUMA_DIV as f64;
-        const SCALE_G: f64 = SRGB_LUMA[1] as f64 / SRGB_LUMA_DIV as f64;
-        const SCALE_B: f64 = SRGB_LUMA[2] as f64 / SRGB_LUMA_DIV as f64;
-        SCALE_R * r + SCALE_G * g + SCALE_B * b
-    }
-}
+impl RgbToLuma for f64 {}

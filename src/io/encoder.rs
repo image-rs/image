@@ -142,7 +142,7 @@ fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Optio
     supported
         .iter()
         .filter_map(|c| c.color_type())
-        .max_by_key(|&to| {
+        .min_by_key(|&to| {
             let mut loss = 0;
 
             // channel losses are heavily penalized, since a lot of information is lost

@@ -254,12 +254,8 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
     }
 
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
-        Some(&[
-            ExtendedColorType::Rgb8,
-            ExtendedColorType::Rgba8,
-            ExtendedColorType::L8,
-            ExtendedColorType::La8,
-        ])
+        use ExtendedColorType::*;
+        Some(&[Rgb8, Rgba8, L8, La8])
     }
 }
 

@@ -933,16 +933,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     }
 
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
-        Some(&[
-            ExtendedColorType::Rgb8,
-            ExtendedColorType::Rgba8,
-            ExtendedColorType::L8,
-            ExtendedColorType::La8,
-            ExtendedColorType::Rgb16,
-            ExtendedColorType::Rgba16,
-            ExtendedColorType::L16,
-            ExtendedColorType::La16,
-        ])
+        use ExtendedColorType::*;
+        Some(&[Rgb8, Rgba8, L8, La8, Rgb16, Rgba16, L16, La16])
     }
 }
 

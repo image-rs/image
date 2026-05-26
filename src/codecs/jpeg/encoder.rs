@@ -294,7 +294,8 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
     }
 
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
-        Some(&[ExtendedColorType::Rgb8, ExtendedColorType::L8])
+        use ExtendedColorType::*;
+        Some(&[Rgb8, L8])
     }
 }
 

@@ -785,7 +785,9 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
+    /// Panics if the buffer does not hold exactly the number of bytes required for the given
+    /// `width`, `height`, and `color_type`, accounting for rows padded to whole bytes for
+    /// sub-byte color types: `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     #[track_caller]
     fn write_image(
         self,

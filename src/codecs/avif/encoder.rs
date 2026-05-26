@@ -106,13 +106,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         height: u32,
         color: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len = color.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            data.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            data.len(),
-        );
+        color.assert_buf_len(width, height, data);
 
         self.set_color(color);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily

@@ -799,13 +799,9 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         use tiff::encoder::colortype::{
             Gray16, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
         };
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
+
+        color_type.assert_buf_len(width, height, buf);
+
         match color_type {
             ExtendedColorType::L8 => self.write_tiff::<Gray8>(width, height, buf),
             ExtendedColorType::Rgb8 => self.write_tiff::<RGB8>(width, height, buf),

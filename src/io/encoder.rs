@@ -82,15 +82,12 @@ pub trait ImageEncoder {
 
     /// All color types supported by this encoder. If `None`, supported colors aren't known.
     ///
-    /// Encoders typically only support a select few color types for writing, and ones are
-    /// supported vary from encoder to encoder. This method allows encoders to specify which color
-    /// types their [`write_image`](Self::write_image) method supports.
+    /// Encoders typically only support a select few color types for writing, and supported ones
+    /// vary from encoder to encoder. This method allows encoders to specify which color types
+    /// their [`write_image`](Self::write_image) method supports.
     ///
     /// This information is currently used by the save and write method on [`DynamicImage`] to
     /// perform necessary conversions before encoding.
-    ///
-    /// The list of supported color types may be incomplete, but encoders provide a complete list
-    /// on a best effort basis. Duplicates are not allowed.
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
         None
     }

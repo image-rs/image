@@ -932,17 +932,17 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         Ok(())
     }
 
-    fn make_compatible_img(
-        &self,
-        _: crate::io::encoder::MethodSealedToImage,
-        img: &DynamicImage,
-    ) -> Option<DynamicImage> {
-        use ColorType::*;
-        match img.color() {
-            Rgb32F => Some(img.to_rgb16().into()),
-            Rgba32F => Some(img.to_rgba16().into()),
-            L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,
-        }
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
+        Some(&[
+            ExtendedColorType::Rgb8,
+            ExtendedColorType::Rgba8,
+            ExtendedColorType::L8,
+            ExtendedColorType::La8,
+            ExtendedColorType::Rgb16,
+            ExtendedColorType::Rgba16,
+            ExtendedColorType::L16,
+            ExtendedColorType::La16,
+        ])
     }
 }
 

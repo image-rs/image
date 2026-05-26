@@ -5,7 +5,7 @@ use std::{error, fmt};
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
+use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 use jpeg_encoder::Encoder;
 
@@ -293,17 +293,8 @@ impl<W: Write> ImageEncoder for JpegEncoder<W> {
         Ok(())
     }
 
-    fn make_compatible_img(
-        &self,
-        _: crate::io::encoder::MethodSealedToImage,
-        img: &DynamicImage,
-    ) -> Option<DynamicImage> {
-        use ColorType::*;
-        match img.color() {
-            L8 | Rgb8 => None,
-            La8 | L16 | La16 => Some(img.to_luma8().into()),
-            Rgba8 | Rgb16 | Rgb32F | Rgba16 | Rgba32F => Some(img.to_rgb8().into()),
-        }
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
+        Some(&[ExtendedColorType::Rgb8, ExtendedColorType::L8])
     }
 }
 

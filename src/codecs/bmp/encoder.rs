@@ -5,7 +5,7 @@ use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
+use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -366,12 +366,14 @@ impl<W: Write> ImageEncoder for BmpEncoder<W> {
         self.encode(buf, width, height, color_type)
     }
 
-    fn make_compatible_img(
-        &self,
-        _: crate::io::encoder::MethodSealedToImage,
-        img: &DynamicImage,
-    ) -> Option<DynamicImage> {
-        crate::io::encoder::dynimage_conversion_8bit(img)
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
+        Some(&[
+            ExtendedColorType::Rgb8,
+            ExtendedColorType::Rgba8,
+            ExtendedColorType::L1,
+            ExtendedColorType::L8,
+            ExtendedColorType::La8,
+        ])
     }
 }
 

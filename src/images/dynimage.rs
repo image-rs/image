@@ -1389,7 +1389,7 @@ impl DynamicImage {
         &self,
         encoder: Box<dyn ImageEncoderBoxed + 'a>,
     ) -> ImageResult<()> {
-        let converted = encoder.make_compatible_img(crate::io::encoder::MethodSealedToImage, self);
+        let converted = crate::io::encoder::make_compatible_img(self, encoder.supported_colors());
         let img = converted.as_ref().unwrap_or(self);
 
         encoder.write_image(

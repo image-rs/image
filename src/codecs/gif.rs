@@ -504,6 +504,11 @@ impl<W: Write> GifEncoder<W> {
     }
 
     /// Encode a single image.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `data.len() != color_type.buffer_size(width, height)`.
+    /// See [`ExtendedColorType::buffer_size`] for more information.
     pub fn encode(
         &mut self,
         data: &[u8],

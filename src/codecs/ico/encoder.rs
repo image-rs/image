@@ -68,6 +68,11 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` by encoding `buf` as a PNG
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `buf.len() != color_type.buffer_size(width, height)`.
+    /// See [`ExtendedColorType::buffer_size`] for more information.
     pub fn as_png(
         buf: &[u8],
         width: u32,
@@ -125,12 +130,6 @@ impl<W: Write> IcoEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for IcoEncoder<W> {
-    /// Write an ICO image with the specified width, height, and color type.
-    ///
-    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
-    /// native endian.
-    ///
-    /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian.
     #[track_caller]
     fn write_image(
         self,

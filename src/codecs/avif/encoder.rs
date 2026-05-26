@@ -98,10 +98,15 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `buf.len() != color_type.buffer_size(width, height)`.
+    /// See [`ExtendedColorType::buffer_size`] for more information.
     #[track_caller]
     fn write_image(
         mut self,
-        data: &[u8],
+        buf: &[u8],
         width: u32,
         height: u32,
         color: ExtendedColorType,
@@ -109,9 +114,9 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         let expected_buffer_len = color.buffer_size(width, height);
         assert_eq!(
             expected_buffer_len,
-            data.len() as u64,
+            buf.len() as u64,
             "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            data.len(),
+            buf.len(),
         );
 
         self.set_color(color);
@@ -119,7 +124,7 @@ impl<W: Write> ImageEncoder for AvifEncoder<W> {
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
         let mut fallback = vec![]; // This vector is used if we need to do a color conversion.
-        let result = match Self::encode_as_img(&mut fallback, data, width, height, color)? {
+        let result = match Self::encode_as_img(&mut fallback, buf, width, height, color)? {
             RgbColor::Rgb8(buffer) => self.encoder.encode_rgb(buffer),
             RgbColor::Rgba8(buffer) => self.encoder.encode_rgba(buffer),
         };

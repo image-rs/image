@@ -1890,34 +1890,12 @@ mod tests {
 
     #[test]
     fn thumbnail_huge_block() {
-        struct SingleColor<P> {
-            color: P,
-            width: u32,
-            height: u32,
-        }
-        impl<P: crate::Pixel> GenericImageView for SingleColor<P> {
-            type Pixel = P;
-            fn dimensions(&self) -> (u32, u32) {
-                (self.width, self.height)
-            }
-            #[inline(always)]
-            fn get_pixel(&self, _x: u32, _y: u32) -> Self::Pixel {
-                self.color
-            }
-        }
-
-        let huge_u8: SingleColor<crate::Luma<u8>> = SingleColor {
-            color: crate::Luma([255]),
-            width: 4096,
-            height: 4113,
-        }; // 4096 * 4113 * 255 barely overflows 2^32, so it would trigger a bug if large blocks were not handled
+        // 4096 * 4113 * 255 barely overflows 2^32, so it would trigger a bug if large blocks were not handled
+        let huge_u8 = ImageBuffer::from_pixel(4096, 4113, crate::Luma([255_u8]));
         super::thumbnail(&huge_u8, 1, 1);
 
-        let huge_u16: SingleColor<crate::Luma<u16>> = SingleColor {
-            color: crate::Luma([65535]),
-            width: 1024,
-            height: 1024,
-        }; // 1024^2 * 65535 obviously overflows 2^32
+        // 1024^2 * 65535 obviously overflows 2^32
+        let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
         super::thumbnail(&huge_u16, 1, 1);
     }
 }

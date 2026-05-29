@@ -375,32 +375,37 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         return Ok(DecodedImageAttributes::default());
                     }
 
-                    let rgba = buf.as_chunks_mut::<4>().0;
-                    let rows = rgba.chunks_exact_mut(width as usize);
+                    // 32bpp BMPs already have a native alpha channel, so the
+                    // AND mask is ignored.
+                    // For lower bit depths, read and apply the AND mask.
+                    if self.selected_entry.bits_per_pixel < 32 {
+                        let rgba = buf.as_chunks_mut::<4>().0;
+                        let rows = rgba.chunks_exact_mut(width as usize);
 
-                    if rows.len() != height as usize {
-                        return Err(DecoderError::InvalidDataSize.into());
-                    }
+                        if rows.len() != height as usize {
+                            return Err(DecoderError::InvalidDataSize.into());
+                        }
 
-                    // If there's an AND mask following the image, read and apply it.
-                    // This from the bottom up (in terms of our coordinates).
-                    for row in rows.rev() {
-                        let mut x = 0;
+                        // If there's an AND mask following the image, read and apply it.
+                        // This from the bottom up (in terms of our coordinates).
+                        for row in rows.rev() {
+                            let mut x = 0;
 
-                        for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
-                            let mask_byte = r.read_u8()?;
-                            for bit in (0..8).rev() {
-                                if x >= width {
-                                    break;
-                                }
+                            for _ in 0..mask_row_bytes {
+                                let mask_byte = r.read_u8()?;
+                                for bit in (0..8).rev() {
+                                    if x >= width {
+                                        break;
+                                    }
 
-                                if mask_byte & (1 << bit) != 0 {
-                                    // Set alpha channel to transparent.
-                                    row[x as usize][3] = 0;
-                                }
+                                    if mask_byte & (1 << bit) != 0 {
+                                        // Set alpha channel to transparent.
+                                        row[x as usize][3] = 0;
+                                    }
 
-                                x += 1;
+                                    x += 1;
+                                }
                             }
                         }
                     }

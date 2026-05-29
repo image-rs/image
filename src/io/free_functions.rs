@@ -118,7 +118,7 @@ static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 21] = [
     (b"BM", b"", ImageFormat::Bmp),
     (&[0, 0, 1, 0], b"", ImageFormat::Ico),
     (b"#?RADIANCE", b"", ImageFormat::Hdr),
-    (b"\0\0\0\0ftypavif", b"\xFF\xFF\0\0", ImageFormat::Avif),
+    (b"\0\0\0\0ftypavif", b"\0\0\0\0", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], b"", ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
     (b"qoif", b"", ImageFormat::Qoi),
     (b"P1", b"", ImageFormat::Pnm),

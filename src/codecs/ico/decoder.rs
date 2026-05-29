@@ -396,7 +396,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                                 }
 
                                 if mask_byte & (1 << bit) != 0 {
-                                    // Set pixel to fully transparent black.
+                                    // Set pixel to fully transparent.
                                     row[x as usize] = [0, 0, 0, 0];
                                 }
 

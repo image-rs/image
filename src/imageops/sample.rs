@@ -682,15 +682,49 @@ where
     S: Primitive + Enlargeable,
 {
     let mut sum = ThumbnailSum::zeroed();
+    let pixel_count: u64 = (right - left) as u64 * (top - bottom) as u64;
 
-    for y in bottom..top {
-        for x in left..right {
-            let k = image.get_pixel(x, y);
-            sum.add_pixel(k);
+    // Crushing down huge images to very small thumbnails can result in overflow of `sum`.
+    // This is especially a problem for u8 and u16. Their ::Larger is u32 for both.
+    // This gives u8 a head room of 24 bits (which is enough to handle blocks with 2^24 pixels),
+    // but u16 only has 16 bits (which is only enough for 2^16 pixels).
+    // To prevent overflow and guarantee correctness even in edge cases, huge blocks need to be
+    // detected and split into smaller blocks.
+    let sample_count = if pixel_count > 256 * 256 {
+        // edge case where huge blocks need to be split into smaller blocks
+        // Blocks are currently split into 256x256 sub-blocks (or smaller).
+        // Note that this does not make overflow impossible. It simply adds 16 bits of headroom.
+        // So u8 now supports blocks with up to 2^40 pixels and u16 supports blocks with up to 2^32 pixels.
+        // This should be enough to prevent overflow in practice.
+        const STEP_SIZE: u32 = 256;
+
+        for y in (bottom..top).step_by(STEP_SIZE as usize) {
+            for x in (left..right).step_by(STEP_SIZE as usize) {
+                let k = thumbnail_sample_block(
+                    image,
+                    x,
+                    x.saturating_add(STEP_SIZE).min(right),
+                    y,
+                    y.saturating_add(STEP_SIZE).min(top),
+                );
+                sum.add_pixel(k);
+            }
         }
-    }
 
-    let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
+        ((right - left) as u64 / STEP_SIZE as u64) * ((top - bottom) as u64 / STEP_SIZE as u64)
+    } else {
+        // standard case where all pixels are summed directly
+        for y in bottom..top {
+            for x in left..right {
+                let k = image.get_pixel(x, y);
+                sum.add_pixel(k);
+            }
+        }
+
+        pixel_count
+    };
+
+    let n = <S::Larger as NumCast>::from(sample_count).unwrap();
 
     // For integer types division truncates, so we need to add n/2 to round to
     // the nearest integer. Floating point types do not need this.
@@ -735,10 +769,7 @@ where
     let fact_left = (1. - fract) / ((top - bottom) as f32);
 
     let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| {
-        <S as NumCast>::from(
-            fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap(),
-        )
-        .expect("Average sample value should fit into sample type")
+        S::nearest_from(fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap())
     };
 
     let left = sum_left.0;
@@ -785,8 +816,7 @@ where
     let fact_bot = (1. - fract) / ((right - left) as f32);
 
     let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| {
-        <S as NumCast>::from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
-            .expect("Average sample value should fit into sample type")
+        S::nearest_from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
     };
 
     let bot = sum_bot.0;
@@ -830,13 +860,12 @@ where
     let fact_bl = (1. - frac_v) * (1. - frac_h);
 
     let mix = |br: S, tr: S, bl: S, tl: S| {
-        <S as NumCast>::from(
+        S::nearest_from(
             fact_br * br.to_f32().unwrap()
                 + fact_tr * tr.to_f32().unwrap()
                 + fact_bl * bl.to_f32().unwrap()
                 + fact_tl * tl.to_f32().unwrap(),
         )
-        .expect("Average sample value should fit into sample type")
     };
 
     // Make a copy of any pixel, we'll fully overwrite it.
@@ -1857,5 +1886,16 @@ mod tests {
         assert!(result.into_raw().into_iter().all(|c| c == 0));
         let result = resize(&empty, 256, 256, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn thumbnail_huge_block() {
+        // 4096 * 4113 * 255 barely overflows 2^32, so it would trigger a bug if large blocks were not handled
+        let huge_u8 = ImageBuffer::from_pixel(4096, 4113, crate::Luma([255_u8]));
+        super::thumbnail(&huge_u8, 1, 1);
+
+        // 1024^2 * 65535 obviously overflows 2^32
+        let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
+        super::thumbnail(&huge_u16, 1, 1);
     }
 }

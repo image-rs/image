@@ -316,7 +316,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             itx_chunk.decompress_text().map_err(ImageError::from_png)?;
             return itx_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 
@@ -336,7 +336,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             text_chunk.decompress_text().map_err(ImageError::from_png)?;
             return text_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 

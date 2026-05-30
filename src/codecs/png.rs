@@ -310,7 +310,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .info()
             .utf8_text
             .iter()
-            .find(|chunk| chunk.keyword.contains(XMP_KEY))
+            .find(|chunk| chunk.keyword == XMP_KEY)
             .cloned()
         {
             itx_chunk.decompress_text().map_err(ImageError::from_png)?;

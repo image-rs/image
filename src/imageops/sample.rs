@@ -1306,9 +1306,11 @@ pub(crate) fn gaussian_blur_dyn_image(
         parameters.y_axis_sigma,
     );
 
-    let filter_image_size = FilterImageSize {
-        width: image.width() as usize,
-        height: image.height() as usize,
+    let Some(filter_image_size) = FilterImageSize::new(image.dimensions()) else {
+        // If the image is empty, return an empty image of the same dimensions and color space.
+        let mut target = DynamicImage::new(image.width(), image.height(), image.color());
+        let _ = target.set_color_space(image.color_space());
+        return target;
     };
 
     let mut target = match image {
@@ -1514,9 +1516,9 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
         parameters.y_axis_sigma,
     );
 
-    let filter_image_size = FilterImageSize {
-        width: image.width() as usize,
-        height: image.height() as usize,
+    let Some(filter_image_size) = FilterImageSize::new(image.dimensions()) else {
+        // if the input image is empty, just return an empty image
+        return image.buffer_like();
     };
 
     match CN {
@@ -1626,7 +1628,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, sample_bilinear, sample_nearest, FilterType};
-    use crate::{GenericImageView, ImageBuffer, RgbImage};
+    use crate::{DynamicImage, GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1897,5 +1899,26 @@ mod tests {
         // 1024^2 * 65535 obviously overflows 2^32
         let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
         super::thumbnail(&huge_u16, 1, 1);
+    }
+
+    #[test]
+    fn sample_empty_image() {
+        // blurring an empty image should not panic
+        _ = DynamicImage::new(0, 0, crate::ColorType::Rgb8).blur(1.0);
+        _ = DynamicImage::new(10, 0, crate::ColorType::Rgb8).blur(1.0);
+        _ = DynamicImage::new(0, 10, crate::ColorType::Rgb8).blur(1.0);
+
+        _ = crate::imageops::blur(
+            &ImageBuffer::from_pixel(0, 0, crate::Rgb([255_u8, 255_u8, 255_u8])),
+            1.0,
+        );
+        _ = crate::imageops::blur(
+            &ImageBuffer::from_pixel(10, 0, crate::Rgb([255_u8, 255_u8, 255_u8])),
+            1.0,
+        );
+        _ = crate::imageops::blur(
+            &ImageBuffer::from_pixel(0, 10, crate::Rgb([255_u8, 255_u8, 255_u8])),
+            1.0,
+        );
     }
 }

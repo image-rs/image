@@ -65,6 +65,17 @@ pub trait GenericImageView {
     {
         let (width, height) = self.dimensions();
 
+        if width == 0 || height == 0 {
+            // Return an empty iterator for empty images
+            return Pixels {
+                image: self,
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+            };
+        }
+
         Pixels {
             image: self,
             x: 0,

@@ -1434,13 +1434,13 @@ where
     /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-        S::swizzle_rgb_bgr(img.as_mut());
+        S::swizzle_rgb_bgr(img.subpixels_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `Bgr` channel order.
     pub fn into_raw_bgr(mut self) -> Container {
-        S::swizzle_rgb_bgr(self.as_mut());
+        S::swizzle_rgb_bgr(self.subpixels_mut());
         self.into_raw()
     }
 }
@@ -1454,13 +1454,13 @@ where
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-        S::swizzle_rgba_bgra(img.as_mut());
+        S::swizzle_rgba_bgra(img.subpixels_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `BgrA` channel order.
     pub fn into_raw_bgra(mut self) -> Container {
-        S::swizzle_rgba_bgra(self.as_mut());
+        S::swizzle_rgba_bgra(self.subpixels_mut());
         self.into_raw()
     }
 }

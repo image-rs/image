@@ -223,6 +223,13 @@ impl<R: BufRead + Seek> PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
         }
     }
+
+    /// The maximum number of bytes iTXt and zTXt are allowed to decompress to.
+    /// This guards against decompression bombs.
+    fn text_decompress_limit(&mut self) -> usize {
+        let max = png::text_metadata::DECOMPRESSION_LIMIT as u64;
+        self.limits.max_alloc.unwrap_or(max).min(max) as usize
+    }
 }
 
 fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
@@ -304,6 +311,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut itx_chunk) = reader
@@ -313,7 +321,9 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .find(|chunk| chunk.keyword == XMP_KEY)
             .cloned()
         {
-            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
+            itx_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return itx_chunk
                 .get_text()
                 .map(|text| Some(text.into_bytes()))
@@ -324,6 +334,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut text_chunk) = reader
@@ -333,7 +344,9 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
             .cloned()
         {
-            text_chunk.decompress_text().map_err(ImageError::from_png)?;
+            text_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return text_chunk
                 .get_text()
                 .map(|text| Some(text.into_bytes()))

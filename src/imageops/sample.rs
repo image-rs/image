@@ -16,14 +16,10 @@ use crate::imageops::filter_1d::{
     filter_2d_sep_rgb_u16, filter_2d_sep_rgba, filter_2d_sep_rgba_f32, filter_2d_sep_rgba_u16,
     FilterImageSize,
 };
-use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
 use crate::primitive_sealed::NearestFrom;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::{clamp, is_integer, vec_try_with_capacity};
-use crate::{
-    DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
-};
+use crate::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, Rgba32FImage};
 
 const MAX_CHANNEL: usize = 4;
 
@@ -1311,148 +1307,37 @@ pub(crate) fn gaussian_blur_dyn_image(
         height: image.height() as usize,
     };
 
-    let mut target = match image {
-        DynamicImage::ImageLuma8(img) => {
-            let mut dest_image = vec![0u8; img.subpixels().len()];
-            filter_2d_sep_plane(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageLuma8(
-                GrayImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageLumaA8(img) => {
-            let mut dest_image = vec![0u8; img.subpixels().len()];
-            filter_2d_sep_la(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageLumaA8(
-                GrayAlphaImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgb8(img) => {
-            let mut dest_image = vec![0u8; img.subpixels().len()];
-            filter_2d_sep_rgb(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgb8(
-                RgbImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgba8(img) => {
-            let mut dest_image = vec![0u8; img.subpixels().len()];
-            filter_2d_sep_rgba(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgba8(
-                RgbaImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageLuma16(img) => {
-            let mut dest_image = vec![0u16; img.subpixels().len()];
-            filter_2d_sep_plane_u16(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageLuma16(
-                Gray16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageLumaA16(img) => {
-            let mut dest_image = vec![0u16; img.subpixels().len()];
-            filter_2d_sep_la_u16(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageLumaA16(
-                GrayAlpha16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgb16(img) => {
-            let mut dest_image = vec![0u16; img.subpixels().len()];
-            filter_2d_sep_rgb_u16(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgb16(
-                Rgb16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgba16(img) => {
-            let mut dest_image = vec![0u16; img.subpixels().len()];
-            filter_2d_sep_rgba_u16(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgba16(
-                Rgba16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgb32F(img) => {
-            let mut dest_image = vec![0f32; img.subpixels().len()];
-            filter_2d_sep_rgb_f32(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgb32F(
-                Rgb32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-        DynamicImage::ImageRgba32F(img) => {
-            let mut dest_image = vec![0f32; img.subpixels().len()];
-            filter_2d_sep_rgba_f32(
-                img.subpixels(),
-                &mut dest_image,
-                filter_image_size,
-                &x_axis_kernel,
-                &y_axis_kernel,
-            )
-            .unwrap();
-            DynamicImage::ImageRgba32F(
-                Rgba32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
-            )
-        }
-    };
+    macro_rules! filter_variants {
+        ($($variant:path => $filter:path),+) => {
+            match image {
+                $($variant(img) => {
+                    let mut dest = ImageBuffer::new(img.width(), img.height());
+                    let res = $filter(
+                        img.subpixels(),
+                        dest.subpixels_mut(),
+                        filter_image_size,
+                        &x_axis_kernel,
+                        &y_axis_kernel,
+                    );
+                    res.map(|()| $variant(dest))
+                }),+
+            }
+        };
+    }
+
+    let mut target = filter_variants!(
+        DynamicImage::ImageLuma8 => filter_2d_sep_plane,
+        DynamicImage::ImageLumaA8 => filter_2d_sep_la,
+        DynamicImage::ImageRgb8 => filter_2d_sep_rgb,
+        DynamicImage::ImageRgba8 => filter_2d_sep_rgba,
+        DynamicImage::ImageLuma16 => filter_2d_sep_plane_u16,
+        DynamicImage::ImageLumaA16 => filter_2d_sep_la_u16,
+        DynamicImage::ImageRgb16 => filter_2d_sep_rgb_u16,
+        DynamicImage::ImageRgba16 => filter_2d_sep_rgba_u16,
+        DynamicImage::ImageRgb32F => filter_2d_sep_rgb_f32,
+        DynamicImage::ImageRgba32F => filter_2d_sep_rgba_f32
+    )
+    .unwrap();
 
     // Must succeed.
     let _ = target.set_color_space(image.color_space());

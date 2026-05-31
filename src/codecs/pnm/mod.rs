@@ -1,9 +1,18 @@
-//! Decoding of netpbm image formats (pbm, pgm, ppm and pam).
+//! Decoding and Encoding of netpbm image formats (PBM, PGM, PPM, PNM, PAM).
 //!
-//! The formats pbm, pgm and ppm are fully supported. Only the official subformats
-//! (`BLACKANDWHITE`, `GRAYSCALE`, `RGB`, `BLACKANDWHITE_ALPHA`, `GRAYSCALE_ALPHA`,
-//! and `RGB_ALPHA`) of pam are supported; custom tuple types have no clear
-//! interpretation as an image and will be rejected.
+//! The PnmDecoder supports all PBM, PGM, and PPM subformats. (PNM images may contain
+//! any of PBM, PGM, or PPM content.) Only the official subformats (`BLACKANDWHITE`,
+//! `GRAYSCALE`, `RGB`, `BLACKANDWHITE_ALPHA`, `GRAYSCALE_ALPHA`, and `RGB_ALPHA`)
+//! of PAM are decodable; custom tuple types have no clear interpretation as an
+//! image and will be rejected.
+//!
+//!  # Related Links
+//!  * <https://netpbm.sourceforge.net/doc/pbm.html> - specification for PBM
+//!  * <https://netpbm.sourceforge.net/doc/pgm.html> - specification for PGM
+//!  * <https://netpbm.sourceforge.net/doc/ppm.html> - specification for PPM
+//!  * <https://netpbm.sourceforge.net/doc/pnm.html> - definition for PNM
+//!  * <https://netpbm.sourceforge.net/doc/pam.html> - specification for PAM
+
 use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
 pub use self::encoder::PnmEncoder;

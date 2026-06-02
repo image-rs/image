@@ -161,7 +161,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
         let reader_offset = r.stream_position()?;
         let entries = read_entries(&mut r)?;
         let entry = best_entry(entries)?;
-        let decoder = entry.decoder(r, reader_offset)?;
+        let decoder = entry.decoder(r, reader_offset, spec)?;
 
         Ok(IcoDecoder {
             selected_entry: entry,
@@ -267,17 +267,22 @@ impl DirEntry {
         &self,
         mut r: R,
         reader_offset: u64,
+        spec: SpecCompliance,
     ) -> ImageResult<InnerDecoder<R>> {
         let is_png = self.is_png(&mut r, reader_offset)?;
         self.seek_to_start(&mut r, reader_offset)?;
 
         if is_png {
-            let limits = crate::Limits {
-                max_image_width: Some(self.real_width().into()),
-                max_image_height: Some(self.real_height().into()),
-                max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
-            };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
+            if spec == SpecCompliance::Strict {
+                let limits = crate::Limits {
+                    max_image_width: Some(self.real_width().into()),
+                    max_image_height: Some(self.real_height().into()),
+                    max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
+                };
+                Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
+            } else {
+                Ok(Png(Box::new(PngDecoder::new(r))))
+            }
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }

@@ -118,7 +118,7 @@ where
             tiff::ColorType::Gray(1) => ColorType::L8,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
-            tiff::ColorType::Gray(32) => ColorType::Rgb32F, // TODO: Change to L32f when supported
+            tiff::ColorType::Gray(32) => ColorType::L32F,
             tiff::ColorType::GrayA(8) => ColorType::La8,
             tiff::ColorType::GrayA(16) => ColorType::La16,
             tiff::ColorType::RGB(8) => ColorType::Rgb8,
@@ -153,7 +153,6 @@ where
 
         let original_color_type = match tiff_color_type {
             tiff::ColorType::Gray(1) => ExtendedColorType::L1,
-            tiff::ColorType::Gray(32) => ExtendedColorType::L32F,
             tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
             tiff::ColorType::CMYK(16) => ExtendedColorType::Cmyk16,
             tiff::ColorType::YCbCr(8) => ExtendedColorType::YCbCr8,
@@ -575,17 +574,6 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                     .zip(buf.chunks_exact_mut(width as usize))
                 {
                     out_row.copy_from_slice(&utils::expand_bits(1, width, in_row));
-                }
-            }
-            DecodingResult::F32(v) if info.original_color_type == ExtendedColorType::L32F => {
-                // convert L32F to RGB32F
-                // TODO: remove when ColorType::L32F is supported
-                let buf_f32 = buf.as_chunks_mut::<4>().0;
-                let buf_f32_rgb = buf_f32.as_chunks_mut::<3>().0;
-
-                for (l, rgb) in v.iter().zip(buf_f32_rgb.iter_mut()) {
-                    let l_bytes = l.to_ne_bytes();
-                    *rgb = [l_bytes; 3];
                 }
             }
             DecodingResult::U8(v) if info.original_color_type == ExtendedColorType::YCbCr8 => {

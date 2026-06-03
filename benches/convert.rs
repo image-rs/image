@@ -36,6 +36,10 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
         b.iter(|| black_box(&luma_source).to_luma16());
     });
 
+    c.bench_function("cast_dynamic_luma8_luma32f", |b| {
+        b.iter(|| black_box(&luma_source).to_luma32f());
+    });
+
     c.bench_function("cast_dynamic_luma8_luma_alpha8", |b| {
         b.iter(|| black_box(&luma_source).to_luma_alpha8());
     });
@@ -44,11 +48,19 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
         b.iter(|| black_box(&luma_source).to_luma_alpha16());
     });
 
+    c.bench_function("cast_dynamic_luma8_luma_alpha32f", |b| {
+        b.iter(|| black_box(&luma_source).to_luma_alpha32f());
+    });
+
     let la_source =
         DynamicImage::ImageLumaA8(ImageBuffer::from_pixel(256, 256, image::LumaA([0u8, 255])));
 
     c.bench_function("cast_dynamic_luma_alpha8_luma_alpha16", |b| {
         b.iter(|| black_box(&la_source).to_luma_alpha16());
+    });
+
+    c.bench_function("cast_dynamic_luma_alpha8_luma_alpha32f", |b| {
+        b.iter(|| black_box(&la_source).to_luma_alpha32f());
     });
 
     c.bench_function("cast_dynamic_luma_alpha8_luma8", |b| {
@@ -59,19 +71,27 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
         b.iter(|| black_box(&la_source).to_luma16());
     });
 
+    c.bench_function("cast_dynamic_luma_alpha8_luma32f", |b| {
+        b.iter(|| black_box(&la_source).to_luma32f());
+    });
+
     let la_source =
         DynamicImage::ImageLumaA16(ImageBuffer::from_pixel(256, 256, image::LumaA([0u16, 255])));
 
-    c.bench_function("cast_dynamic_luma_alpha16_luma_alpha16", |b| {
-        b.iter(|| black_box(&la_source).to_luma_alpha16());
+    c.bench_function("cast_dynamic_luma_alpha16_luma_alpha8", |b| {
+        b.iter(|| black_box(&la_source).to_luma_alpha8());
     });
 
-    c.bench_function("cast_dynamic_luma_alpha16_luma8", |b| {
-        b.iter(|| black_box(&la_source).to_luma8());
+    c.bench_function("cast_dynamic_luma_alpha16_luma_alpha32f", |b| {
+        b.iter(|| black_box(&la_source).to_luma_alpha32f());
     });
 
     c.bench_function("cast_dynamic_luma_alpha16_luma16", |b| {
         b.iter(|| black_box(&la_source).to_luma16());
+    });
+
+    c.bench_function("cast_dynamic_luma_alpha16_luma32f", |b| {
+        b.iter(|| black_box(&la_source).to_luma32f());
     });
 
     let rgba32_source =

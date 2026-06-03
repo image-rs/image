@@ -385,32 +385,37 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         return Ok(DecodedImageAttributes::default());
                     }
 
-                    let rgba = buf.as_chunks_mut::<4>().0;
-                    let rows = rgba.chunks_exact_mut(width as usize);
+                    // 32bpp BMPs already have a native alpha channel, so the
+                    // AND mask is ignored.
+                    // For lower bit depths, read and apply the AND mask.
+                    if self.selected_entry.bits_per_pixel < 32 {
+                        let rgba = buf.as_chunks_mut::<4>().0;
+                        let rows = rgba.chunks_exact_mut(width as usize);
 
-                    if rows.len() != height as usize {
-                        return Err(DecoderError::InvalidDataSize.into());
-                    }
+                        if rows.len() != height as usize {
+                            return Err(DecoderError::InvalidDataSize.into());
+                        }
 
-                    // If there's an AND mask following the image, read and apply it.
-                    // This from the bottom up (in terms of our coordinates).
-                    for row in rows.rev() {
-                        let mut x = 0;
+                        // If there's an AND mask following the image, read and apply it.
+                        // This from the bottom up (in terms of our coordinates).
+                        for row in rows.rev() {
+                            let mut x = 0;
 
-                        for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
-                            let mask_byte = r.read_u8()?;
-                            for bit in (0..8).rev() {
-                                if x >= width {
-                                    break;
-                                }
+                            for _ in 0..mask_row_bytes {
+                                let mask_byte = r.read_u8()?;
+                                for bit in (0..8).rev() {
+                                    if x >= width {
+                                        break;
+                                    }
 
-                                if mask_byte & (1 << bit) != 0 {
-                                    // Set alpha channel to transparent.
-                                    row[x as usize][3] = 0;
-                                }
+                                    if mask_byte & (1 << bit) != 0 {
+                                        // Set alpha channel to transparent.
+                                        row[x as usize][3] = 0;
+                                    }
 
-                                x += 1;
+                                    x += 1;
+                                }
                             }
                         }
                     }
@@ -568,5 +573,27 @@ mod test {
         let bytes = decoder.prepare_image().unwrap().total_bytes();
         let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
+    }
+
+    // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
+    #[test]
+    fn bmp_32bpp_and_mask_ignored() {
+        let data =
+            std::fs::read("tests/images/ico/images/bmp-32bpp-conflicting-and-mask.ico").unwrap();
+
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let layout = decoder.prepare_image().unwrap();
+        let mut buf = vec![0u8; layout.total_bytes() as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        // Every pixel should have alpha=128 (the native alpha from the BMP data).
+        // If the AND mask were incorrectly applied, alpha would be 0.
+        for (i, pixel) in buf.chunks_exact(4).enumerate() {
+            assert_eq!(
+                pixel[3], 128,
+                "pixel {i}: expected alpha=128, got {}",
+                pixel[3]
+            );
+        }
     }
 }

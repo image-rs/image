@@ -118,6 +118,7 @@ where
             tiff::ColorType::Gray(1) => ColorType::L8,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::Gray(32) => ColorType::L32F,
             tiff::ColorType::GrayA(8) => ColorType::La8,
             tiff::ColorType::GrayA(16) => ColorType::La16,
             tiff::ColorType::RGB(8) => ColorType::Rgb8,
@@ -797,7 +798,7 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
         use tiff::encoder::colortype::{
-            Gray16, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
+            Gray16, Gray32Float, Gray8, RGB32Float, RGBA32Float, RGB16, RGB8, RGBA16, RGBA8,
         };
         let expected_buffer_len = color_type.buffer_size(width, height);
         assert_eq!(
@@ -813,6 +814,7 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
             ExtendedColorType::L16 => self.write_tiff::<Gray16>(width, height, buf),
             ExtendedColorType::Rgb16 => self.write_tiff::<RGB16>(width, height, buf),
             ExtendedColorType::Rgba16 => self.write_tiff::<RGBA16>(width, height, buf),
+            ExtendedColorType::L32F => self.write_tiff::<Gray32Float>(width, height, buf),
             ExtendedColorType::Rgb32F => self.write_tiff::<RGB32Float>(width, height, buf),
             ExtendedColorType::Rgba32F => self.write_tiff::<RGBA32Float>(width, height, buf),
             _ => Err(ImageError::Unsupported(
@@ -839,7 +841,10 @@ impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
 mod tests {
     use std::io::Cursor;
 
-    use crate::{ExtendedColorType, ImageDecoder as _, ImageEncoder};
+    use crate::{
+        EncodableLayout, ExtendedColorType, GenericImageView, ImageBuffer, ImageDecoder as _,
+        ImageEncoder, ImageReader, Luma, Pixel, PixelWithColorType, Rgb, Rgba,
+    };
 
     use super::{TiffDecoder, TiffEncoder};
 
@@ -863,5 +868,47 @@ mod tests {
             .expect("Error decoding XMP")
             .expect("XMP is empty");
         assert_eq!(xmp, decoded_xmp);
+    }
+
+    #[test]
+    fn roundtrip_color_types() {
+        let img_l8 = ImageBuffer::from_fn(32, 32, |x, y| Luma([(x + y) as u8]));
+        let img_rgb8 = ImageBuffer::from_fn(32, 32, |x, y| Rgb([x as u8, y as u8, (x + y) as u8]));
+        let img_rgba8 = ImageBuffer::from_fn(32, 32, |x, y| {
+            Rgba([x as u8, y as u8, (x + y) as u8, (x * y) as u8])
+        });
+
+        assert_roundtrip::<Luma<u8>>(&img_l8);
+        assert_roundtrip::<Rgb<u8>>(&img_rgb8);
+        assert_roundtrip::<Rgba<u8>>(&img_rgba8);
+
+        assert_roundtrip::<Luma<u16>>(&img_l8.convert());
+        assert_roundtrip::<Rgb<u16>>(&img_rgb8.convert());
+        assert_roundtrip::<Rgba<u16>>(&img_rgba8.convert());
+
+        assert_roundtrip::<Luma<f32>>(&img_l8.convert());
+        assert_roundtrip::<Rgb<f32>>(&img_rgb8.convert());
+        assert_roundtrip::<Rgba<f32>>(&img_rgba8.convert());
+
+        fn assert_roundtrip<P: Pixel + PixelWithColorType>(img: &ImageBuffer<P, Vec<P::Subpixel>>)
+        where
+            [P::Subpixel]: EncodableLayout,
+            Rgba<u8>: crate::color::FromColor<P>,
+        {
+            let mut encoded = Vec::new();
+            let encoder = TiffEncoder::new(Cursor::new(&mut encoded));
+            ImageBuffer::write_with_encoder(img, encoder).expect("Could not encoder image");
+
+            let mut reader = ImageReader::new(Cursor::new(encoded)).unwrap();
+            let (decoded, meta) = reader.decode().expect("Could not decode image");
+
+            assert_eq!(img.dimensions(), decoded.dimensions());
+            assert_eq!(Some(P::COLOR_TYPE), meta.attributes().original_color_type);
+
+            let img_rgba8 = img.convert::<Rgba<u8>>();
+            let decoded_rgba8 = decoded.to_rgba8();
+
+            assert_eq!(img_rgba8, decoded_rgba8);
+        }
     }
 }

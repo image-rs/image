@@ -223,6 +223,13 @@ impl<R: BufRead + Seek> PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
         }
     }
+
+    /// The maximum number of bytes iTXt and zTXt are allowed to decompress to.
+    /// This guards against decompression bombs.
+    fn text_decompress_limit(&mut self) -> usize {
+        let max = png::text_metadata::DECOMPRESSION_LIMIT as u64;
+        self.limits.max_alloc.unwrap_or(max).min(max) as usize
+    }
 }
 
 fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
@@ -304,19 +311,22 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut itx_chunk) = reader
             .info()
             .utf8_text
             .iter()
-            .find(|chunk| chunk.keyword.contains(XMP_KEY))
+            .find(|chunk| chunk.keyword == XMP_KEY)
             .cloned()
         {
-            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
+            itx_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return itx_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 
@@ -324,6 +334,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut text_chunk) = reader
@@ -333,10 +344,12 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
             .cloned()
         {
-            text_chunk.decompress_text().map_err(ImageError::from_png)?;
+            text_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return text_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 
@@ -939,6 +952,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     ) -> Option<DynamicImage> {
         use ColorType::*;
         match img.color() {
+            L32F => Some(img.to_luma16().into()),
+            La32F => Some(img.to_luma_alpha16().into()),
             Rgb32F => Some(img.to_rgb16().into()),
             Rgba32F => Some(img.to_rgba16().into()),
             L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,
@@ -1011,7 +1026,9 @@ fn blend_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region
         ColorType::La16 => inner::<LumaA<u16>>,
         ColorType::Rgb16 => inner::<Rgb<u16>>,
         ColorType::Rgba16 => inner::<Rgba<u16>>,
-        ColorType::Rgb32F | ColorType::Rgba32F => unreachable!("No floating point formats in PNG"),
+        ColorType::L32F | ColorType::La32F | ColorType::Rgb32F | ColorType::Rgba32F => {
+            unreachable!("No floating point formats in PNG")
+        }
     };
 
     let bpp = usize::from(layout.color.bytes_per_pixel());

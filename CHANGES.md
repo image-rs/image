@@ -10,6 +10,9 @@
 
 Breaking Changes:
  - Trait `ImageDecoderRect` has been removed (#2355, #2681)
+ - DynamicImage now has Luma32F and LumaA32F variants, and conversions (like
+   `DynamicImage::grayscale`, and `From<GrayAlpha32FImage>`) may now directly
+   produce these instead of Rgb32F or Rgba32F
 
 Features:
  - Added `RbgImage::from_raw_bgr` and `RbgaImage::from_raw_bgra` constructors, which convert

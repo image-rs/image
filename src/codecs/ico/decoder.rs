@@ -537,7 +537,7 @@ mod test {
         assert!(decoder.read_image(&mut buf).is_err());
     }
 
-    // Verify that the AND mask is ignored for 32bpp BMP images in ICO files. 
+    // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
     #[test]
     fn bmp_32bpp_and_mask_ignored() {
         let data =
@@ -551,7 +551,11 @@ mod test {
         // Every pixel should have alpha=128 (the native alpha from the BMP data).
         // If the AND mask were incorrectly applied, alpha would be 0.
         for (i, pixel) in buf.chunks_exact(4).enumerate() {
-            assert_eq!(pixel[3], 128, "pixel {i}: expected alpha=128, got {}", pixel[3]);
+            assert_eq!(
+                pixel[3], 128,
+                "pixel {i}: expected alpha=128, got {}",
+                pixel[3]
+            );
         }
     }
 }

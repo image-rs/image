@@ -161,7 +161,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
         let reader_offset = r.stream_position()?;
         let entries = read_entries(&mut r)?;
         let entry = best_entry(entries)?;
-        let decoder = entry.decoder(r, reader_offset, spec)?;
+        let decoder = entry.decoder(r, reader_offset)?;
 
         Ok(IcoDecoder {
             selected_entry: entry,
@@ -267,7 +267,6 @@ impl DirEntry {
         &self,
         mut r: R,
         reader_offset: u64,
-        spec: SpecCompliance,
     ) -> ImageResult<InnerDecoder<R>> {
         let is_png = self.is_png(&mut r, reader_offset)?;
         self.seek_to_start(&mut r, reader_offset)?;

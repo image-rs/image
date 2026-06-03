@@ -375,11 +375,23 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         return Ok(DecodedImageAttributes::default());
                     }
 
-                    // 32bpp BMPs already have a native alpha channel, so the
-                    // AND mask is ignored.
-                    // For lower bit depths, read and apply the AND mask.
-                    if self.selected_entry.bits_per_pixel < 32 {
-                        let rgba = buf.as_chunks_mut::<4>().0;
+                    // Detect 0RGB.
+                    // 0RGB is a 32bpp RGB format where the fourth channel is set to 0 and ignored.
+                    // This channel is NOT alpha/transparency, but our BMP decoder doesn't know that
+                    // and decodes it as RGBA. So we detect this and manually set alpha to 255.
+                    // See: https://devblogs.microsoft.com/oldnewthing/20101019-00/?p=12503
+                    let bpp = self.selected_entry.bits_per_pixel;
+                    let rgba = buf.as_chunks_mut::<4>().0;
+                    let is_0rgb = bpp == 32 && rgba.iter().all(|rgba| rgba[3] == 0);
+                    if is_0rgb {
+                        for rgba in rgba.iter_mut() {
+                            rgba[3] = 255;
+                        }
+                    }
+
+                    // The AND mask is applied when the image is <32bpp or in 0RGB format.
+                    // See: https://devblogs.microsoft.com/oldnewthing/20101021-00/?p=12483
+                    if bpp < 32 || is_0rgb {
                         let rows = rgba.chunks_exact_mut(width as usize);
 
                         if rows.len() != height as usize {

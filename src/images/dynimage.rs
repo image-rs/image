@@ -19,8 +19,8 @@ use crate::traits::Pixel;
 use crate::{
     imageops,
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
-    ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView, ImageDecoder,
-    ImageEncoder, ImageFormat, ImageReaderOptions, Luma, LumaA,
+    ColorType, ConvertColorOptions, ExtendedColorType, GenericImage, GenericImageView,
+    ImageDecoder, ImageEncoder, ImageFormat, ImageReaderOptions, Luma, LumaA,
 };
 
 /// A Dynamic Image
@@ -174,8 +174,8 @@ impl DynamicImage {
     ///
     /// The color space is initially set to [`sRGB`][`Cicp::SRGB`].
     #[must_use]
-    pub fn new(w: u32, h: u32, color: color::ColorType) -> DynamicImage {
-        use color::ColorType::*;
+    pub fn new(w: u32, h: u32, color: ColorType) -> DynamicImage {
+        use ColorType::*;
         match color {
             L8 => Self::new_luma8(w, h),
             La8 => Self::new_luma_a8(w, h),
@@ -885,20 +885,21 @@ impl DynamicImage {
 
     /// Return this image's color type.
     #[must_use]
-    pub fn color(&self) -> color::ColorType {
+    #[doc(alias = "color_type")]
+    pub fn color(&self) -> ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
-            DynamicImage::ImageLumaA8(_) => color::ColorType::La8,
-            DynamicImage::ImageRgb8(_) => color::ColorType::Rgb8,
-            DynamicImage::ImageRgba8(_) => color::ColorType::Rgba8,
-            DynamicImage::ImageLuma16(_) => color::ColorType::L16,
-            DynamicImage::ImageLumaA16(_) => color::ColorType::La16,
-            DynamicImage::ImageRgb16(_) => color::ColorType::Rgb16,
-            DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
-            DynamicImage::ImageLuma32F(_) => color::ColorType::L32F,
-            DynamicImage::ImageLumaA32F(_) => color::ColorType::La32F,
-            DynamicImage::ImageRgb32F(_) => color::ColorType::Rgb32F,
-            DynamicImage::ImageRgba32F(_) => color::ColorType::Rgba32F,
+            DynamicImage::ImageLuma8(_) => ColorType::L8,
+            DynamicImage::ImageLumaA8(_) => ColorType::La8,
+            DynamicImage::ImageRgb8(_) => ColorType::Rgb8,
+            DynamicImage::ImageRgba8(_) => ColorType::Rgba8,
+            DynamicImage::ImageLuma16(_) => ColorType::L16,
+            DynamicImage::ImageLumaA16(_) => ColorType::La16,
+            DynamicImage::ImageRgb16(_) => ColorType::Rgb16,
+            DynamicImage::ImageRgba16(_) => ColorType::Rgba16,
+            DynamicImage::ImageLuma32F(_) => ColorType::L32F,
+            DynamicImage::ImageLumaA32F(_) => ColorType::La32F,
+            DynamicImage::ImageRgb32F(_) => ColorType::Rgb32F,
+            DynamicImage::ImageRgba32F(_) => ColorType::Rgba32F,
         }
     }
 
@@ -962,6 +963,30 @@ impl DynamicImage {
     #[must_use]
     pub fn has_alpha(&self) -> bool {
         self.color().has_alpha()
+    }
+
+    /// Extract the alpha channel as a Luma image.
+    ///
+    /// If the pixel does not have an alpha channel, the value is filled with a fully opaque mask
+    /// using the maximum value of the corresponding subpixel type. The subpixels / channel type of
+    /// the luma image is the same as the channel type of the input.
+    pub fn to_alpha_mask(&self) -> DynamicImage {
+        use DynamicImage::*;
+
+        match self {
+            ImageLuma8(image_buffer) => ImageLuma8(image_buffer.to_alpha_mask()),
+            ImageLumaA8(image_buffer) => ImageLuma8(image_buffer.to_alpha_mask()),
+            ImageRgb8(image_buffer) => ImageLuma8(image_buffer.to_alpha_mask()),
+            ImageRgba8(image_buffer) => ImageLuma8(image_buffer.to_alpha_mask()),
+            ImageLuma16(image_buffer) => ImageLuma16(image_buffer.to_alpha_mask()),
+            ImageLumaA16(image_buffer) => ImageLuma16(image_buffer.to_alpha_mask()),
+            ImageRgb16(image_buffer) => ImageLuma16(image_buffer.to_alpha_mask()),
+            ImageRgba16(image_buffer) => ImageLuma16(image_buffer.to_alpha_mask()),
+            ImageLuma32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
+            ImageLumaA32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
+            ImageRgb32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
+            ImageRgba32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
+        }
     }
 
     /// Return a grayscale version of this image.
@@ -1467,7 +1492,7 @@ impl DynamicImage {
         &mut self,
         cicp: Cicp,
         options: ConvertColorOptions,
-        color: color::ColorType,
+        color: ColorType,
     ) -> ImageResult<()> {
         if self.color() == color {
             return self.apply_color_space(cicp, options);
@@ -1689,73 +1714,73 @@ pub(crate) fn decoder_to_image(
     let attr;
 
     *image = match color_type {
-        color::ColorType::Rgb8 => {
+        ColorType::Rgb8 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
-        color::ColorType::Rgba8 => {
+        ColorType::Rgba8 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
-        color::ColorType::L8 => {
+        ColorType::L8 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
-        color::ColorType::La8 => {
+        ColorType::La8 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
-        color::ColorType::Rgb16 => {
+        ColorType::Rgb16 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
-        color::ColorType::Rgba16 => {
+        ColorType::Rgba16 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
-        color::ColorType::Rgb32F => {
+        ColorType::Rgb32F => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
-        color::ColorType::Rgba32F => {
+        ColorType::Rgba32F => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
-        color::ColorType::L16 => {
+        ColorType::L16 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
-        color::ColorType::La16 => {
+        ColorType::La16 => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
 
-        color::ColorType::L32F => {
+        ColorType::L32F => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma32F)
         }
 
-        color::ColorType::La32F => {
+        ColorType::La32F => {
             let buf;
             (buf, attr) = free_functions::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA32F)
@@ -1866,7 +1891,7 @@ mod bench {
 mod test {
     use crate::metadata::{CicpColorPrimaries, CicpTransform};
     use crate::ConvertColorOptions;
-    use crate::{color::ColorType, images::dynimage::Gray16Image};
+    use crate::{images::dynimage::Gray16Image, ColorType};
     use crate::{metadata::Cicp, ImageBuffer, Luma, Rgb, Rgba};
 
     const TYPES: [ColorType; 12] = [
@@ -2327,6 +2352,43 @@ mod test {
                     .expect("Failed to convert color space");
             }
         }
+    }
+
+    #[test]
+    fn alpha_mask_of_luma_32f() {
+        let pairs = [
+            (ColorType::L32F, ColorType::L32F),
+            (ColorType::La32F, ColorType::L32F),
+            (ColorType::Rgb32F, ColorType::L32F),
+            (ColorType::Rgba32F, ColorType::L32F),
+        ];
+
+        for (input, output) in pairs {
+            let image = super::DynamicImage::new(4, 4, input);
+            let mask = image.to_alpha_mask();
+            assert_eq!(mask.color(), output);
+        }
+    }
+
+    #[test]
+    fn alpha_mask_of_luma_alpha_32f() {
+        let image = super::DynamicImage::new(4, 4, ColorType::La32F);
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_luma32f().unwrap().subpixels(), &[0.0; 16]);
+    }
+
+    #[test]
+    fn alpha_mask_of_rgb_f32() {
+        let image = super::DynamicImage::new(4, 4, ColorType::Rgb32F);
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_luma32f().unwrap().subpixels(), &[1.0; 16]);
+    }
+
+    #[test]
+    fn alpha_mask_of_rgba_f32() {
+        let image = super::DynamicImage::new(4, 4, ColorType::Rgba32F);
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_luma32f().unwrap().subpixels(), &[0.0; 16]);
     }
 
     /// Check that operations that are not cicp-aware behave as such. We introduce new methods (not

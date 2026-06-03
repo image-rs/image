@@ -7,7 +7,7 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// This trait is `pub` but not exported, so it cannot be implemented outside
 /// this crate.
 #[allow(private_bounds)]
-pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle {}
+pub trait PrimitiveSealed: Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + Lerp {}
 
 impl PrimitiveSealed for usize {}
 impl PrimitiveSealed for u8 {}
@@ -179,3 +179,42 @@ macro_rules! impl_with_blur_acc_f32 {
 }
 
 impl_with_blur_acc_f32!(u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);
+
+/// Linear interpolation without loss of precision due to `f32`.
+pub(crate) trait Lerp: Sized {
+    fn lerp(a: Self, b: Self, ratio: f32) -> Self;
+}
+
+macro_rules! impl_lerp_with_f32 {
+    ($($t:ty),+) => { $(
+        impl Lerp for $t {
+            fn lerp(a: Self, b: Self, ratio: f32) -> Self {
+                let a = a as f32;
+                let b = b as f32;
+                let res = a + (b - a) * ratio;
+                NearestFrom::nearest_from(res)
+            }
+        }
+    )+ };
+}
+impl_lerp_with_f32!(u8, u16, i8, i16, f32);
+
+macro_rules! impl_lerp_with_f64_int {
+    ($($t:ty),+) => { $(
+        impl Lerp for $t {
+            fn lerp(a: Self, b: Self, ratio: f32) -> Self {
+                let a = a as f64;
+                let b = b as f64;
+                let res = a + (b - a) * ratio as f64;
+                res.round() as Self
+            }
+        }
+    )+ };
+}
+impl_lerp_with_f64_int!(u32, u64, usize, i32, i64, isize);
+
+impl Lerp for f64 {
+    fn lerp(a: Self, b: Self, ratio: f32) -> Self {
+        a + (b - a) * ratio as f64
+    }
+}

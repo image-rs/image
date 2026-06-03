@@ -1,6 +1,6 @@
 //! Image Processing Functions
 use crate::math::Rect;
-use crate::traits::{Lerp, Pixel, Primitive};
+use crate::traits::{Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
 
 /// Affine transformations
@@ -257,14 +257,11 @@ pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Lerp,
+    S: Primitive,
 {
     for y in 0..img.height() {
-        let pixel = start.map2(stop, |a, b| {
-            let y = <S::Ratio as num_traits::NumCast>::from(y).unwrap();
-            let height = <S::Ratio as num_traits::NumCast>::from(img.height() - 1).unwrap();
-            S::lerp(a, b, y / height)
-        });
+        let ratio = y as f32 / (img.height() - 1) as f32;
+        let pixel = start.map2(stop, |a, b| S::lerp(a, b, ratio));
 
         for x in 0..img.width() {
             img.put_pixel(x, y, pixel);
@@ -290,14 +287,11 @@ pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
     P: Pixel<Subpixel = S>,
-    S: Primitive + Lerp,
+    S: Primitive,
 {
     for x in 0..img.width() {
-        let pixel = start.map2(stop, |a, b| {
-            let x = <S::Ratio as num_traits::NumCast>::from(x).unwrap();
-            let width = <S::Ratio as num_traits::NumCast>::from(img.width() - 1).unwrap();
-            S::lerp(a, b, x / width)
-        });
+        let ratio = x as f32 / (img.width() - 1) as f32;
+        let pixel = start.map2(stop, |a, b| S::lerp(a, b, ratio));
 
         for y in 0..img.height() {
             img.put_pixel(x, y, pixel);

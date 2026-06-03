@@ -130,46 +130,6 @@ impl Enlargeable for f64 {
     type Larger = f64;
 }
 
-/// Linear interpolation without involving floating numbers.
-pub trait Lerp: Bounded + NumCast {
-    type Ratio: Primitive;
-
-    fn lerp(a: Self, b: Self, ratio: Self::Ratio) -> Self {
-        let a = <Self::Ratio as NumCast>::from(a).unwrap();
-        let b = <Self::Ratio as NumCast>::from(b).unwrap();
-
-        let res = a + (b - a) * ratio;
-
-        if res > NumCast::from(Self::max_value()).unwrap() {
-            Self::max_value()
-        } else if res < NumCast::from(0).unwrap() {
-            NumCast::from(0).unwrap()
-        } else {
-            NumCast::from(res).unwrap()
-        }
-    }
-}
-
-impl Lerp for u8 {
-    type Ratio = f32;
-}
-
-impl Lerp for u16 {
-    type Ratio = f32;
-}
-
-impl Lerp for u32 {
-    type Ratio = f64;
-}
-
-impl Lerp for f32 {
-    type Ratio = f32;
-
-    fn lerp(a: Self, b: Self, ratio: Self::Ratio) -> Self {
-        a + (b - a) * ratio
-    }
-}
-
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
 pub trait PixelWithColorType:

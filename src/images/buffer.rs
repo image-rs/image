@@ -784,20 +784,18 @@ where
     /// If the pixel does not have an alpha channel, the value is filled with a fully opaque mask
     /// using the maximum value of the corresponding subpixel type.
     pub fn to_alpha_mask(&self) -> ImageBuffer<Luma<P::Subpixel>, Vec<P::Subpixel>> {
-        let pixels = self.subpixels().chunks_exact(P::CHANNEL_COUNT.into());
-        let mut mask = vec![<P::Subpixel as Primitive>::DEFAULT_MAX_VALUE; pixels.len()];
+        let pixels = self.pixels().iter();
 
-        if P::HAS_ALPHA {
+        let mask = if P::HAS_ALPHA {
             assert!(
                 P::CHANNEL_COUNT > 0,
                 "Pixel with zero channels indicated an alpha channel"
             );
 
-            for (p, alpha) in pixels.zip(mask.iter_mut()) {
-                // If the pixel has an alpha channel, use it.
-                *alpha = *p.last().unwrap();
-            }
-        }
+            pixels.map(|p| p.alpha()).collect()
+        } else {
+            vec![<P::Subpixel as Primitive>::DEFAULT_MAX_VALUE; pixels.len()]
+        };
 
         ImageBuffer::from_vec(self.width, self.height, mask)
             .expect("used the right pixel and channel count")
@@ -995,14 +993,12 @@ where
             "Pixel with zero channels indicated an alpha channel"
         );
 
-        let pixels = self
-            .subpixels_mut()
-            .chunks_exact_mut(P::CHANNEL_COUNT.into());
-
+        let pixels = self.pixels_mut().iter_mut();
         let mask = mask.subpixels();
+
         for (p, alpha) in pixels.zip(mask.iter()) {
             // If the pixel has an alpha channel, use it.
-            *p.last_mut().unwrap() = *alpha;
+            p.apply_with_alpha(|c| c, |_| *alpha);
         }
 
         Ok(())

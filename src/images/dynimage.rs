@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, BufWriter, Seek, Write};
 use std::path::Path;
@@ -986,6 +987,68 @@ impl DynamicImage {
             ImageLumaA32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
             ImageRgb32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
             ImageRgba32F(image_buffer) => ImageLuma32F(image_buffer.to_alpha_mask()),
+        }
+    }
+
+    /// Fill the alpha channel of this image from a Luma mask.
+    ///
+    /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
+    /// dimensions or if there is no alpha channel in this image's color type or if the mask image
+    /// is not a `Luma` image. The mask's luma channel is converted to this image's subpixel type.
+    pub fn set_alpha_channel(&mut self, mask: &DynamicImage) -> ImageResult<()> {
+        if mask.color().channel_count() != 1 {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::NotAValidMask(mask.color().into()),
+            )));
+        }
+
+        // Convert the mask if necessary. Optimally we would do a block-based alpha assignment
+        // instead where a fixed chunk of channels is converted at a time repeatedly in the same
+        // allocation instead of converting a very large image but that is a future optimization.
+        // Importantly we do not allocate if the input buffer is exactly as expected.
+        fn as_cow_buf<P: Pixel>(
+            mask: &DynamicImage,
+            borrow: impl FnOnce(&DynamicImage) -> Option<&ImageBuffer<P, Vec<P::Subpixel>>>,
+            owned: impl FnOnce(&DynamicImage) -> ImageBuffer<P, Vec<P::Subpixel>>,
+        ) -> Cow<'_, ImageBuffer<P, Vec<P::Subpixel>>> {
+            borrow(mask)
+                .map(Cow::Borrowed)
+                .unwrap_or_else(|| Cow::Owned(owned(mask)))
+        }
+
+        match self {
+            DynamicImage::ImageLumaA8(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma8, DynamicImage::to_luma8);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageRgba8(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma8, DynamicImage::to_luma8);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageLumaA16(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma16, DynamicImage::to_luma16);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageRgba16(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma16, DynamicImage::to_luma16);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageLumaA32F(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma32f, DynamicImage::to_luma32f);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageRgba32F(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma32f, DynamicImage::to_luma32f);
+                img.set_alpha_channel(&mask)
+            }
+            DynamicImage::ImageLuma8(_)
+            | DynamicImage::ImageRgb8(_)
+            | DynamicImage::ImageLuma16(_)
+            | DynamicImage::ImageRgb16(_)
+            | DynamicImage::ImageLuma32F(_)
+            | DynamicImage::ImageRgb32F(_) => Err(ImageError::Parameter(
+                ParameterError::from_kind(ParameterErrorKind::NoAlphaChannel),
+            )),
         }
     }
 

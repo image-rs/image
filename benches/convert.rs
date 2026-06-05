@@ -123,19 +123,46 @@ pub fn bench_cast_intra_colorspace(c: &mut Criterion) {
 }
 
 pub fn bench_cast_with_coefficient(c: &mut Criterion) {
-    let source =
-        DynamicImage::ImageRgba8(ImageBuffer::from_pixel(256, 256, Rgba([0u8, 0, 0, 255])));
+    let rgba8 = DynamicImage::new(256, 256, image::ColorType::Rgb8);
 
     c.bench_function("cast_dynamic_rgba8_l8", |b| {
-        b.iter(|| black_box(&source).to_luma8());
+        b.iter(|| black_box(&rgba8).to_luma8());
     });
 
     c.bench_function("cast_dynamic_rgba8_l16", |b| {
-        b.iter(|| black_box(&source).to_luma16());
+        b.iter(|| black_box(&rgba8).to_luma16());
     });
 
     c.bench_function("cast_dynamic_rgba8_la16", |b| {
-        b.iter(|| black_box(&source).to_luma_alpha16());
+        b.iter(|| black_box(&rgba8).to_luma_alpha16());
+    });
+
+    let rgba16 = DynamicImage::new(256, 256, image::ColorType::Rgb16);
+
+    c.bench_function("cast_dynamic_rgba16_l8", |b| {
+        b.iter(|| black_box(&rgba16).to_luma8());
+    });
+
+    c.bench_function("cast_dynamic_rgba16_l16", |b| {
+        b.iter(|| black_box(&rgba16).to_luma16());
+    });
+
+    c.bench_function("cast_dynamic_rgba16_la16", |b| {
+        b.iter(|| black_box(&rgba16).to_luma_alpha16());
+    });
+
+    let rgba32f = DynamicImage::new(256, 256, image::ColorType::Rgba32F);
+
+    c.bench_function("cast_dynamic_rgba32f_l8", |b| {
+        b.iter(|| black_box(&rgba32f).to_luma8());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_l16", |b| {
+        b.iter(|| black_box(&rgba32f).to_luma16());
+    });
+
+    c.bench_function("cast_dynamic_rgba32f_la16", |b| {
+        b.iter(|| black_box(&rgba32f).to_luma_alpha16());
     });
 }
 

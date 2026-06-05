@@ -993,8 +993,10 @@ impl DynamicImage {
     /// Fill the alpha channel of this image from a Luma mask.
     ///
     /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
-    /// dimensions or if there is no alpha channel in this image's color type or if the mask image
-    /// is not a `Luma` image. The mask's luma channel is converted to this image's subpixel type.
+    /// dimensions or if the mask image is not a `Luma` image. The mask's luma channel is converted
+    /// to this image's subpixel type. If this image currently does not have an alpha channel it is
+    /// augmented with the mask as its alpha channel, converting it into the appropriate color type
+    /// in the process.
     pub fn set_alpha_channel(&mut self, mask: &DynamicImage) -> ImageResult<()> {
         if mask.color().channel_count() != 1 {
             return Err(ImageError::Parameter(ParameterError::from_kind(
@@ -1041,14 +1043,36 @@ impl DynamicImage {
                 let mask = as_cow_buf(mask, DynamicImage::as_luma32f, DynamicImage::to_luma32f);
                 img.set_alpha_channel(&mask)
             }
-            DynamicImage::ImageLuma8(_)
-            | DynamicImage::ImageRgb8(_)
-            | DynamicImage::ImageLuma16(_)
-            | DynamicImage::ImageRgb16(_)
-            | DynamicImage::ImageLuma32F(_)
-            | DynamicImage::ImageRgb32F(_) => Err(ImageError::Parameter(
-                ParameterError::from_kind(ParameterErrorKind::NoAlphaChannel),
-            )),
+            DynamicImage::ImageLuma8(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma8, DynamicImage::to_luma8);
+                *self = DynamicImage::ImageLumaA8(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
+            DynamicImage::ImageRgb8(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma8, DynamicImage::to_luma8);
+                *self = DynamicImage::ImageRgba8(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
+            DynamicImage::ImageLuma16(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma16, DynamicImage::to_luma16);
+                *self = DynamicImage::ImageLumaA16(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
+            DynamicImage::ImageRgb16(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma16, DynamicImage::to_luma16);
+                *self = DynamicImage::ImageRgba16(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
+            DynamicImage::ImageLuma32F(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma32f, DynamicImage::to_luma32f);
+                *self = DynamicImage::ImageLumaA32F(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
+            DynamicImage::ImageRgb32F(img) => {
+                let mask = as_cow_buf(mask, DynamicImage::as_luma32f, DynamicImage::to_luma32f);
+                *self = DynamicImage::ImageRgba32F(img.add_alpha_channel(&mask)?);
+                Ok(())
+            }
         }
     }
 

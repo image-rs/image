@@ -969,6 +969,23 @@ where
     ///
     /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
     /// dimensions or if there is no alpha channel in the pixel's color type.
+    ///
+    /// NOTE: pending the generic constant argument MVP (#132980) this may gain a trait bound on
+    /// available alpha channel instead of an error. Please do consider the design trade-off here.
+    /// The standard library refrained from adding a non-zero bound to the length of
+    /// `slice::as_chunks`. The bound would look like:
+    ///
+    /// ```text
+    /// where
+    ///     P: Pixel<HAS_ALPHA = true>
+    /// ```
+    ///
+    /// Similar arguments apply as presented in [#99471], with post-monomorphization error and
+    /// inability to type-check code on a const-dependent branch. We must consider if a slice length
+    /// of `0` and non-alpha pixel types are similar usage patterns.
+    ///
+    /// [#99471]: https://github.com/rust-lang/rust/pull/99471
+    /// [#132980]: https://github.com/rust-lang/rust/issues/132980
     pub fn set_alpha_channel<RhsContainer>(
         &mut self,
         mask: &ImageBuffer<Luma<P::Subpixel>, RhsContainer>,
@@ -1002,6 +1019,57 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<S: Primitive> ImageBuffer<Luma<S>, Vec<S>> {
+    /// Insert an alpha channel at every pixel.
+    ///
+    /// Before exposing this:
+    /// - should it be generic, if so, how?
+    /// - buffer reuse would works but only for `Vec` since we must resize.
+    pub(crate) fn add_alpha_channel(
+        &self,
+        mask: &ImageBuffer<Luma<S>, Vec<S>>,
+    ) -> ImageResult<ImageBuffer<LumaA<S>, Vec<S>>> {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let data = self
+            .pixels()
+            .iter()
+            .zip(mask.subpixels())
+            .map(|(&luma, &alpha)| [luma.0[0], alpha])
+            .collect::<Vec<_>>();
+
+        Ok(ImageBuffer::from_vec(self.width, self.height, data.into_flattened()).unwrap())
+    }
+}
+
+// TODO: why does this have an Enlargeable bound?
+impl<S: Primitive + crate::traits::Enlargeable> ImageBuffer<Rgb<S>, Vec<S>> {
+    /// See: `add_alpha_channel` for `ImageBuffer<Luma<S>>`.
+    pub(crate) fn add_alpha_channel(
+        &self,
+        mask: &ImageBuffer<Luma<S>, Vec<S>>,
+    ) -> ImageResult<ImageBuffer<Rgba<S>, Vec<S>>> {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let data = self
+            .pixels()
+            .iter()
+            .zip(mask.subpixels())
+            .map(|(&Rgb([r, g, b]), &alpha)| [r, g, b, alpha])
+            .collect::<Vec<_>>();
+
+        Ok(ImageBuffer::from_vec(self.width, self.height, data.into_flattened()).unwrap())
     }
 }
 

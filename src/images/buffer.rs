@@ -1049,8 +1049,7 @@ impl<S: Primitive> ImageBuffer<Luma<S>, Vec<S>> {
     }
 }
 
-// TODO: why does this have an Enlargeable bound?
-impl<S: Primitive + crate::traits::Enlargeable> ImageBuffer<Rgb<S>, Vec<S>> {
+impl<S: Primitive> ImageBuffer<Rgb<S>, Vec<S>> {
     /// See: `add_alpha_channel` for `ImageBuffer<Luma<S>>`.
     pub(crate) fn add_alpha_channel(
         &self,

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::num::NonZeroU32;
 use std::time::Duration;
 
 use crate::error::ImageResult;
@@ -87,7 +88,7 @@ impl Frame {
     #[must_use]
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
-            delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
+            delay: Delay::ZERO,
             left: 0,
             top: 0,
             buffer,
@@ -142,22 +143,51 @@ impl Frame {
 }
 
 impl Delay {
+    /// A delay of zero. In other words, no delay.
+    pub const ZERO: Self = Delay {
+        ratio: Ratio::from_whole(0),
+    };
+
+    /// Creates a new `Delay` from the specified number of whole milliseconds.
+    #[must_use]
+    pub fn from_millis(millis: u32) -> Self {
+        Self {
+            ratio: Ratio::from_whole(millis),
+        }
+    }
+
+    /// Returns the total number of whole milliseconds contained by this `Delay`.
+    #[must_use]
+    pub fn as_millis(self) -> u32 {
+        self.ratio.numer / self.ratio.denom
+    }
+
     /// Create a delay from a ratio of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the denominator is zero.
     ///
     /// # Examples
     ///
     /// ```
-    /// use image::Delay;
-    /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
+    /// # use image::Delay;
+    /// let delay_10ms = Delay::from_millis(10);
+    /// assert_eq!(delay_10ms, Delay::from_numer_denom_ms(10, 1));
+    /// assert_eq!(delay_10ms, Delay::from_numer_denom_ms(100, 10));
+    /// assert_eq!(delay_10ms, Delay::from_numer_denom_ms(30, 3));
     /// ```
     #[must_use]
     pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {
+        let Some(denominator) = NonZeroU32::new(denominator) else {
+            panic!("Denominator of a delay must be non-zero");
+        };
         Delay {
             ratio: Ratio::new(numerator, denominator),
         }
     }
 
-    /// Convert from a duration, clamped between 0 and an implemented defined maximum.
+    /// Convert from a duration, clamped between 0 and an implementation-defined maximum.
     ///
     /// The maximum is *at least* `i32::MAX` milliseconds. It should be noted that the accuracy of
     /// the result may be relative and very large delays have a coarse resolution.
@@ -166,10 +196,12 @@ impl Delay {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use image::Delay;
+    /// # use image::Delay;
     ///
-    /// let duration = Duration::from_millis(20);
-    /// let delay = Delay::from_saturating_duration(duration);
+    /// assert_eq!(
+    ///     Delay::from_millis(20),
+    ///     Delay::from_saturating_duration(Duration::from_millis(20))
+    /// );
     /// ```
     #[must_use]
     pub fn from_saturating_duration(duration: Duration) -> Self {
@@ -203,15 +235,7 @@ impl Delay {
     /// `from_numer_denom_ms` constructor.
     #[must_use]
     pub fn numer_denom_ms(self) -> (u32, u32) {
-        (self.ratio.numer, self.ratio.denom)
-    }
-
-    pub(crate) fn from_ratio(ratio: Ratio) -> Self {
-        Delay { ratio }
-    }
-
-    pub(crate) fn into_ratio(self) -> Ratio {
-        self.ratio
+        (self.ratio.numer, self.ratio.denom.get())
     }
 
     /// Given some fraction, compute an approximation with denominator bounded.
@@ -309,11 +333,9 @@ impl Delay {
 
 impl From<Delay> for Duration {
     fn from(delay: Delay) -> Self {
-        let ratio = delay.into_ratio();
-        let ms = ratio.to_integer();
-        let rest = ratio.numer % ratio.denom;
-        let nanos = (u64::from(rest) * 1_000_000) / u64::from(ratio.denom);
-        Duration::from_millis(ms.into()) + Duration::from_nanos(nanos)
+        Duration::from_nanos(
+            (delay.ratio.numer as u64 * 1_000_000) / delay.ratio.denom.get() as u64,
+        )
     }
 }
 
@@ -325,36 +347,29 @@ const fn gcd(mut a: u32, mut b: u32) -> u32 {
     a
 }
 
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct Ratio {
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+struct Ratio {
     numer: u32,
-    denom: u32,
+    denom: NonZeroU32,
 }
 
 impl Ratio {
     #[inline]
-    pub(crate) fn new(numerator: u32, denominator: u32) -> Self {
-        assert_ne!(denominator, 0);
+    fn new(numerator: u32, denominator: NonZeroU32) -> Self {
+        let denominator = denominator.get();
         let divisor = gcd(numerator, denominator);
         Self {
             numer: numerator / divisor,
-            denom: denominator / divisor,
+            denom: NonZeroU32::new(denominator / divisor).unwrap(),
         }
     }
-
-    #[inline]
-    pub(crate) fn to_integer(self) -> u32 {
-        self.numer / self.denom
+    const fn from_whole(numerator: u32) -> Self {
+        Self {
+            numer: numerator,
+            denom: NonZeroU32::MIN, // == 1
+        }
     }
 }
-
-impl PartialEq for Ratio {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-impl Eq for Ratio {}
 
 impl PartialOrd for Ratio {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -372,9 +387,9 @@ impl Ord for Ratio {
         // a * d <cmp> c * b
 
         let a: u32 = self.numer;
-        let b: u32 = self.denom;
+        let b: u32 = self.denom.get();
         let c: u32 = other.numer;
-        let d: u32 = other.denom;
+        let d: u32 = other.denom.get();
 
         // We cast the types from `u32` to `u64` in order
         // to not overflow the multiplications.
@@ -385,6 +400,8 @@ impl Ord for Ratio {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::{Delay, Duration, Ratio};
 
     #[test]
@@ -423,7 +440,10 @@ mod tests {
             Duration::from_millis(0xFFFF_FFFF / 1000) + Duration::from_micros(0xFFFF_FFFF % 1000);
         let delay = Delay::from_saturating_duration(fine);
         // Funnily, 0xFFFF_FFFF is divisble by 5, thus we compare with a `Ratio`.
-        assert_eq!(delay.into_ratio(), Ratio::new(0xFFFF_FFFF, 1000));
+        assert_eq!(
+            delay.ratio,
+            Ratio::new(0xFFFF_FFFF, NonZeroU32::new(1000).unwrap())
+        );
     }
 
     #[test]
@@ -443,6 +463,6 @@ mod tests {
         assert_eq!(duration.as_millis(), 0);
         // Not precisely the original but should be smaller than 0.
         let delay = Delay::from_saturating_duration(duration);
-        assert_eq!(delay.into_ratio().to_integer(), 0);
+        assert_eq!(delay.as_millis(), 0);
     }
 }

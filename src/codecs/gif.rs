@@ -35,7 +35,7 @@ use std::num::NonZeroU32;
 use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
 
-use crate::animation::{self, Ratio};
+use crate::animation;
 use crate::color::{ColorType, Rgba};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
@@ -440,7 +440,7 @@ impl FrameInfo {
             height: u32::from(frame.height),
             disposal_method: frame.dispose,
             // frame.delay is in units of 10ms so frame.delay*10 is in ms
-            delay: animation::Delay::from_ratio(Ratio::new(u32::from(frame.delay) * 10, 1)),
+            delay: animation::Delay::from_millis(u32::from(frame.delay) * 10),
         }
     }
 }
@@ -577,7 +577,7 @@ impl<W: Write> GifEncoder<W> {
         img_frame: animation::Frame,
     ) -> ImageResult<Frame<'static>> {
         // get the delay before converting img_frame
-        let frame_delay = img_frame.delay().into_ratio().to_integer();
+        let frame_delay = img_frame.delay().as_millis();
         // convert img_frame into RgbaImage
         let mut rbga_frame = img_frame.into_buffer();
         let (width, height) = self.gif_dimensions(rbga_frame.width(), rbga_frame.height())?;

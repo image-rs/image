@@ -325,6 +325,10 @@ const fn gcd(mut a: u32, mut b: u32) -> u32 {
     a
 }
 
+/// A fully reduced fraction.
+///
+/// `numer` and `denom` are guaranteed to be coprime. This ensures that each fraction has a unique
+/// representation. Therefore, equality is trivial.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Ratio {
     numer: u32,

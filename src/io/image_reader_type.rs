@@ -351,6 +351,37 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     }
 }
 
+impl ImageReaderOptions<BufReader<File>> {
+    /// Open a file to read, format will be guessed from path.
+    ///
+    /// This will not attempt any io operation on the opened file.
+    ///
+    /// If you want to inspect the content for a better guess on the format, which does not depend
+    /// on file extensions, follow this call with a call to [`with_guessed_format`].
+    ///
+    /// [`with_guessed_format`]: Self::with_guessed_format
+    pub fn open<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        Self::open_impl(path.as_ref())
+    }
+
+    fn open_impl(path: &Path) -> io::Result<Self> {
+        let format = path
+            .extension()
+            .filter(|ext| !ext.is_empty())
+            .map(|ext| Format::Extension(ext.to_owned()));
+
+        Ok(ImageReaderOptions {
+            inner: BufReader::new(File::open(path)?),
+            format,
+            limits: Limits::default(),
+            spec_compliance: SpecCompliance::default(),
+        })
+    }
+}
+
 /// An abstracted image reader.
 ///
 /// Wraps an image decoder, which operates on a stream after its format was determined.
@@ -449,38 +480,7 @@ impl Default for ImageReaderSettings {
     }
 }
 
-impl ImageReaderOptions<BufReader<File>> {
-    /// Open a file to read, format will be guessed from path.
-    ///
-    /// This will not attempt any io operation on the opened file.
-    ///
-    /// If you want to inspect the content for a better guess on the format, which does not depend
-    /// on file extensions, follow this call with a call to [`with_guessed_format`].
-    ///
-    /// [`with_guessed_format`]: Self::with_guessed_format
-    pub fn open<P>(path: P) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        Self::open_impl(path.as_ref())
-    }
-
-    fn open_impl(path: &Path) -> io::Result<Self> {
-        let format = path
-            .extension()
-            .filter(|ext| !ext.is_empty())
-            .map(|ext| Format::Extension(ext.to_owned()));
-
-        Ok(ImageReaderOptions {
-            inner: BufReader::new(File::open(path)?),
-            format,
-            limits: Limits::default(),
-            spec_compliance: SpecCompliance::default(),
-        })
-    }
-}
-
-impl ImageReader<'_> {
+impl<'stream> ImageReader<'stream> {
     /// Query the layout that the image will have.
     pub fn peek_layout(&mut self) -> ImageResult<DecoderPreparedImage> {
         self.inner.prepare_image()
@@ -716,9 +716,7 @@ impl ImageReader<'_> {
         // Note: on error we do not set this flag. You can try again.
         self.metadata_buffers.first_meta_retrieved = true;
     }
-}
 
-impl<'stream> ImageReader<'stream> {
     /// Open image data as a readable stream of image(s).
     ///
     /// The format is guessed from a fixed array of bytes at stream's start. Hooks can be

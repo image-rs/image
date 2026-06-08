@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 use crate::error::ImageResult;
-use crate::RgbaImage;
+use crate::DynamicImage;
 
 /// An implementation dependent iterator, reading the frames as requested
 pub struct Frames<'a> {
@@ -43,7 +43,7 @@ pub struct Frame {
     left: u32,
     /// y offset
     top: u32,
-    buffer: RgbaImage,
+    buffer: DynamicImage,
 }
 
 /// The delay of a frame relative to the previous one.
@@ -68,7 +68,7 @@ pub struct Delay {
 impl Frame {
     /// Constructs a new frame without any delay.
     #[must_use]
-    pub fn new(buffer: RgbaImage) -> Frame {
+    pub fn new(buffer: DynamicImage) -> Frame {
         Frame {
             delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
             left: 0,
@@ -79,7 +79,7 @@ impl Frame {
 
     /// Constructs a new frame
     #[must_use]
-    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
+    pub fn from_parts(buffer: DynamicImage, left: u32, top: u32, delay: Delay) -> Frame {
         Frame {
             delay,
             left,
@@ -96,18 +96,18 @@ impl Frame {
 
     /// Returns the image buffer
     #[must_use]
-    pub fn buffer(&self) -> &RgbaImage {
+    pub fn buffer(&self) -> &DynamicImage {
         &self.buffer
     }
 
     /// Returns a mutable image buffer
-    pub fn buffer_mut(&mut self) -> &mut RgbaImage {
+    pub fn buffer_mut(&mut self) -> &mut DynamicImage {
         &mut self.buffer
     }
 
     /// Returns the image buffer
     #[must_use]
-    pub fn into_buffer(self) -> RgbaImage {
+    pub fn into_buffer(self) -> DynamicImage {
         self.buffer
     }
 

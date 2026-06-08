@@ -579,7 +579,7 @@ impl<W: Write> GifEncoder<W> {
         // get the delay before converting img_frame
         let frame_delay = img_frame.delay().into_ratio().to_integer();
         // convert img_frame into RgbaImage
-        let mut rbga_frame = img_frame.into_buffer();
+        let mut rbga_frame = img_frame.into_buffer().to_rgba8();
         let (width, height) = self.gif_dimensions(rbga_frame.width(), rbga_frame.height())?;
 
         // Create the gif::Frame from the animation::Frame

@@ -33,6 +33,21 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` using a pre-encoded PNG or BMP
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive).
+    ///
+    /// ## BMP in ICO
+    ///
+    /// The ICO format supports both PNG and BMP to represent image data. However, BMP images in ICO
+    /// are **not** standard BMP images. Here are a few differences between regular BMP and BMP in ICO:
+    ///
+    /// - BMP in ICO does not include the 14-byte BMP file header. It only includes the
+    ///   [DIB header](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader)
+    ///   and pixel data.
+    /// - The height field in the DIB header of BMP in ICO is double the actual image height.
+    ///   This is because the BMP in ICO format includes both the XOR and AND masks.
+    /// - Most fields in the DIB header of BMP in ICO
+    ///   [must be zero](https://learn.microsoft.com/en-us/previous-versions/ms997538(v=msdn.10)#:~:text=All%20other%20members%20must%20be%200).
+    ///
+    /// This function will return an error if a regular BMP image is provided.
     pub fn with_encoded(
         encoded_image: impl Into<Cow<'a, [u8]>>,
         width: u32,
@@ -54,6 +69,15 @@ impl<'a> IcoFrame<'a> {
                 ParameterErrorKind::Generic(format!(
                     "the image height must be `1..=256`, instead height {height} was provided",
                 )),
+            )));
+        }
+
+        // detect regular BMP by checking the "BM" signature
+        if encoded_image.starts_with(b"BM") {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "BMP images in ICO must not include the BMP file header. Make sure that the BMP is ICO-compatible".to_string(),
+                ),
             )));
         }
 
@@ -186,4 +210,23 @@ fn write_direntry<W: Write>(
     // Image data offset, in bytes:
     w.write_u32::<LittleEndian>(data_start)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ImageFormat, RgbaImage};
+
+    #[cfg(feature = "bmp")]
+    #[test]
+    fn detect_invalid_ico_bmp() {
+        let image = RgbaImage::new(16, 16);
+        let mut bmp: Vec<u8> = Vec::new();
+        image
+            .write_to(&mut io::Cursor::new(&mut bmp), ImageFormat::Bmp)
+            .unwrap();
+
+        let frame = IcoFrame::with_encoded(bmp, 16, 16, ExtendedColorType::Rgba8);
+        assert!(frame.is_err());
+    }
 }

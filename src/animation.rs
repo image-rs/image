@@ -242,12 +242,7 @@ impl Delay {
 
         // Computes the nominator of the absolute difference between two such fractions.
         fn abs_diff_nom((an, ad): (u64, u64), (bn, bd): (u64, u64)) -> u64 {
-            let c0 = an * bd;
-            let c1 = ad * bn;
-
-            let d0 = c0.max(c1);
-            let d1 = c0.min(c1);
-            d0 - d1
+            (an * bd).abs_diff(bn * ad)
         }
 
         let exact = (u64::from(nom), u64::from(denom));

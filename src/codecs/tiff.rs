@@ -110,18 +110,6 @@ where
             .map_err(ImageError::from_tiff_decode)?
             .sample_format;
 
-        // Only uint and float sample formats are supported
-        if !matches!(sample_format, Uint | IEEEFP) {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tiff.into(),
-                    UnsupportedErrorKind::GenericFeature(format!(
-                        "Unsupported TIFF sample format {sample_format:?}",
-                    )),
-                ),
-            ));
-        }
-
         let color_type = match (tiff_color_type, sample_format) {
             (tiff::ColorType::Gray(1), Uint) => ColorType::L8,
             (tiff::ColorType::Gray(8), Uint) => ColorType::L8,
@@ -139,11 +127,14 @@ where
             (tiff::ColorType::RGBA(32), IEEEFP) => ColorType::Rgba32F,
             (tiff::ColorType::YCbCr(8), Uint) => ColorType::Rgb8,
             _ => {
-                return Err(err_unknown_color_type(
-                    tiff_color_type
-                        .bit_depth()
-                        .saturating_mul(tiff_color_type.num_samples().min(255) as u8),
-                ))
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tiff.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Unsupported TIFF color {tiff_color_type:?} with sample format {sample_format:?}"
+                        )),
+                    ),
+                ));
             }
         };
 
@@ -345,13 +336,6 @@ fn read_ycbcr_coefficients<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> Image
     }
 
     Ok(coefficients)
-}
-
-fn err_unknown_color_type(bits_per_pixel: u8) -> ImageError {
-    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-        ImageFormat::Tiff.into(),
-        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(bits_per_pixel)),
-    ))
 }
 
 impl ImageError {

@@ -1,11 +1,7 @@
 use std::borrow::Cow;
 
-use crate::color::FromPrimitive;
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{
-    ColorType, DynamicImage, ExtendedColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel,
-    Rgb, Rgba,
-};
+use crate::{ColorType, DynamicImage, ExtendedColorType};
 
 /// The trait all encoders implement
 pub trait ImageEncoder {
@@ -131,22 +127,29 @@ pub(crate) fn make_compatible_img(
         return None;
     }
 
-    if color.has_color() != to.has_color() {
+    let color = decompose_color_type(color);
+    let to = decompose_color_type(to);
+
+    if color.has_color != to.has_color {
         // We don't want to convert RGB <-> Luma, because it's not clear how
         // this conversion should treat the color space information.
         return None;
     }
 
     // add or remove alpha as necessary
-    let img = if to.has_alpha() != color.has_alpha() {
+    let img = if to.has_alpha != color.has_alpha {
         Cow::Owned(toggle_alpha(img))
     } else {
         Cow::Borrowed(img)
     };
 
     // adjust precision as necessary
-    let img = if decompose_color_type(to).precision != decompose_color_type(color).precision {
-        Cow::Owned(to_precision(&img, decompose_color_type(to).precision))
+    let img = if to.precision != color.precision {
+        Cow::Owned(match to.precision {
+            Precision::U8 => img.to_u8(),
+            Precision::U16 => img.to_u16(),
+            Precision::F32 => img.to_f32(),
+        })
     } else {
         img
     };
@@ -214,81 +217,6 @@ fn toggle_alpha(image: &DynamicImage) -> DynamicImage {
         DynamicImage::ImageLumaA32F(buffer) => DynamicImage::ImageLuma32F(buffer.convert()),
         DynamicImage::ImageRgba32F(buffer) => DynamicImage::ImageRgb32F(buffer.convert()),
     }
-}
-
-fn to_precision(image: &DynamicImage, target_precision: Precision) -> DynamicImage {
-    let image_color = decompose_color_type(image.color());
-
-    fn convert_precision<To: FromPrimitive<u8> + FromPrimitive<u16> + FromPrimitive<f32>>(
-        buffer: &[u8],
-        buffer_precision: Precision,
-    ) -> Vec<To> {
-        match buffer_precision {
-            Precision::U8 => buffer
-                .iter()
-                .copied()
-                .map(FromPrimitive::from_primitive)
-                .collect(),
-            // casts are valid, because the slice comes from a Vec<Precision>
-            Precision::U16 => bytemuck::cast_slice::<_, u16>(buffer)
-                .iter()
-                .copied()
-                .map(FromPrimitive::from_primitive)
-                .collect(),
-            Precision::F32 => bytemuck::cast_slice::<_, f32>(buffer)
-                .iter()
-                .copied()
-                .map(FromPrimitive::from_primitive)
-                .collect(),
-        }
-    }
-    fn create_dyn_image<P: Pixel>(width: u32, height: u32, data: Vec<P::Subpixel>) -> DynamicImage
-    where
-        DynamicImage: From<ImageBuffer<P, Vec<P::Subpixel>>>,
-    {
-        let buffer: ImageBuffer<P, _> = ImageBuffer::from_vec(width, height, data).unwrap();
-        DynamicImage::from(buffer)
-    }
-
-    let bytes = image.as_bytes();
-    let (w, h) = image.dimensions();
-
-    let mut out: DynamicImage = match target_precision {
-        Precision::U8 => {
-            let data: Vec<u8> = convert_precision(bytes, image_color.precision);
-
-            match (image_color.has_color, image_color.has_alpha) {
-                (false, false) => create_dyn_image::<Luma<u8>>(w, h, data),
-                (false, true) => create_dyn_image::<LumaA<u8>>(w, h, data),
-                (true, false) => create_dyn_image::<Rgb<u8>>(w, h, data),
-                (true, true) => create_dyn_image::<Rgba<u8>>(w, h, data),
-            }
-        }
-        Precision::U16 => {
-            let data: Vec<u16> = convert_precision(bytes, image_color.precision);
-
-            match (image_color.has_color, image_color.has_alpha) {
-                (false, false) => create_dyn_image::<Luma<u16>>(w, h, data),
-                (false, true) => create_dyn_image::<LumaA<u16>>(w, h, data),
-                (true, false) => create_dyn_image::<Rgb<u16>>(w, h, data),
-                (true, true) => create_dyn_image::<Rgba<u16>>(w, h, data),
-            }
-        }
-        Precision::F32 => {
-            let data: Vec<f32> = convert_precision(bytes, image_color.precision);
-
-            match (image_color.has_color, image_color.has_alpha) {
-                (false, false) => create_dyn_image::<Luma<f32>>(w, h, data),
-                (false, true) => create_dyn_image::<LumaA<f32>>(w, h, data),
-                (true, false) => create_dyn_image::<Rgb<f32>>(w, h, data),
-                (true, true) => create_dyn_image::<Rgba<f32>>(w, h, data),
-            }
-        }
-    };
-
-    out.set_rgb_color_space(image.rgb_color_space());
-
-    out
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

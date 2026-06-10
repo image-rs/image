@@ -15,7 +15,6 @@ use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
 use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::math::{resize_dimensions, Rect};
-use crate::metadata::cicp::CicpRgb;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
@@ -954,13 +953,6 @@ impl DynamicImage {
         dynamic_map!(self, ref mut p, p.set_color_space(cicp))
     }
 
-    pub(crate) fn rgb_color_space(&self) -> CicpRgb {
-        dynamic_map!(self, ref p, p.rgb_color_space())
-    }
-    pub(crate) fn set_rgb_color_space(&mut self, color: CicpRgb) {
-        dynamic_map!(self, ref mut p, p.set_rgb_color_space(color));
-    }
-
     /// Whether the image contains an alpha channel
     ///
     /// This is a convenience wrapper around `self.color().has_alpha()`.
@@ -1081,6 +1073,52 @@ impl DynamicImage {
                 *self = DynamicImage::ImageRgba32F(img.add_alpha_channel(&mask)?);
                 Ok(())
             }
+        }
+    }
+
+    pub(crate) fn to_u8(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma8(_) | ImageLumaA8(_) | ImageRgb8(_) | ImageRgba8(_) => self.clone(),
+
+            ImageLuma16(buffer) => ImageLuma8(buffer.convert_precision()),
+            ImageLumaA16(buffer) => ImageLumaA8(buffer.convert_precision()),
+            ImageRgb16(buffer) => ImageRgb8(buffer.convert_precision()),
+            ImageRgba16(buffer) => ImageRgba8(buffer.convert_precision()),
+            ImageLuma32F(buffer) => ImageLuma8(buffer.convert_precision()),
+            ImageLumaA32F(buffer) => ImageLumaA8(buffer.convert_precision()),
+            ImageRgb32F(buffer) => ImageRgb8(buffer.convert_precision()),
+            ImageRgba32F(buffer) => ImageRgba8(buffer.convert_precision()),
+        }
+    }
+    pub(crate) fn to_u16(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma16(_) | ImageLumaA16(_) | ImageRgb16(_) | ImageRgba16(_) => self.clone(),
+
+            ImageLuma8(buffer) => ImageLuma16(buffer.convert_precision()),
+            ImageLumaA8(buffer) => ImageLumaA16(buffer.convert_precision()),
+            ImageRgb8(buffer) => ImageRgb16(buffer.convert_precision()),
+            ImageRgba8(buffer) => ImageRgba16(buffer.convert_precision()),
+            ImageLuma32F(buffer) => ImageLuma16(buffer.convert_precision()),
+            ImageLumaA32F(buffer) => ImageLumaA16(buffer.convert_precision()),
+            ImageRgb32F(buffer) => ImageRgb16(buffer.convert_precision()),
+            ImageRgba32F(buffer) => ImageRgba16(buffer.convert_precision()),
+        }
+    }
+    pub(crate) fn to_f32(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma32F(_) | ImageLumaA32F(_) | ImageRgb32F(_) | ImageRgba32F(_) => self.clone(),
+
+            ImageLuma8(buffer) => ImageLuma32F(buffer.convert_precision()),
+            ImageLumaA8(buffer) => ImageLumaA32F(buffer.convert_precision()),
+            ImageRgb8(buffer) => ImageRgb32F(buffer.convert_precision()),
+            ImageRgba8(buffer) => ImageRgba32F(buffer.convert_precision()),
+            ImageLuma16(buffer) => ImageLuma32F(buffer.convert_precision()),
+            ImageLumaA16(buffer) => ImageLumaA32F(buffer.convert_precision()),
+            ImageRgb16(buffer) => ImageRgb32F(buffer.convert_precision()),
+            ImageRgba16(buffer) => ImageRgba32F(buffer.convert_precision()),
         }
     }
 
@@ -1596,7 +1634,7 @@ impl DynamicImage {
         // Forward compatibility: make sure we do not drop any details here.
         let rgb = cicp.try_into_rgb()?;
         let mut target = DynamicImage::new(self.width(), self.height(), color);
-        target.set_rgb_color_space(rgb);
+        dynamic_map!(target, ref mut p, p.set_rgb_color_space(rgb));
         target.copy_from_color_space(self, options)?;
 
         *self = target;

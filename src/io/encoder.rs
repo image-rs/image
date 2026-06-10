@@ -131,7 +131,7 @@ pub(crate) fn make_compatible_img(
         return None;
     }
 
-    if color.has_alpha() != to.has_color() {
+    if color.has_color() != to.has_color() {
         // We don't want to convert RGB <-> Luma, because it's not clear how
         // this conversion should treat the color space information.
         return None;

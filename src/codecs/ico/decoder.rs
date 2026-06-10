@@ -6,6 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::image_reader_type::SpecCompliance;
 use crate::io::{
     DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
 };
@@ -113,6 +114,7 @@ pub struct IcoDecoder<R: BufRead + Seek> {
     selected_entry: DirEntry,
     reader_offset: u64,
     inner_decoder: InnerDecoder<R>,
+    spec_strictness: SpecCompliance,
 }
 
 enum InnerDecoder<R: BufRead + Seek> {
@@ -147,7 +149,15 @@ struct DirEntry {
 
 impl<R: BufRead + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<IcoDecoder<R>> {
+        Self::with_spec_compliance(r, SpecCompliance::default())
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn with_spec_compliance(
+        mut r: R,
+        spec: SpecCompliance,
+    ) -> ImageResult<IcoDecoder<R>> {
         let reader_offset = r.stream_position()?;
         let entries = read_entries(&mut r)?;
         let entry = best_entry(entries)?;
@@ -157,6 +167,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
             selected_entry: entry,
             reader_offset,
             inner_decoder: decoder,
+            spec_strictness: spec,
         })
     }
 }
@@ -261,12 +272,7 @@ impl DirEntry {
         self.seek_to_start(&mut r, reader_offset)?;
 
         if is_png {
-            let limits = crate::Limits {
-                max_image_width: Some(self.real_width().into()),
-                max_image_height: Some(self.real_height().into()),
-                max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
-            };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
+            Ok(Png(Box::new(PngDecoder::new(r))))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
@@ -307,7 +313,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 let layout = decoder.prepare_image()?;
                 // Check if the image dimensions match the ones in the image data.
                 let (width, height) = layout.layout.dimensions();
-                if !self.selected_entry.matches_dimensions(width, height) {
+                if self.spec_strictness == SpecCompliance::Strict
+                    && !self.selected_entry.matches_dimensions(width, height)
+                {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Png,
                         entry: (
@@ -330,7 +338,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
             Bmp(decoder) => {
                 let layout = decoder.prepare_image()?;
                 let (width, height) = layout.layout.dimensions();
-                if !self.selected_entry.matches_dimensions(width, height) {
+                if self.spec_strictness == SpecCompliance::Strict
+                    && !self.selected_entry.matches_dimensions(width, height)
+                {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Bmp,
                         entry: (
@@ -375,32 +385,37 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                         return Ok(DecodedImageAttributes::default());
                     }
 
-                    let rgba = buf.as_chunks_mut::<4>().0;
-                    let rows = rgba.chunks_exact_mut(width as usize);
+                    // 32bpp BMPs already have a native alpha channel, so the
+                    // AND mask is ignored.
+                    // For lower bit depths, read and apply the AND mask.
+                    if self.selected_entry.bits_per_pixel < 32 {
+                        let rgba = buf.as_chunks_mut::<4>().0;
+                        let rows = rgba.chunks_exact_mut(width as usize);
 
-                    if rows.len() != height as usize {
-                        return Err(DecoderError::InvalidDataSize.into());
-                    }
+                        if rows.len() != height as usize {
+                            return Err(DecoderError::InvalidDataSize.into());
+                        }
 
-                    // If there's an AND mask following the image, read and apply it.
-                    // This from the bottom up (in terms of our coordinates).
-                    for row in rows.rev() {
-                        let mut x = 0;
+                        // If there's an AND mask following the image, read and apply it.
+                        // This from the bottom up (in terms of our coordinates).
+                        for row in rows.rev() {
+                            let mut x = 0;
 
-                        for _ in 0..mask_row_bytes {
                             // Apply the bits of each byte until we reach the end of the row.
-                            let mask_byte = r.read_u8()?;
-                            for bit in (0..8).rev() {
-                                if x >= width {
-                                    break;
-                                }
+                            for _ in 0..mask_row_bytes {
+                                let mask_byte = r.read_u8()?;
+                                for bit in (0..8).rev() {
+                                    if x >= width {
+                                        break;
+                                    }
 
-                                if mask_byte & (1 << bit) != 0 {
-                                    // Set alpha channel to transparent.
-                                    row[x as usize][3] = 0;
-                                }
+                                    if mask_byte & (1 << bit) != 0 {
+                                        // Set alpha channel to transparent.
+                                        row[x as usize][3] = 0;
+                                    }
 
-                                x += 1;
+                                    x += 1;
+                                }
                             }
                         }
                     }
@@ -530,5 +545,55 @@ mod test {
         let bytes = decoder.prepare_image().unwrap().total_bytes();
         let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
+    }
+
+    #[test]
+    fn dimension_mismatch_strict_vs_lenient() {
+        // Minimal 2x2 32-bit BMP inside an ICO where the directory entry says 3x3.
+        let data = vec![
+            0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x03, 0x03, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00,
+            0x40, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x02, 0x00,
+            0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ];
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_err());
+    }
+
+    // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
+    #[test]
+    fn bmp_32bpp_and_mask_ignored() {
+        let data =
+            std::fs::read("tests/images/ico/images/bmp-32bpp-conflicting-and-mask.ico").unwrap();
+
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let layout = decoder.prepare_image().unwrap();
+        let mut buf = vec![0u8; layout.total_bytes() as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        // Every pixel should have alpha=128 (the native alpha from the BMP data).
+        // If the AND mask were incorrectly applied, alpha would be 0.
+        for (i, pixel) in buf.chunks_exact(4).enumerate() {
+            assert_eq!(
+                pixel[3], 128,
+                "pixel {i}: expected alpha=128, got {}",
+                pixel[3]
+            );
+        }
     }
 }

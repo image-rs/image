@@ -134,6 +134,8 @@ pub(crate) fn make_compatible_img(
         ColorType::La16 => img.to_luma_alpha16().into(),
         ColorType::Rgb16 => img.to_rgb16().into(),
         ColorType::Rgba16 => img.to_rgba16().into(),
+        ColorType::L32F => img.to_luma32f().into(),
+        ColorType::La32F => img.to_luma_alpha32f().into(),
         ColorType::Rgb32F => img.to_rgb32f().into(),
         ColorType::Rgba32F => img.to_rgba32f().into(),
     })
@@ -167,7 +169,7 @@ fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Optio
                 match c {
                     ColorType::L8 | ColorType::La8 | ColorType::Rgb8 | ColorType::Rgba8 => 0,
                     ColorType::L16 | ColorType::La16 | ColorType::Rgb16 | ColorType::Rgba16 => 1,
-                    ColorType::Rgb32F | ColorType::Rgba32F => 2,
+                    ColorType::L32F | ColorType::La32F | ColorType::Rgb32F | ColorType::Rgba32F => 2,
                 }
             }
 

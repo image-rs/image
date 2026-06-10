@@ -35,6 +35,7 @@ impl Iterator for Frames<'_> {
 }
 
 /// A single animation frame
+#[derive(Clone)]
 pub struct Frame {
     /// Delay between the frames in milliseconds
     delay: Delay,
@@ -43,24 +44,6 @@ pub struct Frame {
     /// y offset
     top: u32,
     buffer: RgbaImage,
-}
-
-impl Clone for Frame {
-    fn clone(&self) -> Self {
-        Self {
-            delay: self.delay,
-            left: self.left,
-            top: self.top,
-            buffer: self.buffer.clone(),
-        }
-    }
-
-    fn clone_from(&mut self, source: &Self) {
-        self.delay = source.delay;
-        self.left = source.left;
-        self.top = source.top;
-        self.buffer.clone_from(&source.buffer);
-    }
 }
 
 /// The delay of a frame relative to the previous one.

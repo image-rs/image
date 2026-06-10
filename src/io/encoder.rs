@@ -88,8 +88,12 @@ pub trait ImageEncoder {
     /// vary from encoder to encoder. This method allows encoders to specify which color types
     /// their [`write_image`](Self::write_image) method supports.
     ///
-    /// This information is currently used for automatic color conversion by the `save*` and `write*`
-    /// methods on [`DynamicImage`]. For more information, see [`DynamicImage::save`].
+    /// If `Some` list is returned, it must not be empty and must not contain duplicates.
+    ///
+    /// # Notes
+    ///
+    /// One of the use cases for the information returned by this method is to enable automatic
+    /// color conversion when saving images. See [`DynamicImage::save`] for more information.
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
         None
     }

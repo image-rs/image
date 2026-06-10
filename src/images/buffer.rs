@@ -1115,6 +1115,9 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
         Ok(())
     }
 
+    pub(crate) fn rgb_color_space(&self) -> CicpRgb {
+        self.color
+    }
     pub(crate) fn set_rgb_color_space(&mut self, color: CicpRgb) {
         self.color = color;
     }

@@ -1,5 +1,11 @@
+use std::borrow::Cow;
+
+use crate::color::FromPrimitive;
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, DynamicImage, ExtendedColorType};
+use crate::{
+    ColorType, DynamicImage, ExtendedColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel,
+    Rgb, Rgba,
+};
 
 /// The trait all encoders implement
 pub trait ImageEncoder {
@@ -86,8 +92,8 @@ pub trait ImageEncoder {
     /// vary from encoder to encoder. This method allows encoders to specify which color types
     /// their [`write_image`](Self::write_image) method supports.
     ///
-    /// This information is currently used by the save and write method on [`DynamicImage`] to
-    /// perform necessary conversions before encoding.
+    /// This information is currently used for automatic color conversion by the `save*` and `write*`
+    /// methods on [`DynamicImage`]. For more information, see [`DynamicImage::save`].
     fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
         None
     }
@@ -125,26 +131,39 @@ pub(crate) fn make_compatible_img(
         return None;
     }
 
-    Some(match to {
-        ColorType::L8 => img.to_luma8().into(),
-        ColorType::La8 => img.to_luma_alpha8().into(),
-        ColorType::Rgb8 => img.to_rgb8().into(),
-        ColorType::Rgba8 => img.to_rgba8().into(),
-        ColorType::L16 => img.to_luma16().into(),
-        ColorType::La16 => img.to_luma_alpha16().into(),
-        ColorType::Rgb16 => img.to_rgb16().into(),
-        ColorType::Rgba16 => img.to_rgba16().into(),
-        ColorType::L32F => img.to_luma32f().into(),
-        ColorType::La32F => img.to_luma_alpha32f().into(),
-        ColorType::Rgb32F => img.to_rgb32f().into(),
-        ColorType::Rgba32F => img.to_rgba32f().into(),
-    })
+    if color.has_alpha() != to.has_color() {
+        // We don't want to convert RGB <-> Luma, because it's not clear how
+        // this conversion should treat the color space information.
+        return None;
+    }
+
+    // add or remove alpha as necessary
+    let img = if to.has_alpha() != color.has_alpha() {
+        Cow::Owned(toggle_alpha(img))
+    } else {
+        Cow::Borrowed(img)
+    };
+
+    // adjust precision as necessary
+    let img = if decompose_color_type(to).precision != decompose_color_type(color).precision {
+        Cow::Owned(to_precision(&img, decompose_color_type(to).precision))
+    } else {
+        img
+    };
+
+    match img {
+        Cow::Borrowed(_) => None,
+        Cow::Owned(img) => Some(img),
+    }
 }
 fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Option<ColorType> {
+    let from = decompose_color_type(from);
+
     supported
         .iter()
         .filter_map(|c| c.color_type())
         .min_by_key(|&to| {
+            let to = decompose_color_type(to);
             let mut loss = 0;
 
             // channel losses are heavily penalized, since a lot of information is lost
@@ -154,28 +173,20 @@ fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Optio
             const COLOR_LOST: u16 = 200;
             const COLOR_GAIN: u16 = 6;
 
-            match (from.has_alpha(), to.has_alpha()) {
+            match (from.has_alpha, to.has_alpha) {
                 (true, false) => loss += ALPHA_LOST,
                 (false, true) => loss += ALPHA_GAIN,
                 _ => {}
             }
-            match (from.has_color(), to.has_color()) {
+            match (from.has_color, to.has_color) {
                 (true, false) => loss += COLOR_LOST,
                 (false, true) => loss += COLOR_GAIN,
                 _ => {}
             }
 
-            fn get_precision(c: ColorType) -> i16 {
-                match c {
-                    ColorType::L8 | ColorType::La8 | ColorType::Rgb8 | ColorType::Rgba8 => 0,
-                    ColorType::L16 | ColorType::La16 | ColorType::Rgb16 | ColorType::Rgba16 => 1,
-                    ColorType::L32F | ColorType::La32F | ColorType::Rgb32F | ColorType::Rgba32F => 2,
-                }
-            }
-
             const PRECISION_LOST: u16 = 10;
             const PRECISION_GAIN: u16 = 1;
-            match get_precision(to) - get_precision(from) {
+            match (to.precision as i16) - (from.precision as i16) {
                 m @ 1.. => loss += PRECISION_LOST * m as u16,
                 m @ ..=-1 => loss += PRECISION_GAIN * m.unsigned_abs(),
                 0 => {}
@@ -183,6 +194,127 @@ fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Optio
 
             loss
         })
+}
+
+/// If the image has an alpha channel, remove it. Otherwise, add an alpha channel with full opacity.
+fn toggle_alpha(image: &DynamicImage) -> DynamicImage {
+    match image {
+        // no alpha => add it
+        DynamicImage::ImageLuma8(buffer) => DynamicImage::ImageLumaA8(buffer.convert()),
+        DynamicImage::ImageRgb8(buffer) => DynamicImage::ImageRgba8(buffer.convert()),
+        DynamicImage::ImageLuma16(buffer) => DynamicImage::ImageLumaA16(buffer.convert()),
+        DynamicImage::ImageRgb16(buffer) => DynamicImage::ImageRgba16(buffer.convert()),
+        DynamicImage::ImageLuma32F(buffer) => DynamicImage::ImageLumaA32F(buffer.convert()),
+        DynamicImage::ImageRgb32F(buffer) => DynamicImage::ImageRgba32F(buffer.convert()),
+        // alpha => remove it
+        DynamicImage::ImageLumaA8(buffer) => DynamicImage::ImageLuma8(buffer.convert()),
+        DynamicImage::ImageRgba8(buffer) => DynamicImage::ImageRgb8(buffer.convert()),
+        DynamicImage::ImageLumaA16(buffer) => DynamicImage::ImageLuma16(buffer.convert()),
+        DynamicImage::ImageRgba16(buffer) => DynamicImage::ImageRgb16(buffer.convert()),
+        DynamicImage::ImageLumaA32F(buffer) => DynamicImage::ImageLuma32F(buffer.convert()),
+        DynamicImage::ImageRgba32F(buffer) => DynamicImage::ImageRgb32F(buffer.convert()),
+    }
+}
+
+fn to_precision(image: &DynamicImage, target_precision: Precision) -> DynamicImage {
+    let image_color = decompose_color_type(image.color());
+
+    fn convert_precision<To: FromPrimitive<u8> + FromPrimitive<u16> + FromPrimitive<f32>>(
+        buffer: &[u8],
+        buffer_precision: Precision,
+    ) -> Vec<To> {
+        match buffer_precision {
+            Precision::U8 => buffer
+                .iter()
+                .copied()
+                .map(FromPrimitive::from_primitive)
+                .collect(),
+            // casts are valid, because the slice comes from a Vec<Precision>
+            Precision::U16 => bytemuck::cast_slice::<_, u16>(buffer)
+                .iter()
+                .copied()
+                .map(FromPrimitive::from_primitive)
+                .collect(),
+            Precision::F32 => bytemuck::cast_slice::<_, f32>(buffer)
+                .iter()
+                .copied()
+                .map(FromPrimitive::from_primitive)
+                .collect(),
+        }
+    }
+    fn create_dyn_image<P: Pixel>(width: u32, height: u32, data: Vec<P::Subpixel>) -> DynamicImage
+    where
+        DynamicImage: From<ImageBuffer<P, Vec<P::Subpixel>>>,
+    {
+        let buffer: ImageBuffer<P, _> = ImageBuffer::from_vec(width, height, data).unwrap();
+        DynamicImage::from(buffer)
+    }
+
+    let bytes = image.as_bytes();
+    let (w, h) = image.dimensions();
+
+    let mut out: DynamicImage = match target_precision {
+        Precision::U8 => {
+            let data: Vec<u8> = convert_precision(bytes, image_color.precision);
+
+            match (image_color.has_color, image_color.has_alpha) {
+                (false, false) => create_dyn_image::<Luma<u8>>(w, h, data),
+                (false, true) => create_dyn_image::<LumaA<u8>>(w, h, data),
+                (true, false) => create_dyn_image::<Rgb<u8>>(w, h, data),
+                (true, true) => create_dyn_image::<Rgba<u8>>(w, h, data),
+            }
+        }
+        Precision::U16 => {
+            let data: Vec<u16> = convert_precision(bytes, image_color.precision);
+
+            match (image_color.has_color, image_color.has_alpha) {
+                (false, false) => create_dyn_image::<Luma<u16>>(w, h, data),
+                (false, true) => create_dyn_image::<LumaA<u16>>(w, h, data),
+                (true, false) => create_dyn_image::<Rgb<u16>>(w, h, data),
+                (true, true) => create_dyn_image::<Rgba<u16>>(w, h, data),
+            }
+        }
+        Precision::F32 => {
+            let data: Vec<f32> = convert_precision(bytes, image_color.precision);
+
+            match (image_color.has_color, image_color.has_alpha) {
+                (false, false) => create_dyn_image::<Luma<f32>>(w, h, data),
+                (false, true) => create_dyn_image::<LumaA<f32>>(w, h, data),
+                (true, false) => create_dyn_image::<Rgb<f32>>(w, h, data),
+                (true, true) => create_dyn_image::<Rgba<f32>>(w, h, data),
+            }
+        }
+    };
+
+    out.set_rgb_color_space(image.rgb_color_space());
+
+    out
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum Precision {
+    U8 = 0,
+    U16 = 1,
+    F32 = 2,
+}
+struct ColorDesc {
+    /// RGB if true, Luma if false
+    has_color: bool,
+    /// Alpha if true, no alpha if false
+    has_alpha: bool,
+    precision: Precision,
+}
+fn decompose_color_type(color: ColorType) -> ColorDesc {
+    use ColorType::*;
+    ColorDesc {
+        has_color: color.has_color(),
+        has_alpha: color.has_alpha(),
+        precision: match color {
+            L8 | La8 | Rgb8 | Rgba8 => Precision::U8,
+            L16 | La16 | Rgb16 | Rgba16 => Precision::U16,
+            L32F | La32F | Rgb32F | Rgba32F => Precision::F32,
+        },
+    }
 }
 
 #[cfg(test)]

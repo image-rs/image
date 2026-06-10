@@ -15,6 +15,7 @@ use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::free_functions::{self, encoder_for_format};
 use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::math::{resize_dimensions, Rect};
+use crate::metadata::cicp::CicpRgb;
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
 use crate::{
@@ -953,6 +954,13 @@ impl DynamicImage {
         dynamic_map!(self, ref mut p, p.set_color_space(cicp))
     }
 
+    pub(crate) fn rgb_color_space(&self) -> CicpRgb {
+        dynamic_map!(self, ref p, p.rgb_color_space())
+    }
+    pub(crate) fn set_rgb_color_space(&mut self, color: CicpRgb) {
+        dynamic_map!(self, ref mut p, p.set_rgb_color_space(color));
+    }
+
     /// Whether the image contains an alpha channel
     ///
     /// This is a convenience wrapper around `self.color().has_alpha()`.
@@ -1588,7 +1596,7 @@ impl DynamicImage {
         // Forward compatibility: make sure we do not drop any details here.
         let rgb = cicp.try_into_rgb()?;
         let mut target = DynamicImage::new(self.width(), self.height(), color);
-        dynamic_map!(target, ref mut p, p.set_rgb_color_space(rgb));
+        target.set_rgb_color_space(rgb);
         target.copy_from_color_space(self, options)?;
 
         *self = target;
@@ -1615,11 +1623,7 @@ impl DynamicImage {
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
     /// for best performance.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn write_to<W: Write + Seek>(&self, mut w: W, format: ImageFormat) -> ImageResult<()> {
         let encoder = encoder_for_format(format, &mut w)?;
         self.write_with_encoder_impl(encoder)
@@ -1627,11 +1631,7 @@ impl DynamicImage {
 
     /// Encode this image with the provided encoder.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
         self.write_with_encoder_impl(Box::new(encoder))
     }
@@ -1641,8 +1641,10 @@ impl DynamicImage {
     /// ## Color Conversion
     ///
     /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// convert the image to some color type supported by the underlying encoder. This may result in a loss of
+    /// precision and/or the removal of the alpha channel.
+    ///
+    /// Conversions are not guaranteed to happen and may change in the future.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1653,11 +1655,7 @@ impl DynamicImage {
 
     /// Saves the buffer to a file with the specified format.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,

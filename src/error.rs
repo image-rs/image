@@ -10,8 +10,6 @@
 //! `image` does not promise to remain on a particular version of its underlying decoders but if
 //! you ensure to use the same version of the dependency (or at least of the error type) through
 //! external means then you could inspect the error type in slightly more detail.
-//!
-//! [`ImageError`]: enum.ImageError.html
 
 use std::collections::TryReserveError;
 use std::error::Error;
@@ -67,9 +65,8 @@ pub enum ImageError {
 
 /// The implementation for an operation was not provided.
 ///
-/// See the variant [`Unsupported`] for more documentation.
-///
-/// [`Unsupported`]: enum.ImageError.html#variant.Unsupported
+/// This is used as an opaque representation for the [`ImageError::Unsupported`] variant. See its
+/// documentation for more information.
 #[derive(Debug)]
 pub struct UnsupportedError {
     format: ImageFormatHint,
@@ -97,8 +94,6 @@ pub enum UnsupportedErrorKind {
 ///
 /// This is used as an opaque representation for the [`ImageError::Encoding`] variant. See its
 /// documentation for more information.
-///
-/// [`ImageError::Encoding`]: enum.ImageError.html#variant.Encoding
 #[derive(Debug)]
 pub struct EncodingError {
     format: ImageFormatHint,
@@ -109,8 +104,6 @@ pub struct EncodingError {
 ///
 /// This is used as an opaque representation for the [`ImageError::Parameter`] variant. See its
 /// documentation for more information.
-///
-/// [`ImageError::Parameter`]: enum.ImageError.html#variant.Parameter
 #[derive(Debug)]
 pub struct ParameterError {
     kind: ParameterErrorKind,
@@ -132,6 +125,8 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+    /// Passed a buffer not sized according to a layout.
+    BufferSizeMismatch,
     /// An operation expected a concrete color space but another was found.
     CicpMismatch {
         /// The cicp that was expected.
@@ -139,14 +134,16 @@ pub enum ParameterErrorKind {
         /// The cicp that was found.
         found: Cicp,
     },
+    /// The operation is only applicable to pixels with an alpha channel.
+    NoAlphaChannel,
+    /// The operation is only applicable to Luma pixels, which can be used as a mask.
+    NotAValidMask(ExtendedColorType),
 }
 
 /// An error was encountered while decoding an image.
 ///
 /// This is used as an opaque representation for the [`ImageError::Decoding`] variant. See its
 /// documentation for more information.
-///
-/// [`ImageError::Decoding`]: enum.ImageError.html#variant.Decoding
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
@@ -157,8 +154,6 @@ pub struct DecodingError {
 ///
 /// This is used as an opaque representation for the [`ImageError::Limits`] variant. See its
 /// documentation for more information.
-///
-/// [`ImageError::Limits`]: enum.ImageError.html#variant.Limits
 #[derive(Debug)]
 pub struct LimitError {
     kind: LimitErrorKind,
@@ -444,10 +439,25 @@ impl fmt::Display for ParameterError {
                 write!(fmt, "The parameter is malformed: {message}",)
             }
             ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+            ParameterErrorKind::BufferSizeMismatch => {
+                write!(fmt, "The buffer length is incorrect",)
+            }
             ParameterErrorKind::CicpMismatch { expected, found } => {
                 write!(
                     fmt,
                     "The color space {found:?} does not match the expected {expected:?}",
+                )
+            }
+            ParameterErrorKind::NoAlphaChannel => {
+                write!(
+                    fmt,
+                    "The operation requires an alpha channel but the pixel type does not have one",
+                )
+            }
+            ParameterErrorKind::NotAValidMask(c) => {
+                write!(
+                    fmt,
+                    "The operation requires a luma image as a mask but the input has color {c:?}",
                 )
             }
         }?;

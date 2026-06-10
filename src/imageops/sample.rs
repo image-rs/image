@@ -16,9 +16,12 @@ use crate::imageops::filter_1d::{
     filter_2d_sep_rgb_u16, filter_2d_sep_rgba, filter_2d_sep_rgba_f32, filter_2d_sep_rgba_u16,
     FilterImageSize,
 };
-use crate::images::buffer::{Gray16Image, GrayAlpha16Image, Rgb16Image, Rgba16Image};
+use crate::images::buffer::{
+    Gray16Image, Gray32FImage, GrayAlpha16Image, GrayAlpha32FImage, Rgb16Image, Rgba16Image,
+};
+use crate::primitive_sealed::NearestFrom;
 use crate::traits::{Enlargeable, Pixel, Primitive};
-use crate::utils::{clamp, is_integer};
+use crate::utils::{clamp, is_integer, vec_try_with_capacity};
 use crate::{
     DynamicImage, GenericImage, GenericImageView, GrayAlphaImage, GrayImage, ImageBuffer,
     Rgb32FImage, RgbImage, Rgba32FImage, RgbaImage,
@@ -118,36 +121,6 @@ pub(crate) struct Filter<'a> {
 
     /// The window on which this filter operates.
     pub(crate) support: f32,
-}
-
-struct FloatNearest(f32);
-
-// to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
-// Note that to_f64 by default calls to_i64 and thus needs to be overridden.
-impl ToPrimitive for FloatNearest {
-    // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
-    // If a usecase for full 32 bits is found its trivial to add
-    fn to_i8(&self) -> Option<i8> {
-        self.0.round().to_i8()
-    }
-    fn to_i16(&self) -> Option<i16> {
-        self.0.round().to_i16()
-    }
-    fn to_i64(&self) -> Option<i64> {
-        self.0.round().to_i64()
-    }
-    fn to_u8(&self) -> Option<u8> {
-        self.0.round().to_u8()
-    }
-    fn to_u16(&self) -> Option<u16> {
-        self.0.round().to_u16()
-    }
-    fn to_u64(&self) -> Option<u64> {
-        self.0.round().to_u64()
-    }
-    fn to_f64(&self) -> Option<f64> {
-        self.0.to_f64()
-    }
 }
 
 // sinc function: the ideal sampling filter.
@@ -260,69 +233,107 @@ where
 
     let mut out = ImageBuffer::new(new_width, height);
     out.copy_color_space_from(image);
-    let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    let mut pix_temp = <P as Pixel>::broadcast(S::DEFAULT_MAX_VALUE);
+    let col_count = new_width as usize;
+    let max_ks = (2.0 * src_support).ceil() as usize + 2;
 
-    for outx in 0..new_width {
-        // Find the point in the input image corresponding to the centre
-        // of the current pixel in the output image.
-        let inputx = (outx as f32 + 0.5) * ratio;
+    // Max memory usage for weights
+    const MAX_WEIGHT_FLOATS: usize = 1 << 20; // 4MiB f32
 
-        // Left and right are slice bounds for the input pixels relevant
-        // to the output pixel we are calculating.  Pixel x is relevant
-        // if and only if (x >= left) && (x < right).
+    // Number of columns whose weights fit in the budget
+    let batch_size = (MAX_WEIGHT_FLOATS / max_ks.max(1)).max(1).min(col_count);
 
-        // Invariant: 0 <= left < right <= width
+    // Reusable buffers shared across batches
+    let mut batch_ws: Vec<f32> = Vec::new();
+    let mut batch_lefts: Vec<usize> =
+        vec_try_with_capacity(batch_size).expect("capacity overflow in horizontal_sample");
+    let mut batch_starts: Vec<usize> =
+        vec_try_with_capacity(batch_size + 1).expect("capacity overflow in horizontal_sample");
 
-        let left = (inputx - src_support).floor() as i64;
-        let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
+    // Rgba32FImage per row
+    let src_raw = image.subpixels();
+    let src_stride = width as usize * MAX_CHANNEL;
 
-        let right = (inputx + src_support).ceil() as i64;
-        let right = clamp(
-            right,
-            <i64 as From<_>>::from(left) + 1,
-            <i64 as From<_>>::from(width),
-        ) as u32;
+    let nchannels = P::CHANNEL_COUNT as usize;
+    let out_stride = col_count * nchannels;
+    let out_raw = out.subpixels_mut();
 
-        // Go back to left boundary of pixel, to properly compare with i
-        // below, as the kernel treats the centre of a pixel as 0.
-        let inputx = inputx - 0.5;
+    let mut batch_start = 0;
+    while batch_start < col_count {
+        let batch_end = batch_start.saturating_add(batch_size).min(col_count);
 
-        ws.clear();
-        let mut sum = 0.0;
-        for i in left..right {
-            let w = (filter.kernel)((i as f32 - inputx) / sratio);
-            ws.push(w);
-            sum += w;
+        // precompute weights for every column in this batch
+        batch_ws.clear();
+        batch_lefts.clear();
+        batch_starts.clear();
+        batch_starts.push(0);
+
+        for outx in batch_start..batch_end {
+            // Find the point in the input image corresponding to the centre
+            // of the current pixel in the output image.
+            // Use f64 to avoid precision loss for large dimensions
+            let inputx = (outx as f64 + 0.5) * ratio as f64;
+
+            // Left and right are slice bounds for the input pixels relevant
+            // to the output pixel we are calculating.  Pixel x is relevant
+            // if and only if (x >= left) && (x < right).
+
+            // Invariant: 0 <= left < right <= width
+            let left = clamp((inputx - src_support as f64) as u32, 0, width - 1);
+
+            let right = (inputx + src_support as f64).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, width as i64) as u32;
+
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputx = inputx as f32 - 0.5;
+
+            batch_lefts.push(left as usize);
+            let ws_start = batch_ws.len();
+            let mut sum = 0.0;
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputx) / sratio);
+                batch_ws.push(w);
+                sum += w;
+            }
+            for w in batch_ws[ws_start..].iter_mut() {
+                *w /= sum;
+            }
+            batch_starts.push(batch_ws.len());
         }
-        for w in ws.iter_mut() {
-            *w /= sum;
-        }
 
+        // apply weights to every row in this batch
         for y in 0..height {
-            let mut t = [0.0; MAX_CHANNEL];
+            let src_row = &src_raw[y as usize * src_stride..(y as usize + 1) * src_stride];
+            let start = y as usize * out_stride + batch_start * nchannels;
+            let end = y as usize * out_stride + batch_end * nchannels;
+            let out_batch = &mut out_raw[start..end];
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(left + i as u32, y);
+            for (b, dst) in out_batch.chunks_exact_mut(nchannels).enumerate() {
+                let left = batch_lefts[b];
+                let ws = &batch_ws[batch_starts[b]..batch_starts[b + 1]];
 
-                for (t, &c) in t.iter_mut().zip(p.channels()) {
-                    *t += c * w;
+                let mut t = [0.0f32; MAX_CHANNEL];
+
+                for (i, &w) in ws.iter().enumerate() {
+                    let base = (left + i) * MAX_CHANNEL;
+                    for (tc, src) in t.iter_mut().zip(&src_row[base..base + MAX_CHANNEL]) {
+                        *tc += *src * w;
+                    }
+                }
+
+                // Write directly to the output slice, bypassing put_pixel's bounds checks.
+                for (&tc, pc) in t.iter().zip(dst.iter_mut()) {
+                    *pc = S::clamp_nearest_from(tc);
                 }
             }
-
-            for (&tc, pc) in t.iter().zip(pix_temp.channels_mut()) {
-                *pc = NumCast::from(FloatNearest(clamp(tc, min, max))).unwrap();
-            }
-
-            out.put_pixel(outx, y, pix_temp);
         }
+
+        batch_start = batch_end;
     }
 
     out
@@ -461,21 +472,12 @@ pub fn interpolate_bilinear<P: Pixel>(
     // was originally assert, but is actually not a cheap computation
     debug_assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
 
-    // hack to see if primitive is an integer or a float
-    let is_float = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap() == 1.0;
-
     for (i, c) in out.channels_mut().iter_mut().enumerate() {
         let v = wff * sxx[i][0] + wfc * sxx[i][1] + wcf * sxx[i][2] + wcc * sxx[i][3];
         // this rounding may introduce quantization errors,
         // Specifically what is meant is that many samples may deviate
         // from the mean value of the originals, but it's not possible to fix that.
-        *c = <P::Subpixel as NumCast>::from(if is_float { v } else { v.round() }).unwrap_or({
-            if v < 0.0 {
-                P::Subpixel::DEFAULT_MIN_VALUE
-            } else {
-                P::Subpixel::DEFAULT_MAX_VALUE
-            }
-        });
+        *c = <P::Subpixel as NearestFrom<f32>>::nearest_from(v);
     }
 
     Some(out)
@@ -682,15 +684,49 @@ where
     S: Primitive + Enlargeable,
 {
     let mut sum = ThumbnailSum::zeroed();
+    let pixel_count: u64 = (right - left) as u64 * (top - bottom) as u64;
 
-    for y in bottom..top {
-        for x in left..right {
-            let k = image.get_pixel(x, y);
-            sum.add_pixel(k);
+    // Crushing down huge images to very small thumbnails can result in overflow of `sum`.
+    // This is especially a problem for u8 and u16. Their ::Larger is u32 for both.
+    // This gives u8 a head room of 24 bits (which is enough to handle blocks with 2^24 pixels),
+    // but u16 only has 16 bits (which is only enough for 2^16 pixels).
+    // To prevent overflow and guarantee correctness even in edge cases, huge blocks need to be
+    // detected and split into smaller blocks.
+    let sample_count = if pixel_count > 256 * 256 {
+        // edge case where huge blocks need to be split into smaller blocks
+        // Blocks are currently split into 256x256 sub-blocks (or smaller).
+        // Note that this does not make overflow impossible. It simply adds 16 bits of headroom.
+        // So u8 now supports blocks with up to 2^40 pixels and u16 supports blocks with up to 2^32 pixels.
+        // This should be enough to prevent overflow in practice.
+        const STEP_SIZE: u32 = 256;
+
+        for y in (bottom..top).step_by(STEP_SIZE as usize) {
+            for x in (left..right).step_by(STEP_SIZE as usize) {
+                let k = thumbnail_sample_block(
+                    image,
+                    x,
+                    x.saturating_add(STEP_SIZE).min(right),
+                    y,
+                    y.saturating_add(STEP_SIZE).min(top),
+                );
+                sum.add_pixel(k);
+            }
         }
-    }
 
-    let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
+        ((right - left) as u64 / STEP_SIZE as u64) * ((top - bottom) as u64 / STEP_SIZE as u64)
+    } else {
+        // standard case where all pixels are summed directly
+        for y in bottom..top {
+            for x in left..right {
+                let k = image.get_pixel(x, y);
+                sum.add_pixel(k);
+            }
+        }
+
+        pixel_count
+    };
+
+    let n = <S::Larger as NumCast>::from(sample_count).unwrap();
 
     // For integer types division truncates, so we need to add n/2 to round to
     // the nearest integer. Floating point types do not need this.
@@ -735,10 +771,7 @@ where
     let fact_left = (1. - fract) / ((top - bottom) as f32);
 
     let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| {
-        <S as NumCast>::from(
-            fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap(),
-        )
-        .expect("Average sample value should fit into sample type")
+        S::nearest_from(fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap())
     };
 
     let left = sum_left.0;
@@ -785,8 +818,7 @@ where
     let fact_bot = (1. - fract) / ((right - left) as f32);
 
     let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| {
-        <S as NumCast>::from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
-            .expect("Average sample value should fit into sample type")
+        S::nearest_from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
     };
 
     let bot = sum_bot.0;
@@ -830,13 +862,12 @@ where
     let fact_bl = (1. - frac_v) * (1. - frac_h);
 
     let mix = |br: S, tr: S, bl: S, tl: S| {
-        <S as NumCast>::from(
+        S::nearest_from(
             fact_br * br.to_f32().unwrap()
                 + fact_tr * tr.to_f32().unwrap()
                 + fact_bl * bl.to_f32().unwrap()
                 + fact_tl * tl.to_f32().unwrap(),
         )
-        .expect("Average sample value should fit into sample type")
     };
 
     // Make a copy of any pixel, we'll fully overwrite it.
@@ -1291,9 +1322,9 @@ pub(crate) fn gaussian_blur_dyn_image(
 
     let mut target = match image {
         DynamicImage::ImageLuma8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_plane(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1305,9 +1336,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLumaA8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_la(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1319,9 +1350,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgb8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_rgb(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1333,9 +1364,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba8(img) => {
-            let mut dest_image = vec![0u8; img.len()];
+            let mut dest_image = vec![0u8; img.subpixels().len()];
             filter_2d_sep_rgba(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1347,9 +1378,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLuma16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_plane_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1361,9 +1392,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageLumaA16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_la_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1375,9 +1406,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgb16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_rgb_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1389,9 +1420,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba16(img) => {
-            let mut dest_image = vec![0u16; img.len()];
+            let mut dest_image = vec![0u16; img.subpixels().len()];
             filter_2d_sep_rgba_u16(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1402,10 +1433,38 @@ pub(crate) fn gaussian_blur_dyn_image(
                 Rgba16Image::from_raw(img.width(), img.height(), dest_image).unwrap(),
             )
         }
-        DynamicImage::ImageRgb32F(img) => {
+        DynamicImage::ImageLuma32F(img) => {
             let mut dest_image = vec![0f32; img.len()];
-            filter_2d_sep_rgb_f32(
+            filter_2d_sep_plane_f32(
                 img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &x_axis_kernel,
+                &y_axis_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLuma32F(
+                Gray32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageLumaA32F(img) => {
+            let mut dest_image = vec![0f32; img.len()];
+            filter_2d_sep_la_f32(
+                img.as_raw(),
+                &mut dest_image,
+                filter_image_size,
+                &x_axis_kernel,
+                &y_axis_kernel,
+            )
+            .unwrap();
+            DynamicImage::ImageLumaA32F(
+                GrayAlpha32FImage::from_raw(img.width(), img.height(), dest_image).unwrap(),
+            )
+        }
+        DynamicImage::ImageRgb32F(img) => {
+            let mut dest_image = vec![0f32; img.subpixels().len()];
+            filter_2d_sep_rgb_f32(
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1417,9 +1476,9 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
         DynamicImage::ImageRgba32F(img) => {
-            let mut dest_image = vec![0f32; img.len()];
+            let mut dest_image = vec![0f32; img.subpixels().len()];
             filter_2d_sep_rgba_f32(
-                img.as_raw(),
+                img.subpixels(),
                 &mut dest_image,
                 filter_image_size,
                 &x_axis_kernel,
@@ -1543,8 +1602,8 @@ fn gaussian_blur_indirect_impl<I: GenericImageView, const CN: usize>(
 
     let mut out = image.buffer_like();
     let transient_dst_chunks = transient_dst.as_chunks_mut::<CN>().0.iter_mut();
-    for (dst, src) in out.pixels_mut().zip(transient_dst_chunks) {
-        let pix = src.map(|v| NumCast::from(FloatNearest(v)).unwrap());
+    for (dst, src) in out.pixels_mut().iter_mut().zip(transient_dst_chunks) {
+        let pix = src.map(NearestFrom::<f32>::nearest_from);
         *dst = *Pixel::from_slice(&pix);
     }
 
@@ -1864,5 +1923,16 @@ mod tests {
         assert!(result.into_raw().into_iter().all(|c| c == 0));
         let result = resize(&empty, 256, 256, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn thumbnail_huge_block() {
+        // 4096 * 4113 * 255 barely overflows 2^32, so it would trigger a bug if large blocks were not handled
+        let huge_u8 = ImageBuffer::from_pixel(4096, 4113, crate::Luma([255_u8]));
+        super::thumbnail(&huge_u8, 1, 1);
+
+        // 1024^2 * 65535 obviously overflows 2^32
+        let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
+        super::thumbnail(&huge_u16, 1, 1);
     }
 }

@@ -119,9 +119,15 @@ impl Header {
         Ok(header)
     }
 
+    const HEADER_BYTES: usize = 18;
+
     /// Load the header with values from the reader.
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        Ok(Self {
+    pub(crate) fn from_reader(reader: &mut dyn Read) -> ImageResult<Self> {
+        let mut buf = [0_u8; Self::HEADER_BYTES];
+        reader.read_exact(&mut buf)?;
+        let mut r = buf.as_slice();
+
+        let header = Self {
             id_length: r.read_u8()?,
             map_type: r.read_u8()?,
             image_type: r.read_u8()?,
@@ -134,11 +140,18 @@ impl Header {
             image_height: r.read_u16::<LittleEndian>()?,
             pixel_depth: r.read_u8()?,
             image_desc: r.read_u8()?,
-        })
+        };
+
+        debug_assert!(r.is_empty());
+
+        Ok(header)
     }
 
     /// Write out the header values.
-    pub(crate) fn write_to(&self, w: &mut dyn Write) -> ImageResult<()> {
+    pub(crate) fn write_to(&self, writer: &mut dyn Write) -> ImageResult<()> {
+        let mut buf = [0_u8; Self::HEADER_BYTES];
+        let mut w = buf.as_mut_slice();
+
         w.write_u8(self.id_length)?;
         w.write_u8(self.map_type)?;
         w.write_u8(self.image_type)?;
@@ -151,6 +164,11 @@ impl Header {
         w.write_u16::<LittleEndian>(self.image_height)?;
         w.write_u8(self.pixel_depth)?;
         w.write_u8(self.image_desc)?;
+
+        debug_assert!(w.is_empty());
+
+        writer.write_all(&buf)?;
+
         Ok(())
     }
 }

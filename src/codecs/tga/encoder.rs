@@ -159,7 +159,9 @@ impl<W: Write> TgaEncoder<W> {
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * color_type.bytes_per_pixel() != data.len()`.
+    /// Panics if the buffer does not hold exactly the number of bytes required for the given
+    /// `width`, `height`, and `color_type`, accounting for rows padded to whole bytes for
+    /// sub-byte color types: `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     #[track_caller]
     pub fn encode(
         mut self,
@@ -367,9 +369,11 @@ mod tests {
                     .encode(image, width, height, c)
                     .expect("could not encode image");
             }
-            let decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
 
-            let mut buf = vec![0; decoder.total_bytes() as usize];
+            let mut decoder =
+                TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+            let layout = decoder.prepare_image().unwrap();
+            let mut buf = vec![0; layout.total_bytes() as usize];
             decoder.read_image(&mut buf).expect("failed to decode");
             buf
         }
@@ -479,9 +483,10 @@ mod tests {
                     .expect("could not encode image");
             }
 
-            let decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
-
-            let mut buf = vec![0; decoder.total_bytes() as usize];
+            let mut decoder =
+                TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+            let layout = decoder.prepare_image().unwrap();
+            let mut buf = vec![0; layout.total_bytes() as usize];
             decoder.read_image(&mut buf).expect("failed to decode");
             buf
         }

@@ -8,7 +8,6 @@ use std::cmp::min;
 use std::io::Write;
 use std::mem::size_of;
 
-use crate::buffer::ConvertBuffer;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
@@ -223,7 +222,7 @@ impl<W: Write> AvifEncoder<W> {
                 let img = try_from_raw::<Rgb<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
                 // conversion but instead we use that a non-empty image must be addressable.
-                if img.pixels().len() == 0 {
+                if img.pixels().is_empty() {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::DimensionMismatch,
                     )));
@@ -240,7 +239,7 @@ impl<W: Write> AvifEncoder<W> {
                 let img = try_from_raw::<Rgba<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
                 // conversion but instead we use that a non-empty image must be addressable.
-                if img.pixels().len() == 0 {
+                if img.pixels().is_empty() {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::DimensionMismatch,
                     )));

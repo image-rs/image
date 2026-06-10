@@ -65,13 +65,16 @@ impl Rect {
         }
     }
 
-    pub(crate) fn test_in_bounds(
+    fn is_in_bounds(&self, (width, height): (u32, u32)) -> bool {
+        u64::from(self.x) + u64::from(self.width) <= u64::from(width)
+            && u64::from(self.y) + u64::from(self.height) <= u64::from(height)
+    }
+
+    pub(crate) fn test_in_bounds_of(
         &self,
         image: &(impl GenericImageView + ?Sized),
     ) -> Result<(), error::ImageError> {
-        if image.width().checked_sub(self.width) >= Some(self.x)
-            && image.height().checked_sub(self.height) >= Some(self.y)
-        {
+        if self.is_in_bounds(image.dimensions()) {
             Ok(())
         } else {
             Err(error::ImageError::Parameter(
@@ -85,20 +88,15 @@ impl Rect {
     /// If exposed outside the library, add `#[inline]`.
     #[track_caller]
     pub(crate) fn assert_in_bounds_of(&self, image: &impl GenericImageView) {
-        let (width, height) = image.dimensions();
+        let dimensions = image.dimensions();
 
-        // Lots of ways to write this comparison..
-        if u64::from(self.x) + u64::from(self.width) <= u64::from(width)
-            && u64::from(self.y) + u64::from(self.height) <= u64::from(height)
-        {
-            return;
+        if !self.is_in_bounds(dimensions) {
+            panic_out_of_bounds(self, dimensions);
         }
-
-        panic_out_of_bounds(self, (width, height));
     }
 
     /// Return the part of the rectangle that is in-bounds of the image.
-    pub(crate) fn crop_dimms(&self, image: &impl GenericImageView) -> Rect {
+    pub(crate) fn shrink_to_bounds_of(&self, image: &impl GenericImageView) -> Rect {
         let (width, height) = image.dimensions();
 
         let x = cmp::min(self.x, width);

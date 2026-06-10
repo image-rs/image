@@ -42,7 +42,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder-lite = "0.1.0"
-moxcms = "0.8.0"
+moxcms = { version = "0.8.0", default-features = false, features = [
+    "avx_shaper_fixed_point_paths",
+    "avx_shaper_paths",
+    "neon_shaper_fixed_point_paths",
+    "neon_shaper_paths",
+    "sse_shaper_fixed_point_paths",
+    "sse_shaper_paths",
+] }
 num-traits = { version = "0.2.0" }
 
 # Optional dependencies
@@ -59,7 +66,7 @@ rayon = { version = "1.7.0", optional = true }
 rgb = { version = "0.8.48", default-features = false, optional = true }
 tiff = { version = "0.11.2", optional = true }
 zune-core = { version = "0.5.0", default-features = false, optional = true }
-zune-jpeg = { version = "0.5.5", optional = true }
+zune-jpeg = { version = "0.5.15", optional = true }
 jpeg-encoder = { version = "0.7.0", optional = true, features = ["simd"] }
 serde = { version = "1.0.214", optional = true, features = ["derive"] }
 pic-scale-safe = "0.1.5"
@@ -102,6 +109,10 @@ avif-native = ["dep:mp4parse", "dep:dav1d"] # Enable native dependency libdav1d
 benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 serde = ["dep:serde"]
 
+[[example]]
+name = "bmp_1bit_encoding"
+required-features = ["bmp"]
+
 [[bench]]
 path = "benches/decode.rs"
 name = "decode"
@@ -117,11 +128,6 @@ name = "copy_from"
 harness = false
 
 [[bench]]
-path = "benches/fast_blur.rs"
-name = "fast_blur"
-harness = false
-
-[[bench]]
 path = "benches/blur.rs"
 name = "blur"
 harness = false
@@ -131,9 +137,19 @@ path = "benches/convert.rs"
 name = "convert"
 harness = false
 
+[[bench]]
+path = "benches/imageops.rs"
+name = "imageops"
+harness = false
+
 [[test]]
 path = "tests/reference_images.rs"
 name = "reference_images"
+harness = false
+
+[[bench]]
+path = "benches/bgra_to_rgba.rs"
+name = "bgra_to_rgba"
 harness = false
 
 # because of https://github.com/image-rs/image/pull/2583

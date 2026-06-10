@@ -1,3 +1,4 @@
+use crate::io::DecoderPreparedImage;
 use crate::utils::vec_try_with_capacity;
 use std::cmp::{self, Ordering};
 use std::io::{self, BufRead, Seek, SeekFrom};
@@ -9,7 +10,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::image_reader_type::SpecCompliance;
+use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
 use crate::{ImageDecoder, ImageFormat};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
@@ -18,6 +19,7 @@ const BITMAPV2HEADER_SIZE: u32 = 52;
 const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
+const FILE_HEADER_SIZE: u64 = 14;
 
 const OS2_V2_MAX_HEADER_SIZE: u32 = 64;
 const OS2_V2_MIN_HEADER_SIZE: u32 = 16;
@@ -34,38 +36,23 @@ const BI_CMYK: u32 = 11;
 const BI_CMYKRLE8: u32 = 12;
 const BI_CMYKRLE4: u32 = 13;
 
-static LOOKUP_TABLE_3_BIT_TO_8_BIT: [u8; 8] = [0, 36, 73, 109, 146, 182, 219, 255];
-static LOOKUP_TABLE_4_BIT_TO_8_BIT: [u8; 16] = [
-    0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255,
-];
-static LOOKUP_TABLE_5_BIT_TO_8_BIT: [u8; 32] = [
-    0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173,
-    181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
-];
-static LOOKUP_TABLE_6_BIT_TO_8_BIT: [u8; 64] = [
-    0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93,
-    97, 101, 105, 109, 113, 117, 121, 125, 130, 134, 138, 142, 146, 150, 154, 158, 162, 166, 170,
-    174, 178, 182, 186, 190, 194, 198, 202, 206, 210, 215, 219, 223, 227, 231, 235, 239, 243, 247,
-    251, 255,
-];
-
 static R5_G5_B5_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 5, shift: 10 },
-    g: Bitfield { len: 5, shift: 5 },
-    b: Bitfield { len: 5, shift: 0 },
-    a: Bitfield { len: 0, shift: 0 },
+    r: Bitfield::from_len_shift(5, 10),
+    g: Bitfield::from_len_shift(5, 5),
+    b: Bitfield::from_len_shift(5, 0),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 8, shift: 24 },
-    g: Bitfield { len: 8, shift: 16 },
-    b: Bitfield { len: 8, shift: 8 },
-    a: Bitfield { len: 0, shift: 0 },
+    r: Bitfield::from_len_shift(8, 24),
+    g: Bitfield::from_len_shift(8, 16),
+    b: Bitfield::from_len_shift(8, 8),
+    a: Bitfield::from_len_shift(0, 0),
 };
 const R8_G8_B8_A8_COLOR_MASK: Bitfields = Bitfields {
-    r: Bitfield { len: 8, shift: 16 },
-    g: Bitfield { len: 8, shift: 8 },
-    b: Bitfield { len: 8, shift: 0 },
-    a: Bitfield { len: 8, shift: 24 },
+    r: Bitfield::from_len_shift(8, 16),
+    g: Bitfield::from_len_shift(8, 8),
+    b: Bitfield::from_len_shift(8, 0),
+    a: Bitfield::from_len_shift(8, 24),
 };
 
 const RLE_ESCAPE: u8 = 0;
@@ -79,8 +66,13 @@ const ALPHA_OPAQUE: u8 = 0xFF;
 /// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 
-/// The value of the V5 header field indicating an embedded ICC profile ("MBED").
-const PROFILE_EMBEDDED: u32 = 0x4D424544;
+/// The value of the V5 header field indicating an embedded ICC profile.
+const PROFILE_EMBEDDED: u32 = u32::from_be_bytes(*b"MBED");
+
+// BMP color space type constants (bV4CSType / bV5CSType).
+const LCS_CALIBRATED_RGB: u32 = 0x00000000;
+const LCS_SRGB: u32 = u32::from_be_bytes(*b"sRGB");
+const LCS_WINDOWS_COLOR_SPACE: u32 = u32::from_be_bytes(*b"Win ");
 
 /// During progressive decoding, the decoder applies transforms (e.g. a vertical
 /// flip for bottom-up BMP files) as it writes rows into the output buffer.
@@ -291,6 +283,137 @@ impl ParsedIccProfile {
     }
 }
 
+/// Color space data parsed from V4/V5 BMP headers.
+#[derive(Debug, Clone)]
+enum ColorSpaceInfo {
+    /// LCS_CALIBRATED_RGB: endpoint and gamma values specified in the header.
+    CalibratedRgb(CalibratedRgb),
+    /// LCS_sRGB or LCS_WINDOWS_COLOR_SPACE: sRGB color space.
+    Srgb,
+    /// PROFILE_EMBEDDED: ICC profile data embedded in the file.
+    EmbeddedIcc(ParsedIccProfile),
+}
+
+impl ColorSpaceInfo {
+    /// Parse color space information from a V4/V5 header buffer.
+    /// The buffer should start after the 4-byte size field.
+    /// Note: Caller must ensure buffer has at least 104 bytes (V4 header minus size field);
+    /// this method does not validate.
+    #[track_caller]
+    fn parse(buffer: &[u8], bmp_header_size: u32, bmp_header_offset: u64) -> Option<Self> {
+        // bV4CSType at offset 56 from header start = offset 52 from after size field.
+        let cs_type = u32::from_le_bytes(buffer[52..56].try_into().unwrap());
+
+        match cs_type {
+            LCS_CALIBRATED_RGB => {
+                let read_u32 = |offset: usize| -> u32 {
+                    u32::from_le_bytes(buffer[offset..offset + 4].try_into().unwrap())
+                };
+
+                // FXPT2DOT30 (2.30 fixed-point) → f32.
+                let fxpt2dot30 = |val: u32| -> f32 { val as f32 * (1.0 / (1u64 << 30) as f32) };
+                // FXPT16DOT16 (16.16 fixed-point) → f32.
+                let fxpt16dot16 = |val: u32| -> f32 { val as f32 / 65536.0 };
+
+                // CIEXYZTRIPLE: 9 FXPT2DOT30 values at offsets 60-95 from header
+                // start (56-91 from after size field). Layout:
+                //   RedX, RedY, RedZ, GreenX, GreenY, GreenZ, BlueX, BlueY, BlueZ
+                // We read only X and Y per primary (Z is implicit: Z = 1 - X - Y
+                // for chromaticity, but BMP stores raw CIE XYZ values).
+                let rx = fxpt2dot30(read_u32(56));
+                let ry = fxpt2dot30(read_u32(60));
+                let gx = fxpt2dot30(read_u32(68));
+                let gy = fxpt2dot30(read_u32(72));
+                let bx = fxpt2dot30(read_u32(80));
+                let by = fxpt2dot30(read_u32(84));
+
+                // Gamma values at offsets 96-107 from header start (92-103 from after size).
+                let gamma_r = fxpt16dot16(read_u32(92));
+                let gamma_g = fxpt16dot16(read_u32(96));
+                let gamma_b = fxpt16dot16(read_u32(100));
+
+                // Validate: Y values must be non-zero (used as denominators in
+                // XYZ→chromaticity conversion by color management libraries).
+                if ry == 0.0 || gy == 0.0 || by == 0.0 {
+                    return None;
+                }
+
+                Some(ColorSpaceInfo::CalibratedRgb(CalibratedRgb {
+                    rx,
+                    ry,
+                    gx,
+                    gy,
+                    bx,
+                    by,
+                    gamma_r,
+                    gamma_g,
+                    gamma_b,
+                }))
+            }
+            LCS_SRGB | LCS_WINDOWS_COLOR_SPACE => Some(ColorSpaceInfo::Srgb),
+            PROFILE_EMBEDDED if bmp_header_size >= BITMAPV5HEADER_SIZE => {
+                ParsedIccProfile::parse(buffer, bmp_header_offset).map(ColorSpaceInfo::EmbeddedIcc)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Calibrated RGB color space parameters from a BMP V4/V5 header.
+///
+/// When the header's `bV4CSType` is `LCS_CALIBRATED_RGB`, these fields
+/// carry the CIE XYZ endpoint coordinates for the RGB primaries and
+/// per-channel gamma values, parsed from the FXPT2DOT30 / FXPT16DOT16
+/// fixed-point fields in the header.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CalibratedRgb {
+    /// Red primary CIE X coordinate (FXPT2DOT30).
+    rx: f32,
+    /// Red primary CIE Y coordinate (FXPT2DOT30).
+    ry: f32,
+    /// Green primary CIE X coordinate (FXPT2DOT30).
+    gx: f32,
+    /// Green primary CIE Y coordinate (FXPT2DOT30).
+    gy: f32,
+    /// Blue primary CIE X coordinate (FXPT2DOT30).
+    bx: f32,
+    /// Blue primary CIE Y coordinate (FXPT2DOT30).
+    by: f32,
+    /// Red channel gamma (FXPT16DOT16).
+    gamma_r: f32,
+    /// Green channel gamma (FXPT16DOT16).
+    gamma_g: f32,
+    /// Blue channel gamma (FXPT16DOT16).
+    gamma_b: f32,
+}
+
+impl CalibratedRgb {
+    /// Build a moxcms `ColorProfile` from the calibrated RGB primaries and gamma.
+    fn to_color_profile(self) -> moxcms::ColorProfile {
+        let primaries = moxcms::ColorPrimaries {
+            red: moxcms::Chromaticity::new(self.rx, self.ry),
+            green: moxcms::Chromaticity::new(self.gx, self.gy),
+            blue: moxcms::Chromaticity::new(self.bx, self.by),
+        };
+
+        let mut profile = moxcms::ColorProfile::new_srgb();
+        profile.update_rgb_colorimetry(moxcms::WHITE_POINT_D65, primaries);
+
+        // Clear inherited CICP metadata from the sRGB base profile.
+        profile.cicp = None;
+
+        // Use gamma directly as the TRC exponent via a parametric curve
+        // (ICC type 0: Y = X^gamma).  This preserves full s15Fixed16 precision
+        // when serialised to ICC bytes.
+        let safe_gamma = |g: f32| if g > 0.0 { g } else { 1.0 };
+        let parametric_trc = |g: f32| moxcms::ToneReprCurve::Parametric(vec![safe_gamma(g)]);
+        profile.red_trc = Some(parametric_trc(self.gamma_r));
+        profile.green_trc = Some(parametric_trc(self.gamma_g));
+        profile.blue_trc = Some(parametric_trc(self.gamma_b));
+        profile
+    }
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
     Palette,
@@ -334,6 +457,9 @@ enum MetadataProgress {
 /// Carried through metadata phases to avoid redundant state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HeaderOffsets {
+    /// Absolute file offset where the DIB header ends (before any extra
+    /// bitmask bytes or palette). This is the minimum valid data_offset.
+    bmp_header_end: u64,
     /// Offset where palette data starts (after headers).
     palette_offset: u64,
     /// ICC profile metadata if present.
@@ -433,9 +559,6 @@ impl<'a> Iterator for RowIterator<'a> {
 /// All errors that can occur when attempting to parse a BMP
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum DecoderError {
-    // Failed to decompress RLE data.
-    CorruptRleData,
-
     /// The bitfield mask interleaves set and unset bits
     BitfieldMaskNonContiguous,
     /// Bitfield mask invalid (e.g. too long for specified type)
@@ -470,13 +593,12 @@ enum DecoderError {
     HeaderTooSmall(u32),
 
     /// The palette is bigger than allowed by the bit count of the BMP
-    PaletteSizeExceeded {
-        colors_used: u32,
-        bit_count: u16,
-    },
+    PaletteSizeExceeded { colors_used: u32, bit_count: u16 },
 
     /// read_image_data was called before read_metadata completed
     MetadataNotRead,
+    /// Corrupt RLE data
+    CorruptRleData,
 }
 
 impl fmt::Display for DecoderError {
@@ -577,6 +699,42 @@ fn allocate_row_buffer(size: usize) -> ImageResult<Vec<u8>> {
     })?;
     buffer.resize(size, 0);
     Ok(buffer)
+}
+
+/// Checks if the current scanline is the last one or not. If it is not the
+/// last one, it performs a normal read. Otherwise, the special case applies:
+/// Apparently many BMPs are missing the final byte at the end of the file.
+/// This function checks if the stream is exactly one byte short of the
+/// required final scanline length. If so, it reads the available bytes and
+/// explicitly zeroes the missing trailing byte. Otherwise, it performs a normal `read_exact`.
+fn read_scanline(
+    reader: &mut (impl io::Read + Seek),
+    buf: &mut [u8],
+    current_file_row: &mut u32,
+    last_row: u32,
+    spec_strictness: SpecCompliance,
+) -> io::Result<()> {
+    let is_last_row = *current_file_row == last_row;
+    *current_file_row += 1;
+
+    if is_last_row && spec_strictness == SpecCompliance::Lenient {
+        let current_pos = reader.stream_position()?;
+        let end_pos = reader.seek(SeekFrom::End(0))?;
+        reader.seek(SeekFrom::Start(current_pos))?;
+
+        let Some((last, head)) = buf.split_last_mut() else {
+            // Empty row, nothing to read.
+            return Ok(());
+        };
+
+        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
+            reader.read_exact(head)?;
+            *last = b'\0';
+            return Ok(());
+        }
+    }
+
+    reader.read_exact(buf)
 }
 
 /// Convenience function to check if the combination of width, length and number of
@@ -770,12 +928,39 @@ fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 struct Bitfield {
     shift: u32,
     len: u32,
+    factor_addend: (u32, u32),
 }
 
 impl Bitfield {
+    /// Factors and addends such that `((data * factor + addend) >> 8) as u8`
+    /// maps the `data` value to the nearest value in the full 0-255 range.
+    ///
+    /// All constants come from the following site and were adjusted to use a
+    /// shift of 8: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
+    const FACTOR_ADDEND: [(u32, u32); 8] = [
+        (0x01_00, 0),    // len=8: round(x * 255 / 255) = (x * 256 + 0) >> 8
+        (0xff_00, 0),    // len=1: round(x * 255 / 1)   = (x * 65280 + 0) >> 8
+        (0x55_00, 0),    // len=2: round(x * 255 / 3)   = (x * 21760 + 0) >> 8
+        (0x24_80, 0),    // len=3: round(x * 255 / 7)   = (x * 9344 + 0) >> 8
+        (0x11_00, 0),    // len=4: round(x * 255 / 15)  = (x * 4352 + 0) >> 8
+        (0x08_3c, 0x5C), // len=5: round(x * 255 / 31)  = (x * 2108 + 92) >> 8
+        (0x04_0c, 0x84), // len=6: round(x * 255 / 63)  = (x * 1036 + 132) >> 8
+        (0x02_04, 0),    // len=7: round(x * 255 / 127) = (x * 516 + 0) >> 8
+    ];
+
+    const fn from_len_shift(len: u32, shift: u32) -> Self {
+        debug_assert!(len <= 8);
+        debug_assert!(shift + len <= 32);
+        Bitfield {
+            shift,
+            len,
+            factor_addend: Self::FACTOR_ADDEND[(len % 8) as usize],
+        }
+    }
+
     fn from_mask(mask: u32, max_len: u32) -> ImageResult<Bitfield> {
         if mask == 0 {
-            return Ok(Bitfield { shift: 0, len: 0 });
+            return Ok(Bitfield::from_len_shift(0, 0));
         }
         let mut shift = mask.trailing_zeros();
         let mut len = (!(mask >> shift)).trailing_zeros();
@@ -789,23 +974,19 @@ impl Bitfield {
             shift += len - 8;
             len = 8;
         }
-        Ok(Bitfield { shift, len })
+        Ok(Bitfield::from_len_shift(len, shift))
     }
 
+    #[inline]
     fn read(&self, data: u32) -> u8 {
-        let data = data >> self.shift;
-        match self.len {
-            0 => 0,
-            1 => ((data & 0b1) * 0xff) as u8,
-            2 => ((data & 0b11) * 0x55) as u8,
-            3 => LOOKUP_TABLE_3_BIT_TO_8_BIT[(data & 0b00_0111) as usize],
-            4 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b00_1111) as usize],
-            5 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b01_1111) as usize],
-            6 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data & 0b11_1111) as usize],
-            7 => (((data & 0x7f) << 1) | ((data & 0x7f) >> 6)) as u8,
-            8 => (data & 0xff) as u8,
-            _ => panic!(),
-        }
+        debug_assert!(self.len <= 8);
+
+        // This performs branch-less UNORM conversion using the multiply-add
+        // method. See `FACTOR_ADDEND` above for more information.
+        let (factor, addend) = self.factor_addend;
+        let mask = (1 << self.len) - 1;
+        let data = (data >> self.shift) & mask;
+        ((data * factor + addend) >> 8) as u8
     }
 }
 
@@ -962,7 +1143,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     /// Create a new decoder with the given spec compliance mode.
-    pub(crate) fn new_with_spec_compliance(
+    pub(crate) fn with_spec_compliance(
         reader: R,
         spec: SpecCompliance,
     ) -> ImageResult<BmpDecoder<R>> {
@@ -1060,8 +1241,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         // Read entire 14-byte file header
-        const FILE_HEADER_SIZE: usize = 14;
-        let mut buffer = [0u8; FILE_HEADER_SIZE];
+        let mut buffer = [0u8; FILE_HEADER_SIZE as usize];
         self.reader.read_exact(&mut buffer)?;
 
         // Check signature
@@ -1242,12 +1422,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         ) || compression == BitfieldCompression::Rgba;
 
         // Read bitfield masks into buffer
-        let buffer_size = if has_alpha { 16 } else { 12 };
-        let mut buffer = vec![0u8; buffer_size];
-        self.reader.read_exact(&mut buffer)?;
+        let mut buffer = [0u8; 16];
+        let buffer = &mut buffer[..if has_alpha { 16 } else { 12 }];
+        self.reader.read_exact(buffer)?;
 
         // Parse masks using shared logic
-        let parsed = ParsedBitfields::parse(&buffer, has_alpha);
+        let parsed = ParsedBitfields::parse(buffer, has_alpha);
 
         // Create Bitfields from parsed masks
         self.bitfields = match self.image_type {
@@ -1360,9 +1540,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 }
 
                 // For no_file_header mode, capture data_offset now (after palette read)
-                // before ICC profile reading potentially changes reader position
+                // before ICC profile reading potentially changes reader position.
+                // For normal mode, clamp data_offset if it points into the DIB header
+                // (between FILE_HEADER_SIZE and bmp_header_end). Such values are invalid
+                // because they overlap with header data.
                 if self.no_file_header {
                     self.data_offset = self.reader.stream_position()?;
+                } else if self.spec_strictness != SpecCompliance::Strict
+                    && self.data_offset >= FILE_HEADER_SIZE
+                    && self.data_offset < offsets.bmp_header_end
+                {
+                    self.data_offset = offsets.bmp_header_end;
                 }
 
                 // Always progress to ReadingIccProfile next
@@ -1471,20 +1659,51 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     BitfieldCompression::Rgb => 12,  // 3 masks * 4 bytes
                 };
             }
+        } else if self.image_type == ImageType::RGB32 && bmp_header_size >= BITMAPV4HEADER_SIZE {
+            // V4/V5 headers may declare an alpha channel via alpha_mask even under BI_RGB.
+            let mut masks_buf = [0u8; 16];
+            self.reader.read_exact(&mut masks_buf)?;
+            let alpha_mask = u32::from_le_bytes(masks_buf[12..16].try_into().unwrap());
+            if alpha_mask != 0 {
+                // BI_RGB implies fixed BGRA byte layout, so the only spec-valid
+                // alpha mask is 0xFF000000. In lenient mode we still treat any
+                // non-zero alpha_mask as "alpha present" because some encoders
+                // (e.g. older GDI+ versions) write incorrect mask values while
+                // still storing alpha in the high byte.
+                if self.spec_strictness == SpecCompliance::Strict && alpha_mask != 0xFF000000 {
+                    return Err(DecoderError::BitfieldMaskInvalid.into());
+                }
+                self.add_alpha_channel = true;
+                self.image_type = ImageType::RGBA32;
+            }
         };
 
-        // Parse ICC profile metadata from V5 header (but don't read the profile data yet)
+        // Parse color space fields from V4/V5 header
         let mut icc_profile = None;
-        if bmp_header_size >= BITMAPV5HEADER_SIZE {
-            // Read the full V5 header into a buffer for ICC profile metadata parsing
-            // V5 header is 124 bytes total, minus 4-byte size field = 120 bytes
+        if bmp_header_size >= BITMAPV4HEADER_SIZE {
+            // Read the header into a buffer for color space parsing.
+            // Buffer starts after the 4-byte size field.
             let mut header_buffer = vec![0u8; (bmp_header_size - 4) as usize];
             let current_pos = self.reader.stream_position()?;
             self.reader.seek(SeekFrom::Start(bmp_header_offset + 4))?;
             self.reader.read_exact(&mut header_buffer)?;
 
-            // Extract ICC profile metadata for later reading
-            icc_profile = ParsedIccProfile::parse(&header_buffer, bmp_header_offset);
+            // Extract color space info and handle non-Copy variants immediately
+            match ColorSpaceInfo::parse(&header_buffer, bmp_header_size, bmp_header_offset) {
+                Some(ColorSpaceInfo::CalibratedRgb(params)) => {
+                    // Synthesize an ICC profile from the calibrated RGB parameters
+                    // and store it directly — no file read needed.
+                    if let Ok(encoded) = params.to_color_profile().encode() {
+                        self.icc_profile = Some(encoded);
+                    }
+                }
+                Some(ColorSpaceInfo::EmbeddedIcc(icc)) => {
+                    icc_profile = Some(icc);
+                }
+                // LCS_sRGB / LCS_WINDOWS_COLOR_SPACE: the caller treats
+                // "no ICC profile" as sRGB, so nothing to store.
+                Some(ColorSpaceInfo::Srgb) | None => {}
+            }
 
             // Seek back to where we were
             self.reader.seek(SeekFrom::Start(current_pos))?;
@@ -1494,6 +1713,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
         Ok(HeaderOffsets {
+            bmp_header_end,
             palette_offset,
             icc_profile,
         })
@@ -1558,10 +1778,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
         match length.cmp(&max_length) {
-            Ordering::Greater => {
-                self.reader
-                    .seek(SeekFrom::Current((length - max_length) as i64))?;
-            }
+            Ordering::Greater => self.reader.seek_relative((length - max_length) as i64)?,
             Ordering::Less => buf.resize(max_length, 0),
             Ordering::Equal => (),
         }
@@ -1632,6 +1849,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 .for_each(|c| c[3] = ALPHA_OPAQUE);
         }
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (self.height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1641,7 +1861,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut indices)?;
+                read_scanline(
+                    reader,
+                    &mut indices,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 if skip_palette {
                     row.clone_from_slice(&indices[0..width]);
                 } else {
@@ -1695,6 +1921,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1704,7 +1933,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<2>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1745,6 +1980,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1754,7 +1992,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
                 let row_buffer_chunks = row_buffer.as_chunks::<4>().0.iter();
                 for (&row_data, pixel) in row_buffer_chunks.zip(row.chunks_exact_mut(num_channels))
                 {
@@ -1806,6 +2050,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
+        let spec_strictness = self.spec_strictness;
+        let last_row: u32 = (height - 1).try_into().unwrap();
+        let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
             buf,
@@ -1815,7 +2062,13 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down,
             start_row,
             |row| {
-                reader.read_exact(&mut row_buffer)?;
+                read_scanline(
+                    reader,
+                    &mut row_buffer,
+                    &mut current_file_row,
+                    last_row,
+                    spec_strictness,
+                )?;
 
                 for (i, pixel) in row.chunks_mut(num_channels).enumerate() {
                     let offset = match *format {
@@ -1916,30 +2169,43 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                     pixel_iter.for_each(|p| p.fill(0));
 
                                     for _ in 1..y_delta {
-                                        let row =
-                                            row_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                        row.fill(0);
+                                        if let Some(row) = row_iter.next() {
+                                            row.fill(0);
+                                        } else if self.spec_strictness == SpecCompliance::Strict {
+                                            return Err(DecoderError::CorruptRleData.into());
+                                        } else {
+                                            return Ok(());
+                                        }
                                     }
 
                                     current_row += y_delta as u32;
-
-                                    pixel_iter = row_iter
-                                        .next()
-                                        .ok_or(DecoderError::CorruptRleData)?
-                                        .chunks_exact_mut(num_channels);
+                                    if let Some(next_row) = row_iter.next() {
+                                        pixel_iter = next_row.chunks_exact_mut(num_channels);
+                                    } else if self.spec_strictness == SpecCompliance::Strict {
+                                        return Err(DecoderError::CorruptRleData.into());
+                                    } else {
+                                        return Ok(());
+                                    }
 
                                     for _ in 0..x {
-                                        pixel_iter
-                                            .next()
-                                            .ok_or(DecoderError::CorruptRleData)?
-                                            .fill(0);
+                                        if let Some(pixel) = pixel_iter.next() {
+                                            pixel.fill(0);
+                                        } else if self.spec_strictness == SpecCompliance::Strict {
+                                            return Err(DecoderError::CorruptRleData.into());
+                                        } else {
+                                            break;
+                                        }
                                     }
                                 }
 
                                 for _ in 0..x_delta {
-                                    let pixel =
-                                        pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
-                                    pixel.fill(0);
+                                    if let Some(pixel) = pixel_iter.next() {
+                                        pixel.fill(0);
+                                    } else if self.spec_strictness == SpecCompliance::Strict {
+                                        return Err(DecoderError::CorruptRleData.into());
+                                    } else {
+                                        break;
+                                    }
                                 }
                                 x += x_delta as u32;
                             }
@@ -1951,12 +2217,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         let mut length = count;
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_8bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        let success = set_8bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
+                                        );
+                                        if self.spec_strictness == SpecCompliance::Strict
+                                            && !success
+                                        {
                                             return Err(DecoderError::CorruptRleData.into());
                                         }
                                     }
@@ -1964,12 +2234,16 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                                         let mut length = count.div_ceil(2);
                                         length += length & 1;
                                         rle_reader.read_exact(&mut rle_indices_buffer[..length])?;
-                                        if !set_4bit_pixel_run(
+                                        // Silently truncate if run overflows the row.
+                                        let success = set_4bit_pixel_run(
                                             &mut pixel_iter,
                                             p.unwrap(),
                                             rle_indices_buffer[..length].iter(),
                                             count,
-                                        ) {
+                                        );
+                                        if self.spec_strictness == SpecCompliance::Strict
+                                            && !success
+                                        {
                                             return Err(DecoderError::CorruptRleData.into());
                                         }
                                     }
@@ -2012,12 +2286,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                             }
                             ImageType::RLE4 => {
                                 let palette_index = rle_reader.read_byte()?;
-                                if !set_4bit_pixel_run(
+                                // Silently truncate if run overflows the row
+                                // (matches RLE8 encoded run behavior).
+                                let success = set_4bit_pixel_run(
                                     &mut pixel_iter,
                                     p.unwrap(),
                                     repeat(&palette_index),
                                     n_pixels,
-                                ) {
+                                );
+                                if self.spec_strictness == SpecCompliance::Strict && !success {
                                     return Err(DecoderError::CorruptRleData.into());
                                 }
                             }
@@ -2151,31 +2428,31 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 }
 
 impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
-    }
-
-    fn color_type(&self) -> ColorType {
-        if self.indexed_color {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let color = if self.indexed_color {
             ColorType::L8
         } else if self.add_alpha_channel {
             ColorType::Rgba8
         } else {
             ColorType::Rgb8
-        }
+        };
+
+        Ok(DecoderPreparedImage::new(
+            self.width as u32,
+            self.height as u32,
+            color,
+        ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.icc_profile.clone())
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        self.read_image_data(buf)
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+        self.read_image_data(buf)?;
+        Ok(DecodedImageAttributes::default())
     }
 }
 
@@ -2188,7 +2465,7 @@ mod test {
     #[test]
     fn test_bitfield_len() {
         for len in 1..9 {
-            let bitfield = Bitfield { shift: 0, len };
+            let bitfield = Bitfield::from_len_shift(len, 0);
             for i in 0..(1 << len) {
                 let read = bitfield.read(i);
                 let calc = (f64::from(i) / f64::from((1 << len) - 1) * 255f64).round() as u8;
@@ -2223,8 +2500,9 @@ mod test {
             0x4d, 0x00, 0x2a, 0x00,
         ];
 
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let layout = decoder.prepare_image().unwrap();
+        let mut buf = vec![0; usize::try_from(layout.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }
 
@@ -2314,6 +2592,32 @@ mod test {
             "rgb24prof2.bmp",
             moxcms::DataColorSpace::Rgb,
             moxcms::ProfileClass::DisplayDevice,
+        );
+    }
+
+    #[test]
+    fn test_calibrated_rgb_icc_profile() {
+        // pal8v4.bmp has a V4 header with LCS_CALIBRATED_RGB — should synthesize an ICC profile.
+        let data = std::fs::read("tests/images/bmp/images/pal8v4.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let profile = decoder.icc_profile().unwrap();
+        assert!(
+            profile.is_some(),
+            "pal8v4: should have a synthesized ICC profile from calibrated RGB parameters"
+        );
+        validate_icc_profile(
+            &profile.unwrap(),
+            "pal8v4.bmp",
+            moxcms::DataColorSpace::Rgb,
+            moxcms::ProfileClass::DisplayDevice,
+        );
+
+        // pal8v5.bmp uses LCS_sRGB — no ICC profile needed.
+        let data = std::fs::read("tests/images/bmp/images/pal8v5.bmp").unwrap();
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        assert!(
+            decoder.icc_profile().unwrap().is_none(),
+            "pal8v5: should have no ICC profile (LCS_sRGB)"
         );
     }
 
@@ -2497,7 +2801,7 @@ mod test {
 
             // Get reference result from normal decoding
             let mut ref_decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
-            let expected_bytes = ref_decoder.total_bytes() as usize;
+            let expected_bytes = ref_decoder.prepare_image().unwrap().total_bytes() as usize;
             let mut ref_buf = vec![0u8; expected_bytes];
             let ref_icc_len = ref_decoder.icc_profile().unwrap().map(|p| p.len());
             ref_decoder.read_image(&mut ref_buf).unwrap();
@@ -2561,10 +2865,11 @@ mod test {
             }
 
             // Verify dimensions are available after metadata
-            let (width, height) = decoder.dimensions();
+            let layout = decoder.prepare_image().unwrap();
+            let (width, height) = layout.layout.dimensions();
             assert!(width > 0 && height > 0, "{path}: invalid dimensions");
             assert_eq!(
-                decoder.total_bytes() as usize,
+                layout.total_bytes() as usize,
                 expected_bytes,
                 "{path}: total_bytes mismatch"
             );
@@ -2695,6 +3000,10 @@ mod test {
                 "tests/images/bmp/images/lenient/rgb16-880.bmp",
                 "rgb16-880: zero blue mask should be rejected in strict mode",
             ),
+            (
+                "tests/images/bmp/images/lenient/V5_A8_R8_G8_B8_Rgb_BadMask.bmp",
+                "V5_A8_R8_G8_B8_Rgb_BadMask: non-standard alpha mask under BI_RGB",
+            ),
         ];
 
         for (path, description) in &questionable_files {
@@ -2702,20 +3011,143 @@ mod test {
                 .unwrap_or_else(|e| panic!("{description}: failed to read {path}: {e}"));
 
             // Default (lenient) mode: these files should be accepted
-            let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap_or_else(|e| {
+            let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap_or_else(|e| {
                 panic!("{description}: decoding failed: {e:?}");
             });
-            let mut buf = vec![0u8; decoder.total_bytes() as usize];
+            let layout = decoder.prepare_image().unwrap_or_else(|e| {
+                panic!("{description}: peek_layout failed: {e:?}");
+            });
+            let mut buf = vec![0u8; layout.total_bytes() as usize];
             decoder.read_image(buf.as_mut_slice()).unwrap_or_else(|e| {
                 panic!("{description}: read_image failed: {e:?}");
             });
 
             // Strict mode: these files should be rejected
             assert!(
-                BmpDecoder::new_with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                BmpDecoder::with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
                     .is_err(),
                 "{description}: expected error in strict mode, but got Ok"
             );
         }
+    }
+
+    /// A BMP with data_offset=34 points into the middle of the DIB header,
+    /// which is invalid. The decoder should clamp it to bmp_header_end (54)
+    /// and produce the same output as a correctly-formed file.
+    #[test]
+    fn test_invalid_data_offset_into_dib_header() {
+        let data: Vec<u8> = vec![
+            0x42, 0x4D, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
+        ];
+
+        // Same BMP but with the correct data_offset = 54 (0x36)
+        let mut reference = data.clone();
+        reference[10] = 0x36;
+
+        // Decode both
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0u8; len as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        let mut ref_decoder = BmpDecoder::new(Cursor::new(&reference)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut ref_buf = vec![0u8; len as usize];
+        ref_decoder.read_image(&mut ref_buf).unwrap();
+
+        assert_eq!(
+            buf, ref_buf,
+            "BMP with invalid data_offset=34 should decode identically to data_offset=54"
+        );
+    }
+
+    /// Test that strict mode correctly rejects RLE files with known corruptions.
+    ///
+    /// - `rle_overflow.bmp`: The image header specifies a width of 2. However, the RLE data
+    ///   contains an absolute run of 3 pixels (`00 03 ...`), which overflows the row boundary.
+    /// - `badrle.bmp`: The image height is 64. However, the RLE data contains multiple Delta skip
+    ///   instructions that move the cursor past the end of the image.
+    #[test]
+    fn test_strict_mode_fails_on_rle_errors() {
+        let test_files = [
+            "tests/images/bmp/images/lenient/rle_overflow.bmp",
+            "tests/images/bmp/images/lenient/badrle.bmp",
+        ];
+
+        for path in &test_files {
+            let data = std::fs::read(path).expect("Test image missing");
+
+            // Strict mode must fail on these images during full decode
+            let strict_result =
+                BmpDecoder::with_spec_compliance(Cursor::new(&data), SpecCompliance::Strict)
+                    .and_then(|mut d| {
+                        let len = d.prepare_image()?.total_bytes();
+                        let mut buf = vec![0u8; len as usize];
+                        d.read_image(buf.as_mut_slice())
+                    });
+            assert!(
+                strict_result.is_err(),
+                "{path}: expected error in strict mode, but got Ok"
+            );
+        }
+    }
+
+    #[test]
+    fn test_decode_bmp_rle_overflow() {
+        let data = std::fs::read("tests/images/bmp/images/lenient/rle_overflow.bmp")
+            .expect("Test image missing");
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut buffer = vec![0u8; len as usize];
+        let result = decoder.read_image(&mut buffer);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_decode_bmp_badrle() {
+        let data = std::fs::read("tests/images/bmp/images/lenient/badrle.bmp")
+            .expect("Test image missing");
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        let len = decoder.prepare_image().unwrap().total_bytes();
+        let mut buffer = vec![0u8; len as usize];
+        let result = decoder.read_image(&mut buffer);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_decode_truncated_bmp() {
+        use std::io::Cursor;
+
+        let data = vec![
+            0x42, 0x4D, 0x3A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00,
+            0x00,
+        ];
+
+        // Test Lenient mode
+        let decoder = BmpDecoder::new(Cursor::new(data.clone())).unwrap();
+        let mut decoder = crate::ImageReader::from_decoder(Box::new(decoder));
+        let result = decoder.decode();
+        assert!(
+            result.is_ok(),
+            "Expected Ok in lenient mode for truncated file"
+        );
+
+        // Test Strict mode
+        let strict_decoder =
+            BmpDecoder::with_spec_compliance(Cursor::new(data), SpecCompliance::Strict).unwrap();
+        let mut decoder = crate::ImageReader::from_decoder(Box::new(strict_decoder));
+        let result = decoder.decode();
+
+        assert!(
+            result.is_err(),
+            "Expected error in strict mode for truncated file"
+        );
     }
 }

@@ -370,7 +370,7 @@ pub trait ColorMap {
 ///
 /// # Examples
 /// ```
-/// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
+/// use image::imageops::{index_colors, BiLevel, ColorMap};
 /// use image::{ImageBuffer, Luma};
 ///
 /// let (w, h) = (16, 16);
@@ -493,7 +493,31 @@ where
     Pix: Pixel<Subpixel = u8>,
 {
     let (width, height) = image.dimensions();
+
+    if width == 0 || height == 0 {
+        return;
+    }
+
     let mut err: [i16; 3] = [0; 3];
+
+    // Special cases so the below loops need not worry about start and end fence posts overlapping.
+    if (width, height) == (1, 1) {
+        do_dithering!(color_map, image, err, 0, 0);
+        return;
+    }
+
+    if width == 1 {
+        for y in 0..height - 1 {
+            do_dithering!(color_map, image, err, 0, y);
+            diffuse_err(image.get_pixel_mut(0, y + 1), err, 5);
+        }
+
+        let y = height - 1;
+        do_dithering!(color_map, image, err, 0, y);
+        return;
+    }
+
+    // The height case 1 works fine since the loop starts at `0`, we propagate in one direction.
     for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
@@ -512,6 +536,7 @@ where
         diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
         diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
     }
+
     let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
@@ -537,7 +562,7 @@ where
     let mut indices = ImageBuffer::new(image.width(), image.height());
     indices.set_rgb_primaries(CicpColorPrimaries::Unspecified);
     indices.set_transfer_function(CicpTransferCharacteristics::Unspecified);
-    for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
+    for (pixel, idx) in image.pixels().iter().zip(indices.pixels_mut().iter_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8]);
     }
     indices
@@ -585,8 +610,48 @@ mod test {
         let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
-        assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0xFF, 0]);
         assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0]);
+    }
+
+    #[test]
+    fn test_dither_1x1() {
+        let mut image = ImageBuffer::from_raw(1, 1, vec![0xff]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0xff]);
+    }
+
+    #[test]
+    fn test_dither_1xn() {
+        let mut image = ImageBuffer::from_raw(1, 4, vec![127; 4]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0, 0xFF]);
+    }
+
+    #[test]
+    fn test_dither_nx1() {
+        let mut image = ImageBuffer::from_raw(4, 1, vec![127; 4]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0, 0xFF]);
+    }
+
+    #[test]
+    fn test_dither_empty() {
+        let mut image = ImageBuffer::from_raw(0, 0, vec![]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[]);
+    }
+
+    #[test]
+    fn test_dither_empty_oversized() {
+        let mut image = ImageBuffer::from_raw(0, 0, vec![0, 0xde, 0xad]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[]);
     }
 
     #[test]

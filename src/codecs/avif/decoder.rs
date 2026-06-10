@@ -3,8 +3,9 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::metadata::Orientation;
-use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
+use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult, Limits};
 ///
 /// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
 ///
@@ -36,6 +37,7 @@ pub struct AvifDecoder<R> {
     alpha_picture: Option<dav1d::Picture>,
     icc_profile: Option<Vec<u8>>,
     orientation: Orientation,
+    limits: Limits,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +45,7 @@ enum AvifDecoderError {
     AlphaPlaneFormat(PixelLayout),
     YuvLayoutOnIdentityMatrix(PixelLayout),
     UnsupportedLayoutAndMatrix(PixelLayout, YuvMatrixStrategy),
+    InvalidStride(u32),
 }
 
 impl Display for AvifDecoderError {
@@ -67,8 +70,11 @@ impl Display for AvifDecoderError {
                 PixelLayout::I444 => unreachable!("This option must be handled correctly"),
             },
             AvifDecoderError::UnsupportedLayoutAndMatrix(layout, matrix) => f.write_fmt(
-                format_args!("YUV layout {layout:?} on matrix {matrix:?} is not supported",),
+                format_args!("YUV layout {layout:?} on matrix {matrix:?} is not supported"),
             ),
+            AvifDecoderError::InvalidStride(stride) => f.write_fmt(format_args!(
+                "Avif decoder determined stride {stride} is not valid",
+            )),
         }
     }
 }
@@ -133,6 +139,7 @@ impl<R: Read> AvifDecoder<R> {
             alpha_picture,
             icc_profile,
             orientation,
+            limits: Limits::default(),
         })
     }
 }
@@ -164,17 +171,40 @@ fn convert_orientation(rotation: ImageRotation, mirror: Option<ImageMirror>) -> 
 }
 
 /// Reshaping incorrectly aligned or sized FFI data into Rust constraints
-fn reshape_plane(source: &[u8], stride: usize, width: usize, height: usize) -> Vec<u16> {
-    let mut target_plane = vec![0u16; width * height];
+fn reshape_plane(
+    source: &[u8],
+    stride: u32,
+    width: u32,
+    height: u32,
+    limits: &mut Limits,
+) -> Result<Vec<u16>, ImageError> {
+    if width == 0 || height == 0 {
+        return Ok(vec![]);
+    }
+
+    // Except for an empty image a true stride is required..
+    if stride == 0 {
+        return Err(error_map(AvifDecoderError::InvalidStride(stride)));
+    }
+
+    // Since the original buffer is already allocated, and has the indicated size, we do trust the
+    // width and height buffer to fit into memory by themselves. Just not that this is within our
+    // allocation budget.
+    let count = (width as usize) * (height as usize);
+    limits.reserve_usize(2 * count)?;
+
+    // Since the buffer is not empty, all strides are realized in memory, i.e. fit into usize.
+    let mut target_plane = vec![0u16; count];
     for (shaped_row, src_row) in target_plane
-        .chunks_exact_mut(width)
-        .zip(source.chunks_exact(stride))
+        .chunks_exact_mut(width as usize)
+        .zip(source.chunks_exact(stride as usize))
     {
         for (dst, src) in shaped_row.iter_mut().zip(src_row.as_chunks::<2>().0) {
             *dst = u16::from_ne_bytes(*src);
         }
     }
-    target_plane
+
+    Ok(target_plane)
 }
 
 struct Plane16View<'a> {
@@ -192,12 +222,13 @@ impl Default for Plane16View<'_> {
 }
 
 /// This is correct to transmute FFI data for Y plane and Alpha plane
-fn transmute_y_plane16(
-    plane: &dav1d::Plane,
-    stride: usize,
-    width: usize,
-    height: usize,
-) -> Plane16View<'_> {
+fn transmute_y_plane16<'data>(
+    plane: &'data dav1d::Plane,
+    stride: u32,
+    width: u32,
+    height: u32,
+    limits: &mut Limits,
+) -> Result<Plane16View<'data>, ImageError> {
     let mut y_plane_stride = stride >> 1;
 
     let mut bind_y = vec![];
@@ -205,40 +236,42 @@ fn transmute_y_plane16(
 
     let mut shape_y_plane = || {
         y_plane_stride = width;
-        bind_y = reshape_plane(plane_ref, stride, width, height);
+        bind_y = reshape_plane(plane_ref, stride, width, height, limits)?;
+        Ok::<_, ImageError>(())
     };
 
-    if stride & 1 == 0 {
+    if stride.is_multiple_of(2) {
         match bytemuck::try_cast_slice(plane_ref) {
-            Ok(slice) => Plane16View {
+            Ok(slice) => Ok(Plane16View {
                 data: std::borrow::Cow::Borrowed(slice),
-                stride: y_plane_stride,
-            },
+                stride: y_plane_stride as usize,
+            }),
             Err(_) => {
-                shape_y_plane();
-                Plane16View {
+                shape_y_plane()?;
+                Ok(Plane16View {
                     data: std::borrow::Cow::Owned(bind_y),
-                    stride: y_plane_stride,
-                }
+                    stride: y_plane_stride as usize,
+                })
             }
         }
     } else {
-        shape_y_plane();
-        Plane16View {
+        shape_y_plane()?;
+        Ok(Plane16View {
             data: std::borrow::Cow::Owned(bind_y),
-            stride: y_plane_stride,
-        }
+            stride: y_plane_stride as usize,
+        })
     }
 }
 
 /// This is correct to transmute FFI data for Y plane and Alpha plane
-fn transmute_chroma_plane16(
-    plane: &dav1d::Plane,
+fn transmute_chroma_plane16<'data>(
+    plane: &'data dav1d::Plane,
     pixel_layout: PixelLayout,
-    stride: usize,
-    width: usize,
-    height: usize,
-) -> Plane16View<'_> {
+    stride: u32,
+    width: u32,
+    height: u32,
+    limits: &mut Limits,
+) -> Result<Plane16View<'data>, ImageError> {
     let plane_ref = plane.as_ref();
     let mut chroma_plane_stride = stride >> 1;
     let mut bind_chroma = vec![];
@@ -254,29 +287,38 @@ fn transmute_chroma_plane16(
             PixelLayout::I420 => height.div_ceil(2),
             PixelLayout::I422 | PixelLayout::I444 => height,
         };
-        bind_chroma = reshape_plane(plane_ref, stride, chroma_plane_stride, u_plane_height);
+
+        bind_chroma = reshape_plane(
+            plane_ref,
+            stride,
+            chroma_plane_stride,
+            u_plane_height,
+            limits,
+        )?;
+
+        Ok::<_, ImageError>(())
     };
 
     if stride & 1 == 0 {
         match bytemuck::try_cast_slice(plane_ref) {
-            Ok(slice) => Plane16View {
+            Ok(slice) => Ok(Plane16View {
                 data: std::borrow::Cow::Borrowed(slice),
-                stride: chroma_plane_stride,
-            },
+                stride: chroma_plane_stride as usize,
+            }),
             Err(_) => {
-                shape_chroma_plane();
-                Plane16View {
+                shape_chroma_plane()?;
+                Ok(Plane16View {
                     data: std::borrow::Cow::Owned(bind_chroma),
-                    stride: chroma_plane_stride,
-                }
+                    stride: chroma_plane_stride as usize,
+                })
             }
         }
     } else {
-        shape_chroma_plane();
-        Plane16View {
+        shape_chroma_plane()?;
+        Ok(Plane16View {
             data: std::borrow::Cow::Owned(bind_chroma),
-            stride: chroma_plane_stride,
-        }
+            stride: chroma_plane_stride as usize,
+        })
     }
 }
 
@@ -369,28 +411,32 @@ fn get_matrix(
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.picture.width(), self.picture.height())
+    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        self.limits = limits;
+        Ok(())
     }
 
-    fn color_type(&self) -> ColorType {
-        if self.picture.bit_depth() == 8 {
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let color = if self.picture.bit_depth() == 8 {
             ColorType::Rgba8
         } else {
             ColorType::Rgba16
-        }
+        };
+
+        Ok(DecoderPreparedImage::new(
+            self.picture.width(),
+            self.picture.height(),
+            color,
+        ))
     }
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.icc_profile.clone())
     }
 
-    fn orientation(&mut self) -> ImageResult<Orientation> {
-        Ok(self.orientation)
-    }
-
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let prepared = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(prepared.total_bytes()));
 
         let bit_depth = self.picture.bit_depth();
 
@@ -398,7 +444,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
         // if this happens then there is an incorrect implementation somewhere else
         assert!(bit_depth == 8 || bit_depth == 10 || bit_depth == 12);
 
-        let (width, height) = self.dimensions();
+        let (width, height) = prepared.layout.dimensions();
         // This is suspicious if this happens, better fail early
         if width == 0 || height == 0 {
             return Err(ImageError::Limits(LimitError::from_kind(
@@ -485,7 +531,7 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
 
             // Squashing alpha plane into a picture
-            if let Some(picture) = self.alpha_picture {
+            if let Some(picture) = &self.alpha_picture {
                 if picture.pixel_layout() != PixelLayout::I400 {
                     return Err(ImageError::Decoding(DecodingError::new(
                         ImageFormat::Avif.into(),
@@ -521,17 +567,16 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
             }
         }
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            orientation: Some(self.orientation),
+            ..DecodedImageAttributes::default()
+        })
     }
 }
 
 impl<R: Read> AvifDecoder<R> {
     fn process_16bit_picture(
-        &self,
+        &mut self,
         target: &mut [u16],
         yuv_range: YuvIntensityRange,
         matrix_strategy: YuvMatrixStrategy,
@@ -548,10 +593,11 @@ impl<R: Read> AvifDecoder<R> {
 
         let y_plane_view = transmute_y_plane16(
             &y_dav1d_plane,
-            self.picture.stride(PlanarImageComponent::Y) as usize,
-            width as usize,
-            height as usize,
-        );
+            self.picture.stride(PlanarImageComponent::Y),
+            width,
+            height,
+            &mut self.limits,
+        )?;
 
         let u_dav1d_plane = self.picture.plane(PlanarImageComponent::U);
         let v_dav1d_plane = self.picture.plane(PlanarImageComponent::V);
@@ -562,17 +608,19 @@ impl<R: Read> AvifDecoder<R> {
             u_plane_view = transmute_chroma_plane16(
                 &u_dav1d_plane,
                 self.picture.pixel_layout(),
-                self.picture.stride(PlanarImageComponent::U) as usize,
-                width as usize,
-                height as usize,
-            );
+                self.picture.stride(PlanarImageComponent::U),
+                width,
+                height,
+                &mut self.limits,
+            )?;
             v_plane_view = transmute_chroma_plane16(
                 &v_dav1d_plane,
                 self.picture.pixel_layout(),
-                self.picture.stride(PlanarImageComponent::V) as usize,
-                width as usize,
-                height as usize,
-            );
+                self.picture.stride(PlanarImageComponent::V),
+                width,
+                height,
+                &mut self.limits,
+            )?;
         }
 
         let image = YuvPlanarImage {
@@ -676,10 +724,11 @@ impl<R: Read> AvifDecoder<R> {
             let a_dav1d_plane = picture.plane(PlanarImageComponent::Y);
             let a_plane_view = transmute_y_plane16(
                 &a_dav1d_plane,
-                picture.stride(PlanarImageComponent::Y) as usize,
-                width as usize,
-                height as usize,
-            );
+                picture.stride(PlanarImageComponent::Y),
+                width,
+                height,
+                &mut self.limits,
+            )?;
 
             for (buf, slice) in Iterator::zip(
                 target.chunks_exact_mut(width as usize * 4),
@@ -692,9 +741,10 @@ impl<R: Read> AvifDecoder<R> {
         }
 
         // Expand current bit depth to target 16
-        let target_expand_bits = 16u32 - self.picture.bit_depth() as u32;
-        for item in target.iter_mut() {
-            *item = (*item).rotate_left(target_expand_bits);
+        let shl = 16 - bit_depth;
+        let shr = bit_depth - shl;
+        for px in target.iter_mut() {
+            *px = (*px << shl) | (*px >> shr);
         }
 
         Ok(())

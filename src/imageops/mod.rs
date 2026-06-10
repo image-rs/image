@@ -3,10 +3,6 @@ use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
 use crate::{GenericImage, GenericImageView, SubImage};
 
-pub use self::sample::FilterType;
-
-pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
-
 /// Affine transformations
 pub use self::affine::{
     flip_horizontal, flip_horizontal_in, flip_horizontal_in_place, flip_vertical, flip_vertical_in,
@@ -14,40 +10,38 @@ pub use self::affine::{
     rotate90, rotate90_in,
 };
 
+pub use self::fast_blur::fast_blur;
+
 pub use self::sample::{
-    blur, filter3x3, interpolate_bilinear, interpolate_nearest, resize, sample_bilinear,
-    sample_nearest, thumbnail, unsharpen,
+    blur, blur_advanced, filter3x3, interpolate_bilinear, interpolate_nearest, resize,
+    sample_bilinear, sample_nearest, thumbnail, unsharpen, FilterType, GaussianBlurParameters,
 };
+pub(crate) use sample::gaussian_blur_dyn_image;
 
 /// Color operations
 pub use self::colorops::{
-    brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
-    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+    brighten, brighten_in_place, contrast, contrast_in_place, dither, grayscale, grayscale_alpha,
+    grayscale_with_type, grayscale_with_type_alpha, huerotate, huerotate_in_place, index_colors,
+    invert, BiLevel, ColorMap,
 };
 
 mod affine;
-// Public only because of Rust bug:
-// https://github.com/rust-lang/rust/issues/18241
-pub mod colorops;
-mod fast_blur;
+mod colorops;
+pub(crate) mod fast_blur;
 mod filter_1d;
 pub(crate) mod resize;
 mod sample;
 
-pub use fast_blur::fast_blur;
-pub(crate) use sample::gaussian_blur_dyn_image;
-pub use sample::{blur_advanced, GaussianBlurParameters};
-
 /// Return a mutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
 pub fn crop_mut<I: GenericImageView>(image: &mut I, rect: Rect) -> SubImage<&mut I> {
-    SubImage::new(image, rect.crop_dimms(image))
+    SubImage::new(image, rect.shrink_to_bounds_of(image))
 }
 
 /// Return an immutable view into an image
 /// The coordinates set the position of the top left corner of the crop.
 pub fn crop<I: GenericImageView>(image: &I, rect: Rect) -> SubImage<&I> {
-    SubImage::new(image, rect.crop_dimms(image))
+    SubImage::new(image, rect.shrink_to_bounds_of(image))
 }
 
 /// Calculate the region that can be copied from top to bottom.
@@ -214,6 +208,7 @@ where
 /// Tile an image by repeating it multiple times
 ///
 /// # Examples
+///
 /// ```no_run
 /// use image::RgbaImage;
 ///
@@ -223,13 +218,22 @@ where
 /// image::imageops::tile(&mut img, &tile);
 /// img.save("tiled_wallpaper.png").unwrap();
 /// ```
+///
+/// # Panics
+///
+/// Panics if either dimension of the top image is zero.
 pub fn tile<I, J>(bottom: &mut I, top: &J)
 where
     I: GenericImage,
     J: GenericImageView<Pixel = I::Pixel>,
 {
-    for x in (0..bottom.width()).step_by(top.width() as usize) {
-        for y in (0..bottom.height()).step_by(top.height() as usize) {
+    let (top_width, top_height) = top.dimensions();
+    if top_width == 0 || top_height == 0 {
+        panic!("Cannot tile with an image with zero width or height");
+    }
+
+    for x in (0..bottom.width()).step_by(top_width as usize) {
+        for y in (0..bottom.height()).step_by(top_height as usize) {
             overlay(bottom, top, i64::from(x), i64::from(y));
         }
     }
@@ -537,11 +541,9 @@ mod tests {
         let image_blurred_gauss = image
             .blur_advanced(GaussianBlurParameters::new_from_sigma(50.0))
             .to_rgb8();
-        let image_blurred_gauss_samples = image_blurred_gauss.as_flat_samples();
-        let image_blurred_gauss_bytes = image_blurred_gauss_samples.as_slice();
+        let image_blurred_gauss_bytes = image_blurred_gauss.subpixels();
         let image_blurred_fast = image.fast_blur(50.0).to_rgb8();
-        let image_blurred_fast_samples = image_blurred_fast.as_flat_samples();
-        let image_blurred_fast_bytes = image_blurred_fast_samples.as_slice();
+        let image_blurred_fast_bytes = image_blurred_fast.subpixels();
 
         let error = image_blurred_gauss_bytes
             .iter()

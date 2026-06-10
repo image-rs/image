@@ -327,9 +327,16 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     .into());
                 }
 
-                // Embedded PNG images can only be of the 32BPP RGBA format.
-                // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if layout.layout.color != ColorType::Rgba8 {
+                // > The format of a PNG-compressed image consists simply of a PNG image, starting
+                // > with the PNG file signature. The image must be in 32bpp ARGB format [...].
+                // https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
+                //
+                // This requirement was added to better support older software, which might crash for arbitrary PNGs.
+                // We have a state-of-the-art PNG decoder, so allowing any PNG format is easy for us.
+                // However, we still want to enforce this restriction is strict mode for compatibility with other decoders.
+                if self.spec_strictness == SpecCompliance::Strict
+                    && layout.layout.color != ColorType::Rgba8
+                {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 

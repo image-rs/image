@@ -279,6 +279,42 @@ impl DirEntry {
     }
 }
 
+/// Reads the AND mask and applies it
+fn apply_and_mask(r: &mut impl Read, rgba: &mut [[u8; 4]], width: u32) -> ImageResult<()> {
+    if width == 0 || rgba.is_empty() {
+        return Ok(());
+    }
+
+    let rows = rgba.chunks_exact_mut(width as usize);
+
+    let mask_row_bytes = width.div_ceil(32) * 4;
+
+    // If there's an AND mask following the image, read and apply it.
+    // This from the bottom up (in terms of our coordinates).
+    for row in rows.rev() {
+        let mut x = 0;
+
+        // Apply the bits of each byte until we reach the end of the row.
+        for _ in 0..mask_row_bytes {
+            let mask_byte = r.read_u8()?;
+            for bit in (0..8).rev() {
+                if x >= row.len() {
+                    break;
+                }
+
+                if mask_byte & (1 << bit) != 0 {
+                    // Set alpha channel to transparent.
+                    row[x][3] = 0;
+                }
+
+                x += 1;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 // We forward everything to png or bmp decoder.
 #[deny(clippy::missing_trait_methods)]
 impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
@@ -388,43 +424,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 // the mask is not required. Unfortunately, Wikipedia does not have a citation
                 // for that claim, so we can't be sure which is correct.
                 if data_end >= image_end + mask_length {
-                    if width == 0 {
-                        return Ok(DecodedImageAttributes::default());
-                    }
-
                     // 32bpp BMPs already have a native alpha channel, so the
                     // AND mask is ignored.
                     // For lower bit depths, read and apply the AND mask.
                     if self.selected_entry.bits_per_pixel < 32 {
                         let rgba = buf.as_chunks_mut::<4>().0;
-                        let rows = rgba.chunks_exact_mut(width as usize);
-
-                        if rows.len() != height as usize {
-                            return Err(DecoderError::InvalidDataSize.into());
-                        }
-
-                        // If there's an AND mask following the image, read and apply it.
-                        // This from the bottom up (in terms of our coordinates).
-                        for row in rows.rev() {
-                            let mut x = 0;
-
-                            // Apply the bits of each byte until we reach the end of the row.
-                            for _ in 0..mask_row_bytes {
-                                let mask_byte = r.read_u8()?;
-                                for bit in (0..8).rev() {
-                                    if x >= width {
-                                        break;
-                                    }
-
-                                    if mask_byte & (1 << bit) != 0 {
-                                        // Set alpha channel to transparent.
-                                        row[x as usize][3] = 0;
-                                    }
-
-                                    x += 1;
-                                }
-                            }
-                        }
+                        apply_and_mask(r, rgba, width)?;
                     }
 
                     Ok(DecodedImageAttributes::default())

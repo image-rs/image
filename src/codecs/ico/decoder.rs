@@ -159,7 +159,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
         spec: SpecCompliance,
     ) -> ImageResult<IcoDecoder<R>> {
         let reader_offset = r.stream_position()?;
-        let entries = read_entries(&mut r)?;
+        let entries = read_entries(&mut r, spec)?;
         let entry = best_entry(entries)?;
         let decoder = entry.decoder(r, reader_offset)?;
 
@@ -172,15 +172,15 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
     }
 }
 
-fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
+fn read_entries<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<Vec<DirEntry>> {
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
     // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
     let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
-    (0..count).map(|_| read_entry(r)).collect()
+    (0..count).map(|_| read_entry(r, spec)).collect()
 }
 
-fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry> {
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -193,7 +193,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
     let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
-    if bits_per_pixel > 256 {
+    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
     }
 
@@ -627,5 +627,21 @@ mod test {
                 pixel[3]
             );
         }
+    }
+
+    #[test]
+    fn format_error_ico_strict_vs_lenient() {
+        let data = std::fs::read("tests/images/ico/images/lenient-bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let decoder_strict =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
+        assert!(decoder_strict.is_err());
     }
 }

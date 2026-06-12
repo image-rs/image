@@ -194,10 +194,10 @@ fn read_entries<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<Vec<Dir
         )));
     }
 
-    (0..count).map(|_| read_entry(r)).collect()
+    (0..count).map(|_| read_entry(r, spec)).collect()
 }
 
-fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry> {
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -210,7 +210,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
     let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
-    if bits_per_pixel > 256 {
+    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
     }
 
@@ -448,6 +448,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 } else if data_end == image_end {
                     // accept images with no mask data
                     Ok(DecodedImageAttributes::default())
+                } else if self.spec_strictness == SpecCompliance::Lenient
+                    && self.selected_entry.bits_per_pixel >= 32
+                {
+                    // In lenient mode, we accept truncated mask data for 32bpp images
+                    // since they already have an alpha channel and we ignore the AND mask anyway.
+                    Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
                 }
@@ -599,6 +605,25 @@ mod test {
         assert!(decoder.read_image(&mut buf).is_err());
     }
 
+    #[test]
+    fn truncated_mask_32bpp_lenient() {
+        let data = std::fs::read("tests/images/ico/images/truncated_mask_32bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_err());
+    }
+
     // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
     #[test]
     fn bmp_32bpp_and_mask_ignored() {
@@ -619,5 +644,21 @@ mod test {
                 pixel[3]
             );
         }
+    }
+
+    #[test]
+    fn format_error_ico_strict_vs_lenient() {
+        let data = std::fs::read("tests/images/ico/images/lenient-bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let decoder_strict =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
+        assert!(decoder_strict.is_err());
     }
 }

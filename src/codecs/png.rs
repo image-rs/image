@@ -13,8 +13,8 @@ use png::{BlendOp, DeflateCompression, DisposeOp};
 use crate::animation::{Delay, Ratio};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{
@@ -845,12 +845,12 @@ impl<W: Write> PngEncoder<W> {
         }
 
         let mut encoder =
-            png::Encoder::with_info(self.w, info).map_err(|e| ImageError::IoError(e.into()))?;
+            png::Encoder::with_info(self.w, info).map_err(ImageError::from_png_enc)?;
 
         if let Some(xmp_text) = self.xmp_metadata {
             encoder
                 .add_itxt_chunk(XMP_KEY.to_string(), xmp_text)
-                .map_err(|e| ImageError::IoError(e.into()))?;
+                .map_err(ImageError::from_png_enc)?;
         }
 
         encoder.set_color(ct);
@@ -860,12 +860,11 @@ impl<W: Write> PngEncoder<W> {
             encoder.set_deflate_compression(compression);
         }
         encoder.set_filter(filter);
-        let mut writer = encoder
-            .write_header()
-            .map_err(|e| ImageError::IoError(e.into()))?;
+        let mut writer = encoder.write_header().map_err(ImageError::from_png_enc)?;
         writer
             .write_image_data(data)
-            .map_err(|e| ImageError::IoError(e.into()))
+            .map_err(ImageError::from_png_enc)?;
+        writer.finish().map_err(ImageError::from_png_enc)
     }
 }
 
@@ -980,6 +979,16 @@ impl ImageError {
             LimitsExceeded => {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             }
+        }
+    }
+    fn from_png_enc(err: png::EncodingError) -> ImageError {
+        use png::EncodingError::*;
+        match err {
+            IoError(error) => ImageError::IoError(error),
+            LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
+            _ => ImageError::Encoding(EncodingError::new(ImageFormat::Png.into(), Box::new(err))),
         }
     }
 }

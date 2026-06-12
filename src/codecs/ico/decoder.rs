@@ -6,6 +6,7 @@ use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::io::image_reader_type::SpecCompliance;
 use crate::io::{
     DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
 };
@@ -113,6 +114,7 @@ pub struct IcoDecoder<R: BufRead + Seek> {
     selected_entry: DirEntry,
     reader_offset: u64,
     inner_decoder: InnerDecoder<R>,
+    spec_strictness: SpecCompliance,
 }
 
 enum InnerDecoder<R: BufRead + Seek> {
@@ -147,9 +149,17 @@ struct DirEntry {
 
 impl<R: BufRead + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<IcoDecoder<R>> {
+        Self::with_spec_compliance(r, SpecCompliance::default())
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn with_spec_compliance(
+        mut r: R,
+        spec: SpecCompliance,
+    ) -> ImageResult<IcoDecoder<R>> {
         let reader_offset = r.stream_position()?;
-        let entries = read_entries(&mut r)?;
+        let entries = read_entries(&mut r, spec)?;
         let entry = best_entry(entries)?;
         let decoder = entry.decoder(r, reader_offset)?;
 
@@ -157,19 +167,20 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
             selected_entry: entry,
             reader_offset,
             inner_decoder: decoder,
+            spec_strictness: spec,
         })
     }
 }
 
-fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
+fn read_entries<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<Vec<DirEntry>> {
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
     // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
     let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
-    (0..count).map(|_| read_entry(r)).collect()
+    (0..count).map(|_| read_entry(r, spec)).collect()
 }
 
-fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry> {
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -182,7 +193,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
     let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
-    if bits_per_pixel > 256 {
+    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
     }
 
@@ -261,12 +272,7 @@ impl DirEntry {
         self.seek_to_start(&mut r, reader_offset)?;
 
         if is_png {
-            let limits = crate::Limits {
-                max_image_width: Some(self.real_width().into()),
-                max_image_height: Some(self.real_height().into()),
-                max_alloc: Some(256 * 256 * 4 * 2), // width * height * 4 bytes per pixel * safety factor of 2
-            };
-            Ok(Png(Box::new(PngDecoder::with_limits(r, limits))))
+            Ok(Png(Box::new(PngDecoder::new(r))))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
@@ -307,7 +313,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 let layout = decoder.prepare_image()?;
                 // Check if the image dimensions match the ones in the image data.
                 let (width, height) = layout.layout.dimensions();
-                if !self.selected_entry.matches_dimensions(width, height) {
+                if self.spec_strictness == SpecCompliance::Strict
+                    && !self.selected_entry.matches_dimensions(width, height)
+                {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Png,
                         entry: (
@@ -319,9 +327,16 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     .into());
                 }
 
-                // Embedded PNG images can only be of the 32BPP RGBA format.
-                // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if layout.layout.color != ColorType::Rgba8 {
+                // > The format of a PNG-compressed image consists simply of a PNG image, starting
+                // > with the PNG file signature. The image must be in 32bpp ARGB format [...].
+                // https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
+                //
+                // This requirement was added to better support older software, which might crash for arbitrary PNGs.
+                // We have a state-of-the-art PNG decoder, so allowing any PNG format is easy for us.
+                // However, we still want to enforce this restriction is strict mode for compatibility with other decoders.
+                if self.spec_strictness == SpecCompliance::Strict
+                    && layout.layout.color != ColorType::Rgba8
+                {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 
@@ -330,7 +345,9 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
             Bmp(decoder) => {
                 let layout = decoder.prepare_image()?;
                 let (width, height) = layout.layout.dimensions();
-                if !self.selected_entry.matches_dimensions(width, height) {
+                if self.spec_strictness == SpecCompliance::Strict
+                    && !self.selected_entry.matches_dimensions(width, height)
+                {
                     return Err(DecoderError::ImageEntryDimensionMismatch {
                         format: IcoEntryImageFormat::Bmp,
                         entry: (
@@ -425,6 +442,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     Ok(DecodedImageAttributes::default())
                 } else if data_end == image_end {
                     // accept images with no mask data
+                    Ok(DecodedImageAttributes::default())
+                } else if self.spec_strictness == SpecCompliance::Lenient
+                    && self.selected_entry.bits_per_pixel >= 32
+                {
+                    // In lenient mode, we accept truncated mask data for 32bpp images
+                    // since they already have an alpha channel and we ignore the AND mask anyway.
                     Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
@@ -549,6 +572,53 @@ mod test {
         assert!(decoder.read_image(&mut buf).is_err());
     }
 
+    #[test]
+    fn dimension_mismatch_strict_vs_lenient() {
+        // Minimal 2x2 32-bit BMP inside an ICO where the directory entry says 3x3.
+        let data = vec![
+            0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x03, 0x03, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00,
+            0x40, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x02, 0x00,
+            0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ];
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_err());
+    }
+
+    #[test]
+    fn truncated_mask_32bpp_lenient() {
+        let data = std::fs::read("tests/images/ico/images/truncated_mask_32bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_err());
+    }
+
     // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
     #[test]
     fn bmp_32bpp_and_mask_ignored() {
@@ -569,5 +639,21 @@ mod test {
                 pixel[3]
             );
         }
+    }
+
+    #[test]
+    fn format_error_ico_strict_vs_lenient() {
+        let data = std::fs::read("tests/images/ico/images/lenient-bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let decoder_strict =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
+        assert!(decoder_strict.is_err());
     }
 }

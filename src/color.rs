@@ -1,10 +1,11 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, Zero};
+use num_traits::Zero;
 
 use crate::{
     error::TryFromExtendedColorError,
-    traits::{Enlargeable, Pixel, Primitive},
+    primitive_sealed::RgbToLuma,
+    traits::{Pixel, Primitive},
 };
 
 /// An enumeration over supported color types and bit depths
@@ -295,7 +296,6 @@ impl ExtendedColorType {
             ExtendedColorType::La32F => Some(ColorType::La32F),
             ExtendedColorType::Rgb32F => Some(ColorType::Rgb32F),
             ExtendedColorType::Rgba32F => Some(ColorType::Rgba32F),
-            ExtendedColorType::YCbCr8 => Some(ColorType::Rgb8),
             _ => None,
         }
     }
@@ -527,11 +527,11 @@ define_colors! {
     ///
     /// For the purpose of color conversion, as well as blending, the implementation of `Pixel`
     /// assumes an `sRGB` color space of its data.
-    pub struct Rgb<T: Primitive Enlargeable>([T; 3, 0]) = "RGB";
+    pub struct Rgb<T: Primitive>([T; 3, 0]) = "RGB";
     /// Grayscale colors.
     pub struct Luma<T: Primitive>([T; 1, 0]) = "Y";
     /// RGB colors + alpha channel
-    pub struct Rgba<T: Primitive Enlargeable>([T; 4, 1]) = "RGBA";
+    pub struct Rgba<T: Primitive>([T; 4, 1]) = "RGBA";
     /// Grayscale colors + alpha channel
     pub struct LumaA<T: Primitive>([T; 2, 1]) = "YA";
 }
@@ -649,18 +649,6 @@ where
     }
 }
 
-/// Coefficients to transform from sRGB to a CIE Y (luminance) value.
-const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
-const SRGB_LUMA_DIV: u32 = 10000;
-
-#[inline]
-fn rgb_to_luma<T: Primitive + Enlargeable>(rgb: &[T]) -> T {
-    let l = <T::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * rgb[0].to_larger()
-        + <T::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * rgb[1].to_larger()
-        + <T::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * rgb[2].to_larger();
-    T::clamp_from(l / <T::Larger as NumCast>::from(SRGB_LUMA_DIV).unwrap())
-}
-
 // `FromColor` for Luma
 impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Luma<T>
 where
@@ -682,26 +670,23 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for Luma<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgb<S>) {
-        let gray = self.channels_mut();
-        let rgb = other.channels();
-        gray[0] = T::from_primitive(rgb_to_luma(rgb));
+        let [r, g, b] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for Luma<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgba<S>) {
-        let gray = self.channels_mut();
-        let rgb = other.channels();
-        let l = rgb_to_luma(rgb);
-        gray[0] = T::from_primitive(l);
+        let [r, g, b, _a] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
     }
 }
 
@@ -719,27 +704,25 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgb<S>) {
-        let gray_a = self.channels_mut();
-        let rgb = other.channels();
-        gray_a[0] = T::from_primitive(rgb_to_luma(rgb));
-        gray_a[1] = T::DEFAULT_MAX_VALUE;
+        let [r, g, b] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
+        self.0[1] = T::DEFAULT_MAX_VALUE;
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgba<S>) {
-        let gray_a = self.channels_mut();
-        let rgba = other.channels();
-        gray_a[0] = T::from_primitive(rgb_to_luma(rgba));
-        gray_a[1] = T::from_primitive(rgba[3]);
+        let [r, g, b, a] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
+        self.0[1] = T::from_primitive(a);
     }
 }
 

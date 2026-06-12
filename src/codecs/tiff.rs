@@ -95,6 +95,8 @@ where
     }
 
     fn reset_info_from_current_image(&mut self) -> ImageResult<()> {
+        use tiff::tags::SampleFormat::{Uint, IEEEFP};
+
         let Some(reader) = &mut self.inner else {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::FailedAlready,
@@ -103,59 +105,44 @@ where
 
         let dimensions = reader.dimensions().map_err(ImageError::from_tiff_decode)?;
         let tiff_color_type = reader.colortype().map_err(ImageError::from_tiff_decode)?;
+        let sample_format = reader
+            .image_buffer_layout()
+            .map_err(ImageError::from_tiff_decode)?
+            .sample_format;
 
-        match reader.find_tag_unsigned_vec::<u16>(Tag::SampleFormat) {
-            Ok(Some(sample_formats)) => {
-                for format in sample_formats {
-                    check_sample_format(format, tiff_color_type)?;
-                }
+        let color_type = match (tiff_color_type, sample_format) {
+            (tiff::ColorType::Gray(1), Uint) => ColorType::L8,
+            (tiff::ColorType::Gray(8), Uint) => ColorType::L8,
+            (tiff::ColorType::Gray(16), Uint) => ColorType::L16,
+            (tiff::ColorType::Gray(32), IEEEFP) => ColorType::L32F,
+            (tiff::ColorType::GrayA(8), Uint) => ColorType::La8,
+            (tiff::ColorType::GrayA(16), Uint) => ColorType::La16,
+            (tiff::ColorType::RGB(8), Uint) => ColorType::Rgb8,
+            (tiff::ColorType::RGB(16), Uint) => ColorType::Rgb16,
+            (tiff::ColorType::RGBA(8), Uint) => ColorType::Rgba8,
+            (tiff::ColorType::RGBA(16), Uint) => ColorType::Rgba16,
+            (tiff::ColorType::CMYK(8), Uint) => ColorType::Rgb8,
+            (tiff::ColorType::CMYK(16), Uint) => ColorType::Rgb16,
+            (tiff::ColorType::RGB(32), IEEEFP) => ColorType::Rgb32F,
+            (tiff::ColorType::RGBA(32), IEEEFP) => ColorType::Rgba32F,
+            (tiff::ColorType::YCbCr(8), Uint) => ColorType::Rgb8,
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tiff.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Unsupported TIFF color {tiff_color_type:?} with sample format {sample_format:?}"
+                        )),
+                    ),
+                ));
             }
-            Ok(None) => { /* assume UInt format */ }
-            Err(other) => return Err(ImageError::from_tiff_decode(other)),
-        }
-
-        let color_type = match tiff_color_type {
-            tiff::ColorType::Gray(1) => ColorType::L8,
-            tiff::ColorType::Gray(8) => ColorType::L8,
-            tiff::ColorType::Gray(16) => ColorType::L16,
-            tiff::ColorType::Gray(32) => ColorType::L32F,
-            tiff::ColorType::GrayA(8) => ColorType::La8,
-            tiff::ColorType::GrayA(16) => ColorType::La16,
-            tiff::ColorType::RGB(8) => ColorType::Rgb8,
-            tiff::ColorType::RGB(16) => ColorType::Rgb16,
-            tiff::ColorType::RGBA(8) => ColorType::Rgba8,
-            tiff::ColorType::RGBA(16) => ColorType::Rgba16,
-            tiff::ColorType::CMYK(8) => ColorType::Rgb8,
-            tiff::ColorType::CMYK(16) => ColorType::Rgb16,
-            tiff::ColorType::RGB(32) => ColorType::Rgb32F,
-            tiff::ColorType::RGBA(32) => ColorType::Rgba32F,
-            tiff::ColorType::YCbCr(8) => ColorType::Rgb8,
-
-            tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
-                return Err(err_unknown_color_type(n))
-            }
-            tiff::ColorType::GrayA(n) => return Err(err_unknown_color_type(n.saturating_mul(2))),
-            tiff::ColorType::RGB(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
-            tiff::ColorType::YCbCr(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
-            tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
-                return Err(err_unknown_color_type(n.saturating_mul(4)))
-            }
-            tiff::ColorType::Multiband {
-                bit_depth,
-                num_samples,
-            } => {
-                return Err(err_unknown_color_type(
-                    bit_depth.saturating_mul(num_samples.min(255) as u8),
-                ))
-            }
-            _ => return Err(err_unknown_color_type(0)),
         };
 
-        let original_color_type = match tiff_color_type {
-            tiff::ColorType::Gray(1) => ExtendedColorType::L1,
-            tiff::ColorType::CMYK(8) => ExtendedColorType::Cmyk8,
-            tiff::ColorType::CMYK(16) => ExtendedColorType::Cmyk16,
-            tiff::ColorType::YCbCr(8) => ExtendedColorType::YCbCr8,
+        let original_color_type = match (tiff_color_type, sample_format) {
+            (tiff::ColorType::Gray(1), Uint) => ExtendedColorType::L1,
+            (tiff::ColorType::CMYK(8), Uint) => ExtendedColorType::Cmyk8,
+            (tiff::ColorType::CMYK(16), Uint) => ExtendedColorType::Cmyk16,
+            (tiff::ColorType::YCbCr(8), Uint) => ExtendedColorType::YCbCr8,
             _ => color_type.into(),
         };
 
@@ -349,58 +336,6 @@ fn read_ycbcr_coefficients<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> Image
     }
 
     Ok(coefficients)
-}
-
-fn check_sample_format(sample_format: u16, color_type: tiff::ColorType) -> Result<(), ImageError> {
-    use tiff::{tags::SampleFormat, ColorType};
-    let num_bits = match color_type {
-        ColorType::CMYK(k) => k,
-        ColorType::Gray(k) => k,
-        ColorType::RGB(k) => k,
-        ColorType::RGBA(k) => k,
-        ColorType::GrayA(k) => k,
-        ColorType::YCbCr(8) => 8,
-        ColorType::Palette(k) | ColorType::YCbCr(k) => {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tiff.into(),
-                    UnsupportedErrorKind::GenericFeature(format!(
-                        "Unhandled TIFF color type {color_type:?} for {k} bits",
-                    )),
-                ),
-            ))
-        }
-        _ => {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tiff.into(),
-                    UnsupportedErrorKind::GenericFeature(format!(
-                        "Unhandled TIFF color type {color_type:?}",
-                    )),
-                ),
-            ))
-        }
-    };
-
-    match SampleFormat::from_u16(sample_format) {
-        Some(SampleFormat::Uint) if num_bits <= 16 => Ok(()),
-        Some(SampleFormat::IEEEFP) if num_bits == 32 => Ok(()),
-        _ => Err(ImageError::Unsupported(
-            UnsupportedError::from_format_and_kind(
-                ImageFormat::Tiff.into(),
-                UnsupportedErrorKind::GenericFeature(format!(
-                    "Unhandled TIFF sample format {sample_format:?} for {num_bits} bits",
-                )),
-            ),
-        )),
-    }
-}
-
-fn err_unknown_color_type(value: u8) -> ImageError {
-    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-        ImageFormat::Tiff.into(),
-        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(value)),
-    ))
 }
 
 impl ImageError {

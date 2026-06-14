@@ -10,7 +10,7 @@ use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
-use crate::animation::{Delay, Ratio};
+use crate::animation::{Delay, Frame, Ratio};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
@@ -784,13 +784,109 @@ impl<W: Write> PngEncoder<W> {
         }
     }
 
-    fn encode_inner(
+    /// TODO
+    pub fn encode_frames<F>(self, loops: LoopCount, frames: F) -> ImageResult<()>
+    where
+        F: IntoIterator<Item = Frame>,
+        F::IntoIter: ExactSizeIterator,
+    {
+        self.try_encode_frames(loops, frames.into_iter().map(Ok))
+    }
+    /// TODO
+    pub fn try_encode_frames<F>(self, loops: LoopCount, frames: F) -> ImageResult<()>
+    where
+        F: IntoIterator<Item = ImageResult<Frame>>,
+        F::IntoIter: ExactSizeIterator,
+    {
+        let mut frames = frames.into_iter();
+        self.try_encode_frames_inner(loops, &mut frames)
+    }
+
+    fn try_encode_frames_inner(
+        self,
+        loops: LoopCount,
+        frames: &mut dyn ExactSizeIterator<Item = ImageResult<Frame>>,
+    ) -> ImageResult<()> {
+        let num_frames = frames.len();
+
+        let Some(first) = frames.next() else {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic("Animation must have at least one frame".into()),
+            )));
+        };
+        let first = first?;
+
+        let (width, height) = first.buffer().dimensions();
+
+        let mut writer = self.into_writer(
+            width,
+            height,
+            ExtendedColorType::Rgba8, // all frames are RGBA8
+            &mut |encoder| {
+                encoder
+                    .set_animated(
+                        num_frames as u32,
+                        match loops {
+                            LoopCount::Finite(n) => n.get(),
+                            LoopCount::Infinite => 0,
+                        },
+                    )
+                    .map_err(ImageError::from_png_enc)?;
+
+                // first image is part of the animation
+                encoder
+                    .set_sep_def_img(false)
+                    .map_err(ImageError::from_png_enc)?;
+
+                Ok(())
+            },
+        )?;
+
+        for frame in std::iter::once(Ok(first)).chain(frames) {
+            let frame = frame?;
+            let buffer = frame.buffer();
+            let delay = to_png_delay(frame.delay());
+            let (width, height) = buffer.dimensions();
+
+            writer
+                .set_frame_delay(delay.0, delay.1)
+                .map_err(ImageError::from_png_enc)?;
+            writer
+                .set_frame_dimension(width, height)
+                .map_err(ImageError::from_png_enc)?;
+            writer
+                .set_frame_position(frame.top(), frame.left())
+                .map_err(ImageError::from_png_enc)?;
+
+            writer
+                .write_image_data(buffer.subpixels())
+                .map_err(ImageError::from_png_enc)?;
+        }
+
+        writer.finish().map_err(ImageError::from_png_enc)
+    }
+
+    fn encode_image(
         self,
         data: &[u8],
         width: u32,
         height: u32,
         color: ExtendedColorType,
     ) -> ImageResult<()> {
+        let mut writer = self.into_writer(width, height, color, &mut |_| Ok(()))?;
+        writer
+            .write_image_data(data)
+            .map_err(ImageError::from_png_enc)?;
+        writer.finish().map_err(ImageError::from_png_enc)
+    }
+
+    fn into_writer(
+        self,
+        width: u32,
+        height: u32,
+        color: ExtendedColorType,
+        adjust_encoder: &mut dyn FnMut(&mut png::Encoder<'_, W>) -> ImageResult<()>,
+    ) -> ImageResult<png::Writer<W>> {
         let (ct, bits) = match color {
             ExtendedColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ExtendedColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
@@ -860,11 +956,10 @@ impl<W: Write> PngEncoder<W> {
             encoder.set_deflate_compression(compression);
         }
         encoder.set_filter(filter);
-        let mut writer = encoder.write_header().map_err(ImageError::from_png_enc)?;
-        writer
-            .write_image_data(data)
-            .map_err(ImageError::from_png_enc)?;
-        writer.finish().map_err(ImageError::from_png_enc)
+
+        adjust_encoder(&mut encoder)?;
+
+        encoder.write_header().map_err(ImageError::from_png_enc)
     }
 }
 
@@ -888,7 +983,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         assert_eq!(
             expected_buffer_len,
             buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
+            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} {color_type:?} image",
             buf.len(),
         );
 
@@ -899,7 +994,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         match color_type {
             L8 | La8 | Rgb8 | Rgba8 => {
                 // No reodering necessary for u8
-                self.encode_inner(buf, width, height, color_type)
+                self.encode_image(buf, width, height, color_type)
             }
             L16 | La16 | Rgb16 | Rgba16 => {
                 // Because the buffer is immutable and the PNG encoder does not
@@ -913,7 +1008,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 } else {
                     buf
                 };
-                self.encode_inner(buf, width, height, color_type)
+                self.encode_image(buf, width, height, color_type)
             }
             _ => Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -1056,10 +1151,54 @@ fn blend_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region
     }
 }
 
+fn to_png_delay(delay: Delay) -> (u16, u16) {
+    let (n, d) = delay.numer_denom_ms();
+    let n = n as u64;
+    let d = d as u64 * 1000; // PNG delays are in seconds
+
+    const fn gcd(mut a: u64, mut b: u64) -> u64 {
+        while b != 0 {
+            (a, b) = (b, a.rem_euclid(b));
+        }
+        a
+    }
+
+    // reduce fraction
+    let c = gcd(n, d);
+    let n = n / c;
+    let d = d / c;
+
+    // mutable fraction that will approximate n/d if n/d cannot be represented exactly
+    let mut a = n;
+    let mut b = d;
+
+    // cap denominator
+    if b > u16::MAX as u64 {
+        b = u16::MAX as u64;
+        // n/d = a/b => a = n*b/d
+        a = (n * b + (d / 2)) / d;
+    }
+
+    // cap numerator
+    if a > u16::MAX as u64 {
+        a = u16::MAX as u64;
+        // n/d = a/b => b = d*a/n
+        b = (d * a + (n / 2)) / n;
+
+        if b == 0 {
+            // this means that n/d > 65535 seconds
+            // PNG can't represent this, so just return the maximum delay
+            return (u16::MAX, 1);
+        }
+    }
+
+    (a as u16, b as u16)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::free_functions::decoder_to_vec;
+    use crate::{io::free_functions::decoder_to_vec, RgbaImage};
     use std::io::{BufReader, Cursor, Read};
 
     #[test]
@@ -1139,5 +1278,52 @@ mod tests {
             .expect("Error decoding XMP")
             .expect("XMP is empty");
         assert_eq!(xmp, decoded_xmp);
+    }
+
+    #[test]
+    fn roundtrip_animation() {
+        let frames = vec![
+            Frame::from_parts(
+                RgbaImage::from_pixel(20, 20, Rgba([255, 0, 0, 255])),
+                0,
+                0,
+                Delay::from_numer_denom_ms(1000, 1), // 1 sec
+            ),
+            Frame::from_parts(
+                RgbaImage::from_pixel(20, 20, Rgba([0, 255, 0, 255])),
+                0,
+                0,
+                Delay::from_numer_denom_ms(0, 1), // 0 sec
+            ),
+            Frame::from_parts(
+                RgbaImage::from_pixel(20, 20, Rgba([0, 0, 255, 255])),
+                0,
+                0,
+                Delay::from_numer_denom_ms(1, 60), // 60 FPS
+            ),
+        ];
+        let loop_count = LoopCount::Finite(NonZeroU32::new(42).unwrap());
+
+        let mut encoded = Vec::new();
+        PngEncoder::new(&mut encoded)
+            .encode_frames(loop_count, frames.clone())
+            .expect("Could not encode animation");
+
+        // TODO: I hate this. Use the normal `ImageReader` API once #3038 is fixed
+        let mut reader = crate::ImageReader::from_decoder(Box::new(
+            PngDecoder::new(Cursor::new(encoded)).apng().unwrap(),
+        ));
+
+        let animation_attrs = reader.animation_attributes().unwrap();
+        assert_eq!(animation_attrs.loop_count, loop_count);
+
+        let decoded_frames = reader.into_frames().collect_frames().unwrap();
+        assert_eq!(decoded_frames.len(), frames.len());
+        for (decoded, original) in decoded_frames.into_iter().zip(frames) {
+            assert_eq!(decoded.top(), original.top());
+            assert_eq!(decoded.left(), original.left());
+            assert_eq!(decoded.delay(), original.delay());
+            assert_eq!(decoded.into_buffer(), original.into_buffer());
+        }
     }
 }

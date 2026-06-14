@@ -153,11 +153,8 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// > When the sRGB chunk is present, [...] decoders that recognize the sRGB chunk but are not
     /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
     /// > the values given above as if they had appeared in gAMA and cHRM chunks.
-    pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
-        let Some(reader) = &self.reader else {
-            return Err(decoding_not_yet_started());
-        };
-
+    pub fn gamma_value(&mut self) -> ImageResult<Option<f64>> {
+        let reader = self.ensure_reader_and_header()?;
         Ok(reader
             .info()
             .source_gamma
@@ -184,13 +181,8 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// animation. When it is not the common interpretation is to use it as a thumbnail.
     ///
     /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
-    pub fn is_apng(&self) -> ImageResult<bool> {
-        let Some(reader) = &self.reader else {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::FailedAlready,
-            )));
-        };
-
+    pub fn is_apng(&mut self) -> ImageResult<bool> {
+        let reader = self.ensure_reader_and_header()?;
         Ok(reader.info().animation_control.is_some())
     }
 
@@ -258,10 +250,6 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
         ImageFormat::Png.into(),
         UnsupportedErrorKind::Color(ect),
     ))
-}
-
-fn decoding_not_yet_started() -> ImageError {
-    ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
 }
 
 fn decoding_started_already() -> ImageError {
@@ -1139,5 +1127,19 @@ mod tests {
             .expect("Error decoding XMP")
             .expect("XMP is empty");
         assert_eq!(xmp, decoded_xmp);
+    }
+
+    #[test]
+    fn is_apng() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
+        let is_apng = PngDecoder::new(file).is_apng().unwrap();
+        assert!(is_apng);
+    }
+
+    #[test]
+    fn gamma() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
+        let gamma = PngDecoder::new(file).gamma_value().unwrap();
+        assert_eq!(gamma, None);
     }
 }

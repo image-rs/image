@@ -784,7 +784,9 @@ impl<W: Write> PngEncoder<W> {
         }
     }
 
-    /// TODO
+    /// Encode an animation from an iterator over frames.
+    ///
+    /// See also: [`Self::try_encode_frames`].
     pub fn encode_frames<F>(self, loops: LoopCount, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = Frame>,
@@ -792,7 +794,9 @@ impl<W: Write> PngEncoder<W> {
     {
         self.try_encode_frames(loops, frames.into_iter().map(Ok))
     }
-    /// TODO
+    /// Encode an animation from an iterator over frames.
+    ///
+    /// See also: [`Self::encode_frames`].
     pub fn try_encode_frames<F>(self, loops: LoopCount, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = ImageResult<Frame>>,
@@ -809,12 +813,11 @@ impl<W: Write> PngEncoder<W> {
     ) -> ImageResult<()> {
         let num_frames = frames.len();
 
-        let Some(first) = frames.next() else {
+        let Some(first) = frames.next().transpose()? else {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic("Animation must have at least one frame".into()),
             )));
         };
-        let first = first?;
 
         let (width, height) = first.buffer().dimensions();
 
@@ -823,6 +826,7 @@ impl<W: Write> PngEncoder<W> {
             height,
             ExtendedColorType::Rgba8, // all frames are RGBA8
             &mut |encoder| {
+                // set the PNG to animated
                 encoder
                     .set_animated(
                         num_frames as u32,
@@ -831,14 +835,7 @@ impl<W: Write> PngEncoder<W> {
                             LoopCount::Infinite => 0,
                         },
                     )
-                    .map_err(ImageError::from_png_enc)?;
-
-                // first image is part of the animation
-                encoder
-                    .set_sep_def_img(false)
-                    .map_err(ImageError::from_png_enc)?;
-
-                Ok(())
+                    .map_err(ImageError::from_png_enc)
             },
         )?;
 

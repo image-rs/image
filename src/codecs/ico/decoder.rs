@@ -644,4 +644,46 @@ mod test {
             IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
         assert!(decoder_strict.is_err());
     }
+
+    // A BMP-backed ICO entry whose embedded BITMAPINFOHEADER height is odd (here 1)
+    // is halved to 0 by the ICO double-height convention. Decoding must return an
+    // error, not panic in the BMP pixel reader. Regression test for the
+    // `(self.height - 1).try_into().unwrap()` panic.
+    #[test]
+    fn ico_bmp_odd_embedded_height_does_not_panic() {
+        let mut v: Vec<u8> = Vec::new();
+        // ICONDIR: reserved=0, type=1 (icon), count=1
+        v.extend_from_slice(&[0, 0, 1, 0, 1, 0]);
+        // ICONDIRENTRY (16 bytes)
+        v.extend_from_slice(&[1, 1, 0, 0]); // width, height, color_count, reserved
+        v.extend_from_slice(&1u16.to_le_bytes()); // color planes
+        v.extend_from_slice(&32u16.to_le_bytes()); // bpp
+        let len_pos = v.len();
+        v.extend_from_slice(&0u32.to_le_bytes()); // image_length (patched below)
+        v.extend_from_slice(&22u32.to_le_bytes()); // image_offset = 6 + 16
+        let img_start = v.len();
+        // BITMAPINFOHEADER (40 bytes), no BITMAPFILEHEADER (ICO convention)
+        v.extend_from_slice(&40u32.to_le_bytes()); // header size
+        v.extend_from_slice(&1i32.to_le_bytes()); // width = 1
+        v.extend_from_slice(&1i32.to_le_bytes()); // height = 1 (odd -> halves to 0)
+        v.extend_from_slice(&1u16.to_le_bytes()); // planes
+        v.extend_from_slice(&32u16.to_le_bytes()); // bit_count = 32 (full-byte path)
+        v.extend_from_slice(&0u32.to_le_bytes()); // compression = BI_RGB
+        v.extend_from_slice(&[0u8; 20]); // size_image, ppm x/y, colors_used, important
+        v.extend_from_slice(&[0u8; 64]); // pixel/mask bytes
+        let img_len = (v.len() - img_start) as u32;
+        v[len_pos..len_pos + 4].copy_from_slice(&img_len.to_le_bytes());
+
+        // Default (lenient) mode — the path used by `image::load_from_memory`.
+        // The decode must fail with an error rather than panic; the error may
+        // surface at any stage (construction is fail-fast here).
+        let decode = |bytes: &[u8]| -> ImageResult<()> {
+            let mut decoder = IcoDecoder::new(std::io::Cursor::new(bytes))?;
+            let total = decoder.prepare_image()?.total_bytes();
+            let mut buf = vec![0u8; usize::try_from(total).unwrap()];
+            decoder.read_image(&mut buf)?;
+            Ok(())
+        };
+        assert!(decode(&v).is_err());
+    }
 }

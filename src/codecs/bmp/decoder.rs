@@ -1729,6 +1729,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).
         self.height /= 2;
+
+        // The halving above happens after `read_metadata`'s overflow/zero checks,
+        // so a malformed entry with an odd doubled-height (e.g. 1) leaves height at
+        // 0 here. A zero height would later panic in the pixel readers, which do
+        // `(self.height - 1).try_into::<u32>().unwrap()`. Reject it as invalid.
+        if self.height == 0 {
+            return Err(DecoderError::InvalidHeight.into());
+        }
+
         Ok(())
     }
 

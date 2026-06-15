@@ -108,6 +108,18 @@ impl<'a> IcoFrame<'a> {
             )));
         }
 
+        // Check to see that the output buffer is not going to be larger than the 4 GiB that ICO can support.
+        let output_size = BITMAPINFOHEADER_SIZE as u64 // header
+            + (width as u64 * height as u64 * 4) // XOR mask (32 bits per pixel)
+            + (height as u64 * width.div_ceil(32) as u64 * 4); // AND mask (1 bit per pixel, padded to 32 bits per row)
+        if output_size > u32::MAX as u64 {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the encoded image data must be at most 4 GiB, but the provided image would encode to {output_size} bytes",
+                )),
+            )));
+        }
+
         let mut image_data: Vec<u8> = Vec::new();
 
         // https://learn.microsoft.com/en-us/previous-versions/ms997538(v=msdn.10)?redirectedfrom=MSDN
@@ -137,12 +149,17 @@ impl<'a> IcoFrame<'a> {
                 // AND mask
                 // For 32-bit BMP the AND mask is typically ignored, but it should be provided nonetheless.
                 // We use a threshold of 128 for the alpha channel to determine whether a pixel is transparent or opaque in the AND mask.
+
+                // Each row of the AND mask must be padded to a multiple of 4 bytes.
+                let mask_row_len = width.div_ceil(8); // number of mask bytes written per row
+                let mask_row_padding = mask_row_len.div_ceil(4) * 4 - mask_row_len;
+
                 for row in pixels.chunks_exact(width as usize).rev() {
                     let mut mask_byte: u8 = 0;
                     for (x, a) in row.iter().map(|pixel| pixel[3]).enumerate() {
                         let pos = x % 8;
                         let bit_pos = 7 - pos;
-                        mask_byte |= if a < 128 { 1 } else { 0 } << bit_pos;
+                        mask_byte |= u8::from(a < 128) << bit_pos;
 
                         if pos == 7 {
                             image_data.push(mask_byte);
@@ -153,11 +170,7 @@ impl<'a> IcoFrame<'a> {
                         image_data.push(mask_byte);
                     }
 
-                    // Each row of the AND mask must be padded to a multiple of 4 bytes.
-                    let mask_row_len = width.div_ceil(8);
-                    let mask_row_padded = mask_row_len.div_ceil(4) * 4;
-                    let padding = &[0_u8; 4][..(mask_row_padded - mask_row_len) as usize];
-                    image_data.extend_from_slice(padding);
+                    image_data.extend(std::iter::repeat_n(0u8, mask_row_padding as usize));
                 }
             }
             ExtendedColorType::Rgb8 => {
@@ -174,9 +187,7 @@ impl<'a> IcoFrame<'a> {
                 // Since there is no transparency, we can set all pixels to 0 (opaque) in the AND mask.
                 for _ in 0..height {
                     let chunks_per_row = width.div_ceil(32);
-                    for _ in 0..chunks_per_row {
-                        image_data.extend_from_slice(&[0_u8; 4]);
-                    }
+                    image_data.extend(std::iter::repeat_n(0u8, 4 * chunks_per_row as usize));
                 }
             }
             _ => {
@@ -194,6 +205,9 @@ impl<'a> IcoFrame<'a> {
         // but we set it nonetheless of compatibility.
         let size = image_data.len() as u32 - BITMAPINFOHEADER_SIZE;
         image_data[20..24].copy_from_slice(&size.to_le_bytes());
+
+        // verify that the output size is correctly calculated.
+        debug_assert_eq!(image_data.len() as u64, output_size);
 
         // color type has to be Rgba8, because the `bit_per_pixel` field in the ICO directory entry has to be set to 32.
         let frame = Self::with_encoded(image_data, width, height, ExtendedColorType::Rgba8)?;

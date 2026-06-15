@@ -3,7 +3,9 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::codecs::png::PngEncoder;
-use crate::error::{EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
+};
 use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
@@ -12,6 +14,8 @@ const ICO_IMAGE_TYPE: u16 = 1;
 const ICO_ICONDIR_SIZE: u32 = 6;
 // The length of an ICO file DIRENTRY structure, in bytes:
 const ICO_DIRENTRY_SIZE: u32 = 16;
+// The length of a BITMAPINFOHEADER structure, in bytes:
+const BITMAPINFOHEADER_SIZE: u32 = 40;
 
 /// ICO encoder
 pub struct IcoEncoder<W: Write> {
@@ -78,6 +82,121 @@ impl<'a> IcoFrame<'a> {
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
         let frame = Self::with_encoded(image_data, width, height, color_type)?;
+        Ok(frame)
+    }
+
+    /// Construct a new `IcoFrame` by encoding `buf` as a BMP
+    ///
+    /// The `width` and `height` must be between 1 and 256 (inclusive)
+    pub fn as_bmp(
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ExtendedColorType,
+    ) -> ImageResult<Self> {
+        if width == 0 || height == 0 {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the image width and height must be non-zero, but width {width} and height {height} were provided",
+                )),
+            )));
+        }
+        // same soft limit as BMP decoder
+        if width > u16::MAX as u32 || height > u16::MAX as u32 {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic("Dimensions too big.".into()),
+            )));
+        }
+
+        let mut image_data: Vec<u8> = Vec::new();
+
+        // https://learn.microsoft.com/en-us/previous-versions/ms997538(v=msdn.10)?redirectedfrom=MSDN
+        // > Only the following members are used: biSize, biWidth, biHeight, biPlanes, biBitCount,
+        // > biSizeImage. All other members must be 0.
+        // https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader
+        image_data.write_u32::<LittleEndian>(BITMAPINFOHEADER_SIZE)?; // biSize
+        image_data.write_i32::<LittleEndian>(width as i32)?; // biWidth
+        image_data.write_i32::<LittleEndian>(height as i32 * 2)?; // biHeight
+        image_data.write_u16::<LittleEndian>(1)?; // biPlanes must be 1
+        image_data.write_u16::<LittleEndian>(32)?; // biBitCount (we only support 32-bit for now)
+        image_data.write_u32::<LittleEndian>(0)?; // biCompression must be 0 (BI_RGB) for uncompressed
+        image_data.write_u32::<LittleEndian>(0)?; // biSizeImage
+        image_data.extend_from_slice(&[0; 16]); // remaining unused fields
+        debug_assert_eq!(image_data.len(), BITMAPINFOHEADER_SIZE as usize);
+
+        match color_type {
+            ExtendedColorType::Rgba8 => {
+                let pixels = buf.as_chunks::<4>().0;
+                // BMP format requires the alpha channel to be stored as BGRA, so we need to convert it from RGBA.
+                for row in pixels.chunks_exact(width as usize).rev() {
+                    for [r, g, b, a] in row {
+                        image_data.extend_from_slice(&[*b, *g, *r, *a]);
+                    }
+                }
+
+                // AND mask
+                // For 32-bit BMP the AND mask is typically ignored, but it should be provided nonetheless.
+                // We use a threshold of 128 for the alpha channel to determine whether a pixel is transparent or opaque in the AND mask.
+                for row in pixels.chunks_exact(width as usize).rev() {
+                    let mut mask_byte: u8 = 0;
+                    for (x, a) in row.iter().map(|pixel| pixel[3]).enumerate() {
+                        let pos = x % 8;
+                        let bit_pos = 7 - pos;
+                        mask_byte |= if a < 128 { 1 } else { 0 } << bit_pos;
+
+                        if pos == 7 {
+                            image_data.push(mask_byte);
+                            mask_byte = 0;
+                        }
+                    }
+                    if !width.is_multiple_of(8) {
+                        image_data.push(mask_byte);
+                    }
+
+                    // Each row of the AND mask must be padded to a multiple of 4 bytes.
+                    let mask_row_len = width.div_ceil(8);
+                    let mask_row_padded = mask_row_len.div_ceil(4) * 4;
+                    let padding = &[0_u8; 4][..(mask_row_padded - mask_row_len) as usize];
+                    image_data.extend_from_slice(padding);
+                }
+            }
+            ExtendedColorType::Rgb8 => {
+                let pixels = buf.as_chunks::<3>().0;
+                // ICO doesn't allow 24-bit RGB, so we have to use the 0RGB 32-bit format.
+                // This is the same as the 32-bit RGBA format but with the alpha channel set to 0 for all pixels.
+                for row in pixels.chunks_exact(width as usize).rev() {
+                    for [r, g, b] in row {
+                        image_data.extend_from_slice(&[*b, *g, *r, 0]);
+                    }
+                }
+
+                // AND mask
+                // Since there is no transparency, we can set all pixels to 0 (opaque) in the AND mask.
+                for _ in 0..height {
+                    let chunks_per_row = width.div_ceil(32);
+                    for _ in 0..chunks_per_row {
+                        image_data.extend_from_slice(&[0_u8; 4]);
+                    }
+                }
+            }
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Ico.into(),
+                        crate::error::UnsupportedErrorKind::Color(color_type),
+                    ),
+                ));
+            }
+        }
+
+        // Set biSizeImage properly
+        // This isn't strictly necessary since 0 is allowed for uncompressed images (which ICO requires),
+        // but we set it nonetheless of compatibility.
+        let size = image_data.len() as u32 - BITMAPINFOHEADER_SIZE;
+        image_data[20..24].copy_from_slice(&size.to_le_bytes());
+
+        // color type has to be Rgba8, because the `bit_per_pixel` field in the ICO directory entry has to be set to 32.
+        let frame = Self::with_encoded(image_data, width, height, ExtendedColorType::Rgba8)?;
         Ok(frame)
     }
 }
@@ -210,6 +329,8 @@ fn write_direntry<W: Write>(
 
 #[cfg(test)]
 mod test {
+    use crate::{DynamicImage, ImageBuffer, PixelWithColorType, Rgb, Rgba, RgbaImage};
+
     use super::*;
 
     // Test that the encoder allows image where all frames have offsets < 4GiB
@@ -234,5 +355,50 @@ mod test {
         let encoder = IcoEncoder::new(io::sink());
         let res = encoder.encode_images(&frames);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn roundtrip() {
+        fn encode_bmp_decode<P: PixelWithColorType<Subpixel = u8>>(
+            image: &ImageBuffer<P, Vec<P::Subpixel>>,
+        ) -> DynamicImage {
+            let frame = IcoFrame::as_bmp(
+                image.subpixels(),
+                image.width(),
+                image.height(),
+                P::COLOR_TYPE,
+            )
+            .unwrap();
+
+            let mut encoded_data: Vec<u8> = Vec::new();
+            IcoEncoder::new(&mut encoded_data)
+                .encode_images(&[frame])
+                .unwrap();
+
+            let mut reader = crate::ImageReaderOptions::with_format(
+                io::Cursor::new(encoded_data),
+                ImageFormat::Ico,
+            );
+            reader.set_spec_compliance(crate::SpecCompliance::Strict);
+            reader.decode().unwrap()
+        }
+
+        let rgba = RgbaImage::from_fn(32, 32, |x, y| {
+            Rgba([
+                x as u8 * 8,
+                y as u8 * 8,
+                0,
+                if y < 24 {
+                    255
+                } else {
+                    (x + y * 32 - 256 * 3) as u8
+                },
+            ])
+        });
+        let rgb = rgba.convert();
+        let round_rgba = encode_bmp_decode(&rgba);
+        let round_rgb = encode_bmp_decode::<Rgb<u8>>(&rgb);
+        assert_eq!(round_rgba.into_rgba8(), rgba);
+        assert_eq!(round_rgb.into_rgba8(), rgb.convert());
     }
 }

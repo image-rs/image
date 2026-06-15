@@ -108,10 +108,13 @@ impl<'a> IcoFrame<'a> {
             )));
         }
 
+        let mask_row_bytes = width.div_ceil(8);
+        let mask_row_bytes_padded = mask_row_bytes.next_multiple_of(4);
+
         // Check to see that the output buffer is not going to be larger than the 4 GiB that ICO can support.
         let output_size = BITMAPINFOHEADER_SIZE as u64 // header
             + (width as u64 * height as u64 * 4) // XOR mask (32 bits per pixel)
-            + (height as u64 * width.div_ceil(32) as u64 * 4); // AND mask (1 bit per pixel, padded to 32 bits per row)
+            + (height as u64 * mask_row_bytes_padded as u64); // AND mask (1 bit per pixel, padded to 32 bits per row)
         if output_size > u32::MAX as u64 {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(format!(
@@ -149,11 +152,6 @@ impl<'a> IcoFrame<'a> {
                 // AND mask
                 // For 32-bit BMP the AND mask is typically ignored, but it should be provided nonetheless.
                 // We use a threshold of 128 for the alpha channel to determine whether a pixel is transparent or opaque in the AND mask.
-
-                // Each row of the AND mask must be padded to a multiple of 4 bytes.
-                let mask_row_len = width.div_ceil(8); // number of mask bytes written per row
-                let mask_row_padding = mask_row_len.div_ceil(4) * 4 - mask_row_len;
-
                 for row in pixels.chunks_exact(width as usize).rev() {
                     // AND mask is 1 bpp, so 8 pixels go into 1 mask byte.
                     for chunks in row.chunks(8) {
@@ -165,7 +163,11 @@ impl<'a> IcoFrame<'a> {
                         image_data.push(mask_byte);
                     }
 
-                    image_data.extend(std::iter::repeat_n(0u8, mask_row_padding as usize));
+                    // Each row of the AND mask must be padded to a multiple of 4 bytes.
+                    image_data.extend(std::iter::repeat_n(
+                        0u8,
+                        (mask_row_bytes_padded - mask_row_bytes) as usize,
+                    ));
                 }
             }
             ExtendedColorType::Rgb8 => {
@@ -180,10 +182,10 @@ impl<'a> IcoFrame<'a> {
 
                 // AND mask
                 // Since there is no transparency, we can set all pixels to 0 (opaque) in the AND mask.
-                for _ in 0..height {
-                    let chunks_per_row = width.div_ceil(32);
-                    image_data.extend(std::iter::repeat_n(0u8, 4 * chunks_per_row as usize));
-                }
+                image_data.extend(std::iter::repeat_n(
+                    0u8,
+                    (height * mask_row_bytes_padded) as usize,
+                ));
             }
             _ => {
                 return Err(ImageError::Unsupported(
@@ -366,32 +368,30 @@ mod test {
         assert!(res.is_err());
     }
 
-    #[test]
-    fn roundtrip() {
-        fn encode_bmp_decode<P: PixelWithColorType<Subpixel = u8>>(
-            image: &ImageBuffer<P, Vec<P::Subpixel>>,
-        ) -> DynamicImage {
-            let frame = IcoFrame::as_bmp(
-                image.subpixels(),
-                image.width(),
-                image.height(),
-                P::COLOR_TYPE,
-            )
+    fn encode_bmp_decode<P: PixelWithColorType<Subpixel = u8>>(
+        image: &ImageBuffer<P, Vec<P::Subpixel>>,
+    ) -> DynamicImage {
+        let frame = IcoFrame::as_bmp(
+            image.subpixels(),
+            image.width(),
+            image.height(),
+            P::COLOR_TYPE,
+        )
+        .unwrap();
+
+        let mut encoded_data: Vec<u8> = Vec::new();
+        IcoEncoder::new(&mut encoded_data)
+            .encode_images(&[frame])
             .unwrap();
 
-            let mut encoded_data: Vec<u8> = Vec::new();
-            IcoEncoder::new(&mut encoded_data)
-                .encode_images(&[frame])
-                .unwrap();
+        let mut reader =
+            crate::ImageReaderOptions::with_format(io::Cursor::new(encoded_data), ImageFormat::Ico);
+        reader.set_spec_compliance(crate::SpecCompliance::Strict);
+        reader.decode().unwrap()
+    }
 
-            let mut reader = crate::ImageReaderOptions::with_format(
-                io::Cursor::new(encoded_data),
-                ImageFormat::Ico,
-            );
-            reader.set_spec_compliance(crate::SpecCompliance::Strict);
-            reader.decode().unwrap()
-        }
-
+    #[test]
+    fn roundtrip() {
         let rgba = RgbaImage::from_fn(32, 32, |x, y| {
             Rgba([
                 x as u8 * 8,
@@ -409,5 +409,13 @@ mod test {
         let round_rgb = encode_bmp_decode::<Rgb<u8>>(&rgb);
         assert_eq!(round_rgba.into_rgba8(), rgba);
         assert_eq!(round_rgb.into_rgba8(), rgb.convert());
+    }
+
+    #[test]
+    fn roundtrip_awkward_size() {
+        // test a size that will need lots of padding in the AND mask to make sure the logic works correctly.
+        let image = RgbaImage::from_pixel(33, 5, Rgba([255, 0, 0, 255]));
+        let round_rgba = encode_bmp_decode(&image);
+        assert_eq!(round_rgba.into_rgba8(), image);
     }
 }

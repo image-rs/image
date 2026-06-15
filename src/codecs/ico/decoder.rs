@@ -654,8 +654,7 @@ mod test {
 
     #[test]
     fn size_fallback_on_lenient() {
-        let data =
-            std::fs::read("tests/images/ico/images/bmp-biHeight=1.ico").unwrap();
+        let data = std::fs::read("tests/images/ico/images/bmp-biHeight=1.ico").unwrap();
 
         let mut decoder =
             IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)

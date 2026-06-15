@@ -161,7 +161,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
         let reader_offset = r.stream_position()?;
         let entries = read_entries(&mut r, spec)?;
         let entry = best_entry(entries)?;
-        let decoder = entry.decoder(r, reader_offset)?;
+        let decoder = entry.decoder(r, reader_offset, spec)?;
 
         Ok(IcoDecoder {
             selected_entry: entry,
@@ -267,6 +267,7 @@ impl DirEntry {
         &self,
         mut r: R,
         reader_offset: u64,
+        spec: SpecCompliance,
     ) -> ImageResult<InnerDecoder<R>> {
         let is_png = self.is_png(&mut r, reader_offset)?;
         self.seek_to_start(&mut r, reader_offset)?;
@@ -274,7 +275,13 @@ impl DirEntry {
         if is_png {
             Ok(Png(Box::new(PngDecoder::new(r))))
         } else {
-            Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
+            Ok(Bmp(BmpDecoder::new_with_ico_format(
+                r,
+                spec,
+                // Certain invalid BMPs have their biWidth and/or biHeight set to 0.
+                // We pass in the dimensions from the ICON entry as a fallback in such cases.
+                (self.real_width(), self.real_height()),
+            )?))
         }
     }
 }
@@ -639,6 +646,22 @@ mod test {
         let bytes = decoder.prepare_image().unwrap().total_bytes();
         let mut buf = vec![0; usize::try_from(bytes).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
+
+        let decoder_strict =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
+        assert!(decoder_strict.is_err());
+    }
+
+    #[test]
+    fn size_fallback_on_lenient() {
+        let data =
+            std::fs::read("tests/images/ico/images/bmp-biHeight=1.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let layout = decoder.prepare_image().unwrap().layout;
+        assert_eq!(layout.dimensions(), (1, 1));
 
         let decoder_strict =
             IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);

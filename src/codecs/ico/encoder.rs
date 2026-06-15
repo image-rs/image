@@ -330,8 +330,8 @@ fn write_direntry<W: Write>(
     w.write_u8(0)?;
     // Reserved field (must be zero):
     w.write_u8(0)?;
-    // Color planes:
-    w.write_u16::<LittleEndian>(0)?;
+    // Color planes: 1 is correct, 0 is merely accepted in most circumstances.
+    w.write_u16::<LittleEndian>(1)?;
     // Bits per pixel:
     w.write_u16::<LittleEndian>(color.bits_per_pixel())?;
     // Image data size, in bytes:

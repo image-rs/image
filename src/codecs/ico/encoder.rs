@@ -155,18 +155,13 @@ impl<'a> IcoFrame<'a> {
                 let mask_row_padding = mask_row_len.div_ceil(4) * 4 - mask_row_len;
 
                 for row in pixels.chunks_exact(width as usize).rev() {
-                    let mut mask_byte: u8 = 0;
-                    for (x, a) in row.iter().map(|pixel| pixel[3]).enumerate() {
-                        let pos = x % 8;
-                        let bit_pos = 7 - pos;
-                        mask_byte |= u8::from(a < 128) << bit_pos;
-
-                        if pos == 7 {
-                            image_data.push(mask_byte);
-                            mask_byte = 0;
+                    // AND mask is 1 bpp, so 8 pixels go into 1 mask byte.
+                    for chunks in row.chunks(8) {
+                        let mut mask_byte: u8 = 0;
+                        for (x, a) in chunks.iter().map(|pixel| pixel[3]).enumerate() {
+                            let bit_pos = 7 - (x % 8);
+                            mask_byte |= u8::from(a < 128) << bit_pos;
                         }
-                    }
-                    if !width.is_multiple_of(8) {
                         image_data.push(mask_byte);
                     }
 

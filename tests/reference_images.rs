@@ -73,9 +73,7 @@ fn main() -> std::process::ExitCode {
             // Load the test image
             let mut image = image::open(&image_path)?;
 
-            if image_format == ImageFormat::Tiff
-                && matches!(image.color(), ColorType::Rgb32F | ColorType::Rgba32F)
-            {
+            if image_format == ImageFormat::Tiff {
                 // The 32-bit image are stored as TIFF in references. So if we
                 // were to do the same for TIFF test images, we would use the
                 // same decoder for both test and references images, defeating
@@ -86,7 +84,7 @@ fn main() -> std::process::ExitCode {
                     ColorType::La32F => image.to_luma_alpha16().into(),
                     ColorType::Rgb32F => image.to_rgb16().into(),
                     ColorType::Rgba32F => image.to_rgba16().into(),
-                    _ => unreachable!(),
+                    _ => image,
                 };
             }
 

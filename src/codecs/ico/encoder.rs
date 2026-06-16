@@ -6,6 +6,7 @@ use crate::codecs::png::PngEncoder;
 use crate::error::{
     EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
 };
+use crate::utils::vec_try_with_capacity;
 use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
@@ -123,7 +124,7 @@ impl<'a> IcoFrame<'a> {
             )));
         }
 
-        let mut image_data: Vec<u8> = Vec::new();
+        let mut image_data: Vec<u8> = vec_try_with_capacity(output_size as usize)?;
 
         // https://learn.microsoft.com/en-us/previous-versions/ms997538(v=msdn.10)?redirectedfrom=MSDN
         // > Only the following members are used: biSize, biWidth, biHeight, biPlanes, biBitCount,
@@ -135,7 +136,7 @@ impl<'a> IcoFrame<'a> {
         image_data.write_u16::<LittleEndian>(1)?; // biPlanes must be 1
         image_data.write_u16::<LittleEndian>(32)?; // biBitCount (we only support 32-bit for now)
         image_data.write_u32::<LittleEndian>(0)?; // biCompression must be 0 (BI_RGB) for uncompressed
-        image_data.write_u32::<LittleEndian>(0)?; // biSizeImage
+        image_data.write_u32::<LittleEndian>(output_size as u32 - BITMAPINFOHEADER_SIZE)?; // biSizeImage
         image_data.extend_from_slice(&[0; 16]); // remaining unused fields
         debug_assert_eq!(image_data.len(), BITMAPINFOHEADER_SIZE as usize);
 
@@ -156,9 +157,8 @@ impl<'a> IcoFrame<'a> {
                     // AND mask is 1 bpp, so 8 pixels go into 1 mask byte.
                     for chunks in row.chunks(8) {
                         let mut mask_byte: u8 = 0;
-                        for (x, a) in chunks.iter().map(|pixel| pixel[3]).enumerate() {
-                            let bit_pos = 7 - (x % 8);
-                            mask_byte |= u8::from(a < 128) << bit_pos;
+                        for ([_, _, _, a], bit_pos) in chunks.iter().zip((0..8).rev()) {
+                            mask_byte |= u8::from(*a < 128) << bit_pos;
                         }
                         image_data.push(mask_byte);
                     }
@@ -197,14 +197,8 @@ impl<'a> IcoFrame<'a> {
             }
         }
 
-        // Set biSizeImage properly
-        // This isn't strictly necessary since 0 is allowed for uncompressed images (which ICO requires),
-        // but we set it nonetheless of compatibility.
-        let size = image_data.len() as u32 - BITMAPINFOHEADER_SIZE;
-        image_data[20..24].copy_from_slice(&size.to_le_bytes());
-
-        // verify that the output size is correctly calculated.
-        debug_assert_eq!(image_data.len() as u64, output_size);
+        // verify that the output size was calculated correctly.
+        assert_eq!(image_data.len() as u64, output_size);
 
         // color type has to be Rgba8, because the `bit_per_pixel` field in the ICO directory entry has to be set to 32.
         let frame = Self::with_encoded(image_data, width, height, ExtendedColorType::Rgba8)?;

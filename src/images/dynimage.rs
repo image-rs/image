@@ -1681,16 +1681,16 @@ impl DynamicImage {
     /// ## Example
     ///
     /// ```no_run
-    /// # #[cfg(feature = "png")]
-    /// # fn main() -> image::ImageResult<()> {
+    /// # #[cfg(feature = "png")] {
     /// # use image::{DynamicImage, ColorType};
     /// use image::codecs::png;
     /// let image = DynamicImage::new(32, 32, ColorType::Rgba8);
     ///
     /// let mut options = png::PngOptions::default();
     /// options.compression = png::CompressionType::Best;
-    /// image.save_with_options("file.png", &options).unwrap();
-    /// # Ok(()) }
+    /// image.save_with_options("file.png", &options)?;
+    /// # }
+    /// # image::ImageResult::Ok(())
     /// ```
     pub fn save_with_options<Q>(&self, path: Q, options: &dyn EncoderOptions) -> ImageResult<()>
     where

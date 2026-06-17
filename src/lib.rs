@@ -150,11 +150,13 @@ pub use crate::images::dynimage::{
     write_buffer_with_format,
 };
 
-pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
+pub use crate::io::free_functions::{
+    guess_format, load, save_buffer, save_buffer_with_format, save_buffer_with_options,
+};
 
 pub use crate::io::{
     decoder::ImageDecoder,
-    encoder::ImageEncoder,
+    encoder::{EncoderOptions, ImageEncoder},
     format::ImageFormat,
     image_reader_type::{ImageReader, ImageReaderOptions, SpecCompliance},
     limits::{LimitSupport, Limits},

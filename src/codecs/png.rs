@@ -25,8 +25,8 @@ use crate::math::Rect;
 use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    DynamicImage, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
-    ImageLayout, Limits, Luma, LumaA, Rgb, Rgba,
+    DynamicImage, EncoderOptions, GenericImage, GenericImageView, ImageDecoder, ImageEncoder,
+    ImageFormat, ImageLayout, Limits, Luma, LumaA, Rgb, Rgba,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -691,9 +691,8 @@ pub struct PngEncoder<W: Write> {
 }
 
 /// DEFLATE compression level of a PNG encoder. The default setting is `Fast`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 #[non_exhaustive]
-#[derive(Default)]
 pub enum CompressionType {
     /// No compression whatsoever
     Uncompressed,
@@ -711,9 +710,8 @@ pub enum CompressionType {
 /// Filter algorithms used to process image data to improve compression.
 ///
 /// The default filter is `Adaptive`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 #[non_exhaustive]
-#[derive(Default)]
 pub enum FilterType {
     /// No processing done, best used for low bit depth grayscale or data with a
     /// low color count
@@ -730,6 +728,35 @@ pub enum FilterType {
     /// scanline rather than one filter for the entire image
     #[default]
     Adaptive,
+}
+
+/// Encoding options for the PNG format.
+///
+/// It is best to view the options as a _hint_ to the implementation on the smallest or fastest
+/// option for encoding a particular image. That is, using options that map directly to a PNG
+/// image parameter will use this parameter where possible. But variants that have no direct
+/// mapping may be interpreted differently in minor versions. The exact output is expressly
+/// __not__ part of the SemVer stability guarantee.
+#[derive(Default, Debug, Clone)]
+#[non_exhaustive]
+pub struct PngOptions {
+    /// DEFLATE compression level of a PNG encoder.
+    ///
+    /// Defaults to [`CompressionType::Fast`].
+    pub compression: CompressionType,
+    /// Filter algorithms used to process image data.
+    ///
+    /// Note that it is not optimal to use a single filter type, so an adaptive
+    /// filter type is selected as the default. The filter which best minimizes
+    /// file size may change with the type of compression used.
+    ///
+    /// Defaults to [`FilterType::Adaptive`].
+    pub filter: FilterType,
+}
+impl EncoderOptions for PngOptions {
+    fn format(&self) -> ImageFormat {
+        ImageFormat::Png
+    }
 }
 
 impl<W: Write> PngEncoder<W> {
@@ -857,6 +884,12 @@ impl<W: Write> PngEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PngEncoder<W> {
+    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
+        let options = PngOptions::try_from_ref(options)?;
+        self.compression = options.compression;
+        self.filter = options.filter;
+        Ok(())
+    }
     /// Write a PNG image with the specified width, height, and color type.
     ///
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in

@@ -12,7 +12,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
+use crate::{EncoderOptions, ExtendedColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
@@ -50,6 +50,50 @@ impl ColorSpace {
 enum RgbColor<'buf> {
     Rgb8(Img<&'buf [RGB8]>),
     Rgba8(Img<&'buf [RGBA8]>),
+}
+
+/// Encoding options for the AVIF format.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct AvifOptions {
+    /// The quality of the AVIF encoding, from 1 to 100. Higher is better quality and larger file size.
+    ///
+    /// Defaults to **80**.
+    pub quality: u8,
+    /// The speed of the AVIF encoding, from 1 to 10. Higher is faster but lower quality.
+    ///
+    /// Defaults to **4**.
+    pub speed: u8,
+    /// The color space to encode with.
+    ///
+    /// If `None`, the color space will be chosen dynamically for each image. No particular choice
+    /// is guaranteed and the chosen color space may change without warning between versions of the
+    /// library.
+    ///
+    /// Defaults to [`ColorSpace::Bt709`].
+    pub color_space: ColorSpace,
+    /// The number of threads to use for encoding.
+    ///
+    /// If `None`, the encoder will use all available threads.
+    ///
+    /// Defaults to `None`.
+    // TODO: Using `usize` is weird. Also None == all seems weird too. Why not usize::MAX == all?
+    pub num_threads: Option<usize>,
+}
+impl Default for AvifOptions {
+    fn default() -> Self {
+        Self {
+            quality: 80,
+            speed: 4,
+            color_space: ColorSpace::Bt709,
+            num_threads: None,
+        }
+    }
+}
+impl EncoderOptions for AvifOptions {
+    fn format(&self) -> ImageFormat {
+        ImageFormat::Avif
+    }
 }
 
 impl<W: Write> AvifEncoder<W> {
@@ -93,6 +137,21 @@ impl<W: Write> AvifEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for AvifEncoder<W> {
+    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
+        let avif_options = AvifOptions::try_from_ref(options)?;
+
+        let mut temp = Encoder::new();
+        std::mem::swap(&mut temp, &mut self.encoder);
+        self.encoder = temp
+            .with_quality(f32::from(avif_options.quality.clamp(1, 100)))
+            .with_alpha_quality(f32::from(avif_options.quality.clamp(1, 100)))
+            .with_speed(avif_options.speed.clamp(1, 10))
+            .with_internal_color_model(avif_options.color_space.to_ravif())
+            .with_num_threads(avif_options.num_threads);
+
+        Ok(())
+    }
+
     /// Encode image data with the indicated color type.
     ///
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if

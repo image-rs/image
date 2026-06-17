@@ -1,5 +1,10 @@
-use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, DynamicImage, ExtendedColorType};
+use std::any::Any;
+
+use crate::error::{
+    ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
+};
+use crate::{ColorType, DynamicImage, ExtendedColorType, ImageError, ImageFormat};
 
 /// Nominally public but DO NOT expose this type.
 ///
@@ -100,6 +105,23 @@ pub trait ImageEncoder {
         ))
     }
 
+    /// Set encoder options for the image.
+    ///
+    /// Returns [`ImageError::Unsupported`] if the encoder does not support any options.
+    /// If the the given options are not supported by the encoder, returns an [`ImageError::Parameter`] error.
+    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
+        Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                // TODO: Better error message. Say which format doesn't support options.
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::GenericFeature(format!(
+                    "Encoder options are not supported for this format. Cannot use given {:?} options.",
+                    options.format()
+                )),
+            ),
+        ))
+    }
+
     /// Convert the image to a compatible format for the encoder. This is used by the encoding
     /// methods on `DynamicImage`.
     ///
@@ -112,6 +134,38 @@ pub trait ImageEncoder {
         _input: &DynamicImage,
     ) -> Option<DynamicImage> {
         None
+    }
+}
+
+/// Encoding options for a specific format.
+pub trait EncoderOptions: Any {
+    /// The image format these options are for.
+    fn format(&self) -> ImageFormat;
+
+    /// Downcase a generic reference to specific encoding options.
+    ///
+    /// If the given reference is not of the expected type, returns an [`ImageError::Parameter`] error.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let options: &dyn EncoderOptions = todo!();
+    /// let jpeg_options: &PngOptions = PngOptions::try_from_ref(options)?;
+    /// ```
+    fn try_from_ref(r: &dyn EncoderOptions) -> ImageResult<&Self>
+    where
+        Self: Sized,
+    {
+        let any = r as &dyn Any;
+        any.downcast_ref::<Self>().ok_or_else(|| {
+            ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
+                format!(
+                    "Invalid encoder options type: expected {}, got options for {:?}",
+                    std::any::type_name::<Self>(),
+                    r.format()
+                ),
+            )))
+        })
     }
 }
 

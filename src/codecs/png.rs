@@ -755,9 +755,7 @@ pub struct PngOptions {
 }
 impl EncoderOptions for PngOptions {
     type Encoder<W: Write + Seek> = PngEncoder<W>;
-    fn format(&self) -> ImageFormat {
-        ImageFormat::Png
-    }
+
     fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
         Ok(PngEncoder::new_with_quality(
             w,

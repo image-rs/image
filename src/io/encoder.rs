@@ -1,7 +1,7 @@
 use std::io::{Seek, Write};
 
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::{ColorType, DynamicImage, ExtendedColorType, ImageFormat};
+use crate::{ColorType, DynamicImage, ExtendedColorType};
 
 /// Nominally public but DO NOT expose this type.
 ///
@@ -121,9 +121,6 @@ pub trait ImageEncoder {
 pub trait EncoderOptions {
     /// The encoder these options are for.
     type Encoder<W: Write + Seek>: ImageEncoder;
-
-    /// The image format these options are for.
-    fn format(&self) -> ImageFormat;
 
     /// Downcase a generic reference to specific encoding options.
     ///

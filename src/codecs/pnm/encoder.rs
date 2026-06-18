@@ -46,9 +46,7 @@ pub struct PnmOptions {
 }
 impl EncoderOptions for PnmOptions {
     type Encoder<W: Write + Seek> = PnmEncoder<W>;
-    fn format(&self) -> ImageFormat {
-        ImageFormat::Pnm
-    }
+
     fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
         let mut encoder = PnmEncoder::new(w);
         if let Some(subtype) = self.subtype {

@@ -173,9 +173,7 @@ impl Default for JpegOptions {
 }
 impl EncoderOptions for JpegOptions {
     type Encoder<W: Write + Seek> = JpegEncoder<W>;
-    fn format(&self) -> ImageFormat {
-        ImageFormat::Jpeg
-    }
+
     fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
         let mut encoder = JpegEncoder::new_with_quality(w, self.quality);
         encoder.set_chroma_subsampling(self.chroma_subsampling);

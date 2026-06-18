@@ -54,9 +54,7 @@ impl Default for TgaOptions {
 }
 impl EncoderOptions for TgaOptions {
     type Encoder<W: Write + Seek> = TgaEncoder<W>;
-    fn format(&self) -> ImageFormat {
-        ImageFormat::Tga
-    }
+
     fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
         let mut encoder = TgaEncoder::new(w);
         if !self.use_rle {

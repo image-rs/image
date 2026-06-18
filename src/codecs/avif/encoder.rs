@@ -92,9 +92,7 @@ impl Default for AvifOptions {
 }
 impl EncoderOptions for AvifOptions {
     type Encoder<W: Write + Seek> = AvifEncoder<W>;
-    fn format(&self) -> ImageFormat {
-        ImageFormat::Avif
-    }
+
     fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
         let encoder = AvifEncoder::new_with_speed_quality(w, self.speed, self.quality)
             .with_colorspace(self.color_space)

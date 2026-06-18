@@ -119,9 +119,6 @@ pub trait ImageEncoder {
 
 /// Encoding options for a specific format.
 pub trait EncoderOptions {
-    /// The encoder these options are for.
-    type Encoder<W: Write + Seek>: ImageEncoder;
-
     /// Downcase a generic reference to specific encoding options.
     ///
     /// If the given reference is not of the expected type, returns an [`ImageError::Parameter`] error.
@@ -132,7 +129,7 @@ pub trait EncoderOptions {
     /// let options: &dyn EncoderOptions = todo!();
     /// let jpeg_options: &PngOptions = PngOptions::try_from_ref(options)?;
     /// ```
-    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>>;
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder>;
 }
 
 pub(crate) trait ImageEncoderBoxed: ImageEncoder {

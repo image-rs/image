@@ -754,9 +754,7 @@ pub struct PngOptions {
     pub filter: FilterType,
 }
 impl EncoderOptions for PngOptions {
-    type Encoder<W: Write + Seek> = PngEncoder<W>;
-
-    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
         Ok(PngEncoder::new_with_quality(
             w,
             self.compression,

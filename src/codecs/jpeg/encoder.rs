@@ -172,9 +172,7 @@ impl Default for JpegOptions {
     }
 }
 impl EncoderOptions for JpegOptions {
-    type Encoder<W: Write + Seek> = JpegEncoder<W>;
-
-    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
         let mut encoder = JpegEncoder::new_with_quality(w, self.quality);
         encoder.set_chroma_subsampling(self.chroma_subsampling);
         encoder.set_optimize_huffman_tables(self.optimize_huffman_tables);

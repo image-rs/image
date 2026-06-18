@@ -53,9 +53,7 @@ impl Default for TgaOptions {
     }
 }
 impl EncoderOptions for TgaOptions {
-    type Encoder<W: Write + Seek> = TgaEncoder<W>;
-
-    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
         let mut encoder = TgaEncoder::new(w);
         if !self.use_rle {
             encoder = encoder.disable_rle();

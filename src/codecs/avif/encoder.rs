@@ -91,9 +91,7 @@ impl Default for AvifOptions {
     }
 }
 impl EncoderOptions for AvifOptions {
-    type Encoder<W: Write + Seek> = AvifEncoder<W>;
-
-    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
         let encoder = AvifEncoder::new_with_speed_quality(w, self.speed, self.quality)
             .with_colorspace(self.color_space)
             .with_num_threads(self.num_threads);

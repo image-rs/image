@@ -5,7 +5,7 @@ use std::{iter, mem::size_of};
 
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::DecodedImageAttributes;
-use crate::{EncoderOptions, ExtendedColorType, ImageEncoder, ImageReaderOptions, codecs::*};
+use crate::{codecs::*, EncoderOptions, ExtendedColorType, ImageEncoder, ImageReaderOptions};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
@@ -70,7 +70,7 @@ pub fn save_buffer_with_options(
     color: impl Into<ExtendedColorType>,
     options: impl EncoderOptions,
 ) -> ImageResult<()> {
-    let buffered_file_write =   BufWriter::new(File::create(path)?); // always seekable
+    let buffered_file_write = BufWriter::new(File::create(path)?); // always seekable
     let encoder = options.build(buffered_file_write)?;
     encoder.write_image(buf, width, height, color.into())
 }

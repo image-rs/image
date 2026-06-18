@@ -193,6 +193,10 @@ fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry>
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
     let mut bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
+    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
+        return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+    }
+
     let color_count = buf[2];
 
     // Some icons don't have a bit depth, only a color count. Convert the color count
@@ -203,10 +207,6 @@ fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry>
             c => u16::from(c),
         };
         bits_per_pixel = count.next_power_of_two().trailing_zeros() as u16;
-    }
-
-    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
-        return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
     }
 
     Ok(DirEntry {
@@ -660,9 +660,8 @@ mod test {
     #[test]
     fn best_entry_selection() {
         let data = vec![
-            0x00, 0x00, 0x01, 0x00, 0x02, 0x00,
-            // Entry 1: 16x16, 32 bpp
-            16, 16, 0, 0, 1, 0, 32, 0, 8, 0, 0, 0, 38, 0, 0, 0, 
+            0x00, 0x00, 0x01, 0x00, 0x02, 0x00, // Entry 1: 16x16, 32 bpp
+            16, 16, 0, 0, 1, 0, 32, 0, 8, 0, 0, 0, 38, 0, 0, 0,
             // Entry 2: 32x32, 0 bpp, 0 color_count
             32, 32, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 46, 0, 0, 0,
         ];

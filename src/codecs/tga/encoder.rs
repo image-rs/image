@@ -4,6 +4,7 @@ use crate::{
     DynamicImage, EncoderOptions, ExtendedColorType, ImageEncoder, ImageError, ImageFormat,
     ImageResult,
 };
+use std::io::Seek;
 use std::{error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -52,8 +53,16 @@ impl Default for TgaOptions {
     }
 }
 impl EncoderOptions for TgaOptions {
+    type Encoder<W: Write + Seek> = TgaEncoder<W>;
     fn format(&self) -> ImageFormat {
         ImageFormat::Tga
+    }
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+        let mut encoder = TgaEncoder::new(w);
+        if !self.use_rle {
+            encoder = encoder.disable_rle();
+        }
+        Ok(encoder)
     }
 }
 
@@ -265,12 +274,6 @@ impl<W: Write> TgaEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for TgaEncoder<W> {
-    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
-        let options = TgaOptions::try_from_ref(options)?;
-        self.use_rle = options.use_rle;
-        Ok(())
-    }
-
     #[track_caller]
     fn write_image(
         self,

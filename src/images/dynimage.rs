@@ -1688,18 +1688,17 @@ impl DynamicImage {
     ///
     /// let mut options = png::PngOptions::default();
     /// options.compression = png::CompressionType::Best;
-    /// image.save_with_options("file.png", &options)?;
+    /// image.save_with_options("file.png", options)?;
     /// # }
     /// # image::ImageResult::Ok(())
     /// ```
-    pub fn save_with_options<Q>(&self, path: Q, options: &dyn EncoderOptions) -> ImageResult<()>
+    pub fn save_with_options<Q>(&self, path: Q, options: impl EncoderOptions) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
-        let file = &mut BufWriter::new(File::create(path)?);
-        let mut encoder = encoder_for_format(options.format(), file)?;
-        encoder.set_encoder_options(options)?;
-        self.write_with_encoder_impl(encoder)
+        let file = BufWriter::new(File::create(path)?);
+        let encoder = options.build(file)?;
+        self.write_with_encoder_impl(Box::new(encoder))
     }
 }
 

@@ -5,7 +5,7 @@
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::borrow::Cow;
 use std::cmp::min;
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::mem::size_of;
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
@@ -91,8 +91,15 @@ impl Default for AvifOptions {
     }
 }
 impl EncoderOptions for AvifOptions {
+    type Encoder<W: Write + Seek> = AvifEncoder<W>;
     fn format(&self) -> ImageFormat {
         ImageFormat::Avif
+    }
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+        let encoder = AvifEncoder::new_with_speed_quality(w, self.speed, self.quality)
+            .with_colorspace(self.color_space)
+            .with_num_threads(self.num_threads);
+        Ok(encoder)
     }
 }
 
@@ -137,21 +144,6 @@ impl<W: Write> AvifEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for AvifEncoder<W> {
-    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
-        let avif_options = AvifOptions::try_from_ref(options)?;
-
-        let mut temp = Encoder::new();
-        std::mem::swap(&mut temp, &mut self.encoder);
-        self.encoder = temp
-            .with_quality(f32::from(avif_options.quality.clamp(1, 100)))
-            .with_alpha_quality(f32::from(avif_options.quality.clamp(1, 100)))
-            .with_speed(avif_options.speed.clamp(1, 10))
-            .with_internal_color_model(avif_options.color_space.to_ravif())
-            .with_num_threads(avif_options.num_threads);
-
-        Ok(())
-    }
-
     /// Encode image data with the indicated color type.
     ///
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if

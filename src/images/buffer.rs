@@ -1168,7 +1168,7 @@ where
     ///
     /// See [`save_buffer_with_options`](crate::save_buffer_with_options) for
     /// supported types.
-    pub fn save_with_options<Q>(&self, path: Q, options: &dyn EncoderOptions) -> ImageResult<()>
+    pub fn save_with_options<Q>(&self, path: Q, options: impl EncoderOptions) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {

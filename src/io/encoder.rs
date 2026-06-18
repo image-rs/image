@@ -1,10 +1,7 @@
-use std::any::Any;
+use std::io::{Seek, Write};
 
-use crate::error::{
-    ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
-    UnsupportedErrorKind,
-};
-use crate::{ColorType, DynamicImage, ExtendedColorType, ImageError, ImageFormat};
+use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::{ColorType, DynamicImage, ExtendedColorType, ImageFormat};
 
 /// Nominally public but DO NOT expose this type.
 ///
@@ -105,23 +102,6 @@ pub trait ImageEncoder {
         ))
     }
 
-    /// Set encoder options for the image.
-    ///
-    /// Returns [`ImageError::Unsupported`] if the encoder does not support any options.
-    /// If the the given options are not supported by the encoder, returns an [`ImageError::Parameter`] error.
-    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
-        Err(ImageError::Unsupported(
-            UnsupportedError::from_format_and_kind(
-                // TODO: Better error message. Say which format doesn't support options.
-                ImageFormatHint::Unknown,
-                UnsupportedErrorKind::GenericFeature(format!(
-                    "Encoder options are not supported for this format. Cannot use given {:?} options.",
-                    options.format()
-                )),
-            ),
-        ))
-    }
-
     /// Convert the image to a compatible format for the encoder. This is used by the encoding
     /// methods on `DynamicImage`.
     ///
@@ -138,7 +118,10 @@ pub trait ImageEncoder {
 }
 
 /// Encoding options for a specific format.
-pub trait EncoderOptions: Any {
+pub trait EncoderOptions {
+    /// The encoder these options are for.
+    type Encoder<W: Write + Seek>: ImageEncoder;
+
     /// The image format these options are for.
     fn format(&self) -> ImageFormat;
 
@@ -152,21 +135,7 @@ pub trait EncoderOptions: Any {
     /// let options: &dyn EncoderOptions = todo!();
     /// let jpeg_options: &PngOptions = PngOptions::try_from_ref(options)?;
     /// ```
-    fn try_from_ref(r: &dyn EncoderOptions) -> ImageResult<&Self>
-    where
-        Self: Sized,
-    {
-        let any = r as &dyn Any;
-        any.downcast_ref::<Self>().ok_or_else(|| {
-            ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
-                format!(
-                    "Invalid encoder options type: expected {}, got options for {:?}",
-                    std::any::type_name::<Self>(),
-                    r.format()
-                ),
-            )))
-        })
-    }
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>>;
 }
 
 pub(crate) trait ImageEncoderBoxed: ImageEncoder {

@@ -754,8 +754,16 @@ pub struct PngOptions {
     pub filter: FilterType,
 }
 impl EncoderOptions for PngOptions {
+    type Encoder<W: Write + Seek> = PngEncoder<W>;
     fn format(&self) -> ImageFormat {
         ImageFormat::Png
+    }
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+        Ok(PngEncoder::new_with_quality(
+            w,
+            self.compression,
+            self.filter,
+        ))
     }
 }
 
@@ -884,12 +892,6 @@ impl<W: Write> PngEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PngEncoder<W> {
-    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
-        let options = PngOptions::try_from_ref(options)?;
-        self.compression = options.compression;
-        self.filter = options.filter;
-        Ok(())
-    }
     /// Write a PNG image with the specified width, height, and color type.
     ///
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in

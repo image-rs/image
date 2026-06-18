@@ -3,6 +3,7 @@ use crate::utils::vec_try_with_capacity;
 use crate::EncoderOptions;
 use std::fmt;
 use std::io;
+use std::io::Seek;
 use std::io::Write;
 
 use super::AutoBreak;
@@ -44,8 +45,16 @@ pub struct PnmOptions {
     pub subtype: Option<PnmSubtype>,
 }
 impl EncoderOptions for PnmOptions {
+    type Encoder<W: Write + Seek> = PnmEncoder<W>;
     fn format(&self) -> ImageFormat {
         ImageFormat::Pnm
+    }
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<Self::Encoder<W>> {
+        let mut encoder = PnmEncoder::new(w);
+        if let Some(subtype) = self.subtype {
+            encoder = encoder.with_subtype(subtype);
+        }
+        Ok(encoder)
     }
 }
 
@@ -355,17 +364,6 @@ impl<W: Write> PnmEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PnmEncoder<W> {
-    fn set_encoder_options(&mut self, options: &dyn EncoderOptions) -> ImageResult<()> {
-        let options = PnmOptions::try_from_ref(options)?;
-
-        self.header = options
-            .subtype
-            .map(HeaderStrategy::Subtype)
-            .unwrap_or(HeaderStrategy::Dynamic);
-
-        Ok(())
-    }
-
     #[track_caller]
     fn write_image(
         mut self,

@@ -558,6 +558,13 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // to also constrain the internal buffer allocations in the PNG crate
         reader.next_frame(buffer).map_err(ImageError::from_png)?;
 
+        // PNG images are BE, so we swap bytes on LE
+        if cfg!(target_endian = "little") && reader.info().bit_depth == png::BitDepth::Sixteen {
+            buffer.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
+                *c = u16::from_be_bytes(*c).to_ne_bytes();
+            });
+        }
+
         // Find out how to interpret the decoded frame.
         let info = reader.info();
         let attributes = attributes_from_info(info);
@@ -1141,5 +1148,28 @@ mod tests {
         let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
         let gamma = PngDecoder::new(file).gamma_value().unwrap();
         assert_eq!(gamma, None);
+    }
+
+    #[test]
+    fn apng_16_bits_per_channel() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/rgba16.png").unwrap());
+        let decoder = PngDecoder::new(file).apng().unwrap();
+        let reader = crate::ImageReader::from_decoder(Box::new(decoder));
+        let frames = reader.into_frames().collect_frames().unwrap();
+        assert_eq!(frames.len(), 3);
+
+        let colors = [
+            *frames[0].buffer().get_pixel(0, 0),
+            *frames[1].buffer().get_pixel(0, 0),
+            *frames[2].buffer().get_pixel(0, 0),
+        ];
+        assert_eq!(
+            colors,
+            [
+                Rgba([255, 0, 0, 255]),
+                Rgba([0, 255, 0, 255]),
+                Rgba([0, 0, 255, 255]),
+            ]
+        );
     }
 }

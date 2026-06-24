@@ -3,6 +3,7 @@ use crate::utils::vec_try_with_capacity;
 use std::cmp::{self, Ordering};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::iter::{repeat, Rev};
+use std::num::NonZeroU16;
 use std::slice::ChunksExactMut;
 use std::{error, fmt};
 
@@ -63,9 +64,6 @@ const RLE_ESCAPE_DELTA: u8 = 2;
 /// Opaque alpha channel value (fully opaque)
 const ALPHA_OPAQUE: u8 = 0xFF;
 
-/// The maximum width/height the decoder will process.
-const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
-
 /// The value of the V5 header field indicating an embedded ICC profile.
 const PROFILE_EMBEDDED: u32 = u32::from_be_bytes(*b"MBED");
 
@@ -104,8 +102,8 @@ impl RowsDecoded {
 
 /// Parsed BITMAPCOREHEADER fields (excludes 4-byte size field).
 struct ParsedCoreHeader {
-    width: i32,
-    height: i32,
+    width: u16,
+    height: u16,
     bit_count: u16,
     image_type: ImageType,
 }
@@ -113,8 +111,8 @@ struct ParsedCoreHeader {
 impl ParsedCoreHeader {
     /// Parse BITMAPCOREHEADER fields from an 8-byte buffer.
     fn parse(buffer: &[u8; 8], spec_strictness: SpecCompliance) -> ImageResult<Self> {
-        let width = i32::from(u16::from_le_bytes(buffer[0..2].try_into().unwrap()));
-        let height = i32::from(u16::from_le_bytes(buffer[2..4].try_into().unwrap()));
+        let width = u16::from_le_bytes(buffer[0..2].try_into().unwrap());
+        let height = u16::from_le_bytes(buffer[2..4].try_into().unwrap());
 
         let planes = u16::from_le_bytes(buffer[4..6].try_into().unwrap());
         if spec_strictness == SpecCompliance::Strict && planes != 1 {
@@ -143,8 +141,8 @@ impl ParsedCoreHeader {
 
 /// Parsed BITMAPINFOHEADER fields (excludes 4-byte size field).
 struct ParsedInfoHeader {
-    width: i32,
-    height: i32,
+    width: u16,
+    height: u16,
     top_down: bool,
     bit_count: u16,
     compression: u32,
@@ -155,25 +153,17 @@ impl ParsedInfoHeader {
     /// Parse BITMAPINFOHEADER fields from a 36-byte buffer.
     fn parse(buffer: &[u8; 36], spec_strictness: SpecCompliance) -> ImageResult<Self> {
         let width = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
-        let mut height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        let height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        let top_down = height < 0; // A negative height indicates a top-down DIB
 
         // Width cannot be negative
         if width < 0 {
             return Err(DecoderError::NegativeWidth(width).into());
-        } else if width > MAX_WIDTH_HEIGHT || height > MAX_WIDTH_HEIGHT {
+        }
+
+        let (Ok(width), Ok(height)) = (u16::try_from(width), u16::try_from(height.unsigned_abs()))
+        else {
             return Err(DecoderError::ImageTooLarge(width, height).into());
-        }
-
-        if height == i32::MIN {
-            return Err(DecoderError::InvalidHeight.into());
-        }
-
-        // A negative height indicates a top-down DIB
-        let top_down = if height < 0 {
-            height = -height;
-            true
-        } else {
-            false
         };
 
         let planes = u16::from_le_bytes(buffer[8..10].try_into().unwrap());
@@ -579,10 +569,6 @@ enum DecoderError {
     NegativeWidth(i32),
     /// One of the dimensions is larger than a soft limit
     ImageTooLarge(i32, i32),
-    /// The height is `i32::min_value()`
-    ///
-    /// General negative heights specify top-down DIBs
-    InvalidHeight,
 
     /// Specified image type is invalid for top-down BMPs (i.e. is compressed)
     ImageTypeInvalidForTopDown(u32),
@@ -620,9 +606,8 @@ impl fmt::Display for DecoderError {
             }
             DecoderError::NegativeWidth(w) => f.write_fmt(format_args!("Negative width ({w})")),
             DecoderError::ImageTooLarge(w, h) => f.write_fmt(format_args!(
-                "Image too large (one of ({w}, {h}) > soft limit of {MAX_WIDTH_HEIGHT})"
+                "Image too large (one of ({w}, {h}) > soft limit of 65535)"
             )),
-            DecoderError::InvalidHeight => f.write_str("Invalid height"),
             DecoderError::ImageTypeInvalidForTopDown(tp) => f.write_fmt(format_args!(
                 "Invalid image type {tp} for top-down image."
             )),
@@ -737,32 +722,38 @@ fn read_scanline(
     reader.read_exact(buf)
 }
 
+fn check_empty(width: u16, height: u16) -> ImageResult<(NonZeroU16, NonZeroU16)> {
+    if let (Some(width), Some(height)) = (NonZeroU16::new(width), NonZeroU16::new(height)) {
+        Ok((width, height))
+    } else {
+        Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Bmp.into(),
+                UnsupportedErrorKind::GenericFeature(
+                    "BMP images with zero width or height are not supported".into(),
+                ),
+            ),
+        ))
+    }
+}
+
 /// Convenience function to check if the combination of width, length and number of
 /// channels would result in a buffer that would overflow.
-fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
-    num_bytes(width, length, channels)
-        .map(|_| ())
-        .ok_or_else(|| {
-            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+fn check_for_overflow(width: NonZeroU16, length: NonZeroU16, channels: usize) -> ImageResult<()> {
+    let bytes = usize::from(width.get())
+        .saturating_mul(usize::from(length.get()))
+        .saturating_mul(channels);
+    if bytes > isize::MAX as usize {
+        return Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
                 ImageFormat::Bmp.into(),
                 UnsupportedErrorKind::GenericFeature(format!(
                     "Image dimensions ({width}x{length} w/{channels} channels) are too large"
                 )),
-            ))
-        })
-}
-
-/// Calculate how many many bytes a buffer holding a decoded image with these properties would
-/// require. Returns `None` if the buffer size would overflow or if one of the sizes are negative.
-fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
-    if width <= 0 || length <= 0 {
-        None
-    } else {
-        match channels.checked_mul(width as usize) {
-            Some(n) => n.checked_mul(length as usize),
-            None => None,
-        }
+            ),
+        ));
     }
+    Ok(())
 }
 
 /// Process rows with resumability support.
@@ -774,8 +765,8 @@ fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
 /// The caller is responsible for seeking to the correct file position before calling.
 fn with_rows_resumable<F>(
     buffer: &mut [u8],
-    width: i32,
-    height: i32,
+    width: NonZeroU16,
+    height: NonZeroU16,
     channels: usize,
     top_down: bool,
     start_row: u32,
@@ -786,8 +777,8 @@ where
 {
     // An overflow should already have been checked for when this is called,
     // though we check anyhow, as it somehow seems to increase performance slightly.
-    let row_width = channels.checked_mul(width as usize).unwrap();
-    let height = height as u32;
+    let row_width = channels.checked_mul(usize::from(width.get())).unwrap();
+    let height = height.get() as u32;
 
     /// Get the index of a row in the output buffer given the file row index.
     /// For top-down images, row 0 in the file is row 0 in the buffer.
@@ -1090,8 +1081,8 @@ pub struct BmpDecoder<R> {
     bmp_header_type: BMPHeaderType,
     indexed_color: bool,
 
-    width: i32,
-    height: i32,
+    width: NonZeroU16,
+    height: NonZeroU16,
     data_offset: u64,
     top_down: bool,
     no_file_header: bool,
@@ -1117,8 +1108,8 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             bmp_header_type: BMPHeaderType::Info,
             indexed_color: false,
 
-            width: 0,
-            height: 0,
+            width: NonZeroU16::MAX,
+            height: NonZeroU16::MAX,
             data_offset: 0,
             top_down: false,
             no_file_header: false,
@@ -1334,8 +1325,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let parsed = ParsedCoreHeader::parse(&buffer, self.spec_strictness)?;
 
-        self.width = parsed.width;
-        self.height = parsed.height;
+        (self.width, self.height) = check_empty(parsed.width, parsed.height)?;
         self.bit_count = parsed.bit_count;
         self.image_type = parsed.image_type;
 
@@ -1363,8 +1353,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
 
-        self.width = parsed.width;
-        self.height = parsed.height;
+        (self.width, self.height) = check_empty(parsed.width, parsed.height)?;
         self.top_down = parsed.top_down;
         self.bit_count = parsed.bit_count;
         self.colors_used = parsed.colors_used;
@@ -1391,8 +1380,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         let parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
 
-        self.width = parsed.width;
-        self.height = parsed.height;
+        (self.width, self.height) = check_empty(parsed.width, parsed.height)?;
         self.top_down = parsed.top_down;
         self.bit_count = parsed.bit_count;
         self.colors_used = parsed.colors_used;
@@ -1728,7 +1716,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).
-        self.height /= 2;
+        self.height = NonZeroU16::new(self.height.get() / 2).expect("ICO height is zero. Invalid!");
         Ok(())
     }
 
@@ -1813,7 +1801,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
-        let stride = self.width as usize * self.num_channels();
+        let stride = usize::from(self.width.get()) * self.num_channels();
         if self.top_down {
             RowIterator {
                 chunks: Chunker::FromTop(pixel_data.chunks_exact_mut(stride)),
@@ -1827,11 +1815,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     fn read_palettized_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         let num_channels = self.num_channels();
-        let row_byte_length = ((i32::from(self.bit_count) * self.width + 31) / 32 * 4) as usize;
+        let row_byte_length =
+            (usize::from(self.bit_count) * usize::from(self.width.get())).div_ceil(32) * 4;
         let mut indices = vec![0; row_byte_length];
         let palette = self.palette.as_ref().unwrap();
         let bit_count = self.bit_count;
-        let width = self.width as usize;
+        let width = usize::from(self.width.get());
         let skip_palette = self.indexed_color;
 
         let rows_decoded = self.rows_decoded();
@@ -1850,7 +1839,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         }
 
         let spec_strictness = self.spec_strictness;
-        let last_row: u32 = (self.height - 1).try_into().unwrap();
+        let last_row = u32::from(self.height.get() - 1);
         let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
@@ -1906,7 +1895,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             None => self.bitfields.as_ref().unwrap(),
         };
 
-        let row_data_len = self.width as usize * 2;
+        let row_data_len = usize::from(self.width.get()) * 2;
         let row_padding_len = calculate_row_padding(row_data_len);
         let total_row_len = row_data_len + row_padding_len;
 
@@ -1922,7 +1911,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
         let spec_strictness = self.spec_strictness;
-        let last_row: u32 = (height - 1).try_into().unwrap();
+        let last_row = u32::from(height.get() - 1);
         let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
@@ -1967,7 +1956,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let num_channels = self.num_channels();
         let bitfields = self.bitfields.as_ref().unwrap();
 
-        let row_data_len = self.width as usize * 4;
+        let row_data_len = usize::from(self.width.get()) * 4;
 
         let rows_decoded = self.rows_decoded();
         let start_row = rows_decoded.rows();
@@ -1981,7 +1970,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut row_buffer = allocate_row_buffer(row_data_len)?;
 
         let spec_strictness = self.spec_strictness;
-        let last_row: u32 = (height - 1).try_into().unwrap();
+        let last_row = u32::from(height.get() - 1);
         let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
@@ -2029,9 +2018,9 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     ) -> ImageResult<()> {
         let num_channels = self.num_channels();
         let row_data_len = match *format {
-            FormatFullBytes::RGB24 => self.width as usize * 3,
-            FormatFullBytes::Format888 => self.width as usize * 4,
-            FormatFullBytes::RGB32 | FormatFullBytes::RGBA32 => self.width as usize * 4,
+            FormatFullBytes::RGB24 => usize::from(self.width.get()) * 3,
+            FormatFullBytes::Format888 => usize::from(self.width.get()) * 4,
+            FormatFullBytes::RGB32 | FormatFullBytes::RGBA32 => usize::from(self.width.get()) * 4,
         };
         let row_padding_len = match *format {
             FormatFullBytes::RGB24 => calculate_row_padding(row_data_len),
@@ -2051,7 +2040,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut row_buffer = allocate_row_buffer(total_row_len)?;
 
         let spec_strictness = self.spec_strictness;
-        let last_row: u32 = (height - 1).try_into().unwrap();
+        let last_row = u32::from(height.get() - 1);
         let mut current_file_row = start_row;
         let reader = &mut self.reader;
         let result = with_rows_resumable(
@@ -2359,7 +2348,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                 // row is 0-indexed current row; rows 0..row are complete
                 RleProgress::Checkpoint { row, .. } => row,
             },
-            DecoderState::ImageDecoded => self.height as u32,
+            DecoderState::ImageDecoded => self.height.get().into(),
             DecoderState::ReadingMetadata { .. } => 0,
         };
         if self.top_down {
@@ -2438,8 +2427,8 @@ impl<R: BufRead + Seek> ImageDecoder for BmpDecoder<R> {
         };
 
         Ok(DecoderPreparedImage::new(
-            self.width as u32,
-            self.height as u32,
+            self.width.get().into(),
+            self.height.get().into(),
             color,
         ))
     }

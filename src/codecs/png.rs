@@ -263,7 +263,7 @@ fn reader_finished_already() -> ImageError {
 /// PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
 /// to be reordered to native endianness per the contract of `read_image`. Assumes equal
 /// depth which is the only supported output from `png` with our options.
-fn be_to_ne(buf: &mut [u8], color: ColorType) {
+fn big_endian_to_native_endian(buf: &mut [u8], color: ColorType) {
     let bytes_per_channel = color.bytes_per_pixel() / color.channel_count();
 
     match bytes_per_channel {
@@ -377,8 +377,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         let original_color_type = Self::color_type_info(reader.info());
         reader.next_frame(buf).map_err(ImageError::from_png)?;
 
-        // PNG images are big endian.
-        be_to_ne(buf, layout.layout.color);
+        big_endian_to_native_endian(buf, layout.layout.color);
 
         Ok(DecodedImageAttributes {
             original_color_type: Some(original_color_type),
@@ -564,8 +563,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // to also constrain the internal buffer allocations in the PNG crate
         reader.next_frame(buffer).map_err(ImageError::from_png)?;
 
-        // PNG images are BE
-        be_to_ne(buffer, color);
+        big_endian_to_native_endian(buffer, color);
 
         // Find out how to interpret the decoded frame.
         let info = reader.info();

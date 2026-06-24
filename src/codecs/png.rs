@@ -85,63 +85,9 @@ impl<R: BufRead + Seek> PngDecoder<R> {
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
         let reader = decoder.read_info().map_err(ImageError::from_png)?;
-        let (color_type, bits) = reader.output_color_type();
+        let (color_type, bit_depth) = reader.output_color_type();
+        self.color_type = to_supported_color_type(color_type, bit_depth)?;
 
-        let color_type = match (color_type, bits) {
-            (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
-            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ColorType::La8,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ColorType::La16,
-            (png::ColorType::Rgb, png::BitDepth::Eight) => ColorType::Rgb8,
-            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ColorType::Rgb16,
-            (png::ColorType::Rgba, png::BitDepth::Eight) => ColorType::Rgba8,
-            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ColorType::Rgba16,
-
-            (png::ColorType::Grayscale, png::BitDepth::One) => {
-                return Err(unsupported_color(ExtendedColorType::L1))
-            }
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => {
-                return Err(unsupported_color(ExtendedColorType::La1))
-            }
-            (png::ColorType::Rgb, png::BitDepth::One) => {
-                return Err(unsupported_color(ExtendedColorType::Rgb1))
-            }
-            (png::ColorType::Rgba, png::BitDepth::One) => {
-                return Err(unsupported_color(ExtendedColorType::Rgba1))
-            }
-
-            (png::ColorType::Grayscale, png::BitDepth::Two) => {
-                return Err(unsupported_color(ExtendedColorType::L2))
-            }
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => {
-                return Err(unsupported_color(ExtendedColorType::La2))
-            }
-            (png::ColorType::Rgb, png::BitDepth::Two) => {
-                return Err(unsupported_color(ExtendedColorType::Rgb2))
-            }
-            (png::ColorType::Rgba, png::BitDepth::Two) => {
-                return Err(unsupported_color(ExtendedColorType::Rgba2))
-            }
-
-            (png::ColorType::Grayscale, png::BitDepth::Four) => {
-                return Err(unsupported_color(ExtendedColorType::L4))
-            }
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => {
-                return Err(unsupported_color(ExtendedColorType::La4))
-            }
-            (png::ColorType::Rgb, png::BitDepth::Four) => {
-                return Err(unsupported_color(ExtendedColorType::Rgb4))
-            }
-            (png::ColorType::Rgba, png::BitDepth::Four) => {
-                return Err(unsupported_color(ExtendedColorType::Rgba4))
-            }
-
-            (png::ColorType::Indexed, bits) => {
-                return Err(unsupported_color(ExtendedColorType::Unknown(bits as u8)))
-            }
-        };
-
-        self.color_type = color_type;
         Ok(self.reader.insert(reader))
     }
 
@@ -186,41 +132,63 @@ impl<R: BufRead + Seek> PngDecoder<R> {
         Ok(reader.info().animation_control.is_some())
     }
 
-    fn color_type_info(info: &png::Info<'_>) -> ExtendedColorType {
-        match (info.color_type, info.bit_depth) {
-            (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
-            (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
-            (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
-            (png::ColorType::Grayscale, png::BitDepth::Eight) => ExtendedColorType::L8,
-            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ExtendedColorType::L16,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => ExtendedColorType::La1,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => ExtendedColorType::La2,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => ExtendedColorType::La4,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ExtendedColorType::La8,
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ExtendedColorType::La16,
-            (png::ColorType::Rgb, png::BitDepth::One) => ExtendedColorType::Rgb1,
-            (png::ColorType::Rgb, png::BitDepth::Two) => ExtendedColorType::Rgb2,
-            (png::ColorType::Rgb, png::BitDepth::Four) => ExtendedColorType::Rgb4,
-            (png::ColorType::Rgb, png::BitDepth::Eight) => ExtendedColorType::Rgb8,
-            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ExtendedColorType::Rgb16,
-            (png::ColorType::Rgba, png::BitDepth::One) => ExtendedColorType::Rgba1,
-            (png::ColorType::Rgba, png::BitDepth::Two) => ExtendedColorType::Rgba2,
-            (png::ColorType::Rgba, png::BitDepth::Four) => ExtendedColorType::Rgba4,
-            (png::ColorType::Rgba, png::BitDepth::Eight) => ExtendedColorType::Rgba8,
-            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ExtendedColorType::Rgba16,
-            (png::ColorType::Indexed, png::BitDepth::One) => ExtendedColorType::Unknown(1),
-            (png::ColorType::Indexed, png::BitDepth::Two) => ExtendedColorType::Unknown(2),
-            (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
-            (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
-            (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
-        }
-    }
-
     /// The maximum number of bytes iTXt and zTXt are allowed to decompress to.
     /// This guards against decompression bombs.
     fn text_decompress_limit(&mut self) -> usize {
         let max = png::text_metadata::DECOMPRESSION_LIMIT as u64;
         self.limits.max_alloc.unwrap_or(max).min(max) as usize
+    }
+}
+
+fn to_supported_color_type(
+    color_type: png::ColorType,
+    bit_depth: png::BitDepth,
+) -> ImageResult<ColorType> {
+    match (color_type, bit_depth) {
+        (png::ColorType::Grayscale, png::BitDepth::Eight) => Ok(ColorType::L8),
+        (png::ColorType::Grayscale, png::BitDepth::Sixteen) => Ok(ColorType::L16),
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => Ok(ColorType::La8),
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => Ok(ColorType::La16),
+        (png::ColorType::Rgb, png::BitDepth::Eight) => Ok(ColorType::Rgb8),
+        (png::ColorType::Rgb, png::BitDepth::Sixteen) => Ok(ColorType::Rgb16),
+        (png::ColorType::Rgba, png::BitDepth::Eight) => Ok(ColorType::Rgba8),
+        (png::ColorType::Rgba, png::BitDepth::Sixteen) => Ok(ColorType::Rgba16),
+
+        _ => Err(unsupported_color(to_extended_color_type(
+            color_type, bit_depth,
+        ))),
+    }
+}
+fn to_extended_color_type(
+    color_type: png::ColorType,
+    bit_depth: png::BitDepth,
+) -> ExtendedColorType {
+    match (color_type, bit_depth) {
+        (png::ColorType::Grayscale, png::BitDepth::One) => ExtendedColorType::L1,
+        (png::ColorType::Grayscale, png::BitDepth::Two) => ExtendedColorType::L2,
+        (png::ColorType::Grayscale, png::BitDepth::Four) => ExtendedColorType::L4,
+        (png::ColorType::Grayscale, png::BitDepth::Eight) => ExtendedColorType::L8,
+        (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ExtendedColorType::L16,
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => ExtendedColorType::La1,
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => ExtendedColorType::La2,
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => ExtendedColorType::La4,
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ExtendedColorType::La8,
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ExtendedColorType::La16,
+        (png::ColorType::Rgb, png::BitDepth::One) => ExtendedColorType::Rgb1,
+        (png::ColorType::Rgb, png::BitDepth::Two) => ExtendedColorType::Rgb2,
+        (png::ColorType::Rgb, png::BitDepth::Four) => ExtendedColorType::Rgb4,
+        (png::ColorType::Rgb, png::BitDepth::Eight) => ExtendedColorType::Rgb8,
+        (png::ColorType::Rgb, png::BitDepth::Sixteen) => ExtendedColorType::Rgb16,
+        (png::ColorType::Rgba, png::BitDepth::One) => ExtendedColorType::Rgba1,
+        (png::ColorType::Rgba, png::BitDepth::Two) => ExtendedColorType::Rgba2,
+        (png::ColorType::Rgba, png::BitDepth::Four) => ExtendedColorType::Rgba4,
+        (png::ColorType::Rgba, png::BitDepth::Eight) => ExtendedColorType::Rgba8,
+        (png::ColorType::Rgba, png::BitDepth::Sixteen) => ExtendedColorType::Rgba16,
+        (png::ColorType::Indexed, png::BitDepth::One) => ExtendedColorType::Unknown(1),
+        (png::ColorType::Indexed, png::BitDepth::Two) => ExtendedColorType::Unknown(2),
+        (png::ColorType::Indexed, png::BitDepth::Four) => ExtendedColorType::Unknown(4),
+        (png::ColorType::Indexed, png::BitDepth::Eight) => ExtendedColorType::Unknown(8),
+        (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
     }
 }
 
@@ -374,7 +342,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         let reader = self.ensure_reader_and_header()?;
-        let original_color_type = Self::color_type_info(reader.info());
+        let info = reader.info();
+        let original_color_type = to_extended_color_type(info.color_type, info.bit_depth);
         reader.next_frame(buf).map_err(ImageError::from_png)?;
 
         big_endian_to_native_endian(buf, layout.layout.color);
@@ -496,8 +465,6 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 self.current = Some(DynamicImage::new(width, height, color));
             }
         }
-
-        self.animatable_color_type()?;
 
         // We've initialized them earlier in this function
         let previous = self.previous.as_mut().unwrap();
@@ -623,23 +590,6 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         buf.copy_from_slice(current.as_bytes());
 
         Ok(Some(attributes))
-    }
-
-    fn animatable_color_type(&self) -> Result<(), ImageError> {
-        match self.inner.color_type {
-            ColorType::L8
-            | ColorType::Rgb8
-            | ColorType::La8
-            | ColorType::Rgba8
-            | ColorType::L16
-            | ColorType::Rgb16
-            | ColorType::La16
-            | ColorType::Rgba16 => Ok(()),
-            _ => {
-                debug_assert!(false, "{:?} not a valid png color", self.inner.color_type);
-                Err(unsupported_color(self.inner.color_type.into()))
-            }
-        }
     }
 }
 

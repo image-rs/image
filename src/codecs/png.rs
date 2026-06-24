@@ -260,6 +260,22 @@ fn reader_finished_already() -> ImageError {
     ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
 }
 
+/// PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
+/// to be reordered to native endianness per the contract of `read_image`. Assumes equal
+/// depth which is the only supported output from `png` with our options.
+fn be_to_ne(buf: &mut [u8], color: ColorType) {
+    let bytes_per_channel = color.bytes_per_pixel() / color.channel_count();
+
+    match bytes_per_channel {
+        1 => (), // No reodering necessary for u8
+        2 => buf.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
+            *c = u16::from_be_bytes(*c).to_ne_bytes();
+        }),
+        // not emitted by png crate
+        _ => unreachable!(),
+    }
+}
+
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let reader = self.ensure_reader_and_header()?;
@@ -361,18 +377,8 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         let original_color_type = Self::color_type_info(reader.info());
         reader.next_frame(buf).map_err(ImageError::from_png)?;
 
-        // PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
-        // to be reordered to native endianness per the contract of `read_image`. Assumes equal
-        // depth which is the only supported output from `png` with our options.
-        let bpc = layout.layout.color.bytes_per_pixel() / layout.layout.color.channel_count();
-
-        match bpc {
-            1 => (), // No reodering necessary for u8
-            2 => buf.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
-                *c = u16::from_be_bytes(*c).to_ne_bytes();
-            }),
-            _ => unreachable!(),
-        }
+        // PNG images are big endian.
+        be_to_ne(buf, layout.layout.color);
 
         Ok(DecodedImageAttributes {
             original_color_type: Some(original_color_type),
@@ -558,12 +564,8 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // to also constrain the internal buffer allocations in the PNG crate
         reader.next_frame(buffer).map_err(ImageError::from_png)?;
 
-        // PNG images are BE, so we swap bytes on LE
-        if cfg!(target_endian = "little") && reader.info().bit_depth == png::BitDepth::Sixteen {
-            buffer.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
-                *c = u16::from_be_bytes(*c).to_ne_bytes();
-            });
-        }
+        // PNG images are BE
+        be_to_ne(buffer, color);
 
         // Find out how to interpret the decoded frame.
         let info = reader.info();

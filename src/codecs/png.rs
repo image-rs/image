@@ -1177,9 +1177,7 @@ mod tests {
     fn apng_dispose_none_blend_source() {
         // rgba16.png uses dispose=None with blend=Source on all frames.
         // Each frame replaces the entire canvas regardless of previous state.
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/rgba16.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/rgba16.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();
@@ -1196,9 +1194,7 @@ mod tests {
         // Frame 6 comes after a sequence of dispose=None frames; the ball has moved
         // off the center and the center should be black (background was cleared by
         // the preceding Background-dispose frame).
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/ball.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();
@@ -1212,9 +1208,7 @@ mod tests {
         // 008.png: frames with dispose=Background + blend=Over.
         // Frame 2's canvas is cleared entirely because the previous frame had
         // dispose=Background on the full canvas region before frame 2 is drawn.
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/008.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/008.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();
@@ -1229,9 +1223,7 @@ mod tests {
         // 010.png: frame with dispose=Previous + blend=Over.
         // Frame 1 draws red and sets dispose=Previous, so frame 2 restores
         // the green from frame 0 before its own draw.
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/010.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/010.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();
@@ -1249,9 +1241,7 @@ mod tests {
         // 013.png: sub-region frame with blend=Over.
         // A red rectangle is drawn at a sub-region offset on a green canvas,
         // then cleared in subsequent frames.
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/013.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/013.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();
@@ -1271,9 +1261,7 @@ mod tests {
         // 015.png: sub-region frame with dispose=Background + blend=Over.
         // Frame 2's sub-region is cleared to transparent by Background dispose,
         // leaving a transparent "hole" in the blue canvas.
-        let file = BufReader::new(
-            std::fs::File::open("tests/images/png/apng/015.png").unwrap(),
-        );
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/015.png").unwrap());
         let decoder = PngDecoder::new(file).apng().unwrap();
         let reader = crate::ImageReader::from_decoder(Box::new(decoder));
         let frames = reader.into_frames().collect_frames().unwrap();

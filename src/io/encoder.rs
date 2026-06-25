@@ -1,3 +1,5 @@
+use std::io::{Seek, Write};
+
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, DynamicImage, ExtendedColorType};
 
@@ -113,6 +115,12 @@ pub trait ImageEncoder {
     ) -> Option<DynamicImage> {
         None
     }
+}
+
+/// Encoding options for a specific format.
+pub trait EncoderOptions {
+    /// Creates the encoder for the options.
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder>;
 }
 
 pub(crate) trait ImageEncoderBoxed: ImageEncoder {

@@ -1664,6 +1664,30 @@ where
         }
         buffer
     }
+
+    pub(crate) fn convert_precision<ToType: Pixel>(
+        &self,
+    ) -> ImageBuffer<ToType, Vec<ToType::Subpixel>>
+    where
+        ToType::Subpixel: FromPrimitive<P::Subpixel>,
+    {
+        assert_eq!(P::CHANNEL_COUNT, ToType::CHANNEL_COUNT);
+        assert_eq!(P::COLOR_MODEL, ToType::COLOR_MODEL);
+
+        // outlined inner function to avoid monomorphization bloat
+        fn inner<From, To>(buffer: &[From]) -> Vec<To>
+        where
+            From: Copy,
+            To: FromPrimitive<From>,
+        {
+            buffer.iter().copied().map(To::from_primitive).collect()
+        }
+
+        let data = inner(self.subpixels());
+        let mut buffer = ImageBuffer::from_raw(self.width, self.height, data).unwrap();
+        buffer.copy_color_space_from(self);
+        buffer
+    }
 }
 
 /// Inputs to [`ImageBuffer::copy_from_color_space`].

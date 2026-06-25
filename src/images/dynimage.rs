@@ -1076,6 +1076,52 @@ impl DynamicImage {
         }
     }
 
+    pub(crate) fn to_u8(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma8(_) | ImageLumaA8(_) | ImageRgb8(_) | ImageRgba8(_) => self.clone(),
+
+            ImageLuma16(buffer) => ImageLuma8(buffer.convert_precision()),
+            ImageLumaA16(buffer) => ImageLumaA8(buffer.convert_precision()),
+            ImageRgb16(buffer) => ImageRgb8(buffer.convert_precision()),
+            ImageRgba16(buffer) => ImageRgba8(buffer.convert_precision()),
+            ImageLuma32F(buffer) => ImageLuma8(buffer.convert_precision()),
+            ImageLumaA32F(buffer) => ImageLumaA8(buffer.convert_precision()),
+            ImageRgb32F(buffer) => ImageRgb8(buffer.convert_precision()),
+            ImageRgba32F(buffer) => ImageRgba8(buffer.convert_precision()),
+        }
+    }
+    pub(crate) fn to_u16(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma16(_) | ImageLumaA16(_) | ImageRgb16(_) | ImageRgba16(_) => self.clone(),
+
+            ImageLuma8(buffer) => ImageLuma16(buffer.convert_precision()),
+            ImageLumaA8(buffer) => ImageLumaA16(buffer.convert_precision()),
+            ImageRgb8(buffer) => ImageRgb16(buffer.convert_precision()),
+            ImageRgba8(buffer) => ImageRgba16(buffer.convert_precision()),
+            ImageLuma32F(buffer) => ImageLuma16(buffer.convert_precision()),
+            ImageLumaA32F(buffer) => ImageLumaA16(buffer.convert_precision()),
+            ImageRgb32F(buffer) => ImageRgb16(buffer.convert_precision()),
+            ImageRgba32F(buffer) => ImageRgba16(buffer.convert_precision()),
+        }
+    }
+    pub(crate) fn to_f32(&self) -> DynamicImage {
+        use DynamicImage::*;
+        match self {
+            ImageLuma32F(_) | ImageLumaA32F(_) | ImageRgb32F(_) | ImageRgba32F(_) => self.clone(),
+
+            ImageLuma8(buffer) => ImageLuma32F(buffer.convert_precision()),
+            ImageLumaA8(buffer) => ImageLumaA32F(buffer.convert_precision()),
+            ImageRgb8(buffer) => ImageRgb32F(buffer.convert_precision()),
+            ImageRgba8(buffer) => ImageRgba32F(buffer.convert_precision()),
+            ImageLuma16(buffer) => ImageLuma32F(buffer.convert_precision()),
+            ImageLumaA16(buffer) => ImageLumaA32F(buffer.convert_precision()),
+            ImageRgb16(buffer) => ImageRgb32F(buffer.convert_precision()),
+            ImageRgba16(buffer) => ImageRgba32F(buffer.convert_precision()),
+        }
+    }
+
     /// Return a grayscale version of this image.
     /// Returns either a `Luma` or `LumaA` image.
     #[must_use]
@@ -1599,7 +1645,7 @@ impl DynamicImage {
         &self,
         encoder: Box<dyn ImageEncoderBoxed + 'a>,
     ) -> ImageResult<()> {
-        let converted = encoder.make_compatible_img(crate::io::encoder::MethodSealedToImage, self);
+        let converted = crate::io::encoder::make_compatible_img(self, encoder.supported_colors());
         let img = converted.as_ref().unwrap_or(self);
 
         encoder.write_image(
@@ -1615,11 +1661,7 @@ impl DynamicImage {
     /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
     /// for best performance.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn write_to<W: Write + Seek>(&self, mut w: W, format: ImageFormat) -> ImageResult<()> {
         let encoder = encoder_for_format(format, &mut w)?;
         self.write_with_encoder_impl(encoder)
@@ -1627,11 +1669,7 @@ impl DynamicImage {
 
     /// Encode this image with the provided encoder.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
         self.write_with_encoder_impl(Box::new(encoder))
     }
@@ -1641,8 +1679,10 @@ impl DynamicImage {
     /// ## Color Conversion
     ///
     /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// convert the image to some color type supported by the underlying encoder. This may result in a loss of
+    /// precision and/or the removal of the alpha channel.
+    ///
+    /// Conversions are not guaranteed to happen and may change in the future.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1653,11 +1693,7 @@ impl DynamicImage {
 
     /// Saves the buffer to a file with the specified format.
     ///
-    /// ## Color Conversion
-    ///
-    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
-    /// convert the image to some color type supported by the encoder. This may result in a loss of
-    /// precision or the removal of the alpha channel.
+    /// For information about possible color conversions, see [`DynamicImage::save`].
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,

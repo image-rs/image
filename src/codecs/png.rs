@@ -939,19 +939,9 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         Ok(())
     }
 
-    fn make_compatible_img(
-        &self,
-        _: crate::io::encoder::MethodSealedToImage,
-        img: &DynamicImage,
-    ) -> Option<DynamicImage> {
-        use ColorType::*;
-        match img.color() {
-            L32F => Some(img.to_luma16().into()),
-            La32F => Some(img.to_luma_alpha16().into()),
-            Rgb32F => Some(img.to_rgb16().into()),
-            Rgba32F => Some(img.to_rgba16().into()),
-            L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,
-        }
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
+        use ExtendedColorType::*;
+        Some(&[Rgb8, Rgba8, L8, La8, Rgb16, Rgba16, L16, La16])
     }
 }
 

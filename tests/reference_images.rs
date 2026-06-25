@@ -106,8 +106,7 @@ fn main() -> std::process::ExitCode {
                             // Select a single frame
                             let frame = frames.drain(frame_num..).next().unwrap();
 
-                            // Convert the frame to a`RgbaImage`
-                            DynamicImage::from(frame.into_buffer())
+                            frame.into_buffer()
                         }
 
                         #[cfg(feature = "png")]
@@ -121,8 +120,7 @@ fn main() -> std::process::ExitCode {
                             // Select a single frame
                             let frame = frames.drain(frame_num..).next().unwrap();
 
-                            // Convert the frame to a`RgbaImage`
-                            DynamicImage::from(frame.into_buffer())
+                            frame.into_buffer()
                         }
                         _ => unreachable!(
                             "Format is unspported or disabled. Should have been detected earlier"

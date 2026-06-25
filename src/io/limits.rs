@@ -103,6 +103,15 @@ impl Limits {
     /// This function checks that the current limit allows for reserving the set amount
     /// of bytes, it then reduces the limit accordingly.
     pub fn reserve(&mut self, amount: u64) -> ImageResult<()> {
+        if amount > isize::MAX as u64 {
+            // Memory allocations in Rust cannot exceed isize::MAX bytes. So
+            // reserving more memory than that is not allowed, even if it would
+            // fall within the memory budget.
+            return Err(ImageError::Limits(error::LimitError::from_kind(
+                error::LimitErrorKind::InsufficientMemory,
+            )));
+        }
+
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             if *max_alloc < amount {
                 return Err(ImageError::Limits(error::LimitError::from_kind(

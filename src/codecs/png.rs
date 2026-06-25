@@ -864,11 +864,6 @@ impl<W: Write> PngEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PngEncoder<W> {
-    /// Write a PNG image with the specified width, height, and color type.
-    ///
-    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
-    /// native endian. `PngEncoder` will automatically convert to big endian as required by the
-    /// underlying PNG format.
     #[track_caller]
     fn write_image(
         self,

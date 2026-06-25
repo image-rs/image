@@ -1,4 +1,4 @@
-use byteorder_lite::ReadBytesExt;
+use byteorder_lite::{LittleEndian, ReadBytesExt};
 use std::io::{BufRead, Read, Seek};
 use std::{error, fmt};
 
@@ -175,8 +175,25 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
 fn read_entries<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<Vec<DirEntry>> {
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
-    // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
-    let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
+    let mut header = header.as_slice();
+
+    let reserved = header.read_u16::<LittleEndian>()?;
+    let id_type = header.read_u16::<LittleEndian>()?;
+    let count = header.read_u16::<LittleEndian>()?;
+
+    if spec == SpecCompliance::Strict && reserved != 0 {
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Ico.into(),
+            format!("Reserved field must be 0, but found 0x{reserved:X}"),
+        )));
+    }
+    if spec == SpecCompliance::Strict && !matches!(id_type, 1 | 2) {
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Ico.into(),
+            format!("Invalid header type. Expected 1 (ICO) or 2 (CUR), but found {id_type}"),
+        )));
+    }
+
     (0..count).map(|_| read_entry(r, spec)).collect()
 }
 

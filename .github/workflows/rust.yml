@@ -62,7 +62,10 @@ jobs:
       run: cargo build -v
     - name: test
       if: ${{ matrix.rust != '1.88.0' }}
-      run: cargo test -v && cargo doc -v
+      run: cargo test -v
+    - name: doc
+      if: ${{ matrix.rust != '1.88.0' }}
+      run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -v
 
   test_other_archs:
     # github actions does not support 32-bit or big endian systems directly, but

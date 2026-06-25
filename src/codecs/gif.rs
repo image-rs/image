@@ -504,6 +504,7 @@ impl<W: Write> GifEncoder<W> {
     }
 
     /// Encode a single image.
+    #[track_caller]
     pub fn encode(
         &mut self,
         data: &[u8],
@@ -511,6 +512,8 @@ impl<W: Write> GifEncoder<W> {
         height: u32,
         color: ExtendedColorType,
     ) -> ImageResult<()> {
+        color.assert_buf_len(width, height, data);
+
         let (width, height) = self.gif_dimensions(width, height)?;
         match color {
             ExtendedColorType::Rgb8 => {
@@ -633,6 +636,7 @@ impl<W: Write> GifEncoder<W> {
     }
 }
 impl<W: Write> ImageEncoder for GifEncoder<W> {
+    #[track_caller]
     fn write_image(
         mut self,
         buf: &[u8],

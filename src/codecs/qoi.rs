@@ -73,6 +73,8 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
+        color_type.assert_buf_len(width, height, buf);
+
         if !matches!(
             color_type,
             ExtendedColorType::Rgba8 | ExtendedColorType::Rgb8
@@ -84,14 +86,6 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
                 ),
             ));
         }
-
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
 
         // Encode data in QOI
         let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;

@@ -170,13 +170,7 @@ impl<W: Write> TgaEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
+        color_type.assert_buf_len(width, height, buf);
 
         // Validate dimensions.
         if width == 0 || height == 0 {

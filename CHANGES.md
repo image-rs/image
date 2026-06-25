@@ -21,6 +21,9 @@ Features:
 Structural changes:
   - Increased MSRV to 1.88.0 (from 1.85.0)
 
+Bug fixes:
+  - Fixed `imageops::filter3x3` panicking with a subtract overflow on images with a zero dimension (#3026)
+
 ### Version 0.25.9
 
 Features:

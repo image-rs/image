@@ -924,8 +924,8 @@ where
         sum => 1.0 / sum,
     };
 
-    for y in 1..height - 1 {
-        for x in 1..width - 1 {
+    for y in 1..height.saturating_sub(1) {
+        for x in 1..width.saturating_sub(1) {
             let mut t = [0.0; MAX_CHANNEL];
 
             // TODO: There is no need to recalculate the kernel for each pixel.
@@ -1655,10 +1655,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, sample_bilinear, sample_nearest, FilterType};
+    use super::{filter3x3, resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
+
+    #[test]
+    fn filter3x3_zero_dimension_no_panic() {
+        // Images with a zero or one dimension have no interior pixels, so
+        // `filter3x3` must produce an equally-sized image without panicking
+        // (the loop bounds previously underflowed `width - 1` / `height - 1`).
+        let kernel = [0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0];
+        for &(w, h) in &[(0, 0), (0, 5), (5, 0), (1, 1), (1, 5), (5, 1)] {
+            let img = crate::GrayImage::new(w, h);
+            let out = filter3x3(&img, &kernel);
+            assert_eq!(out.dimensions(), (w, h));
+        }
+    }
 
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "png"))]

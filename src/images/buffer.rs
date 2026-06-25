@@ -564,7 +564,8 @@ where
     /// This is guaranteed to contain exactly `width * height * channels` subpixels.
     #[doc(alias = "channels")]
     pub fn subpixels(&self) -> &[P::Subpixel] {
-        let len = Self::image_buffer_len(self.width, self.height).unwrap();
+        // All constructors check that w*h*c <= data.len(), so this can't overflow
+        let len = self.width as usize * self.height as usize * <P as Pixel>::CHANNEL_COUNT as usize;
         &self.data[..len]
     }
 
@@ -572,7 +573,7 @@ where
     ///
     /// The index order is x = 0 to width then y = 0 to height.
     ///
-    /// This is guaranteed to contain exactly `width * height` subpixels.
+    /// This is guaranteed to contain exactly `width * height` pixels.
     pub fn pixels(&self) -> &[P] {
         let subpixels = self.subpixels();
         <P as Pixel>::pixels_from_channels(subpixels)
@@ -811,7 +812,8 @@ where
     ///
     /// This is guaranteed to contain exactly `width * height * channels` subpixels.
     pub fn subpixels_mut(&mut self) -> &mut [P::Subpixel] {
-        let len = Self::image_buffer_len(self.width, self.height).unwrap();
+        // All constructors check that w*h*c <= data.len(), so this can't overflow
+        let len = self.width as usize * self.height as usize * <P as Pixel>::CHANNEL_COUNT as usize;
         &mut self.data[..len]
     }
 

@@ -833,8 +833,6 @@ impl<'stream> ImageReader<'stream> {
                 SequenceControl::None => return None,
             }
 
-            let no_delay = Delay::from_saturating_duration(Default::default());
-
             let mut frame = DynamicImage::default();
             let frame_decoded = match self.decode_to_dynimage(&mut frame) {
                 Ok(frame) => frame,
@@ -844,7 +842,7 @@ impl<'stream> ImageReader<'stream> {
 
             let x = frame_decoded.attributes().x;
             let y = frame_decoded.attributes().y;
-            let delay = frame_decoded.attributes().delay.unwrap_or(no_delay);
+            let delay = frame_decoded.attributes().delay.unwrap_or(Delay::ZERO);
             let frame = frame.into_rgba8();
 
             let frame = Frame::from_parts(frame, x, y, delay);

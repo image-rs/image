@@ -187,7 +187,7 @@ fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry>
     // Parse fields from buffer
     // buf[4..6]: may be color planes (0 or 1) or horizontal hotspot for CUR files
     let num_color_planes = u16::from_le_bytes(buf[4..6].try_into().unwrap());
-    if num_color_planes > 256 {
+    if spec == SpecCompliance::Strict && num_color_planes > 256 {
         return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
     }
 
@@ -678,5 +678,28 @@ mod test {
 
         let best = best_entry(entries).unwrap();
         assert_eq!(best.width, 32);
+    }
+
+    #[test]
+    fn lenient_too_many_planes() {
+        // The `planes` field (buf[4..6]) holds the horizontal hotspot coordinate for CUR files,
+        // which may legitimately exceed 256. Mirroring the `bits_per_pixel` handling, the
+        // `num_color_planes > 256` validation only applies in strict mode. (Sibling of the
+        // `bits_per_pixel`/vertical-hotspot relaxation.)
+        let data = vec![
+            0x00, 0x00, 0x02, 0x00, 0x01, 0x00, // ICONDIR: type=2 (CUR), 1 entry
+            // DIRENTRY: planes (buf[4..6]) = 0x0101 = 257 (>256)
+            16, 16, 0, 0, 0x01, 0x01, 8, 0, 8, 0, 0, 0, 22, 0, 0, 0,
+        ];
+
+        // Lenient mode accepts the oversized value.
+        let mut r = std::io::Cursor::new(&data);
+        let entries = read_entries(&mut r, SpecCompliance::Lenient).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].num_color_planes, 257);
+
+        // Strict mode still rejects it.
+        let mut r = std::io::Cursor::new(&data);
+        assert!(read_entries(&mut r, SpecCompliance::Strict).is_err());
     }
 }

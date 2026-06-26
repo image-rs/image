@@ -924,6 +924,11 @@ where
         return out;
     }
 
+    assert!(
+        width < u32::MAX && height < u32::MAX,
+        "Image dimensions too large"
+    );
+
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
@@ -940,6 +945,8 @@ where
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
+                // `x + a` won't overflow since x∈[0,u32::MAX-2] (because x < width < u32::MAX)
+                // and a∈[0,2]. Similar for `y + b`.
                 let x0 = (x + a).saturating_sub(1).min(width - 1);
                 let y0 = (y + b).saturating_sub(1).min(height - 1);
 

@@ -159,7 +159,7 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
         spec: SpecCompliance,
     ) -> ImageResult<IcoDecoder<R>> {
         let reader_offset = r.stream_position()?;
-        let entries = read_entries(&mut r)?;
+        let entries = read_entries(&mut r, spec)?;
         let entry = best_entry(entries)?;
         let decoder = entry.decoder(r, reader_offset)?;
 
@@ -172,15 +172,15 @@ impl<R: BufRead + Seek> IcoDecoder<R> {
     }
 }
 
-fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
+fn read_entries<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<Vec<DirEntry>> {
     let mut header = [0u8; 6];
     r.read_exact(&mut header)?;
     // header[0..2] = reserved, header[2..4] = type, header[4..6] = count
     let count = u16::from_le_bytes(header[4..6].try_into().unwrap());
-    (0..count).map(|_| read_entry(r)).collect()
+    (0..count).map(|_| read_entry(r, spec)).collect()
 }
 
-fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
+fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry> {
     let mut buf = [0u8; 16];
     r.read_exact(&mut buf)?;
 
@@ -192,15 +192,27 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     }
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
-    let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
-    if bits_per_pixel > 256 {
+    let mut bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
+    if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+    }
+
+    let color_count = buf[2];
+
+    // Some icons don't have a bit depth, only a color count. Convert the color count
+    // to the minimum necessary bit depth.
+    if bits_per_pixel == 0 {
+        let count = match color_count {
+            0 => 256,
+            c => u16::from(c),
+        };
+        bits_per_pixel = count.next_power_of_two().trailing_zeros() as u16;
     }
 
     Ok(DirEntry {
         width: buf[0],
         height: buf[1],
-        color_count: buf[2],
+        color_count,
         reserved: buf[3],
         num_color_planes,
         bits_per_pixel,
@@ -209,9 +221,9 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     })
 }
 
-/// Find the entry with the highest (color depth, size).
+/// Find the entry with the highest (size, color depth).
 ///
-/// If two entries have the same color depth and size, pick the first one.
+/// If two entries have the same size and color depth, pick the first one.
 /// While ICO files with multiple identical size and bpp entries are rare, they
 /// do exist. Since we can't make an educated guess which one is best, picking
 /// the first one is a reasonable default.
@@ -221,8 +233,8 @@ fn best_entry(entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
         .rev() // ties should pick the first entry, not the last
         .max_by_key(|entry| {
             (
-                entry.bits_per_pixel,
                 u32::from(entry.real_width()) * u32::from(entry.real_height()),
+                entry.bits_per_pixel,
             )
         })
         .ok_or(DecoderError::NoEntries.into())
@@ -327,9 +339,16 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     .into());
                 }
 
-                // Embedded PNG images can only be of the 32BPP RGBA format.
-                // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                if layout.layout.color != ColorType::Rgba8 {
+                // > The format of a PNG-compressed image consists simply of a PNG image, starting
+                // > with the PNG file signature. The image must be in 32bpp ARGB format [...].
+                // https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
+                //
+                // This requirement was added to better support older software, which might crash for arbitrary PNGs.
+                // We have a state-of-the-art PNG decoder, so allowing any PNG format is easy for us.
+                // However, we still want to enforce this restriction is strict mode for compatibility with other decoders.
+                if self.spec_strictness == SpecCompliance::Strict
+                    && layout.layout.color != ColorType::Rgba8
+                {
                     return Err(DecoderError::PngNotRgba.into());
                 }
 
@@ -423,6 +442,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     Ok(DecodedImageAttributes::default())
                 } else if data_end == image_end {
                     // accept images with no mask data
+                    Ok(DecodedImageAttributes::default())
+                } else if self.spec_strictness == SpecCompliance::Lenient
+                    && self.selected_entry.bits_per_pixel >= 32
+                {
+                    // In lenient mode, we accept truncated mask data for 32bpp images
+                    // since they already have an alpha channel and we ignore the AND mask anyway.
                     Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
@@ -575,6 +600,25 @@ mod test {
         assert!(decoder.read_image(&mut buf).is_err());
     }
 
+    #[test]
+    fn truncated_mask_32bpp_lenient() {
+        let data = std::fs::read("tests/images/ico/images/truncated_mask_32bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_err());
+    }
+
     // Verify that the AND mask is ignored for 32bpp BMP images in ICO files.
     #[test]
     fn bmp_32bpp_and_mask_ignored() {
@@ -595,5 +639,44 @@ mod test {
                 pixel[3]
             );
         }
+    }
+
+    #[test]
+    fn format_error_ico_strict_vs_lenient() {
+        let data = std::fs::read("tests/images/ico/images/lenient-bpp.ico").unwrap();
+
+        let mut decoder =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Lenient)
+                .unwrap();
+        let bytes = decoder.prepare_image().unwrap().total_bytes();
+        let mut buf = vec![0; usize::try_from(bytes).unwrap()];
+        assert!(decoder.read_image(&mut buf).is_ok());
+
+        let decoder_strict =
+            IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
+        assert!(decoder_strict.is_err());
+    }
+
+    #[test]
+    fn best_entry_selection() {
+        let data = vec![
+            0x00, 0x00, 0x01, 0x00, 0x02, 0x00, // Entry 1: 16x16, 32 bpp
+            16, 16, 0, 0, 1, 0, 32, 0, 8, 0, 0, 0, 38, 0, 0, 0,
+            // Entry 2: 32x32, 0 bpp, 0 color_count
+            32, 32, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 46, 0, 0, 0,
+        ];
+
+        let mut r = std::io::Cursor::new(&data);
+        let entries = read_entries(&mut r, SpecCompliance::Lenient).unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].width, 16);
+        assert_eq!(entries[0].bits_per_pixel, 32);
+
+        assert_eq!(entries[1].width, 32);
+        assert_eq!(entries[1].bits_per_pixel, 8);
+
+        let best = best_entry(entries).unwrap();
+        assert_eq!(best.width, 32);
     }
 }

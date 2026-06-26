@@ -905,16 +905,17 @@ where
     S: Primitive,
 {
     // The kernel's input positions relative to the current pixel.
-    let taps: &[(isize, isize)] = &[
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (-1, 0),
+    // Each coordinate -1, 0, 1 is offset by 1 to make them unsigned.
+    let taps: &[(u32, u32)] = &[
         (0, 0),
         (1, 0),
-        (-1, 1),
+        (2, 0),
         (0, 1),
         (1, 1),
+        (2, 1),
+        (0, 2),
+        (1, 2),
+        (2, 2),
     ];
 
     let (width, height) = image.dimensions();
@@ -939,10 +940,10 @@ where
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let x0 = (x as isize + a).clamp(0, (width - 1) as isize);
-                let y0 = (y as isize + b).clamp(0, (height - 1) as isize);
+                let x0 = (x + a).saturating_sub(1).min(width - 1);
+                let y0 = (y + b).saturating_sub(1).min(height - 1);
 
-                let p = image.get_pixel(x0 as u32, y0 as u32);
+                let p = image.get_pixel(x0, y0);
 
                 for (tc, &c) in t.iter_mut().zip(p.channels()) {
                     *tc += <f32 as NumCast>::from(c).unwrap() * k;

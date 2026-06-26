@@ -1235,6 +1235,18 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         &mut self.reader
     }
 
+    /// The bit depth (`biBitCount`) declared by the embedded BMP header.
+    ///
+    /// This is the authoritative bit depth of the image, unlike the
+    /// `ICONDIRENTRY` bit-depth field, which may be `0` ("unspecified") for ICO
+    /// or carry the hotspot coordinate for CUR. The ICO decoder uses it to decide
+    /// whether a true-color image already has native alpha (and thus the `AND`
+    /// mask must be ignored).
+    #[cfg(feature = "ico")]
+    pub(crate) fn source_bit_count(&self) -> u16 {
+        self.bit_count
+    }
+
     fn read_file_header(&mut self) -> ImageResult<()> {
         if self.no_file_header {
             return Ok(());

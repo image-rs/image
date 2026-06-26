@@ -383,6 +383,15 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 decoder.read_image_data(buf)?;
 
+                // Whether the image already has a native alpha channel (and thus
+                // the AND mask must be ignored) is determined by the embedded BMP's
+                // real bit depth, NOT the ICONDIRENTRY bit-depth field. The latter
+                // is unreliable: it may be 0 ("unspecified", then guessed from the
+                // color count) for ICO, or hold the hotspot Y coordinate for CUR. A
+                // true 32bpp image whose entry bpp resolves to <32 would otherwise
+                // wrongly have the AND mask applied, zeroing its native alpha.
+                let source_bit_count = decoder.source_bit_count();
+
                 let r = decoder.reader();
                 let image_end = r.stream_position()?;
                 let data_end = self.reader_offset
@@ -407,7 +416,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     // 32bpp BMPs already have a native alpha channel, so the
                     // AND mask is ignored.
                     // For lower bit depths, read and apply the AND mask.
-                    if self.selected_entry.bits_per_pixel < 32 {
+                    if source_bit_count < 32 {
                         let rgba = buf.as_chunks_mut::<4>().0;
                         let rows = rgba.chunks_exact_mut(width as usize);
 
@@ -443,11 +452,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 } else if data_end == image_end {
                     // accept images with no mask data
                     Ok(DecodedImageAttributes::default())
-                } else if self.spec_strictness == SpecCompliance::Lenient
-                    && self.selected_entry.bits_per_pixel >= 32
+                } else if self.spec_strictness == SpecCompliance::Lenient && source_bit_count >= 32
                 {
                     // In lenient mode, we accept truncated mask data for 32bpp images
                     // since they already have an alpha channel and we ignore the AND mask anyway.
+                    // This mirrors the mask-ignore decision above and is likewise keyed on the
+                    // embedded BMP's real bit depth, not the unreliable ICONDIRENTRY field.
                     Ok(DecodedImageAttributes::default())
                 } else {
                     Err(DecoderError::InvalidDataSize.into())
@@ -632,6 +642,42 @@ mod test {
 
         // Every pixel should have alpha=128 (the native alpha from the BMP data).
         // If the AND mask were incorrectly applied, alpha would be 0.
+        for (i, pixel) in buf.chunks_exact(4).enumerate() {
+            assert_eq!(
+                pixel[3], 128,
+                "pixel {i}: expected alpha=128, got {}",
+                pixel[3]
+            );
+        }
+    }
+
+    // Regression test for the AND-mask-ignore decision being keyed on the
+    // embedded BMP's real bit depth rather than the unreliable ICONDIRENTRY
+    // bit-depth field. The fixture is a genuine 32bpp icon (native alpha = 128)
+    // with a conflicting AND mask. We rewrite its ICONDIRENTRY `wBitCount` field
+    // to "unspecified" (0) — still a perfectly valid 32bpp icon — which makes the
+    // directory entry resolve to a guessed *low* bit depth (from `bColorCount`).
+    // The native alpha must still be preserved, because the embedded BMP is truly
+    // 32bpp. Follow-up to #3056.
+    #[test]
+    fn bmp_32bpp_unspecified_entry_bpp_and_mask_ignored() {
+        let mut data =
+            std::fs::read("tests/images/ico/images/bmp-32bpp-conflicting-and-mask.ico").unwrap();
+
+        // The ICONDIRENTRY's `wBitCount` field lives at file bytes [12..14].
+        // The fixture declares 32 (`20 00`); rewrite it to "unspecified" (`00 00`).
+        assert_eq!(&data[12..14], &[0x20, 0x00], "fixture layout changed");
+        data[12] = 0x00;
+        data[13] = 0x00;
+
+        let mut decoder = IcoDecoder::new(std::io::Cursor::new(&data)).unwrap();
+        let layout = decoder.prepare_image().unwrap();
+        let mut buf = vec![0u8; layout.total_bytes() as usize];
+        decoder.read_image(&mut buf).unwrap();
+
+        // Every pixel should still have alpha=128 (the native alpha from the BMP).
+        // If the AND mask were incorrectly applied because the entry bpp resolved
+        // to <32, alpha would be 0.
         for (i, pixel) in buf.chunks_exact(4).enumerate() {
             assert_eq!(
                 pixel[3], 128,

@@ -133,6 +133,12 @@ fn main() -> std::process::ExitCode {
 
             if reference_format == ImageFormat::Png && image_format == Some(ImageFormat::Tiff) {
                 match test_img {
+                    DynamicImage::ImageLuma32F(_) => {
+                        test_img = test_img.to_luma16().into();
+                    }
+                    DynamicImage::ImageLumaA32F(_) => {
+                        test_img = test_img.to_luma_alpha16().into();
+                    }
                     DynamicImage::ImageRgb32F(_) => {
                         test_img = test_img.to_rgb16().into();
                     }

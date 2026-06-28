@@ -778,6 +778,28 @@ where
             .into_view_mut()
             .expect("buffer always uses a non-overlapping strided layout")
     }
+
+    /// Extract the alpha channel as a Luma image.
+    ///
+    /// If the pixel does not have an alpha channel, the value is filled with a fully opaque mask
+    /// using the maximum value of the corresponding subpixel type.
+    pub fn to_alpha_mask(&self) -> ImageBuffer<Luma<P::Subpixel>, Vec<P::Subpixel>> {
+        let pixels = self.pixels().iter();
+
+        let mask = if P::HAS_ALPHA {
+            assert!(
+                P::CHANNEL_COUNT > 0,
+                "Pixel with zero channels indicated an alpha channel"
+            );
+
+            pixels.map(|p| p.alpha()).collect()
+        } else {
+            vec![<P::Subpixel as Primitive>::DEFAULT_MAX_VALUE; pixels.len()]
+        };
+
+        ImageBuffer::from_vec(self.width, self.height, mask)
+            .expect("used the right pixel and channel count")
+    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -941,6 +963,112 @@ where
 
         self.width = selection.width;
         self.height = selection.height;
+    }
+
+    /// Fill the alpha channel of this image from a Luma mask.
+    ///
+    /// Returns an [`ImageError::Parameter`] if the mask dimensions do not match the image
+    /// dimensions or if there is no alpha channel in the pixel's color type.
+    ///
+    /// NOTE: pending the generic constant argument MVP (#132980) this may gain a trait bound on
+    /// available alpha channel instead of an error. Please do consider the design trade-off here.
+    /// The standard library refrained from adding a non-zero bound to the length of
+    /// `slice::as_chunks`. The bound would look like:
+    ///
+    /// ```text
+    /// where
+    ///     P: Pixel<HAS_ALPHA = true>
+    /// ```
+    ///
+    /// Similar arguments apply as presented in [#99471], with post-monomorphization error and
+    /// inability to type-check code on a const-dependent branch. We must consider if a slice length
+    /// of `0` and non-alpha pixel types are similar usage patterns.
+    ///
+    /// [#99471]: https://github.com/rust-lang/rust/pull/99471
+    /// [#132980]: https://github.com/rust-lang/rust/issues/132980
+    pub fn set_alpha_channel<RhsContainer>(
+        &mut self,
+        mask: &ImageBuffer<Luma<P::Subpixel>, RhsContainer>,
+    ) -> ImageResult<()>
+    where
+        RhsContainer: Deref<Target = [P::Subpixel]>,
+    {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        if !P::HAS_ALPHA {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::NoAlphaChannel,
+            )));
+        }
+
+        assert!(
+            P::CHANNEL_COUNT > 0,
+            "Pixel with zero channels indicated an alpha channel"
+        );
+
+        let pixels = self.pixels_mut().iter_mut();
+        let mask = mask.subpixels();
+
+        for (p, alpha) in pixels.zip(mask.iter()) {
+            // If the pixel has an alpha channel, use it.
+            p.apply_with_alpha(|c| c, |_| *alpha);
+        }
+
+        Ok(())
+    }
+}
+
+impl<S: Primitive> ImageBuffer<Luma<S>, Vec<S>> {
+    /// Insert an alpha channel at every pixel.
+    ///
+    /// Before exposing this:
+    /// - should it be generic, if so, how?
+    /// - buffer reuse would works but only for `Vec` since we must resize.
+    pub(crate) fn add_alpha_channel(
+        &self,
+        mask: &ImageBuffer<Luma<S>, Vec<S>>,
+    ) -> ImageResult<ImageBuffer<LumaA<S>, Vec<S>>> {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let data = self
+            .pixels()
+            .iter()
+            .zip(mask.subpixels())
+            .map(|(&luma, &alpha)| [luma.0[0], alpha])
+            .collect::<Vec<_>>();
+
+        Ok(ImageBuffer::from_vec(self.width, self.height, data.into_flattened()).unwrap())
+    }
+}
+
+impl<S: Primitive> ImageBuffer<Rgb<S>, Vec<S>> {
+    /// See: `add_alpha_channel` for `ImageBuffer<Luma<S>>`.
+    pub(crate) fn add_alpha_channel(
+        &self,
+        mask: &ImageBuffer<Luma<S>, Vec<S>>,
+    ) -> ImageResult<ImageBuffer<Rgba<S>, Vec<S>>> {
+        if (self.width, self.height) != (mask.width(), mask.height()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
+        }
+
+        let data = self
+            .pixels()
+            .iter()
+            .zip(mask.subpixels())
+            .map(|(&Rgb([r, g, b]), &alpha)| [r, g, b, alpha])
+            .collect::<Vec<_>>();
+
+        Ok(ImageBuffer::from_vec(self.width, self.height, data.into_flattened()).unwrap())
     }
 }
 
@@ -1434,13 +1562,13 @@ where
     /// Construct an image by swapping `Bgr` channels into an `Rgb` order.
     pub fn from_raw_bgr(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-        S::swizzle_rgb_bgr(img.as_mut());
+        S::swizzle_rgb_bgr(img.subpixels_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `Bgr` channel order.
     pub fn into_raw_bgr(mut self) -> Container {
-        S::swizzle_rgb_bgr(self.as_mut());
+        S::swizzle_rgb_bgr(self.subpixels_mut());
         self.into_raw()
     }
 }
@@ -1454,13 +1582,13 @@ where
     /// Construct an image by swapping `BgrA` channels into an `RgbA` order.
     pub fn from_raw_bgra(width: u32, height: u32, container: Container) -> Option<Self> {
         let mut img = Self::from_raw(width, height, container)?;
-        S::swizzle_rgba_bgra(img.as_mut());
+        S::swizzle_rgba_bgra(img.subpixels_mut());
         Some(img)
     }
 
     /// Return the underlying raw buffer after converting it into `BgrA` channel order.
     pub fn into_raw_bgra(mut self) -> Container {
-        S::swizzle_rgba_bgra(self.as_mut());
+        S::swizzle_rgba_bgra(self.subpixels_mut());
         self.into_raw()
     }
 }
@@ -1751,10 +1879,15 @@ pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
 pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
+/// An image buffer for 32-bit float grayscale pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type Gray32FImage = ImageBuffer<Luma<f32>, Vec<f32>>;
+/// An image buffer for 32-bit float grayscale + alpha pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type GrayAlpha32FImage = ImageBuffer<LumaA<f32>, Vec<f32>>;
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
 pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
-
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
 pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
@@ -1807,9 +1940,24 @@ impl From<DynamicImage> for GrayAlpha16Image {
     }
 }
 
+impl From<DynamicImage> for Rgb32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_rgb32f()
+    }
+}
 impl From<DynamicImage> for Rgba32FImage {
     fn from(value: DynamicImage) -> Self {
         value.into_rgba32f()
+    }
+}
+impl From<DynamicImage> for Gray32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma32f()
+    }
+}
+impl From<DynamicImage> for GrayAlpha32FImage {
+    fn from(value: DynamicImage) -> Self {
+        value.into_luma_alpha32f()
     }
 }
 
@@ -2424,6 +2572,65 @@ mod test {
         assert_eq!(expanded.get_pixel(0, 1), &Rgba([255, 255, 255, 255]));
         assert_eq!(expanded.get_pixel(1, 1), &Rgba([255, 255, 255, 255]));
         assert_eq!(expanded.get_pixel(0, 0), &Rgba([255, 255, 255, 255]));
+    }
+
+    #[test]
+    fn alpha_mask_of_gray() {
+        let image: GrayImage = ImageBuffer::new(4, 4);
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_raw(), &[255; 16]);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn alpha_mask_extraction() {
+        let image: ImageBuffer<LumaA<u8>, _> = ImageBuffer::from_raw(4, 4, vec![
+            0, 1, 0, 2, 0, 3, 0, 4,
+            0, 5, 0, 6, 0, 7, 0, 8,
+            0, 9, 0, 10, 0, 11, 0, 12,
+            0, 13, 0, 14, 0, 15, 0, 16,
+        ]).unwrap();
+
+        let mask = image.to_alpha_mask();
+        assert_eq!(mask.as_raw(), &(1u8..17).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn apply_alpha_mask() {
+        let mut image: ImageBuffer<LumaA<u8>, _> = ImageBuffer::new(4, 4);
+
+        let alpha = ImageBuffer::from_pixel(4, 4, Luma([255]));
+        image.set_alpha_channel(&alpha).expect("can apply");
+
+        for pixel in image.pixels() {
+            assert_eq!(pixel.0, [0, 255]);
+        }
+    }
+
+    #[test]
+    fn apply_alpha_mask_rgb() {
+        let mut image: ImageBuffer<Rgba<u8>, _> = ImageBuffer::new(4, 4);
+
+        let alpha = ImageBuffer::from_pixel(4, 4, Luma([255]));
+        image.set_alpha_channel(&alpha).expect("can apply");
+
+        for pixel in image.pixels() {
+            assert_eq!(pixel.0, [0, 0, 0, 255]);
+        }
+    }
+
+    #[test]
+    fn can_not_apply_alpha_mask() {
+        ImageBuffer::<LumaA<u8>, _>::new(4, 4)
+            .set_alpha_channel(&ImageBuffer::new(1, 1))
+            .expect_err("can not apply with wrong dimensions");
+
+        ImageBuffer::<Luma<u8>, _>::new(4, 4)
+            .set_alpha_channel(&ImageBuffer::new(4, 4))
+            .expect_err("can not apply without alpha channel");
+        ImageBuffer::<Rgb<u8>, _>::new(4, 4)
+            .set_alpha_channel(&ImageBuffer::new(4, 4))
+            .expect_err("can not apply without alpha channel");
     }
 }
 

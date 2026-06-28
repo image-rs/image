@@ -13,8 +13,8 @@ use png::{BlendOp, DeflateCompression, DisposeOp};
 use crate::animation::{Delay, Ratio};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{
@@ -153,11 +153,8 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// > When the sRGB chunk is present, [...] decoders that recognize the sRGB chunk but are not
     /// > capable of colour management are recommended to ignore the gAMA and cHRM chunks, and use
     /// > the values given above as if they had appeared in gAMA and cHRM chunks.
-    pub fn gamma_value(&self) -> ImageResult<Option<f64>> {
-        let Some(reader) = &self.reader else {
-            return Err(decoding_not_yet_started());
-        };
-
+    pub fn gamma_value(&mut self) -> ImageResult<Option<f64>> {
+        let reader = self.ensure_reader_and_header()?;
         Ok(reader
             .info()
             .source_gamma
@@ -184,13 +181,8 @@ impl<R: BufRead + Seek> PngDecoder<R> {
     /// animation. When it is not the common interpretation is to use it as a thumbnail.
     ///
     /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
-    pub fn is_apng(&self) -> ImageResult<bool> {
-        let Some(reader) = &self.reader else {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::FailedAlready,
-            )));
-        };
-
+    pub fn is_apng(&mut self) -> ImageResult<bool> {
+        let reader = self.ensure_reader_and_header()?;
         Ok(reader.info().animation_control.is_some())
     }
 
@@ -223,6 +215,13 @@ impl<R: BufRead + Seek> PngDecoder<R> {
             (png::ColorType::Indexed, png::BitDepth::Sixteen) => ExtendedColorType::Unknown(16),
         }
     }
+
+    /// The maximum number of bytes iTXt and zTXt are allowed to decompress to.
+    /// This guards against decompression bombs.
+    fn text_decompress_limit(&mut self) -> usize {
+        let max = png::text_metadata::DECOMPRESSION_LIMIT as u64;
+        self.limits.max_alloc.unwrap_or(max).min(max) as usize
+    }
 }
 
 fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
@@ -253,16 +252,28 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
     ))
 }
 
-fn decoding_not_yet_started() -> ImageError {
-    ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
-}
-
 fn decoding_started_already() -> ImageError {
     ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
 }
 
 fn reader_finished_already() -> ImageError {
     ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+}
+
+/// PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
+/// to be reordered to native endianness per the contract of `read_image`. Assumes equal
+/// depth which is the only supported output from `png` with our options.
+fn big_endian_to_native_endian(buf: &mut [u8], color: ColorType) {
+    let bytes_per_channel = color.bytes_per_pixel() / color.channel_count();
+
+    match bytes_per_channel {
+        1 => (), // No reodering necessary for u8
+        2 => buf.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
+            *c = u16::from_be_bytes(*c).to_ne_bytes();
+        }),
+        // not emitted by png crate
+        _ => unreachable!(),
+    }
 }
 
 impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
@@ -304,19 +315,22 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut itx_chunk) = reader
             .info()
             .utf8_text
             .iter()
-            .find(|chunk| chunk.keyword.contains(XMP_KEY))
+            .find(|chunk| chunk.keyword == XMP_KEY)
             .cloned()
         {
-            itx_chunk.decompress_text().map_err(ImageError::from_png)?;
+            itx_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return itx_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 
@@ -324,6 +338,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
     }
 
     fn iptc_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        let decompression_limit = self.text_decompress_limit();
         let reader = self.ensure_reader_and_header()?;
 
         if let Some(mut text_chunk) = reader
@@ -333,10 +348,12 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
             .find(|chunk| IPTC_KEYS.iter().any(|key| chunk.keyword.contains(key)))
             .cloned()
         {
-            text_chunk.decompress_text().map_err(ImageError::from_png)?;
+            text_chunk
+                .decompress_text_with_limit(decompression_limit)
+                .map_err(ImageError::from_png)?;
             return text_chunk
                 .get_text()
-                .map(|text| Some(text.as_bytes().to_vec()))
+                .map(|text| Some(text.into_bytes()))
                 .map_err(ImageError::from_png);
         }
 
@@ -360,18 +377,7 @@ impl<R: BufRead + Seek> ImageDecoder for PngDecoder<R> {
         let original_color_type = Self::color_type_info(reader.info());
         reader.next_frame(buf).map_err(ImageError::from_png)?;
 
-        // PNG images are big endian. For 16 bit per channel and larger types, the buffer may need
-        // to be reordered to native endianness per the contract of `read_image`. Assumes equal
-        // depth which is the only supported output from `png` with our options.
-        let bpc = layout.layout.color.bytes_per_pixel() / layout.layout.color.channel_count();
-
-        match bpc {
-            1 => (), // No reodering necessary for u8
-            2 => buf.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
-                *c = u16::from_be_bytes(*c).to_ne_bytes();
-            }),
-            _ => unreachable!(),
-        }
+        big_endian_to_native_endian(buf, layout.layout.color);
 
         Ok(DecodedImageAttributes {
             original_color_type: Some(original_color_type),
@@ -556,6 +562,8 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
         // TODO: add `png::Reader::change_limits()` and call it here
         // to also constrain the internal buffer allocations in the PNG crate
         reader.next_frame(buffer).map_err(ImageError::from_png)?;
+
+        big_endian_to_native_endian(buffer, color);
 
         // Find out how to interpret the decoded frame.
         let info = reader.info();
@@ -832,12 +840,12 @@ impl<W: Write> PngEncoder<W> {
         }
 
         let mut encoder =
-            png::Encoder::with_info(self.w, info).map_err(|e| ImageError::IoError(e.into()))?;
+            png::Encoder::with_info(self.w, info).map_err(ImageError::from_png_enc)?;
 
         if let Some(xmp_text) = self.xmp_metadata {
             encoder
                 .add_itxt_chunk(XMP_KEY.to_string(), xmp_text)
-                .map_err(|e| ImageError::IoError(e.into()))?;
+                .map_err(ImageError::from_png_enc)?;
         }
 
         encoder.set_color(ct);
@@ -847,12 +855,11 @@ impl<W: Write> PngEncoder<W> {
             encoder.set_deflate_compression(compression);
         }
         encoder.set_filter(filter);
-        let mut writer = encoder
-            .write_header()
-            .map_err(|e| ImageError::IoError(e.into()))?;
+        let mut writer = encoder.write_header().map_err(ImageError::from_png_enc)?;
         writer
             .write_image_data(data)
-            .map_err(|e| ImageError::IoError(e.into()))
+            .map_err(ImageError::from_png_enc)?;
+        writer.finish().map_err(ImageError::from_png_enc)
     }
 }
 
@@ -939,6 +946,8 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     ) -> Option<DynamicImage> {
         use ColorType::*;
         match img.color() {
+            L32F => Some(img.to_luma16().into()),
+            La32F => Some(img.to_luma_alpha16().into()),
             Rgb32F => Some(img.to_rgb16().into()),
             Rgba32F => Some(img.to_rgba16().into()),
             L8 | La8 | Rgb8 | Rgba8 | L16 | La16 | Rgb16 | Rgba16 => None,
@@ -965,6 +974,16 @@ impl ImageError {
             LimitsExceeded => {
                 ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             }
+        }
+    }
+    fn from_png_enc(err: png::EncodingError) -> ImageError {
+        use png::EncodingError::*;
+        match err {
+            IoError(error) => ImageError::IoError(error),
+            LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
+            _ => ImageError::Encoding(EncodingError::new(ImageFormat::Png.into(), Box::new(err))),
         }
     }
 }
@@ -1011,7 +1030,9 @@ fn blend_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region
         ColorType::La16 => inner::<LumaA<u16>>,
         ColorType::Rgb16 => inner::<Rgb<u16>>,
         ColorType::Rgba16 => inner::<Rgba<u16>>,
-        ColorType::Rgb32F | ColorType::Rgba32F => unreachable!("No floating point formats in PNG"),
+        ColorType::L32F | ColorType::La32F | ColorType::Rgb32F | ColorType::Rgba32F => {
+            unreachable!("No floating point formats in PNG")
+        }
     };
 
     let bpp = usize::from(layout.color.bytes_per_pixel());
@@ -1113,5 +1134,42 @@ mod tests {
             .expect("Error decoding XMP")
             .expect("XMP is empty");
         assert_eq!(xmp, decoded_xmp);
+    }
+
+    #[test]
+    fn is_apng() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
+        let is_apng = PngDecoder::new(file).is_apng().unwrap();
+        assert!(is_apng);
+    }
+
+    #[test]
+    fn gamma() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/ball.png").unwrap());
+        let gamma = PngDecoder::new(file).gamma_value().unwrap();
+        assert_eq!(gamma, None);
+    }
+
+    #[test]
+    fn apng_16_bits_per_channel() {
+        let file = BufReader::new(std::fs::File::open("tests/images/png/apng/rgba16.png").unwrap());
+        let decoder = PngDecoder::new(file).apng().unwrap();
+        let reader = crate::ImageReader::from_decoder(Box::new(decoder));
+        let frames = reader.into_frames().collect_frames().unwrap();
+        assert_eq!(frames.len(), 3);
+
+        let colors = [
+            *frames[0].buffer().get_pixel(0, 0),
+            *frames[1].buffer().get_pixel(0, 0),
+            *frames[2].buffer().get_pixel(0, 0),
+        ];
+        assert_eq!(
+            colors,
+            [
+                Rgba([255, 0, 0, 255]),
+                Rgba([0, 255, 0, 255]),
+                Rgba([0, 0, 255, 255]),
+            ]
+        );
     }
 }

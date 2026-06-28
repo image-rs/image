@@ -134,6 +134,10 @@ pub enum ParameterErrorKind {
         /// The cicp that was found.
         found: Cicp,
     },
+    /// The operation is only applicable to pixels with an alpha channel.
+    NoAlphaChannel,
+    /// The operation is only applicable to Luma pixels, which can be used as a mask.
+    NotAValidMask(ExtendedColorType),
 }
 
 /// An error was encountered while decoding an image.
@@ -442,6 +446,18 @@ impl fmt::Display for ParameterError {
                 write!(
                     fmt,
                     "The color space {found:?} does not match the expected {expected:?}",
+                )
+            }
+            ParameterErrorKind::NoAlphaChannel => {
+                write!(
+                    fmt,
+                    "The operation requires an alpha channel but the pixel type does not have one",
+                )
+            }
+            ParameterErrorKind::NotAValidMask(c) => {
+                write!(
+                    fmt,
+                    "The operation requires a luma image as a mask but the input has color {c:?}",
                 )
             }
         }?;

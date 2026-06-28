@@ -1422,12 +1422,12 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         ) || compression == BitfieldCompression::Rgba;
 
         // Read bitfield masks into buffer
-        let buffer_size = if has_alpha { 16 } else { 12 };
-        let mut buffer = vec![0u8; buffer_size];
-        self.reader.read_exact(&mut buffer)?;
+        let mut buffer = [0u8; 16];
+        let buffer = &mut buffer[..if has_alpha { 16 } else { 12 }];
+        self.reader.read_exact(buffer)?;
 
         // Parse masks using shared logic
-        let parsed = ParsedBitfields::parse(&buffer, has_alpha);
+        let parsed = ParsedBitfields::parse(buffer, has_alpha);
 
         // Create Bitfields from parsed masks
         self.bitfields = match self.image_type {

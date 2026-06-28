@@ -36,16 +36,8 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
             (width as usize).checked_mul(height as usize)
         );
 
-        if width == 0 {
-            #[allow(unknown_lints)] // TODO: remove this once clippy on stable rust has this lint
-            #[allow(clippy::chunks_exact_to_as_chunks)]
-            Rows {
-                pixels: [].chunks_exact(1),
-            }
-        } else {
-            Rows {
-                pixels: pixels.chunks_exact(width as usize),
-            }
+        Rows {
+            pixels: pixels.chunks_exact(width.max(1) as usize),
         }
     }
 }
@@ -122,16 +114,8 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
             (width as usize).checked_mul(height as usize)
         );
 
-        if width == 0 {
-            #[allow(unknown_lints)] // TODO: remove this once clippy on stable rust has this lint
-            #[allow(clippy::chunks_exact_to_as_chunks)]
-            RowsMut {
-                pixels: [].chunks_exact_mut(1),
-            }
-        } else {
-            RowsMut {
-                pixels: pixels.chunks_exact_mut(width as usize),
-            }
+        RowsMut {
+            pixels: pixels.chunks_exact_mut(width.max(1) as usize),
         }
     }
 }

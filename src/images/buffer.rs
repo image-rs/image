@@ -37,6 +37,8 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
         );
 
         if width == 0 {
+            #[allow(unknown_lints)] // TODO: remove this once clippy on stable rust has this lint
+            #[allow(clippy::chunks_exact_to_as_chunks)]
             Rows {
                 pixels: [].chunks_exact(1),
             }
@@ -121,6 +123,8 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
         );
 
         if width == 0 {
+            #[allow(unknown_lints)] // TODO: remove this once clippy on stable rust has this lint
+            #[allow(clippy::chunks_exact_to_as_chunks)]
             RowsMut {
                 pixels: [].chunks_exact_mut(1),
             }
@@ -2433,8 +2437,8 @@ mod test {
 
         assert!(target.copy_from(&source, 0, 4).is_ok());
 
-        let lhs = source.chunks_exact(48);
-        let rhs = target.chunks_exact(48).skip(4).take(8);
+        let lhs = source.as_chunks::<48>().0;
+        let rhs = &target.as_chunks::<48>().0[4..12];
 
         assert!(lhs.eq(rhs));
     }

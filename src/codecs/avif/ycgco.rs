@@ -120,6 +120,8 @@ fn process_halved_chroma_row_cgco<
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
     let (y_iter, y_left) = y_plane.as_chunks::<2>();
+    // TODO: remove this once the false positive is fixed: https://github.com/rust-lang/rust-clippy/issues/17314
+    #[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
     let mut rgb_chunks = rgba.chunks_exact_mut(CHANNELS * 2);
 
     let scale_coef = ((max_value as f32 / range.range_y as f32) * (1 << PRECISION) as f32) as i32;

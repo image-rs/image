@@ -373,14 +373,12 @@ fn blend_and_dispose_region(
     non_disposed_data: &mut [u8],
     frame_data: &mut [u8],
 ) {
-    for (disposed, pixel) in non_disposed_data
-        .chunks_exact_mut(4)
-        .zip(frame_data.chunks_exact_mut(4))
-    {
+    let non_disposed_data = Rgba::<u8>::pixels_from_channels_mut(non_disposed_data);
+    let frame_data = Rgba::<u8>::pixels_from_channels_mut(frame_data);
+
+    for (disposed, pixel) in non_disposed_data.iter_mut().zip(frame_data.iter_mut()) {
         // FIXME: internal dispatch on disposal method may be slow, investigate if this is
         // properly and reliably vectorized.
-        let disposed = Rgba::<u8>::from_slice_mut(disposed);
-        let pixel = Rgba::<u8>::from_slice_mut(pixel);
         blend_and_dispose_pixel(dispose, disposed, pixel);
     }
 }

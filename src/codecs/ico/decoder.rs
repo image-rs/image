@@ -632,7 +632,7 @@ mod test {
 
         // Every pixel should have alpha=128 (the native alpha from the BMP data).
         // If the AND mask were incorrectly applied, alpha would be 0.
-        for (i, pixel) in buf.chunks_exact(4).enumerate() {
+        for (i, pixel) in buf.as_chunks::<4>().0.iter().enumerate() {
             assert_eq!(
                 pixel[3], 128,
                 "pixel {i}: expected alpha=128, got {}",

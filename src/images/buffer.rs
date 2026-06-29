@@ -36,14 +36,8 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
             (width as usize).checked_mul(height as usize)
         );
 
-        if width == 0 {
-            Rows {
-                pixels: [].chunks_exact(1),
-            }
-        } else {
-            Rows {
-                pixels: pixels.chunks_exact(width as usize),
-            }
+        Rows {
+            pixels: pixels.chunks_exact(width.max(1) as usize),
         }
     }
 }
@@ -120,14 +114,8 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
             (width as usize).checked_mul(height as usize)
         );
 
-        if width == 0 {
-            RowsMut {
-                pixels: [].chunks_exact_mut(1),
-            }
-        } else {
-            RowsMut {
-                pixels: pixels.chunks_exact_mut(width as usize),
-            }
+        RowsMut {
+            pixels: pixels.chunks_exact_mut(width.max(1) as usize),
         }
     }
 }
@@ -2433,8 +2421,8 @@ mod test {
 
         assert!(target.copy_from(&source, 0, 4).is_ok());
 
-        let lhs = source.chunks_exact(48);
-        let rhs = target.chunks_exact(48).skip(4).take(8);
+        let lhs = source.as_chunks::<48>().0;
+        let rhs = &target.as_chunks::<48>().0[4..12];
 
         assert!(lhs.eq(rhs));
     }

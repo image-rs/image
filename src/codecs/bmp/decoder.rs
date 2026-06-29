@@ -1096,6 +1096,7 @@ pub struct BmpDecoder<R> {
     top_down: bool,
     no_file_header: bool,
     add_alpha_channel: bool,
+    fallback_size: Option<(u16, u16)>,
     image_type: ImageType,
 
     bit_count: u16,
@@ -1123,6 +1124,7 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
             top_down: false,
             no_file_header: false,
             add_alpha_channel: false,
+            fallback_size: None,
             image_type: ImageType::Palette,
 
             bit_count: 0,
@@ -1218,9 +1220,14 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     #[cfg(feature = "ico")]
-    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BmpDecoder<R>> {
+    pub(crate) fn new_with_ico_format(
+        reader: R,
+        spec: SpecCompliance,
+        ico_size: (u16, u16),
+    ) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = Self::new_decoder(reader);
-        decoder.read_metadata_in_ico_format()?;
+        decoder.spec_strictness = spec;
+        decoder.read_metadata_in_ico_format(ico_size)?;
         Ok(decoder)
     }
 
@@ -1389,7 +1396,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         let mut buffer = [0u8; 36];
         self.reader.read_exact(&mut buffer)?;
 
-        let parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
+        let mut parsed = ParsedInfoHeader::parse(&buffer, self.spec_strictness)?;
+
+        // we may have a fallback size if it's missing in the header (e.g. ICO decoding)
+        if let Some(fallback) = self.fallback_size {
+            if parsed.width == 0 || parsed.height == 0 {
+                parsed.width = i32::from(fallback.0);
+                parsed.height = i32::from(fallback.1);
+            }
+        }
 
         self.width = parsed.width;
         self.height = parsed.height;
@@ -1721,14 +1736,42 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
     #[cfg(feature = "ico")]
     #[doc(hidden)]
-    pub fn read_metadata_in_ico_format(&mut self) -> ImageResult<()> {
+    pub fn read_metadata_in_ico_format(&mut self, ico_size: (u16, u16)) -> ImageResult<()> {
         self.no_file_header = true;
         self.add_alpha_channel = true;
+
+        // provide a fallback for invalid headers in lenient mode
+        if self.spec_strictness == SpecCompliance::Lenient {
+            self.fallback_size = Some((ico_size.0, ico_size.1 * 2));
+        }
+
         self.read_metadata()?;
+
+        if self.spec_strictness == SpecCompliance::Strict && self.height % 2 == 1 {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Ico.into(),
+                "Invalid ICO BMP height: biHeight in BITMAPINFOHEADER must be even".to_owned(),
+            )));
+        }
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).
         self.height /= 2;
+
+        if self.width == 0 || self.height == 0 {
+            if self.spec_strictness == SpecCompliance::Strict {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Ico.into(),
+                    "Invalid ICO BMP size: size cannot be zero".to_owned(),
+                )));
+            } else {
+                // In lenient mode, use the size specified in the ICON entry as a fallback.
+                // This behavior is consistent with Windows.
+                self.width = ico_size.0 as i32;
+                self.height = ico_size.1 as i32;
+            }
+        }
+
         Ok(())
     }
 

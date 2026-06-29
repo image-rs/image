@@ -187,20 +187,32 @@ fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry>
     // Parse fields from buffer
     // buf[4..6]: may be color planes (0 or 1) or horizontal hotspot for CUR files
     let num_color_planes = u16::from_le_bytes(buf[4..6].try_into().unwrap());
-    if num_color_planes > 256 {
+    if spec == SpecCompliance::Strict && num_color_planes > 256 {
         return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
     }
 
     // buf[6..8]: may be bit depth (0 = unspecified) or vertical hotspot for CUR files
-    let bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
+    let mut bits_per_pixel = u16::from_le_bytes(buf[6..8].try_into().unwrap());
     if spec == SpecCompliance::Strict && bits_per_pixel > 256 {
         return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+    }
+
+    let color_count = buf[2];
+
+    // Some icons don't have a bit depth, only a color count. Convert the color count
+    // to the minimum necessary bit depth.
+    if bits_per_pixel == 0 {
+        let count = match color_count {
+            0 => 256,
+            c => u16::from(c),
+        };
+        bits_per_pixel = count.next_power_of_two().trailing_zeros() as u16;
     }
 
     Ok(DirEntry {
         width: buf[0],
         height: buf[1],
-        color_count: buf[2],
+        color_count,
         reserved: buf[3],
         num_color_planes,
         bits_per_pixel,
@@ -209,9 +221,9 @@ fn read_entry<R: Read>(r: &mut R, spec: SpecCompliance) -> ImageResult<DirEntry>
     })
 }
 
-/// Find the entry with the highest (color depth, size).
+/// Find the entry with the highest (size, color depth).
 ///
-/// If two entries have the same color depth and size, pick the first one.
+/// If two entries have the same size and color depth, pick the first one.
 /// While ICO files with multiple identical size and bpp entries are rare, they
 /// do exist. Since we can't make an educated guess which one is best, picking
 /// the first one is a reasonable default.
@@ -221,8 +233,8 @@ fn best_entry(entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
         .rev() // ties should pick the first entry, not the last
         .max_by_key(|entry| {
             (
-                entry.bits_per_pixel,
                 u32::from(entry.real_width()) * u32::from(entry.real_height()),
+                entry.bits_per_pixel,
             )
         })
         .ok_or(DecoderError::NoEntries.into())
@@ -424,8 +436,8 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                                     }
 
                                     if mask_byte & (1 << bit) != 0 {
-                                        // Set alpha channel to transparent.
-                                        row[x as usize][3] = 0;
+                                        // Set pixel to fully transparent.
+                                        row[x as usize] = [0, 0, 0, 0];
                                     }
 
                                     x += 1;
@@ -627,7 +639,7 @@ mod test {
 
         // Every pixel should have alpha=128 (the native alpha from the BMP data).
         // If the AND mask were incorrectly applied, alpha would be 0.
-        for (i, pixel) in buf.chunks_exact(4).enumerate() {
+        for (i, pixel) in buf.as_chunks::<4>().0.iter().enumerate() {
             assert_eq!(
                 pixel[3], 128,
                 "pixel {i}: expected alpha=128, got {}",
@@ -650,6 +662,52 @@ mod test {
         let decoder_strict =
             IcoDecoder::with_spec_compliance(std::io::Cursor::new(&data), SpecCompliance::Strict);
         assert!(decoder_strict.is_err());
+    }
+
+    #[test]
+    fn best_entry_selection() {
+        let data = vec![
+            0x00, 0x00, 0x01, 0x00, 0x02, 0x00, // Entry 1: 16x16, 32 bpp
+            16, 16, 0, 0, 1, 0, 32, 0, 8, 0, 0, 0, 38, 0, 0, 0,
+            // Entry 2: 32x32, 0 bpp, 0 color_count
+            32, 32, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 46, 0, 0, 0,
+        ];
+
+        let mut r = std::io::Cursor::new(&data);
+        let entries = read_entries(&mut r, SpecCompliance::Lenient).unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].width, 16);
+        assert_eq!(entries[0].bits_per_pixel, 32);
+
+        assert_eq!(entries[1].width, 32);
+        assert_eq!(entries[1].bits_per_pixel, 8);
+
+        let best = best_entry(entries).unwrap();
+        assert_eq!(best.width, 32);
+    }
+
+    #[test]
+    fn lenient_too_many_planes() {
+        // The `planes` field (buf[4..6]) holds the horizontal hotspot coordinate for CUR files,
+        // which may legitimately exceed 256. Mirroring the `bits_per_pixel` handling, the
+        // `num_color_planes > 256` validation only applies in strict mode. (Sibling of the
+        // `bits_per_pixel`/vertical-hotspot relaxation.)
+        let data = vec![
+            0x00, 0x00, 0x02, 0x00, 0x01, 0x00, // ICONDIR: type=2 (CUR), 1 entry
+            // DIRENTRY: planes (buf[4..6]) = 0x0101 = 257 (>256)
+            16, 16, 0, 0, 0x01, 0x01, 8, 0, 8, 0, 0, 0, 22, 0, 0, 0,
+        ];
+
+        // Lenient mode accepts the oversized value.
+        let mut r = std::io::Cursor::new(&data);
+        let entries = read_entries(&mut r, SpecCompliance::Lenient).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].num_color_planes, 257);
+
+        // Strict mode still rejects it.
+        let mut r = std::io::Cursor::new(&data);
+        assert!(read_entries(&mut r, SpecCompliance::Strict).is_err());
     }
 
     #[test]

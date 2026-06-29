@@ -1,6 +1,10 @@
 use super::header::Header;
 use crate::{codecs::tga::header::ImageType, error::EncodingError, utils::vec_try_with_capacity};
-use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
+use crate::{
+    DynamicImage, EncoderOptions, ExtendedColorType, ImageEncoder, ImageError, ImageFormat,
+    ImageResult,
+};
+use std::io::Seek;
 use std::{error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -33,6 +37,30 @@ impl From<EncoderError> for ImageError {
 }
 
 impl error::Error for EncoderError {}
+
+/// Encoding options for the TGA format.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct TgaOptions {
+    /// Whether to use run-length encoding (RLE) for the image data.
+    ///
+    /// Defaults to `true`.
+    pub use_rle: bool,
+}
+impl Default for TgaOptions {
+    fn default() -> Self {
+        Self { use_rle: true }
+    }
+}
+impl EncoderOptions for TgaOptions {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
+        let mut encoder = TgaEncoder::new(w);
+        if !self.use_rle {
+            encoder = encoder.disable_rle();
+        }
+        Ok(encoder)
+    }
+}
 
 /// TGA encoder.
 pub struct TgaEncoder<W: Write> {

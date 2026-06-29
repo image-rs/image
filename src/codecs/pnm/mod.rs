@@ -6,7 +6,7 @@
 //! interpretation as an image and will be rejected.
 use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
-pub use self::encoder::PnmEncoder;
+pub use self::encoder::{PnmEncoder, PnmOptions};
 use self::header::HeaderRecord;
 pub use self::header::{
     ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader,

@@ -7,7 +7,9 @@
 //! * <http://www.w3.org/Graphics/JPEG/itu-t81.pdf> - The JPEG specification
 
 pub use self::decoder::JpegDecoder;
-pub use self::encoder::{ChromaSubsampling, JpegEncoder, PixelDensity, PixelDensityUnit};
+pub use self::encoder::{
+    ChromaSubsampling, JpegEncoder, JpegOptions, PixelDensity, PixelDensityUnit,
+};
 
 mod decoder;
 mod encoder;

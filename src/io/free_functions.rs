@@ -5,7 +5,7 @@ use std::{iter, mem::size_of};
 
 use crate::io::encoder::ImageEncoderBoxed;
 use crate::io::DecodedImageAttributes;
-use crate::{codecs::*, ExtendedColorType, ImageReaderOptions};
+use crate::{codecs::*, EncoderOptions, ExtendedColorType, ImageEncoder, ImageReaderOptions};
 
 use crate::error::{
     ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
@@ -55,6 +55,23 @@ pub fn save_buffer_with_format(
 ) -> ImageResult<()> {
     let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
     let encoder = encoder_for_format(format, buffered_file_write)?;
+    encoder.write_image(buf, width, height, color.into())
+}
+
+/// Saves the supplied buffer to a file given the path. The format is derived from the given options.
+///
+/// The buffer is assumed to have the correct format according to the specified color type. This
+/// will lead to corrupted files if the buffer contains malformed data.
+pub fn save_buffer_with_options(
+    path: impl AsRef<Path>,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: impl Into<ExtendedColorType>,
+    options: impl EncoderOptions,
+) -> ImageResult<()> {
+    let buffered_file_write = BufWriter::new(File::create(path)?); // always seekable
+    let encoder = options.build(buffered_file_write)?;
     encoder.write_image(buf, width, height, color.into())
 }
 

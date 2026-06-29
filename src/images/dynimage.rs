@@ -17,6 +17,7 @@ use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
 use crate::math::{resize_dimensions, Rect};
 use crate::metadata::Orientation;
 use crate::traits::Pixel;
+use crate::EncoderOptions;
 use crate::{
     imageops,
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics},
@@ -1665,6 +1666,39 @@ impl DynamicImage {
         let file = &mut BufWriter::new(File::create(path)?);
         let encoder = encoder_for_format(format, file)?;
         self.write_with_encoder_impl(encoder)
+    }
+
+    /// Saves the buffer to a file with the specified options.
+    ///
+    /// The format is derived from the options.
+    ///
+    /// ## Color Conversion
+    ///
+    /// Unlike other encoding methods in this crate, methods on `DynamicImage` try to automatically
+    /// convert the image to some color type supported by the encoder. This may result in a loss of
+    /// precision or the removal of the alpha channel.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "png")] {
+    /// # use image::{DynamicImage, ColorType};
+    /// use image::codecs::png;
+    /// let image = DynamicImage::new(32, 32, ColorType::Rgba8);
+    ///
+    /// let mut options = png::PngOptions::default();
+    /// options.compression = png::CompressionType::Best;
+    /// image.save_with_options("file.png", options)?;
+    /// # }
+    /// # image::ImageResult::Ok(())
+    /// ```
+    pub fn save_with_options<Q>(&self, path: Q, options: impl EncoderOptions) -> ImageResult<()>
+    where
+        Q: AsRef<Path>,
+    {
+        let file = BufWriter::new(File::create(path)?);
+        let encoder = options.build(file)?;
+        self.write_with_encoder_impl(Box::new(encoder))
     }
 }
 

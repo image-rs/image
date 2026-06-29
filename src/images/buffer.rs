@@ -18,7 +18,10 @@ use crate::{
     metadata::{Cicp, CicpColorPrimaries, CicpTransferCharacteristics, CicpTransform},
     save_buffer, save_buffer_with_format, write_buffer_with_format, ImageError,
 };
-use crate::{DynamicImage, GenericImage, GenericImageView, ImageEncoder, ImageFormat, Primitive};
+use crate::{
+    save_buffer_with_options, DynamicImage, EncoderOptions, GenericImage, GenericImageView,
+    ImageEncoder, ImageFormat, Primitive,
+};
 
 /// Iterate over rows of an image
 ///
@@ -1146,6 +1149,24 @@ where
             self.height(),
             P::COLOR_TYPE,
             format,
+        )
+    }
+
+    /// Saves the buffer to a file at the specified path with the given options.
+    ///
+    /// See [`save_buffer_with_options`](crate::save_buffer_with_options) for
+    /// supported types.
+    pub fn save_with_options<Q>(&self, path: Q, options: impl EncoderOptions) -> ImageResult<()>
+    where
+        Q: AsRef<Path>,
+    {
+        save_buffer_with_options(
+            path,
+            self.subpixels().as_bytes(),
+            self.width(),
+            self.height(),
+            P::COLOR_TYPE,
+            options,
         )
     }
 

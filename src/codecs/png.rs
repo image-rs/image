@@ -10,7 +10,7 @@ use std::io::{BufRead, Seek, Write};
 
 use png::{BlendOp, DeflateCompression, DisposeOp};
 
-use crate::animation::{Delay, Ratio};
+use crate::animation::Delay;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
@@ -234,7 +234,7 @@ fn attributes_from_info(info: &png::Info<'_>) -> DecodedImageAttributes {
             d => u32::from(d),
         };
 
-        Delay::from_ratio(Ratio::new(num, denom))
+        Delay::from_numer_denom_ms(num, denom)
     });
 
     DecodedImageAttributes {

@@ -89,7 +89,7 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
                 .inner
                 .read_frame(buf)
                 .map_err(ImageError::from_webp_decode)?;
-            Some(Delay::from_numer_denom_ms(delay, 1))
+            Some(Delay::from_millis(delay))
         } else {
             self.inner
                 .read_image(buf)

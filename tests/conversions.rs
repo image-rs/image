@@ -86,7 +86,7 @@ fn test_decode_8bit_ycbcr_lzw_bt709() -> Result<(), image::ImageError> {
 #[cfg(feature = "tiff")]
 #[test]
 fn test_decode_8bit_ycbcr_lzw_invalid_coefficients() {
-    let img_path = PathBuf::from("tests/images/tiff/testsuite/ycbcr_lzw_broken.tif");
+    let img_path = PathBuf::from("tests/bad/tiff/ycbcr_lzw_broken.tif");
     let data = fs::read(img_path).expect("Test image missing");
 
     let result = TiffDecoder::new(std::io::Cursor::new(data)).and_then(|decoder| {

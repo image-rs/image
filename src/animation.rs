@@ -39,10 +39,6 @@ impl Iterator for Frames<'_> {
 pub struct Frame {
     /// Delay between the frames in milliseconds
     delay: Delay,
-    /// x offset
-    left: u32,
-    /// y offset
-    top: u32,
     buffer: RgbaImage,
 }
 
@@ -71,21 +67,14 @@ impl Frame {
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
             delay: Delay::from_ratio(Ratio { numer: 0, denom: 1 }),
-            left: 0,
-            top: 0,
             buffer,
         }
     }
 
     /// Constructs a new frame
     #[must_use]
-    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
-        Frame {
-            delay,
-            left,
-            top,
-            buffer,
-        }
+    pub fn from_parts(buffer: RgbaImage, delay: Delay) -> Frame {
+        Frame { delay, buffer }
     }
 
     /// Delay of this frame
@@ -109,18 +98,6 @@ impl Frame {
     #[must_use]
     pub fn into_buffer(self) -> RgbaImage {
         self.buffer
-    }
-
-    /// Returns the x offset
-    #[must_use]
-    pub fn left(&self) -> u32 {
-        self.left
-    }
-
-    /// Returns the y offset
-    #[must_use]
-    pub fn top(&self) -> u32 {
-        self.top
     }
 }
 

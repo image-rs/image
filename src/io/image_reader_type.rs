@@ -842,12 +842,10 @@ impl<'stream> ImageReader<'stream> {
                 Err(err) => return Some(Err(err)),
             };
 
-            let x = frame_decoded.attributes().x;
-            let y = frame_decoded.attributes().y;
             let delay = frame_decoded.attributes().delay.unwrap_or(no_delay);
             let frame = frame.into_rgba8();
 
-            let frame = Frame::from_parts(frame, x, y, delay);
+            let frame = Frame::from_parts(frame, delay);
             Some(Ok(frame))
         });
 

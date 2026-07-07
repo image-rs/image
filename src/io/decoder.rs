@@ -212,17 +212,11 @@ impl Default for DecodedAnimationAttributes {
 
 /// Additional attributes of an image available after decoding.
 ///
-/// The [`Default`] is implemented and returns a value suitable for very basic images from formats
+/// [`Default`] is implemented and returns a value suitable for very basic images from formats
 /// that contain only one raster graphic.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct DecodedImageAttributes {
-    /// The x-coordinate of the top-left rectangle of the image relative to canvas indicated by the
-    /// sequence of frames.
-    pub x: u32,
-    /// The y-coordinate of the top-left rectangle of the image relative to canvas indicated by the
-    /// sequence of frames.
-    pub y: u32,
     /// A suggested presentation offset relative to the previous image.
     pub delay: Option<Delay>,
     /// Orientation of the image, not relayed through EXIF metadata.

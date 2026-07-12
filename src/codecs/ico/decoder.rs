@@ -8,7 +8,8 @@ use crate::error::{
 };
 use crate::io::image_reader_type::SpecCompliance;
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
+    DecodedAnimationAttributes, DecodedColorProfile, DecodedImageAttributes, DecoderPreparedImage,
+    FormatAttributes,
 };
 use crate::utils::seek_start_with_offset;
 use crate::{ImageDecoder, ImageFormat};
@@ -460,6 +461,13 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
         match &mut self.inner_decoder {
             Bmp(decoder) => decoder.icc_profile(),
             Png(decoder) => decoder.icc_profile(),
+        }
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        match &mut self.inner_decoder {
+            Bmp(decoder) => decoder.color_profile(),
+            Png(decoder) => decoder.color_profile(),
         }
     }
 

@@ -3,7 +3,10 @@ use crate::error::{
     DecodingError, ImageFormatHint, LimitError, LimitErrorKind, UnsupportedError,
     UnsupportedErrorKind,
 };
-use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
+use crate::io::{
+    DecodedColorProfile, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
+    FormatAttributes,
+};
 use crate::metadata::Orientation;
 use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult, Limits};
 ///
@@ -411,6 +414,14 @@ fn get_matrix(
 }
 
 impl<R: Read> ImageDecoder for AvifDecoder<R> {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
+            icc: DecodedMetadataHint::InHeader,
+            color_profile: DecodedMetadataHint::InHeader,
+            ..FormatAttributes::default()
+        }
+    }
+
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
         self.limits = limits;
         Ok(())
@@ -432,6 +443,11 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
 
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Ok(self.icc_profile.clone())
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        // TODO: read NCLX once the next mp4parse version exposes it
+        Ok(self.icc_profile()?.map(DecodedColorProfile::from_icc))
     }
 
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {

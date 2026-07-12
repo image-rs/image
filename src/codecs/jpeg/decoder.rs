@@ -6,7 +6,9 @@ use crate::error::{
 };
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::image_reader_type::SpecCompliance;
-use crate::io::{DecodedImageAttributes, DecoderPreparedImage, FormatAttributes};
+use crate::io::{
+    DecodedColorProfile, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
+};
 use crate::{ImageDecoder, ImageFormat, Limits};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
@@ -107,6 +109,7 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
             // our methods currently seek of their own accord anyways, it's just important to
             // uphold this if we do not buffer the whole file.
             icc: DecodedMetadataHint::InHeader,
+            color_profile: DecodedMetadataHint::InHeader,
             exif: DecodedMetadataHint::InHeader,
             xmp: DecodedMetadataHint::InHeader,
             iptc: DecodedMetadataHint::InHeader,
@@ -126,6 +129,10 @@ impl<R: BufRead + Seek> ImageDecoder for JpegDecoder<R> {
     fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         let (decoder, _) = self.ensure_headers()?;
         Ok(decoder.icc_profile())
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        Ok(self.icc_profile()?.map(DecodedColorProfile::from_icc))
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

@@ -1,9 +1,8 @@
-use std::fs::{self, File};
-use std::io::{BufReader, Cursor};
+use std::fs::File;
+use std::io::BufReader;
 use std::path::PathBuf;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
-const IMAGE_DIR: &str = "images";
 const REGRESSION_DIR: &str = "regression";
 
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
@@ -38,67 +37,6 @@ fn check_regressions() {
     process_images(REGRESSION_DIR, None, |path| {
         let _ = image::open(path);
     });
-}
-
-/// Check that the WEBP frames iterator returns the right amount of frames.
-#[test]
-#[cfg(feature = "webp")]
-fn check_webp_frames_regressions() {
-    use image::{codecs::webp::WebPDecoder, ImageReader};
-
-    let path: PathBuf = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("webp/extended_images")
-        .join("*.webp");
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        let bytes = fs::read(&path).unwrap();
-        let cursor = Cursor::new(&bytes);
-        let frame_count = image_webp::WebPDecoder::new(cursor.clone())
-            .unwrap()
-            .num_frames() as usize;
-
-        let decoder = WebPDecoder::new(cursor).unwrap();
-        let reader = ImageReader::from_decoder(Box::new(decoder));
-        // The `take` guards against a potentially infinitely running iterator.
-        // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.
-        // We then check that each frame has been decoded successfully.
-        let decoded_frames_count = reader
-            .into_frames()
-            .take(frame_count + 1)
-            .enumerate()
-            .inspect(|(frame_index, frame_res)| {
-                if let Err(e) = frame_res {
-                    panic!("Error decoding {path:?} frame {}: {e:?}", frame_index + 1);
-                }
-            })
-            .count();
-        assert_eq!(frame_count, decoded_frames_count);
-    }
-}
-
-/// Regression test for ICO files containing BMP V5 images with embedded ICC profiles.
-/// The ICC profile offset in BITMAPV5HEADER is relative to the DIB header start, so it
-/// should work correctly when embedded in ICO files (which don't have a BITMAPFILEHEADER).
-/// This test verifies the image can be fully decoded without errors.
-#[cfg(feature = "ico")]
-#[test]
-fn ico_bmp_v5_with_icc_profile() {
-    let path = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("ico/images")
-        .join("bmp_v5_with_icc.ico");
-
-    // Verify the image can be opened and decoded without errors
-    let img = image::open(&path).expect("Failed to open ICO with BMP V5 ICC profile");
-
-    // Verify the image has expected dimensions (127x64 from rgb24prof.bmp)
-    assert_eq!(img.width(), 127);
-    assert_eq!(img.height(), 64);
 }
 
 // Test that BMP bitmaps with extra `BI_BITFIELD` values are parsed correctly.

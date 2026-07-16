@@ -118,7 +118,7 @@ pub struct IcoDecoder<R: BufRead + Seek> {
 }
 
 enum InnerDecoder<R: BufRead + Seek> {
-    Bmp(BmpDecoder<R>),
+    Bmp(Box<BmpDecoder<R>>),
     Png(Box<PngDecoder<R>>),
 }
 
@@ -286,7 +286,7 @@ impl DirEntry {
         if is_png {
             Ok(Png(Box::new(PngDecoder::new(r))))
         } else {
-            Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
+            Ok(Bmp(Box::new(BmpDecoder::new_with_ico_format(r)?)))
         }
     }
 }

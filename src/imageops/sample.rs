@@ -114,6 +114,18 @@ pub enum FilterType {
     Lanczos3,
 }
 
+impl std::fmt::Display for FilterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       match self {
+            FilterType::Nearest => write!(f, "Nearest"),
+            FilterType::Triangle => write!(f, "Triangle"),
+            FilterType::CatmullRom => write!(f, "CatmullRom"),
+            FilterType::Gaussian => write!(f, "Gaussian"),
+            FilterType::Lanczos3 => write!(f, "Lanczos3"),
+        }
+    }
+}
+
 /// A Representation of a separable filter.
 pub(crate) struct Filter<'a> {
     /// The filter's filter function.

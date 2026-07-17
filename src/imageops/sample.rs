@@ -116,7 +116,7 @@ pub enum FilterType {
 
 impl std::fmt::Display for FilterType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-       match self {
+        match self {
             FilterType::Nearest => write!(f, "Nearest"),
             FilterType::Triangle => write!(f, "Triangle"),
             FilterType::CatmullRom => write!(f, "CatmullRom"),

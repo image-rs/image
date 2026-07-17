@@ -117,11 +117,11 @@ pub enum FilterType {
 impl std::fmt::Display for FilterType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FilterType::Nearest => write!(f, "Nearest"),
-            FilterType::Triangle => write!(f, "Triangle"),
-            FilterType::CatmullRom => write!(f, "CatmullRom"),
-            FilterType::Gaussian => write!(f, "Gaussian"),
-            FilterType::Lanczos3 => write!(f, "Lanczos3"),
+            FilterType::Nearest => write!(f, "Nearest Neighbor"),
+            FilterType::Triangle => write!(f, "Triangle (linear)"),
+            FilterType::CatmullRom => write!(f, "CatmullRom (linear)"),
+            FilterType::Gaussian => write!(f, "Gaussian (linear)"),
+            FilterType::Lanczos3 => write!(f, "Lanczos (window 3)"),
         }
     }
 }

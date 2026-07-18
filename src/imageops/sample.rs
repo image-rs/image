@@ -916,6 +916,12 @@ where
     let (width, height) = image.dimensions();
     let mut out = image.buffer_like();
 
+    // A zero-width or zero-height image has no interior pixels to filter, and
+    // `width - 1` / `height - 1` below would underflow. Return the empty buffer.
+    if width == 0 || height == 0 {
+        return out;
+    }
+
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
@@ -1655,7 +1661,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, sample_bilinear, sample_nearest, FilterType};
+    use super::{filter3x3, resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
@@ -1916,6 +1922,21 @@ mod tests {
         assert!(result.into_raw().into_iter().all(|c| c == 0));
         let result = resize(&empty, 256, 256, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().all(|c| c == 0));
+    }
+
+    #[test]
+    fn issue_3026() {
+        // `filter3x3` on a zero-width or zero-height image used to underflow
+        // `width - 1` / `height - 1`; it should return an empty buffer instead.
+        let kernel = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+
+        let zero_width = crate::GrayImage::from_raw(0, 4, vec![]).unwrap();
+        let result = filter3x3(&zero_width, &kernel);
+        assert_eq!(result.dimensions(), (0, 4));
+
+        let zero_height = crate::GrayImage::from_raw(4, 0, vec![]).unwrap();
+        let result = filter3x3(&zero_height, &kernel);
+        assert_eq!(result.dimensions(), (4, 0));
     }
 
     #[test]

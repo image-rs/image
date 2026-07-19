@@ -72,6 +72,8 @@ serde = { version = "1.0.214", optional = true, features = ["derive"] }
 pic-scale-safe = "0.1.5"
 
 [dev-dependencies]
+mp4parse = "0.17.0"
+avif-serialize = "0.8.9"
 num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"

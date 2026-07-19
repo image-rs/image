@@ -1185,9 +1185,46 @@ impl DynamicImage {
     ///
     /// This method operates on pixel channel values directly without taking into account color
     /// space data.
+    ///
+    /// # Panics
+    ///
+    /// To reach the target dimensions while preserving aspect ratio, this method resizes to an
+    /// intermediate size that overshoots one axis before cropping it back down; the overshoot is
+    /// proportional to the *square* of how far the source and target aspect ratios diverge. For a
+    /// source image with an extreme aspect ratio (e.g. 1x10_000) resized to fill an ordinary
+    /// target (e.g. 100x100), the intermediate can require many orders of magnitude more memory
+    /// than either the source or the target, even though both are individually small. This is a
+    /// resource-usage guard, not a correctness fix (`image`'s SECURITY.md documents resource
+    /// limits as best-effort); it panics with a clear diagnostic instead of attempting a
+    /// runaway allocation. See <https://github.com/image-rs/image/issues/3083>. If you hit this,
+    /// crop or pre-resize the source to a less extreme aspect ratio before calling
+    /// `resize_to_fill`.
     pub fn resize_to_fill(&mut self, nwidth: u32, nheight: u32, filter: imageops::FilterType) {
-        let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
+        let (swidth, sheight) = self.dimensions();
+        let (width2, height2) = resize_dimensions(swidth, sheight, nwidth, nheight, true);
+
+        // See the `# Panics` section above and issue #3083: `resize_dimensions(..., fill=true)`
+        // intentionally overshoots one axis so that, after the crop below, the aspect ratio is
+        // preserved. Bound how large that overshoot is allowed to be relative to the source and
+        // target sizes so that an extreme source/target aspect-ratio mismatch cannot force an
+        // arbitrarily large intermediate allocation. The multiplier is generous: ordinary
+        // `resize_to_fill` calls, even between quite different aspect ratios (e.g. 16:9 -> 1:1),
+        // stay well under it. Only pathological, orders-of-magnitude mismatches trip this.
+        let source_pixels = u64::from(swidth) * u64::from(sheight);
+        let target_pixels = u64::from(nwidth) * u64::from(nheight);
+        let intermediate_pixels = u64::from(width2) * u64::from(height2);
+        let baseline = source_pixels.max(target_pixels).max(1);
+        const MAX_INTERMEDIATE_OVERSHOOT: u64 = 4096;
+        assert!(
+            intermediate_pixels <= baseline.saturating_mul(MAX_INTERMEDIATE_OVERSHOOT),
+            "resize_to_fill: refusing to resize a {swidth}x{sheight} image to fill {nwidth}x{nheight}: \
+             the intermediate step would require a {width2}x{height2} ({intermediate_pixels} px) \
+             allocation, {}x larger than the source or target image size, driven by an extreme \
+             source/target aspect-ratio mismatch (see image-rs/image#3083). Crop or pre-resize the \
+             source to a less extreme aspect ratio before calling resize_to_fill.",
+            intermediate_pixels / baseline,
+        );
+
         self.resize_exact(width2, height2, filter);
 
         let (iwidth, iheight) = self.dimensions();
@@ -1999,6 +2036,30 @@ mod test {
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
+    }
+
+    // Regression test for https://github.com/image-rs/image/issues/3083: a tiny, valid,
+    // extreme-aspect-ratio source image forces `resize_to_fill`'s overshoot-then-crop
+    // intermediate to be many orders of magnitude larger than either the source or the
+    // requested target. `resize_to_fill` now refuses (via a documented panic) instead of
+    // attempting the runaway allocation.
+    #[test]
+    #[should_panic(expected = "resize_to_fill: refusing to resize")]
+    fn resize_to_fill_rejects_extreme_aspect_ratio_overshoot() {
+        // 1x10_000 is a tiny (40,000 byte), entirely valid RGBA8 source. Filling an ordinary
+        // 100x100 target from it would otherwise require a 100x1_000_000 (100_000_000 px, ~381
+        // MiB for RGBA8) intermediate allocation -- 10,000x more pixels than source or target.
+        let mut img = super::DynamicImage::new_rgba8(1, 10_000);
+        img.resize_to_fill(100, 100, crate::imageops::FilterType::Lanczos3);
+    }
+
+    // A sanity check that ordinary, even fairly mismatched, aspect ratios are unaffected by the
+    // #3083 overshoot guard and still resize successfully.
+    #[test]
+    fn resize_to_fill_ordinary_aspect_ratio_mismatch_still_works() {
+        let mut img = super::DynamicImage::new_rgba8(1920, 1080);
+        img.resize_to_fill(50, 200, crate::imageops::FilterType::Lanczos3);
+        assert_eq!((img.width(), img.height()), (50, 200));
     }
 
     #[cfg(feature = "jpeg")]

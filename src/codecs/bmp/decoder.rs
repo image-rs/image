@@ -309,10 +309,13 @@ impl ColorSpaceInfo {
                 let read_u32 = |offset: usize| -> u32 {
                     u32::from_le_bytes(buffer[offset..offset + 4].try_into().unwrap())
                 };
+                let read_i32 = |offset: usize| -> i32 {
+                    i32::from_le_bytes(buffer[offset..offset + 4].try_into().unwrap())
+                };
 
                 // FXPT2DOT30 (2.30 fixed-point) → f32.
-                let fxpt2dot30 = |val: u32| -> f32 { val as f32 * (1.0 / (1u64 << 30) as f32) };
-                // FXPT16DOT16 (16.16 fixed-point) → f32.
+                let fxpt2dot30 = |val: i32| -> f32 { val as f32 * (1.0 / (1u64 << 30) as f32) };
+                // FXPT16DOT16 (unsigned 16.16 fixed-point) → f32.
                 let fxpt16dot16 = |val: u32| -> f32 { val as f32 / 65536.0 };
 
                 // CIEXYZTRIPLE: 9 FXPT2DOT30 values at offsets 60-95 from header
@@ -320,12 +323,12 @@ impl ColorSpaceInfo {
                 //   RedX, RedY, RedZ, GreenX, GreenY, GreenZ, BlueX, BlueY, BlueZ
                 // We read only X and Y per primary (Z is implicit: Z = 1 - X - Y
                 // for chromaticity, but BMP stores raw CIE XYZ values).
-                let rx = fxpt2dot30(read_u32(56));
-                let ry = fxpt2dot30(read_u32(60));
-                let gx = fxpt2dot30(read_u32(68));
-                let gy = fxpt2dot30(read_u32(72));
-                let bx = fxpt2dot30(read_u32(80));
-                let by = fxpt2dot30(read_u32(84));
+                let rx = fxpt2dot30(read_i32(56));
+                let ry = fxpt2dot30(read_i32(60));
+                let gx = fxpt2dot30(read_i32(68));
+                let gy = fxpt2dot30(read_i32(72));
+                let bx = fxpt2dot30(read_i32(80));
+                let by = fxpt2dot30(read_i32(84));
 
                 // Gamma values at offsets 96-107 from header start (92-103 from after size).
                 let gamma_r = fxpt16dot16(read_u32(92));
@@ -379,11 +382,11 @@ struct CalibratedRgb {
     bx: f32,
     /// Blue primary CIE Y coordinate (FXPT2DOT30).
     by: f32,
-    /// Red channel gamma (FXPT16DOT16).
+    /// Red channel gamma (unsigned FXPT16DOT16).
     gamma_r: f32,
-    /// Green channel gamma (FXPT16DOT16).
+    /// Green channel gamma (unsigned FXPT16DOT16).
     gamma_g: f32,
-    /// Blue channel gamma (FXPT16DOT16).
+    /// Blue channel gamma (unsigned FXPT16DOT16).
     gamma_b: f32,
 }
 

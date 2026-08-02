@@ -1231,12 +1231,7 @@ impl GaussianBlurParameters {
             // Any (normalized) kernel of size 1 is the identity, so sigma
             // doesn't matter. However, we pick sigma=1 to avoid  potential
             // issues with NaN, infinities, and subnormals.
-            return GaussianBlurParameters {
-                x_axis_kernel_size: 1,
-                x_axis_sigma: 1.0,
-                y_axis_kernel_size: 1,
-                y_axis_sigma: 1.0,
-            };
+            return GaussianBlurParameters::identity_kernel();
         }
 
         let kernel_size = GaussianBlurParameters::kernel_size_from_sigma(sigma);
@@ -1245,6 +1240,16 @@ impl GaussianBlurParameters {
             x_axis_sigma: sigma,
             y_axis_kernel_size: kernel_size,
             y_axis_sigma: sigma,
+        }
+    }
+
+    #[cold]
+    fn identity_kernel() -> GaussianBlurParameters {
+        GaussianBlurParameters {
+            x_axis_kernel_size: 1,
+            x_axis_sigma: 1.0,
+            y_axis_kernel_size: 1,
+            y_axis_sigma: 1.0,
         }
     }
 

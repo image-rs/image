@@ -155,6 +155,7 @@ impl Limits {
     /// together with [`reserve`].
     ///
     /// [`reserve`]: Self::reserve
+    #[inline]
     pub fn free(&mut self, amount: u64) {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             *max_alloc = max_alloc.saturating_add(amount);

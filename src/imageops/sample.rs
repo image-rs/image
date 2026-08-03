@@ -915,6 +915,9 @@ where
 
     let (width, height) = image.dimensions();
     let mut out = image.buffer_like();
+    if width < 3 || height < 3 {
+        return out;
+    }
 
     let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
@@ -1493,6 +1496,11 @@ fn gaussian_blur_indirect<I: GenericImageView>(
     image: &I,
     parameters: GaussianBlurParameters,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
+    let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return image.buffer_like();
+    }
+
     match I::Pixel::CHANNEL_COUNT {
         1 => gaussian_blur_indirect_impl::<I, 1>(image, parameters),
         2 => gaussian_blur_indirect_impl::<I, 2>(image, parameters),
@@ -1655,8 +1663,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, sample_bilinear, sample_nearest, FilterType};
-    use crate::{GenericImageView, ImageBuffer, RgbImage};
+    use super::{filter3x3, resize, sample_bilinear, sample_nearest, unsharpen, FilterType};
+    use crate::{GenericImageView, ImageBuffer, RgbImage, RgbaImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1790,6 +1798,30 @@ mod tests {
         assert_eq!(sample_nearest(&img, 1.0, 0.5), Some(Rgba([0, 0, 0, 255])));
     }
 
+    #[test]
+    fn filter3x3_handles_zero_sized_images() {
+        let kernel = [0.0; 9];
+
+        let image = RgbaImage::new(0, 8);
+        let filtered = filter3x3(&image, &kernel);
+        assert_eq!(filtered.dimensions(), (0, 8));
+
+        let image = RgbaImage::new(8, 0);
+        let filtered = filter3x3(&image, &kernel);
+        assert_eq!(filtered.dimensions(), (8, 0));
+    }
+
+    #[test]
+    fn unsharpen_handles_zero_sized_images() {
+        let image = RgbaImage::new(0, 8);
+        let sharpened = unsharpen(&image, 1.0, 1);
+        assert_eq!(sharpened.dimensions(), (0, 8));
+
+        let image = RgbaImage::new(8, 0);
+        let sharpened = unsharpen(&image, 1.0, 1);
+        assert_eq!(sharpened.dimensions(), (8, 0));
+    }
+
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_resize_same_size(b: &mut test::Bencher) {
@@ -1891,7 +1923,7 @@ mod tests {
 
     #[test]
     fn bug_1600() {
-        let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
+        let image = RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
         let result = resize(&image, 22, 22, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().any(|c| c != 0));
     }

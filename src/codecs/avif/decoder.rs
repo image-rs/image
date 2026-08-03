@@ -43,6 +43,10 @@ pub struct AvifDecoder<R> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AvifDecoderError {
     AlphaPlaneFormat(PixelLayout),
+    AlphaPlaneDimensionMismatch {
+        color: (u32, u32),
+        alpha: (u32, u32),
+    },
     YuvLayoutOnIdentityMatrix(PixelLayout),
     UnsupportedLayoutAndMatrix(PixelLayout, YuvMatrixStrategy),
     InvalidStride(u32),
@@ -69,6 +73,12 @@ impl Display for AvifDecoderError {
                 }
                 PixelLayout::I444 => unreachable!("This option must be handled correctly"),
             },
+            AvifDecoderError::AlphaPlaneDimensionMismatch { color, alpha } => {
+                f.write_fmt(format_args!(
+                    "Alpha plane dimensions ({}x{}) do not match color plane dimensions ({}x{})",
+                    alpha.0, alpha.1, color.0, color.1
+                ))
+            }
             AvifDecoderError::UnsupportedLayoutAndMatrix(layout, matrix) => f.write_fmt(
                 format_args!("YUV layout {layout:?} on matrix {matrix:?} is not supported"),
             ),
@@ -539,6 +549,20 @@ impl<R: Read> ImageDecoder for AvifDecoder<R> {
                     )));
                 }
 
+                // The primary picture and the alpha picture are decoded independently (each via
+                // its own `dav1d::Decoder`, from its own coded data). Nothing upstream guarantees
+                // their dimensions match. Without this check, the `zip` below would silently
+                // truncate/misalign the composited alpha instead of erroring on a mismatch.
+                if picture.width() != width || picture.height() != height {
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Avif.into(),
+                        AvifDecoderError::AlphaPlaneDimensionMismatch {
+                            color: (width, height),
+                            alpha: (picture.width(), picture.height()),
+                        },
+                    )));
+                }
+
                 let stride = picture.stride(PlanarImageComponent::Y) as usize;
                 let plane = picture.plane(PlanarImageComponent::Y);
 
@@ -718,6 +742,18 @@ impl<R: Read> AvifDecoder<R> {
                 return Err(ImageError::Decoding(DecodingError::new(
                     ImageFormat::Avif.into(),
                     AvifDecoderError::AlphaPlaneFormat(picture.pixel_layout()),
+                )));
+            }
+
+            // See the matching check in the 8-bit path above: the primary and alpha pictures
+            // are decoded independently and nothing upstream guarantees matching dimensions.
+            if picture.width() != width || picture.height() != height {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Avif.into(),
+                    AvifDecoderError::AlphaPlaneDimensionMismatch {
+                        color: (width, height),
+                        alpha: (picture.width(), picture.height()),
+                    },
                 )));
             }
 

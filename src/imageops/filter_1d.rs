@@ -300,15 +300,15 @@ fn filter_symmetric_column<T, F>(
     dst_rem = dst_rem.as_chunks_mut::<4>().1;
 
     for (chunk, x) in dst_rem.iter_mut().zip(cx..dst_stride) {
-        let v_src = &arena_src[half_len][x..(x + 1)];
-
-        let mut k0 = v_src[0].as_().mul(coeff);
+        let mut k0 = arena_src[half_len][x].as_().mul(coeff);
 
         for (i, &coeff) in kernel.iter().take(half_len).enumerate() {
             let other_side = length - i - 1;
-            let fw = &arena_src[i][x..(x + 1)];
-            let bw = &arena_src[other_side][x..(x + 1)];
-            k0 = multiply_accumulate(k0, fw[0].as_().add(bw[0].as_()), coeff);
+            k0 = multiply_accumulate(
+                k0,
+                arena_src[i][x].as_().add(arena_src[other_side][x].as_()),
+                coeff,
+            );
         }
 
         *chunk = k0.to_();
@@ -340,28 +340,27 @@ where
     let hc = scanned_kernel[half_len];
 
     let (dst_row_chunks, remainder) = dst_row.as_chunks_mut::<4>();
+    let center_base = half_len * N;
 
     for (x, dst) in dst_row_chunks.iter_mut().enumerate() {
         let v_cx = x * 4;
         let src = &src[v_cx..];
 
-        let chunk = &src[half_len * N..half_len * N + 4];
-
-        let mut k0 = chunk[0].as_() * hc;
-        let mut k1 = chunk[1].as_() * hc;
-        let mut k2 = chunk[2].as_() * hc;
-        let mut k3 = chunk[3].as_() * hc;
+        let mut k0 = src[center_base].as_() * hc;
+        let mut k1 = src[center_base + 1].as_() * hc;
+        let mut k2 = src[center_base + 2].as_() * hc;
+        let mut k3 = src[center_base + 3].as_() * hc;
 
         // Note why here is no window operators:
         // https://github.com/image-rs/image/pull/2496#discussion_r2155171034
         for (i, &coeff) in scanned_kernel.iter().take(half_len).enumerate() {
             let other_side = length - i - 1;
-            let fw = &src[(i * N)..(i * N) + 4];
-            let bw = &src[(other_side * N)..(other_side * N) + 4];
-            k0 = multiply_accumulate(k0, fw[0].as_() + bw[0].as_(), coeff);
-            k1 = multiply_accumulate(k1, fw[1].as_() + bw[1].as_(), coeff);
-            k2 = multiply_accumulate(k2, fw[2].as_() + bw[2].as_(), coeff);
-            k3 = multiply_accumulate(k3, fw[3].as_() + bw[3].as_(), coeff);
+            let fw_base = i * N;
+            let bw_base = other_side * N;
+            k0 = multiply_accumulate(k0, src[fw_base].as_() + src[bw_base].as_(), coeff);
+            k1 = multiply_accumulate(k1, src[fw_base + 1].as_() + src[bw_base + 1].as_(), coeff);
+            k2 = multiply_accumulate(k2, src[fw_base + 2].as_() + src[bw_base + 2].as_(), coeff);
+            k3 = multiply_accumulate(k3, src[fw_base + 3].as_() + src[bw_base + 3].as_(), coeff);
         }
 
         dst[0] = k0.to_();

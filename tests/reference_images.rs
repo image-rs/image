@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
-use image::ImageReader;
+use image::ImageReaderOptions;
 use image::{ColorType, GenericImageView};
 use image::{DynamicImage, ImageFormat};
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -202,22 +202,14 @@ fn open_animation(path: &Path) -> Result<Option<Vec<DynamicImage>>, Box<dyn Erro
         "Format should have been detected earlier"
     );
 
-    // TODO: Once there's a generic API for animated images, switch to that instead.
     let reader = std::io::BufReader::new(std::fs::File::open(path)?);
-    let reader = match format {
-        ImageFormat::Gif | ImageFormat::WebP => ImageReader::new(reader)?,
-        #[cfg(feature = "png")]
-        ImageFormat::Png => {
-            let mut decoder = image::codecs::png::PngDecoder::new(reader);
-            if !decoder.is_apng()? {
-                return Ok(None);
-            }
-            ImageReader::from_decoder(Box::new(decoder.apng()?))
-        }
-        _ => {
-            return Ok(None); // format doesn't support animations
-        }
-    };
+    let mut reader = ImageReaderOptions::new(reader);
+    reader.set_format(format);
+    let mut reader = reader.into_reader()?;
+
+    if reader.animation_attributes().is_none() {
+        return Ok(None); // not actually animated
+    }
 
     let frames = reader.into_frames().collect_frames()?;
     if frames.len() < 2 {

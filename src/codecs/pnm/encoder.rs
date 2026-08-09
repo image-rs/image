@@ -1,7 +1,9 @@
 //! Encoding of PNM Images
 use crate::utils::vec_try_with_capacity;
+use crate::EncoderOptions;
 use std::fmt;
 use std::io;
+use std::io::Seek;
 use std::io::Write;
 
 use super::AutoBreak;
@@ -27,6 +29,29 @@ enum HeaderStrategy {
 pub enum FlatSamples<'a> {
     U8(&'a [u8]),
     U16(&'a [u16]),
+}
+
+/// Encoding options for the PNM format.
+#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+pub struct PnmOptions {
+    /// The specific PNM subtype to encode to.
+    ///
+    /// If `None`, the subtype will be chosen dynamically for each image. No
+    /// particular choice is guaranteed and the chosen subtype may change
+    /// without warning between versions of the library.
+    ///
+    /// Defaults to `None`.
+    pub subtype: Option<PnmSubtype>,
+}
+impl EncoderOptions for PnmOptions {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
+        let mut encoder = PnmEncoder::new(w);
+        if let Some(subtype) = self.subtype {
+            encoder = encoder.with_subtype(subtype);
+        }
+        Ok(encoder)
+    }
 }
 
 /// Encodes images to any of the `pnm` image formats.

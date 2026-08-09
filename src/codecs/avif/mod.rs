@@ -6,7 +6,7 @@
 #[cfg(feature = "avif-native")]
 pub use self::decoder::AvifDecoder;
 #[cfg(feature = "avif")]
-pub use self::encoder::{AvifEncoder, ColorSpace};
+pub use self::encoder::{AvifEncoder, AvifOptions, ColorSpace};
 
 #[cfg(feature = "avif-native")]
 mod decoder;

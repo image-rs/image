@@ -5,7 +5,7 @@
 
 pub use self::decoder::TgaDecoder;
 
-pub use self::encoder::TgaEncoder;
+pub use self::encoder::{TgaEncoder, TgaOptions};
 
 mod decoder;
 mod encoder;

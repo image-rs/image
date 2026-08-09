@@ -1,11 +1,13 @@
 #![allow(clippy::too_many_arguments)]
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::{error, fmt};
 
 use crate::error::{
     EncodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, DynamicImage, ExtendedColorType, ImageEncoder, ImageFormat};
+use crate::{
+    ColorType, DynamicImage, EncoderOptions, ExtendedColorType, ImageEncoder, ImageFormat,
+};
 
 use jpeg_encoder::Encoder;
 
@@ -41,7 +43,7 @@ pub enum ChromaSubsampling {
     S422,
     /// **4:2:0** The resolution of color information is reduced by a factor of 2 both horizontally and vertically.
     ///
-    /// Results in a smaller file size. Well suited for photographs where it incurs no visial quality loss.
+    /// Results in a smaller file size. Well suited for photographs where it incurs no visual quality loss.
     S420,
 }
 
@@ -133,6 +135,54 @@ impl From<EncoderError> for ImageError {
 }
 
 impl error::Error for EncoderError {}
+
+/// Encoding options for the JPEG format.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct JpegOptions {
+    /// The quality of the JPEG encoding, from 1 to 100. Higher is better quality and larger file size.
+    ///
+    /// Defaults to **75**.
+    pub quality: u8,
+    /// The chroma subsampling mode. See [ChromaSubsampling] for details.
+    pub chroma_subsampling: ChromaSubsampling,
+    /// Spend extra time optimizing Huffman tables. Slightly reduces file size at the cost of encoding speed.
+    ///
+    /// Defaults to **false**.
+    pub optimize_huffman_tables: bool,
+    /// Progressive files allow showing a low-resolution view of the entire image before it's fully downloaded.
+    /// Useful for large images that will be displayed on the web.
+    ///
+    /// Defaults to **false**.
+    pub progress: bool,
+    /// The pixel density of the images the encoder will encode.
+    /// If this method is not called, then a default pixel aspect ratio of 1x1 will be applied,
+    /// and no DPI information will be stored in the image.
+    pub pixel_density: Option<PixelDensity>,
+}
+impl Default for JpegOptions {
+    fn default() -> Self {
+        JpegOptions {
+            quality: 75,
+            chroma_subsampling: ChromaSubsampling::S420,
+            optimize_huffman_tables: false,
+            progress: false,
+            pixel_density: None,
+        }
+    }
+}
+impl EncoderOptions for JpegOptions {
+    fn build<W: Write + Seek>(self, w: W) -> ImageResult<impl ImageEncoder> {
+        let mut encoder = JpegEncoder::new_with_quality(w, self.quality);
+        encoder.set_chroma_subsampling(self.chroma_subsampling);
+        encoder.set_optimize_huffman_tables(self.optimize_huffman_tables);
+        encoder.set_progressive(self.progress);
+        if let Some(pixel_density) = self.pixel_density {
+            encoder.set_pixel_density(pixel_density);
+        }
+        Ok(encoder)
+    }
+}
 
 /// The representation of a JPEG encoder
 pub struct JpegEncoder<W: Write> {

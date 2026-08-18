@@ -3,18 +3,21 @@
 //! OpenEXR is an image format that is widely used, especially in VFX,
 //! because it supports lossless and lossy compression for float data.
 //!
-//! This decoder only supports RGB and RGBA images.
-//! If an image does not contain alpha information,
-//! it is defaulted to `1.0` (no transparency).
+//! This decoder supports RGB, RGBA, and single-channel luminance images.
+//! RGB(A) images use the `R`, `G`, `B` (and optional `A`) channels, while
+//! luminance images use a single `Y` channel. If an RGB image does not contain
+//! alpha information, it is defaulted to `1.0` (no transparency). When a file
+//! contains both RGB and luminance channels, the RGB channels are preferred.
 //!
 //! # Related Links
 //! * <https://www.openexr.com/documentation.html> - The OpenEXR reference.
 //!
 //!
 //! Current limitations (July 2021):
-//!     - only pixel type `Rgba32F` and `Rgba16F` are supported
-//!     - only non-deep rgb/rgba files supported, no conversion from/to YCbCr or similar
-//!     - only the first non-deep rgb layer is used
+//!     - only pixel type `Rgba32F`, `Rgba16F` and single-channel luma (`Y`) are supported
+//!     - only non-deep rgb/rgba/luma files supported, no conversion from/to YCbCr or similar
+//!     - luma images with an additional alpha channel are not supported
+//!     - only the first non-deep rgb/luma layer is used
 //!     - only the largest mip map level is used
 //!     - pixels outside display window are lost
 //!     - meta data is lost
@@ -33,15 +36,27 @@ use crate::{
 
 use std::io::{BufRead, Seek, Write};
 
+/// Whether the selected layer is decoded as RGB(A) or as single-channel luma.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ColorSpace {
+    /// The layer contains `R`, `G` and `B` channels (and optionally `A`).
+    Rgb,
+    /// The layer contains a single `Y` channel.
+    Luma,
+}
+
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
 pub struct OpenExrDecoder<R> {
     exr_reader: Option<exr::block::reader::Reader<R>>,
 
-    // select a header that is rgb and not deep
+    // select a header that is rgb or luma and not deep
     header_index: usize,
 
-    // decode either rgb or rgba.
+    // whether the selected header is decoded as rgb(a) or as single-channel luma
+    color_space: ColorSpace,
+
+    // decode either rgb or rgba. only relevant for `ColorSpace::Rgb`.
     // can be specified to include or discard alpha channels.
     // if none, the alpha channel will only be allocated where the file contains data for it.
     alpha_preference: Option<bool>,
@@ -69,35 +84,50 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
 
-        let header_index = exr_reader
+        let has_channel = |header: &exr::meta::header::Header, name: &str| {
+            header
+                .channels
+                .find_index_of_channel(&Text::from(name))
+                .is_some()
+        };
+
+        // Prefer a non-deep rgb layer. If none exists, fall back to a
+        // non-deep single-channel luma (`Y`) layer.
+        let (header_index, color_space) = exr_reader
             .headers()
             .iter()
             .position(|header| {
-                // check if r/g/b exists in the channels
+                // check if r/g/b exists in the channels (alpha will be optional)
                 let has_rgb = ["R", "G", "B"]
                     .iter()
-                    .all(|&required|  // alpha will be optional
-                    header.channels.find_index_of_channel(&Text::from(required)).is_some());
+                    .all(|&required| has_channel(header, required));
 
-                // we currently dont support deep images, or images with other color spaces than rgb
+                // we currently dont support deep images
                 !header.deep && has_rgb
+            })
+            .map(|index| (index, ColorSpace::Rgb))
+            .or_else(|| {
+                exr_reader
+                    .headers()
+                    .iter()
+                    .position(|header| !header.deep && has_channel(header, "Y"))
+                    .map(|index| (index, ColorSpace::Luma))
             })
             .ok_or_else(|| {
                 ImageError::Decoding(DecodingError::new(
                     ImageFormatHint::Exact(ImageFormat::OpenExr),
-                    "image does not contain non-deep rgb channels",
+                    "image does not contain non-deep rgb or luma channels",
                 ))
             })?;
 
-        let has_alpha = exr_reader.headers()[header_index]
-            .channels
-            .find_index_of_channel(&Text::from("A"))
-            .is_some();
+        let has_alpha =
+            color_space == ColorSpace::Rgb && has_channel(&exr_reader.headers()[header_index], "A");
 
         Ok(Self {
             alpha_preference,
             exr_reader: Some(exr_reader),
             header_index,
+            color_space,
             alpha_present_in_file: has_alpha,
         })
     }
@@ -119,11 +149,16 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             }
         };
 
-        let returns_alpha = self.alpha_preference.unwrap_or(self.alpha_present_in_file);
-        let color = if returns_alpha {
-            ColorType::Rgba32F
-        } else {
-            ColorType::Rgb32F
+        let color = match self.color_space {
+            ColorSpace::Luma => ColorType::L32F,
+            ColorSpace::Rgb => {
+                let returns_alpha = self.alpha_preference.unwrap_or(self.alpha_present_in_file);
+                if returns_alpha {
+                    ColorType::Rgba32F
+                } else {
+                    ColorType::Rgb32F
+                }
+            }
         };
 
         // We may have discarded the alpha channel.
@@ -135,10 +170,10 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
         let layout = self.prepare_image()?;
         let (width, height) = layout.layout.dimensions();
 
-        let original = if self.alpha_present_in_file {
-            ExtendedColorType::Rgba32F
-        } else {
-            ExtendedColorType::Rgb32F
+        let original = match self.color_space {
+            ColorSpace::Luma => ExtendedColorType::L32F,
+            ColorSpace::Rgb if self.alpha_present_in_file => ExtendedColorType::Rgba32F,
+            ColorSpace::Rgb => ExtendedColorType::Rgb32F,
         };
 
         let reader = self.exr_reader.take().ok_or_else(|| {
@@ -177,47 +212,87 @@ impl<R: BufRead + Seek> ImageDecoder for OpenExrDecoder<R> {
             );
         }
 
-        let result = read()
-            .no_deep_data()
-            .largest_resolution_level()
-            .rgba_channels(
-                move |_size, _channels| vec![0_f32; display_window.size.area() * channel_count],
-                move |buffer, index_in_data_window, (r, g, b, a_or_1): (f32, f32, f32, f32)| {
+        // writes the samples of a single pixel into the flat display-window buffer,
+        // skipping pixels that fall outside the display window.
+        let write_pixel =
+            move |buffer: &mut [f32], index_in_data_window: Vec2<usize>, samples: &[f32]| {
+                let index_in_display_window = index_in_data_window.to_i32() + data_window_offset;
+
+                // only keep pixels inside the data window
+                // TODO filter chunks based on this
+                if index_in_display_window.x() >= 0
+                    && index_in_display_window.y() >= 0
+                    && index_in_display_window.x() < display_window.size.width() as i32
+                    && index_in_display_window.y() < display_window.size.height() as i32
+                {
                     let index_in_display_window =
-                        index_in_data_window.to_i32() + data_window_offset;
+                        index_in_display_window.to_usize("index bug").unwrap();
+                    let first_f32_index =
+                        index_in_display_window.flat_index_for_size(display_window.size);
 
-                    // only keep pixels inside the data window
-                    // TODO filter chunks based on this
-                    if index_in_display_window.x() >= 0
-                        && index_in_display_window.y() >= 0
-                        && index_in_display_window.x() < display_window.size.width() as i32
-                        && index_in_display_window.y() < display_window.size.height() as i32
-                    {
-                        let index_in_display_window =
-                            index_in_display_window.to_usize("index bug").unwrap();
-                        let first_f32_index =
-                            index_in_display_window.flat_index_for_size(display_window.size);
+                    buffer[first_f32_index * channel_count..(first_f32_index + 1) * channel_count]
+                        .copy_from_slice(samples);
 
-                        buffer[first_f32_index * channel_count
-                            ..(first_f32_index + 1) * channel_count]
-                            .copy_from_slice(&[r, g, b, a_or_1][0..channel_count]);
+                    // TODO white point chromaticities + srgb/linear conversion?
+                }
+            };
 
-                        // TODO white point chromaticities + srgb/linear conversion?
-                    }
-                },
-            )
-            .first_valid_layer() // TODO select exact layer by self.header_index?
-            .all_attributes()
-            .from_chunks(reader)
-            .map_err(to_image_err)?;
+        let pixels: Vec<f32> = match self.color_space {
+            ColorSpace::Rgb => {
+                read()
+                    .no_deep_data()
+                    .largest_resolution_level()
+                    .rgba_channels(
+                        move |_size, _channels| {
+                            vec![0_f32; display_window.size.area() * channel_count]
+                        },
+                        move |buffer,
+                              index_in_data_window,
+                              (r, g, b, a_or_1): (f32, f32, f32, f32)| {
+                            write_pixel(
+                                buffer,
+                                index_in_data_window,
+                                &[r, g, b, a_or_1][0..channel_count],
+                            );
+                        },
+                    )
+                    .first_valid_layer() // TODO select exact layer by self.header_index?
+                    .all_attributes()
+                    .from_chunks(reader)
+                    .map_err(to_image_err)?
+                    .layer_data
+                    .channel_data
+                    .pixels
+            }
+            ColorSpace::Luma => {
+                read()
+                    .no_deep_data()
+                    .largest_resolution_level()
+                    .specific_channels()
+                    .required("Y")
+                    .collect_pixels(
+                        move |_size, _channels| {
+                            vec![0_f32; display_window.size.area() * channel_count]
+                        },
+                        move |buffer, index_in_data_window, (y,): (f32,)| {
+                            write_pixel(buffer, index_in_data_window, &[y]);
+                        },
+                    )
+                    .first_valid_layer() // TODO select exact layer by self.header_index?
+                    .all_attributes()
+                    .from_chunks(reader)
+                    .map_err(to_image_err)?
+                    .layer_data
+                    .channel_data
+                    .pixels
+            }
+        };
 
         // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
 
         // this cast is safe and works with any alignment, as bytes are copied, and not f32 values.
         // note: buffer slice length is checked in the beginning of this function and will be correct at this point
-        unaligned_bytes.copy_from_slice(bytemuck::cast_slice(
-            result.layer_data.channel_data.pixels.as_slice(),
-        ));
+        unaligned_bytes.copy_from_slice(bytemuck::cast_slice(pixels.as_slice()));
 
         Ok(DecodedImageAttributes {
             original_color_type: Some(original),
@@ -279,6 +354,30 @@ fn write_buffer(
 
                     (r, g, b, a)
                 }),
+            )
+            .write()
+            // .on_progress(|progress| todo!())
+            .to_buffered(&mut buffered_write)
+            .map_err(to_image_err)?;
+        }
+
+        ExtendedColorType::L32F => {
+            Image // TODO compression method zip??
+                ::from_channels(
+                (width, height),
+                // OpenEXR stores single-channel luminance in a channel named `Y`.
+                SpecificChannels::build()
+                    .with_channel::<f32>("Y")
+                    .with_pixel_fn(|pixel: Vec2<usize>| {
+                        let pixel_index = pixel.flat_index_for_size(Vec2(width, height));
+                        let start_byte = pixel_index * bytes_per_pixel;
+
+                        let [y]: [f32; 1] = bytemuck::pod_read_unaligned(
+                            &unaligned_bytes[start_byte..start_byte + bytes_per_pixel],
+                        );
+
+                        (y,)
+                    }),
             )
             .write()
             // .on_progress(|progress| todo!())
@@ -357,9 +456,9 @@ mod test {
     use std::path::{Path, PathBuf};
 
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::images::buffer::{Rgb32FImage, Rgba32FImage};
+    use crate::images::buffer::{Gray32FImage, Rgb32FImage, Rgba32FImage};
     use crate::io::free_functions::decoder_to_vec;
-    use crate::{DynamicImage, ImageBuffer, Rgb, Rgba};
+    use crate::{DynamicImage, ImageBuffer, Luma, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
@@ -387,6 +486,30 @@ mod test {
             image.height(),
             ExtendedColorType::Rgba32F,
         )
+    }
+
+    /// Write a single-channel luma `Gray32FImage`.
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    fn write_luma_image(write: impl Write + Seek, image: &Gray32FImage) -> ImageResult<()> {
+        write_buffer(
+            write,
+            bytemuck::cast_slice(image.subpixels()),
+            image.width(),
+            image.height(),
+            ExtendedColorType::L32F,
+        )
+    }
+
+    /// Read the file into a single-channel luma `Gray32FImage`.
+    fn read_as_luma_image(read: impl BufRead + Seek) -> ImageResult<Gray32FImage> {
+        let mut decoder = OpenExrDecoder::new(read)?;
+        let (width, height) = decoder.prepare_image()?.layout.dimensions();
+        let (buffer, _): (Vec<f32>, _) = decoder_to_vec(&mut decoder)?;
+
+        ImageBuffer::from_raw(width, height, buffer).ok_or_else(|| {
+            ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+        })
     }
 
     /// Read the file from the specified path into an `Rgba32FImage`.
@@ -497,6 +620,23 @@ mod test {
         let mut bytes = vec![];
         write_rgb_image(Cursor::new(&mut bytes), &generated_image).unwrap();
         let decoded_image = read_as_rgb_image(Cursor::new(bytes)).unwrap();
+
+        debug_assert_eq!(generated_image, decoded_image);
+    }
+
+    #[test]
+    fn roundtrip_luma() {
+        let mut next_random = vec![1.0, 0.0, -1.0, -3.15, 27.0, 11.0, 31.0]
+            .into_iter()
+            .cycle();
+        let mut next_random = move || next_random.next().unwrap();
+
+        let generated_image: Gray32FImage =
+            ImageBuffer::from_fn(9, 31, |_x, _y| Luma([next_random()]));
+
+        let mut bytes = vec![];
+        write_luma_image(Cursor::new(&mut bytes), &generated_image).unwrap();
+        let decoded_image = read_as_luma_image(Cursor::new(bytes)).unwrap();
 
         debug_assert_eq!(generated_image, decoded_image);
     }

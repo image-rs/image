@@ -39,12 +39,13 @@ impl ImageType {
 
     /// Check if the image format uses colors as opposed to gray scale.
     pub(crate) fn is_color(&self) -> bool {
-        matches! { *self,
+        matches!(
+            *self,
             ImageType::RawColorMap
-            | ImageType::RawTrueColor
-            | ImageType::RunTrueColor
-            | ImageType::RunColorMap
-        }
+                | ImageType::RawTrueColor
+                | ImageType::RunTrueColor
+                | ImageType::RunColorMap
+        )
     }
 
     /// Does the image use a color map.

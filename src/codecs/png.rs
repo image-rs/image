@@ -25,8 +25,8 @@ use crate::math::Rect;
 use crate::metadata::LoopCount;
 use crate::utils::vec_try_with_capacity;
 use crate::{
-    DynamicImage, GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat,
-    ImageLayout, Limits, Luma, LumaA, Rgb, Rgba,
+    DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageLayout, Limits, Luma, LumaA, Rgb,
+    Rgba,
 };
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -511,14 +511,7 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
             DisposeOp::Background => {
                 previous.clone_from(current);
                 if let Some(rect) = self.dispose_region {
-                    let mut region_current = current.sub_image(rect);
-
-                    // FIXME: This is a workaround for the fact that `pixels_mut` is not implemented
-                    let pixels: Vec<_> = region_current.pixels().collect();
-
-                    for (x, y, _) in &pixels {
-                        region_current.put_pixel(*x, *y, Rgba::from([0, 0, 0, 0]));
-                    }
+                    clear_pixel_region(current.as_mut_bytes(), &layout.layout, &rect);
                 } else {
                     // The first frame is always a background frame.
                     current.as_mut_bytes().fill(0);
@@ -528,10 +521,12 @@ impl<R: BufRead + Seek> ApngDecoder<R> {
                 let rect = self
                     .dispose_region
                     .expect("The first frame must not set dispose=Previous");
-                let region_previous = previous.sub_image(rect);
-                current
-                    .copy_from(&region_previous.to_image(), rect.x, rect.y)
-                    .unwrap();
+                copy_pixel_region(
+                    current.as_mut_bytes(),
+                    &layout.layout,
+                    previous.as_bytes(),
+                    &rect,
+                );
             }
         }
 
@@ -1002,6 +997,40 @@ fn copy_pixel_bytes(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region:
         .zip(from.chunks_exact(bytes_per_copy))
     {
         target[..bytes_per_copy].copy_from_slice(src);
+    }
+}
+
+fn clear_pixel_region(bytes: &mut [u8], layout: &ImageLayout, region: &Rect) {
+    let bpp = usize::from(layout.color.bytes_per_pixel());
+    let bytes_per_row = layout.width as usize * bpp;
+    let bytes_per_clear = region.width as usize * bpp;
+    let row_start = region.y as usize * bytes_per_row;
+    let column = region.x as usize * bpp;
+
+    for row in bytes[row_start..]
+        .chunks_exact_mut(bytes_per_row)
+        .take(region.height as usize)
+    {
+        row[column..][..bytes_per_clear].fill(0);
+    }
+}
+
+fn copy_pixel_region(bytes: &mut [u8], layout: &ImageLayout, from: &[u8], region: &Rect) {
+    let bpp = usize::from(layout.color.bytes_per_pixel());
+    let bytes_per_row = layout.width as usize * bpp;
+    let bytes_per_copy = region.width as usize * bpp;
+    let row_start = region.y as usize * bytes_per_row;
+    let column = region.x as usize * bpp;
+
+    let target_rows = bytes[row_start..]
+        .chunks_exact_mut(bytes_per_row)
+        .take(region.height as usize);
+    let source_rows = from[row_start..]
+        .chunks_exact(bytes_per_row)
+        .take(region.height as usize);
+
+    for (target, source) in target_rows.zip(source_rows) {
+        target[column..][..bytes_per_copy].copy_from_slice(&source[column..][..bytes_per_copy]);
     }
 }
 

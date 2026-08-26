@@ -225,18 +225,25 @@ fn resizing_with_catmul() {
     .decode()
     .unwrap();
 
-    let expected = image::ImageReaderOptions::open(
-        base.join("regression/image/resize-with-alpha-original-half-size.png"),
-    )
-    .unwrap()
-    .decode()
-    .unwrap();
+    let target_path = base.join("regression/image/resize-with-alpha-original-half-size.png");
+
+    let expected = image::ImageReaderOptions::open(&target_path)
+        .unwrap()
+        .decode()
+        .unwrap();
 
     let (w, h) = image.dimensions();
     let (nw, nh) = (w.div_ceil(2), h.div_ceil(2));
     let mut resizable = image.clone();
     resizable.resize_exact(nw, nh, FilterType::CatmullRom);
-    assert_eq!(resizable, expected);
+    assert_eq!(resizable, expected, "Output (resized, target): {:?}", {
+        let path = base.join("output/image/resize-with-alpha-original-half-size.png");
+        save_image(&path, &resizable).unwrap();
+        (
+            path.display().to_string(),
+            target_path.display().to_string(),
+        )
+    });
 }
 
 #[test]
@@ -255,4 +262,26 @@ fn gif_regressions() {
     let mut frames = reader.into_frames();
 
     while let Some(Ok(_frame)) = frames.next() {}
+}
+
+fn save_image(
+    path: &std::path::Path,
+    image: &image::DynamicImage,
+) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(path.parent().unwrap())?;
+
+    // special path for PNG to apply more compression
+    #[cfg(feature = "png")]
+    if path.extension() == Some("png".as_ref()) {
+        use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+        image.write_with_encoder(PngEncoder::new_with_quality(
+            std::io::BufWriter::new(File::create(path).unwrap()),
+            CompressionType::Best,
+            FilterType::Adaptive,
+        ))?;
+        return Ok(());
+    }
+
+    image.save(path)?;
+    Ok(())
 }

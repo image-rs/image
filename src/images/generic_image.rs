@@ -63,7 +63,13 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        let (width, height) = self.dimensions();
+        let (width, mut height) = self.dimensions();
+
+        // Ensures `height` can be used as a consistent bound so that only one check is required in
+        // the iteration of the iterator.
+        if width == 0 || height == 0 {
+            height = 0;
+        }
 
         Pixels {
             image: self,
@@ -147,7 +153,9 @@ pub trait GenericImageView {
 #[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
+    /// Maintains `x < self.width` with a non-empty image.
     x: u32,
+    /// Maintains `y <= self.height` and `self.height == 0` with an empty image..
     y: u32,
     width: u32,
     height: u32,
@@ -157,23 +165,45 @@ impl<I: GenericImageView> Iterator for Pixels<'_, I> {
     type Item = (u32, u32, I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
+        if self.y >= self.height {
+            // No modification until here and this is the only `None` path, which justifies the
+            // below `FusedIterator` impls requirements.
+            return None;
+        }
+
+        let pixel = self.image.get_pixel(self.x, self.y);
+        let p = (self.x, self.y, pixel);
+
+        self.x += 1;
+
         if self.x >= self.width {
+            // Note: again in-bounds as we start with `height = 0` for empty images.
             self.x = 0;
+            // `self.y < self.height` at this point.
             self.y += 1;
         }
 
-        if self.y >= self.height {
-            None
+        Some(p)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let total = u64::from(self.width) * u64::from(self.height);
+        let done = u64::from(self.width) * u64::from(self.y) + u64::from(self.x);
+
+        let n = total
+            .checked_sub(done)
+            .and_then(|n| usize::try_from(n).ok());
+
+        if let Some(n) = n {
+            (n, Some(n))
         } else {
-            let pixel = self.image.get_pixel(self.x, self.y);
-            let p = (self.x, self.y, pixel);
-
-            self.x += 1;
-
-            Some(p)
+            (usize::MAX, None)
         }
     }
 }
+
+// Note: not mutated in the `None` path, i.e. continues to return it.
+impl<I: GenericImageView> std::iter::FusedIterator for Pixels<'_, I> {}
 
 impl<I: ?Sized> Clone for Pixels<'_, I> {
     fn clone(&self) -> Self {
@@ -462,6 +492,19 @@ mod tests {
         source.view(Rect::from_xy_ranges(0..3, 0..3));
         source.view(Rect::from_xy_ranges(1..3, 1..3));
         source.view(Rect::from_xy_ranges(2..2, 2..2));
+    }
+
+    #[test]
+    fn pixels_empty_iterator() {
+        let source: GrayImage = ImageBuffer::new(0, u32::MAX);
+
+        let mut iter = GenericImageView::pixels(&source);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+        for _ in iter.by_ref() {}
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+
+        assert_eq!(iter.x, 0);
+        assert_eq!(iter.y, 0);
     }
 
     #[test]

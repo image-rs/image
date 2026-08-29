@@ -383,6 +383,12 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
 
                 decoder.read_image_data(buf)?;
 
+                // For further processing, use the bits per pixel from the BMP.
+                // The data in the ICON dir entry is not generally trustworthy, but the data from
+                // the BMP header just correctly decoded an image. Using the data from the BMP
+                // header also eliminates any mismatches between the BMP header and the ICON dir entry.
+                let bit_count = decoder.bit_count();
+
                 let r = decoder.reader();
                 let image_end = r.stream_position()?;
                 let data_end = self.reader_offset
@@ -407,7 +413,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                     // 32bpp BMPs already have a native alpha channel, so the
                     // AND mask is ignored.
                     // For lower bit depths, read and apply the AND mask.
-                    if self.selected_entry.bits_per_pixel < 32 {
+                    if bit_count < 32 {
                         let rgba = buf.as_chunks_mut::<4>().0;
                         let rows = rgba.chunks_exact_mut(width as usize);
 
@@ -443,9 +449,7 @@ impl<R: BufRead + Seek> ImageDecoder for IcoDecoder<R> {
                 } else if data_end == image_end {
                     // accept images with no mask data
                     Ok(DecodedImageAttributes::default())
-                } else if self.spec_strictness == SpecCompliance::Lenient
-                    && self.selected_entry.bits_per_pixel >= 32
-                {
+                } else if self.spec_strictness == SpecCompliance::Lenient && bit_count >= 32 {
                     // In lenient mode, we accept truncated mask data for 32bpp images
                     // since they already have an alpha channel and we ignore the AND mask anyway.
                     Ok(DecodedImageAttributes::default())

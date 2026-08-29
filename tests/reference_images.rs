@@ -1,8 +1,21 @@
 //! Compares the decoding results with reference renderings.
 //!
-//! This test harness automatically detects all reference images in
-//! `tests/images/...` and compares them to the associated file in
-//! `tests/reference/...`.
+//! All test images in `tests/images/...` are decoded and compared to the associated reference image in `tests/reference/...`.
+//!
+//! ## Bless mode
+//!
+//! If the `BLESS` environment variable is set, the test will create/update all
+//! missing/mismatching reference images.
+//!
+//! To add a new test image, simply add it to `tests/images/` and run the
+//! following command:
+//!
+//! ```sh
+//! BLESS=1 cargo test
+//! ```
+//! ```powershell
+//! $env:BLESS=1; cargo test; $env:BLESS=$null
+//! ```
 
 use std::error::Error;
 use std::fs::File;
@@ -18,6 +31,8 @@ use walkdir::WalkDir;
 fn main() -> std::process::ExitCode {
     let mut trials = Vec::new();
 
+    let blessed = std::env::var("BLESS").is_ok();
+
     let image_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("images");
@@ -27,6 +42,9 @@ fn main() -> std::process::ExitCode {
     let output_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("output");
+
+    // output to reference dir if BLESS is set, to update/create reference images
+    let output_dir = if blessed { &reference_dir } else { &output_dir };
 
     for entry in WalkDir::new(&image_dir) {
         let entry = entry.unwrap();
@@ -97,7 +115,9 @@ fn main() -> std::process::ExitCode {
                 // output directory for inspection.
                 let output_path = get_reference_path(&output_base_path, None, &image);
                 save_image(&output_path, &image)?;
-                return Err(e.into());
+                if !blessed {
+                    return Err(e.into());
+                }
             }
 
             // Load animation
@@ -113,7 +133,9 @@ fn main() -> std::process::ExitCode {
                         let output_path =
                             get_reference_path(&output_base_path, Some(frame_number), &frame);
                         save_image(&output_path, &frame)?;
-                        return Err(format!("Frame {frame_number}: {e}").into());
+                        if !blessed {
+                            return Err(format!("Frame {frame_number}: {e}").into());
+                        }
                     }
                 }
             }

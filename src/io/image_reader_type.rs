@@ -140,6 +140,30 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
         self.format = Some(Format::BuiltIn(format));
     }
 
+    /// Make a format guess based on the given path, replacing it on success.
+    ///
+    /// If the path has no extension or the extension is empty, nothing changes.
+    /// No IO operation is performed.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use image::ImageError;
+    /// # use image::ImageReaderOptions;
+    /// # fn main() -> Result<(), ImageError> {
+    /// # let some_data = std::io::Cursor::new(&[]);
+    /// let image = ImageReaderOptions::new(some_data)
+    ///     .with_format_from_path("image.png")
+    ///     .decode()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn with_format_from_path<P: AsRef<Path>>(mut self, path: P) -> Self {
+        if let Some(ext) = path.as_ref().extension().filter(|ext| !ext.is_empty()) {
+            self.format = Some(Format::Extension(ext.to_owned()));
+        }
+        self
+    }
+
     /// Remove the current information on the image format.
     ///
     /// Note that many operations require format information to be present and will return e.g. an
@@ -368,17 +392,8 @@ impl ImageReaderOptions<BufReader<File>> {
     }
 
     fn open_impl(path: &Path) -> io::Result<Self> {
-        let format = path
-            .extension()
-            .filter(|ext| !ext.is_empty())
-            .map(|ext| Format::Extension(ext.to_owned()));
-
-        Ok(ImageReaderOptions {
-            inner: BufReader::new(File::open(path)?),
-            format,
-            limits: Limits::default(),
-            spec_compliance: SpecCompliance::default(),
-        })
+        let reader = BufReader::new(File::open(path)?);
+        Ok(Self::new(reader).with_format_from_path(path))
     }
 }
 

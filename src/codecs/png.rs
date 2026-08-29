@@ -872,13 +872,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
     ) -> ImageResult<()> {
         use ExtendedColorType::*;
 
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
+        color_type.assert_buf_len(width, height, buf);
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the

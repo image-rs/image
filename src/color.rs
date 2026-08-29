@@ -310,6 +310,18 @@ impl ExtendedColorType {
         let row_pitch = (width as u64 * bpp).div_ceil(8);
         row_pitch.saturating_mul(height as u64)
     }
+
+    /// Asserts that the buffer has the correct length for an image of the given dimensions and color.
+    #[track_caller]
+    pub(crate) fn assert_buf_len(self, width: u32, height: u32, buf: &[u8]) {
+        let expected_buffer_len = self.buffer_size(width, height);
+        assert_eq!(
+            expected_buffer_len,
+            buf.len() as u64,
+            "Invalid buffer length: expected {expected_buffer_len} but got {} for {width}x{height} {self:?} image",
+            buf.len(),
+        );
+    }
 }
 
 impl From<ColorType> for ExtendedColorType {

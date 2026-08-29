@@ -203,13 +203,7 @@ impl<W: Write> JpegEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            image.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            image.len(),
-        );
+        color_type.assert_buf_len(width, height, image);
 
         let (width, height) = match (u16::try_from(width), u16::try_from(height)) {
             (Ok(w @ 1..), Ok(h @ 1..)) => (w, h),

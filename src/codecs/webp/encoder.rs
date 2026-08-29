@@ -54,13 +54,7 @@ impl<W: Write> WebPEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            buf.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            buf.len(),
-        );
+        color_type.assert_buf_len(width, height, buf);
 
         let color_type = match color_type {
             ExtendedColorType::L8 => image_webp::ColorType::L8,

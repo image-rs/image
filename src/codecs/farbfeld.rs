@@ -159,6 +159,8 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
+        color_type.assert_buf_len(width, height, buf);
+
         if color_type != ExtendedColorType::Rgba16 {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(

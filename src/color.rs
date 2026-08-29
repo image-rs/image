@@ -951,48 +951,28 @@ pub(crate) trait Invert {
     /// Inverts a color in-place.
     fn invert(&mut self);
 }
-
 impl<T: Primitive> Invert for LumaA<T> {
     fn invert(&mut self) {
-        let l = self.0;
-        let max = T::DEFAULT_MAX_VALUE;
-
-        *self = LumaA([max - l[0], l[1]]);
+        let [l, a] = self.0;
+        *self = LumaA([l.invert_range(), a]);
     }
 }
-
 impl<T: Primitive> Invert for Luma<T> {
     fn invert(&mut self) {
-        let l = self.0;
-
-        let max = T::DEFAULT_MAX_VALUE;
-        let l1 = max - l[0];
-
-        *self = Luma([l1]);
+        let [l] = self.0;
+        *self = Luma([l.invert_range()]);
     }
 }
-
 impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
-        let rgba = self.0;
-
-        let max = T::DEFAULT_MAX_VALUE;
-
-        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]]);
+        let [r, g, b, a] = self.0;
+        *self = Rgba([r.invert_range(), g.invert_range(), b.invert_range(), a]);
     }
 }
-
 impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
-        let rgb = self.0;
-
-        let max = T::DEFAULT_MAX_VALUE;
-
-        let r1 = max - rgb[0];
-        let g1 = max - rgb[1];
-        let b1 = max - rgb[2];
-
-        *self = Rgb([r1, g1, b1]);
+        let [r, g, b] = self.0;
+        *self = Rgb([r.invert_range(), g.invert_range(), b.invert_range()]);
     }
 }
 

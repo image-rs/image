@@ -1328,6 +1328,21 @@ pub(crate) fn gaussian_blur_dyn_image(
         height: image.height() as usize,
     };
 
+    // Premultiply by alpha so fully-transparent pixels do not bleed their color
+    // into neighboring pixels during the convolution (issue #2324). This mirrors
+    // `resize`. It is skipped when the alpha channel is constant, since there is
+    // then nothing to bleed.
+    let premultiplied_source;
+    let premultiplied = !crate::imageops::resize::has_constant_alpha(image);
+    let image = if premultiplied {
+        let mut copy = image.clone();
+        crate::imageops::resize::premultiply_alpha(&mut copy);
+        premultiplied_source = copy;
+        &premultiplied_source
+    } else {
+        image
+    };
+
     let mut target = match image {
         DynamicImage::ImageLuma8(img) => {
             let mut dest_image = vec![0u8; img.subpixels().len()];
@@ -1498,6 +1513,10 @@ pub(crate) fn gaussian_blur_dyn_image(
             )
         }
     };
+
+    if premultiplied {
+        crate::imageops::resize::unpremultiply_alpha(&mut target);
+    }
 
     // Must succeed.
     let _ = target.set_color_space(image.color_space());
@@ -1674,6 +1693,36 @@ mod tests {
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
+
+    #[test]
+    fn blur_does_not_bleed_color_from_transparent_pixels() {
+        use crate::{DynamicImage, Rgba, RgbaImage};
+
+        // Left half: fully-transparent red. Right half: opaque white. Blurring
+        // must not let the (invisible) red bleed into the white, i.e. it must
+        // behave as premultiplied alpha. Regression test for #2324.
+        let mut img = RgbaImage::new(20, 4);
+        for (x, _y, px) in img.enumerate_pixels_mut() {
+            *px = if x < 10 {
+                Rgba([255, 0, 0, 0])
+            } else {
+                Rgba([255, 255, 255, 255])
+            };
+        }
+
+        let blurred = DynamicImage::ImageRgba8(img).blur(2.0).to_rgba8();
+
+        // On the opaque side the color must stay white; only alpha may change.
+        for x in 10..20 {
+            let [r, g, b, _a] = blurred.get_pixel(x, 2).0;
+            assert_eq!(
+                (r, g, b),
+                (255, 255, 255),
+                "red bled into white at x={x}: {:?}",
+                blurred.get_pixel(x, 2).0
+            );
+        }
+    }
 
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "png"))]

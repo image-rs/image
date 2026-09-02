@@ -15,6 +15,7 @@ Breaking Changes:
    produce these instead of Rgb32F or Rgba32F
 
 Features:
+ - Added optional JPEG XL decoding support through the pure-Rust `jxl-rs` decoder
  - Added `RbgImage::from_raw_bgr` and `RbgaImage::from_raw_bgra` constructors, which convert
    from `BGR(A)` with an optimized specialization for bytes of `BGRA`
 

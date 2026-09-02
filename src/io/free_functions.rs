@@ -103,9 +103,11 @@ pub(crate) fn encoder_for_format<'a, W: Write + Seek>(
     })
 }
 
-static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 21] = [
+static MAGIC_BYTES: [(&[u8], &[u8], ImageFormat); 23] = [
     (b"\x89PNG\r\n\x1a\n", b"", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], b"", ImageFormat::Jpeg),
+    (&[0xff, 0x0a], b"", ImageFormat::JpegXl),
+    (b"\0\0\0\x0cJXL \r\n\x87\n", b"", ImageFormat::JpegXl),
     (b"GIF89a", b"", ImageFormat::Gif),
     (b"GIF87a", b"", ImageFormat::Gif),
     (
@@ -198,7 +200,18 @@ fn test_guess_format_agrees_with_extension() {
         let found = found.contains(&fmt);
         if matches!(
             fmt,
-            Bmp | Farbfeld | Gif | Ico | Hdr | Jpeg | OpenExr | Png | Pnm | Qoi | Tiff | WebP
+            Bmp | Farbfeld
+                | Gif
+                | Ico
+                | Hdr
+                | Jpeg
+                | JpegXl
+                | OpenExr
+                | Png
+                | Pnm
+                | Qoi
+                | Tiff
+                | WebP
         ) {
             assert!(found, "No {fmt:?} test files found");
         } else {

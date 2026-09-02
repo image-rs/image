@@ -52,6 +52,7 @@ implement it.
 | ----------------- | -----------
 | `default-formats` | **Default**<br>Format support for common image formats: AVIF, BMP, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
 | `rayon`           | **Default**<br>Enables multi-threading with rayon context in some dependencies
+| `jxl`             | Enables JPEG XL decoding through the pure-Rust `jxl-rs` decoder
 | `nasm`            | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
 | `color_quant`     | Includes `color_quant` as an implementation of `imageops::ColorMap`
 | `avif-native`     | Enables non-Rust dependencies of `avif` (`mp4parse` and `dav1d`)

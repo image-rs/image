@@ -202,6 +202,7 @@ pub use crate::images::flat;
 /// | `hdr`   | HDR      |
 /// | `ico`   | ICO      |
 /// | `jpeg`  | JPEG     |
+/// | `jxl`   | JPEG XL  | Decoding only.
 /// | `png`   | PNG      |
 /// | `pnm`   | PNM      |
 /// | `qoi`   | QOI      |
@@ -245,6 +246,8 @@ pub mod codecs {
     pub mod ico;
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
+    #[cfg(feature = "jxl")]
+    pub mod jxl;
     #[cfg(feature = "exr")]
     pub mod openexr;
     #[cfg(feature = "png")]

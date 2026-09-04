@@ -102,7 +102,7 @@ fn convert_filter_type(filter: FilterType) -> ResamplingFunction {
     }
 }
 
-fn premultiply_alpha(image: &mut DynamicImage) {
+pub(crate) fn premultiply_alpha(image: &mut DynamicImage) {
     use pic_scale_safe::*;
     match image {
         DynamicImage::ImageLuma8(_) => (),
@@ -133,7 +133,7 @@ fn premultiply_alpha(image: &mut DynamicImage) {
 }
 
 /// Reverses premultiplication by alpha
-fn unpremultiply_alpha(image: &mut DynamicImage) {
+pub(crate) fn unpremultiply_alpha(image: &mut DynamicImage) {
     use pic_scale_safe::*;
     match image {
         DynamicImage::ImageLuma8(_) => (),
@@ -152,7 +152,7 @@ fn unpremultiply_alpha(image: &mut DynamicImage) {
 }
 
 #[must_use]
-fn has_constant_alpha(image: &DynamicImage) -> bool {
+pub(crate) fn has_constant_alpha(image: &DynamicImage) -> bool {
     match image {
         DynamicImage::ImageLuma8(_) => true,
         DynamicImage::ImageLumaA8(buf) => has_constant_alpha_integer(buf),

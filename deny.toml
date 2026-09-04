@@ -42,5 +42,6 @@ multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
 skip = [
-    { name = "syn" },        # Some deps depend on 2 while others use 3 (e.g. newer serde-derive versions)
+    { name = "syn" },          # Some deps depend on 2 while others use 3 (e.g. newer serde-derive versions)
+    { name = "miniz_oxide" },  # png/exr still pin 0.8 while flate2 pulls 0.9; unavoidable until png bumps
 ]

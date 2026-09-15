@@ -43,4 +43,5 @@ wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny
 deny = []
 skip = [
     { name = "syn" },        # Some deps depend on 2 while others use 3 (e.g. newer serde-derive versions)
+    { name = "miniz_oxide" }, # exr and png depend on 0.8 while flate2 uses 0.9
 ]

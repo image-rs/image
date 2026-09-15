@@ -713,7 +713,9 @@ where
             }
         }
 
-        ((right - left) as u64 / STEP_SIZE as u64) * ((top - bottom) as u64 / STEP_SIZE as u64)
+        // One average was added per sub-block, including the smaller ones at the edges.
+        let step = STEP_SIZE as u64;
+        ((right - left) as u64).div_ceil(step) * ((top - bottom) as u64).div_ceil(step)
     } else {
         // standard case where all pixels are summed directly
         for y in bottom..top {
@@ -1942,5 +1944,18 @@ mod tests {
         // 1024^2 * 65535 obviously overflows 2^32
         let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
         super::thumbnail(&huge_u16, 1, 1);
+    }
+
+    #[test]
+    fn thumbnail_huge_block_keeps_color() {
+        // Each 300x300 block is split into 2x2 sub-blocks, so the sum of the sub-block averages
+        // has to be divided by 4, not by (300 / 256)^2 = 1.
+        let img = ImageBuffer::from_pixel(600, 600, crate::Luma([100_u8]));
+        let thumb = super::thumbnail(&img, 2, 2);
+        assert!(
+            thumb.pixels().iter().all(|p| p.0 == [100]),
+            "{:?}",
+            thumb.get_pixel(0, 0)
+        );
     }
 }

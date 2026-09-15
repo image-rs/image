@@ -544,7 +544,7 @@ where
         }
 
         for x in 0..width {
-            let mut pix = crate::Rgba([1.0; 4]);
+            let mut pix = crate::Rgba([0.0; 4]);
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
@@ -1909,6 +1909,36 @@ mod tests {
         let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629 * 627 * 4]).unwrap();
         let result = resize(&image, 22, 22, FilterType::Lanczos3);
         assert!(result.into_raw().into_iter().any(|c| c != 0));
+    }
+
+    #[test]
+    fn resize_keeps_uniform_color() {
+        use FilterType::*;
+        let filters = [Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
+
+        let img = RgbImage::from_pixel(16, 16, crate::Rgb([100, 150, 200]));
+        for filter in filters {
+            for (w, h) in [(7, 9), (25, 31)] {
+                let resized = resize(&img, w, h, filter);
+                assert!(
+                    resized.pixels().iter().all(|p| p.0 == [100, 150, 200]),
+                    "{filter:?} {w}x{h}: {:?}",
+                    resized.get_pixel(0, 0)
+                );
+            }
+        }
+
+        let img = crate::Rgb32FImage::from_pixel(16, 16, crate::Rgb([0.25, 0.5, 0.75]));
+        for filter in filters {
+            for (w, h) in [(7, 9), (25, 31)] {
+                let resized = resize(&img, w, h, filter);
+                for p in resized.pixels() {
+                    for (c, expected) in p.0.into_iter().zip([0.25, 0.5, 0.75]) {
+                        assert!((c - expected).abs() < 1e-5, "{filter:?} {w}x{h}: {p:?}");
+                    }
+                }
+            }
+        }
     }
 
     #[test]

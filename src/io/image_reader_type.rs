@@ -9,7 +9,7 @@ use crate::error::{
 };
 use crate::io::limits::Limits;
 use crate::io::{DecodedAnimationAttributes, DecodedImageAttributes, DecoderPreparedImage};
-use crate::io::{DecodedMetadataHint, SequenceControl};
+use crate::io::{DecodedColorProfile, DecodedMetadataHint, SequenceControl};
 use crate::metadata::Orientation;
 use crate::{hooks, Delay, Frame, Frames};
 use crate::{DynamicImage, ImageDecoder, ImageError, ImageFormat};
@@ -406,20 +406,21 @@ pub struct ImageReader<'lt> {
 
 #[derive(Default)]
 struct MetadataBuffers {
-    exif: MetadataBlock,
-    icc: MetadataBlock,
-    xmp: MetadataBlock,
-    iptc: MetadataBlock,
+    exif: MetadataBlock<Vec<u8>>,
+    icc: MetadataBlock<Vec<u8>>,
+    color_profile: MetadataBlock<DecodedColorProfile>,
+    xmp: MetadataBlock<Vec<u8>>,
+    iptc: MetadataBlock<Vec<u8>>,
     first_meta_retrieved: bool,
 }
 
 /// Buffer state for one item of metadata, to surface the error at the right time.
-#[derive(Default)]
-enum MetadataBlock {
+#[derive(Default, Debug)]
+enum MetadataBlock<T> {
     /// No buffered metadata.
     #[default]
     None,
-    Ok(Vec<u8>),
+    Ok(T),
     /// There was an error acquiring the metadata, this is the original error.
     Err(ImageError),
     /// The error was already polled. We continue to error but now with a replacement.
@@ -429,12 +430,17 @@ enum MetadataBlock {
     Unsupported(ImageFormatHint),
 }
 
-impl MetadataBlock {
+impl<T> MetadataBlock<T> {
     fn is_not_none(&self) -> bool {
         !matches!(self, MetadataBlock::None)
     }
+}
 
-    fn get(&mut self) -> ImageResult<Option<Vec<u8>>> {
+impl<T> MetadataBlock<T>
+where
+    T: Clone,
+{
+    fn get(&mut self) -> ImageResult<Option<T>> {
         match self {
             MetadataBlock::None => Ok(None),
             MetadataBlock::Ok(data) => Ok(Some(data.clone())),
@@ -656,37 +662,11 @@ impl<'stream> ImageReader<'stream> {
     /// Polls the underlying decoder for any `InHeader` metadata that is constant across a file,
     /// applicable to all images, and appears early.
     fn fill_header_metadata_if_any(&mut self) {
-        type MetadataFn<'a> =
-            fn(&mut (dyn ImageDecoder + 'a)) -> Result<Option<Vec<u8>>, ImageError>;
-
-        // We retrieve `InHeader` metadata only once, before reading any our images.
-        let first_meta_retrieved = self.metadata_buffers.first_meta_retrieved;
-        let format_attrs = self.inner.format_attributes();
-
-        let attributes = [
-            (
-                format_attrs.exif,
-                &mut self.metadata_buffers.exif,
-                <dyn ImageDecoder + '_>::exif_metadata as MetadataFn,
-            ),
-            (
-                format_attrs.icc,
-                &mut self.metadata_buffers.icc,
-                <dyn ImageDecoder + '_>::icc_profile as MetadataFn,
-            ),
-            (
-                format_attrs.xmp,
-                &mut self.metadata_buffers.xmp,
-                <dyn ImageDecoder + '_>::xmp_metadata as MetadataFn,
-            ),
-            (
-                format_attrs.iptc,
-                &mut self.metadata_buffers.iptc,
-                <dyn ImageDecoder + '_>::iptc_metadata as MetadataFn,
-            ),
-        ];
-
-        for (hint, buffer, getter) in attributes {
+        fn is_needed<T>(
+            hint: &DecodedMetadataHint,
+            buffer: &mut MetadataBlock<T>,
+            first_meta_retrieved: bool,
+        ) -> bool {
             let should_buffer_now = match hint {
                 DecodedMetadataHint::InHeader => !first_meta_retrieved,
                 DecodedMetadataHint::PerImage => true,
@@ -694,17 +674,32 @@ impl<'stream> ImageReader<'stream> {
             };
 
             if !should_buffer_now {
-                continue;
+                return false;
             }
-
             // We might have already tried this and succeeded. Expect the same result as last time
             // but avoids the allocation associated with that. A repeated `None` should be cheap,
             // most probably. This holds for variants that retrieve it once.
             if matches!(hint, DecodedMetadataHint::InHeader) && buffer.is_not_none() {
-                continue;
+                return false;
             }
 
-            match getter(self.inner.as_mut()) {
+            true
+        }
+
+        fn get_if_needed<'a, 's, T>(
+            reader: &mut Box<dyn ImageDecoder + 's>,
+            hint: &DecodedMetadataHint,
+            getter: fn(&mut (dyn ImageDecoder + 'a)) -> Result<Option<T>, ImageError>,
+            buffer: &mut MetadataBlock<T>,
+            first_meta_retrieved: bool,
+        ) where
+            's: 'a,
+        {
+            if !is_needed(hint, buffer, first_meta_retrieved) {
+                return;
+            }
+
+            match getter(reader.as_mut()) {
                 Ok(None) => *buffer = MetadataBlock::None,
                 Ok(Some(metadata)) => *buffer = MetadataBlock::Ok(metadata),
                 Err(err) => {
@@ -712,6 +707,50 @@ impl<'stream> ImageReader<'stream> {
                 }
             }
         }
+
+        // We retrieve `InHeader` metadata only once, before reading any our images.
+        let first_meta_retrieved = self.metadata_buffers.first_meta_retrieved;
+        let format_attrs = self.inner.format_attributes();
+
+        get_if_needed(
+            &mut self.inner,
+            &format_attrs.exif,
+            <dyn ImageDecoder + '_>::exif_metadata,
+            &mut self.metadata_buffers.exif,
+            first_meta_retrieved,
+        );
+
+        get_if_needed(
+            &mut self.inner,
+            &format_attrs.color_profile,
+            <dyn ImageDecoder + '_>::color_profile,
+            &mut self.metadata_buffers.color_profile,
+            first_meta_retrieved,
+        );
+
+        get_if_needed(
+            &mut self.inner,
+            &format_attrs.icc,
+            <dyn ImageDecoder + '_>::icc_profile,
+            &mut self.metadata_buffers.icc,
+            first_meta_retrieved,
+        );
+
+        get_if_needed(
+            &mut self.inner,
+            &format_attrs.xmp,
+            <dyn ImageDecoder + '_>::xmp_metadata,
+            &mut self.metadata_buffers.xmp,
+            first_meta_retrieved,
+        );
+
+        get_if_needed(
+            &mut self.inner,
+            &format_attrs.iptc,
+            <dyn ImageDecoder + '_>::iptc_metadata,
+            &mut self.metadata_buffers.iptc,
+            first_meta_retrieved,
+        );
 
         // Note: on error we do not set this flag. You can try again.
         self.metadata_buffers.first_meta_retrieved = true;
@@ -871,6 +910,16 @@ impl<'lt> DecodedImageMetadata<'lt> {
         )
     }
 
+    /// Get the color profile of the previous image if possible
+    pub fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        Self::access_block_with(
+            &mut self.metadata_buffers.color_profile,
+            self.inner.format_attributes().color_profile,
+            self.inner,
+            <dyn ImageDecoder + '_>::color_profile,
+        )
+    }
+
     /// Get the ICC profile of the previous image if any.
     pub fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         Self::access_block_with(
@@ -907,15 +956,21 @@ impl<'lt> DecodedImageMetadata<'lt> {
         image: &mut DynamicImage,
     ) -> Result<(), ImageError> {
         // Run all the metadata extraction which we may need.
-        let icc = self.icc_profile()?;
+        let color_profile = match self.color_profile() {
+            Ok(x) => x,
+            Err(ImageError::Unsupported(_)) => None,
+            Err(e) => {
+                return Err(e);
+            }
+        };
         let exif = self.exif_metadata()?;
 
         // Apply the profile. If the profile itself is not valid or not present you get the default
         // presumption: `sRGB`. Otherwise we will try to make sense of the profile and if it is not
-        // RGB we'll treat it as unspecified so that downstream will know that our handling of this
-        // _existing_ profile was not / could not be done with full fidelity.
-        if let Some(icc) = icc {
-            if let Some(cicp) = crate::metadata::cms_provider().parse_icc(&icc) {
+        // a known CICP RGB we'll treat it as unspecified so that downstream will know that our
+        // handling of this _existing_ profile was not / could not be done with full fidelity.
+        if let Some(color_profile) = color_profile {
+            if let Some(cicp) = color_profile.to_plain_cicp().ok().flatten() {
                 // We largely ignore the error itself here, you just get the image with no color
                 // space attached to it.
                 if let Ok(rgb) = cicp.try_into_rgb() {
@@ -948,12 +1003,15 @@ impl<'lt> DecodedImageMetadata<'lt> {
         Ok(())
     }
 
-    fn access_block_with<'l>(
-        block: &mut MetadataBlock,
+    fn access_block_with<'l, T>(
+        block: &mut MetadataBlock<T>,
         meta: DecodedMetadataHint,
         decoder: &mut (dyn ImageDecoder + 'l),
-        access: fn(&'_ mut (dyn ImageDecoder + 'l)) -> ImageResult<Option<Vec<u8>>>,
-    ) -> ImageResult<Option<Vec<u8>>> {
+        access: fn(&'_ mut (dyn ImageDecoder + 'l)) -> ImageResult<Option<T>>,
+    ) -> ImageResult<Option<T>>
+    where
+        T: Clone,
+    {
         match meta {
             DecodedMetadataHint::InHeader => {
                 if matches!(block, MetadataBlock::ErrorTaken) {

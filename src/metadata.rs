@@ -11,7 +11,9 @@ use byteorder_lite::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 pub use self::cicp::{
     Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics, CicpTransform,
-    CicpVideoFullRangeFlag,
+    CicpVideoFullRangeFlag, UnsupportedCicpColorPrimariesError,
+    UnsupportedCicpMatrixCoefficientsError, UnsupportedCicpTransferCharacteristicsError,
+    UnsupportedCicpVideoFullRangeFlagError,
 };
 
 pub(crate) trait CmsProvider {

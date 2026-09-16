@@ -17,7 +17,9 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::decoder::DecodedMetadataHint;
-use crate::io::{DecodedImageAttributes, DecoderPreparedImage, FormatAttributes};
+use crate::io::{
+    DecodedColorProfile, DecodedImageAttributes, DecoderPreparedImage, FormatAttributes,
+};
 use crate::metadata::Orientation;
 use crate::{utils, ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -386,6 +388,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             // is any sort of iTXT chunk.
             xmp: DecodedMetadataHint::PerImage,
             icc: DecodedMetadataHint::PerImage,
+            color_profile: DecodedMetadataHint::PerImage,
             exif: DecodedMetadataHint::PerImage,
             // not provided above.
             iptc: DecodedMetadataHint::Unsupported,
@@ -407,6 +410,10 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
         } else {
             Ok(None)
         }
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        Ok(self.icc_profile()?.map(DecodedColorProfile::from_icc))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

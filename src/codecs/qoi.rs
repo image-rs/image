@@ -1,7 +1,16 @@
 //! Decoding and encoding of QOI images
 
+use qoi::ColorSpace;
+
 use crate::error::{DecodingError, EncodingError, UnsupportedError, UnsupportedErrorKind};
-use crate::io::{DecodedImageAttributes, DecoderPreparedImage};
+use crate::io::{
+    DecodedColorProfile, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
+    FormatAttributes,
+};
+use crate::metadata::{
+    Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics,
+    CicpVideoFullRangeFlag,
+};
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
 };
@@ -24,6 +33,18 @@ where
 }
 
 impl<R: Read> ImageDecoder for QoiDecoder<R> {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
+            supports_animation: false,
+            supports_sequence: false,
+            icc: DecodedMetadataHint::Unsupported,
+            color_profile: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::None,
+            xmp: DecodedMetadataHint::None,
+            iptc: DecodedMetadataHint::None,
+        }
+    }
+
     fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let header = self.decoder.header();
         let color = match header.channels {
@@ -41,6 +62,29 @@ impl<R: Read> ImageDecoder for QoiDecoder<R> {
     fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
         self.decoder.decode_to_buf(buf).map_err(decoding_error)?;
         Ok(DecodedImageAttributes::default())
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        // The QOI spec's color space field just distinguishes 'sRGB with linear alpha'
+        // from 'all channels linear'; the issue https://github.com/phoboslab/qoi/issues/25
+        // suggests this was added to help distinguish sRGB color image data from things
+        // like normal maps; the former requires different texture filtering due
+        // to a nonlinear transfer function.
+        Ok(Some(DecodedColorProfile::from_plain_cicp(
+            match self.decoder.header().colorspace {
+                ColorSpace::Srgb => Cicp::SRGB,
+                ColorSpace::Linear => {
+                    // u8+linear is bad for display images, so any QOI file with linear transfer
+                    // function is most likely a normal map or resource lacking color primaries
+                    Cicp {
+                        primaries: CicpColorPrimaries::Unspecified,
+                        transfer: CicpTransferCharacteristics::Linear,
+                        matrix: CicpMatrixCoefficients::Identity,
+                        full_range: CicpVideoFullRangeFlag::FullRange,
+                    }
+                }
+            },
+        )))
     }
 }
 

@@ -1144,38 +1144,6 @@ impl DynamicImage {
         imageops::resize::resize_impl(self, nwidth, nheight, filter).unwrap()
     }
 
-    /// Scale this image down to fit within a specific size.
-    /// Returns a new image. The image's aspect ratio is preserved.
-    /// The image is scaled to the maximum possible size that fits
-    /// within the bounds specified by `nwidth` and `nheight`.
-    ///
-    /// This method uses a fast integer algorithm where each source
-    /// pixel contributes to exactly one target pixel.
-    /// May give aliasing artifacts if new size is close to old size.
-    ///
-    /// This method operates on pixel channel values directly without taking into account color
-    /// space data.
-    #[must_use]
-    pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
-        let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
-        self.thumbnail_exact(width2, height2)
-    }
-
-    /// Scale this image down to a specific size.
-    /// Returns a new image. Does not preserve aspect ratio.
-    /// `nwidth` and `nheight` are the new image's dimensions.
-    /// This method uses a fast integer algorithm where each source
-    /// pixel contributes to exactly one target pixel.
-    /// May give aliasing artifacts if new size is close to old size.
-    ///
-    /// This method operates on pixel channel values directly without taking into account color
-    /// space data.
-    #[must_use]
-    pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
-        dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
-    }
-
     /// Resize this image using the specified filter algorithm.
     /// The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
@@ -1203,6 +1171,73 @@ impl DynamicImage {
         };
 
         *self = self.crop(select);
+    }
+
+    /// Scale this image down to fit within a specific size.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the bounds specified by `nwidth` and `nheight`.
+    ///
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
+    #[must_use]
+    pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+        self.thumbnail_exact(width2, height2)
+    }
+
+    /// Scale this image down to a specific size.
+    /// Returns a new image. Does not preserve aspect ratio.
+    /// `nwidth` and `nheight` are the new image's dimensions.
+    ///
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
+    #[must_use]
+    pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
+    }
+
+    /// Scale this image down to fit within a specific size.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the larger (relative to aspect ratio) of the bounds
+    /// specified by `nwidth` and `nheight`, then cropped to
+    /// fit within the other bound.
+    ///
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    ///
+    /// This method operates on pixel channel values directly without taking into account color
+    /// space data.
+    #[must_use]
+    pub fn thumbnail_to_fill(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
+        let thumbnail = self.thumbnail_exact(width2, height2);
+
+        let (iwidth, iheight) = thumbnail.dimensions();
+        let ratio = u64::from(iwidth) * u64::from(nheight);
+        let nratio = u64::from(nwidth) * u64::from(iheight);
+
+        let select = if nratio > ratio {
+            let y = (iheight - nheight) / 2;
+            Rect::from_xy_ranges(0..nwidth, y..y + nheight)
+        } else {
+            let x = (iwidth - nwidth) / 2;
+            Rect::from_xy_ranges(x..x + nwidth, 0..nheight)
+        };
+
+        thumbnail.crop(select)
     }
 
     /// Performs a Gaussian blur on this image.
@@ -2506,13 +2541,14 @@ mod test {
                 img.resize_exact(32, 32, crate::imageops::FilterType::Lanczos3);
                 img
             },
-            &|img| img.thumbnail(8, 8),
-            &|img| img.thumbnail_exact(8, 8),
             &|img| {
                 let mut img = img.clone();
                 img.resize_to_fill(32, 32, crate::imageops::FilterType::Lanczos3);
                 img
             },
+            &|img| img.thumbnail(8, 8),
+            &|img| img.thumbnail_exact(8, 8),
+            &|img| img.thumbnail_to_fill(8, 8),
             &|img| img.blur(1.0),
             &|img| {
                 img.blur_advanced(

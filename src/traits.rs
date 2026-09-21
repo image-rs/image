@@ -573,7 +573,7 @@ pub trait Pixel: Copy + Clone {
     where
         F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
 
-    /// Invert this pixel
+    /// Invert the color channels of this pixel. Alpha channels are *not* inverted.
     fn invert(&mut self);
 
     /// Blend the color of a given pixel into ourself, taking into account alpha channels

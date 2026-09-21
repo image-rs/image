@@ -17,6 +17,8 @@ Breaking Changes:
 Features:
  - Added `RbgImage::from_raw_bgr` and `RbgaImage::from_raw_bgra` constructors, which convert
    from `BGR(A)` with an optimized specialization for bytes of `BGRA`
+ - The OpenEXR codec can now read and write single-channel `Luma<f32>` images,
+   using the `Y` channel (#3016)
 
 Structural changes:
   - Increased MSRV to 1.88.0 (from 1.85.0)

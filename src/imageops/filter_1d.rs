@@ -47,10 +47,21 @@ struct KernelShape {
     height: usize,
 }
 
+/// Size of a non-empty image. Width and height are guaranteed to be non-zero.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FilterImageSize {
     pub(crate) width: usize,
     pub(crate) height: usize,
+}
+impl FilterImageSize {
+    pub(crate) fn new(dimensions: (u32, u32)) -> Option<Self> {
+        let width = dimensions.0 as usize;
+        let height = dimensions.1 as usize;
+        if width == 0 || height == 0 {
+            return None;
+        }
+        Some(Self { width, height })
+    }
 }
 
 /// Pads an image row with *clamp* strategy

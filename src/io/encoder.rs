@@ -1,25 +1,7 @@
+use std::borrow::Cow;
+
 use crate::error::{ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::{ColorType, DynamicImage, ExtendedColorType};
-
-/// Nominally public but DO NOT expose this type.
-///
-/// To be somewhat sure here's a compile fail test:
-///
-/// ```compile_fail
-/// use image::MethodSealedToImage;
-/// ```
-///
-/// ```compile_fail
-/// use image::io::MethodSealedToImage;
-/// ```
-///
-/// The same implementation strategy for a partially public trait is used in the standard library,
-/// for the different effect of forbidding `Error::type_id` overrides thus making them reliable for
-/// their calls through the `dyn` version of the trait.
-///
-/// Read more: <https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/>
-#[derive(Clone, Copy)]
-pub struct MethodSealedToImage;
 
 /// The trait all encoders implement
 pub trait ImageEncoder {
@@ -100,17 +82,19 @@ pub trait ImageEncoder {
         ))
     }
 
-    /// Convert the image to a compatible format for the encoder. This is used by the encoding
-    /// methods on `DynamicImage`.
+    /// All color types supported by this encoder. If `None`, supported colors aren't known.
     ///
-    /// Note that this is method is sealed to the crate and effectively pub(crate) due to the
-    /// argument type not being nameable.
-    #[doc(hidden)]
-    fn make_compatible_img(
-        &self,
-        _: MethodSealedToImage,
-        _input: &DynamicImage,
-    ) -> Option<DynamicImage> {
+    /// Encoders typically only support a select few color types for writing, and supported ones
+    /// vary from encoder to encoder. This method allows encoders to specify which color types
+    /// their [`write_image`](Self::write_image) method supports.
+    ///
+    /// If `Some` list is returned, it must not be empty and must not contain duplicates.
+    ///
+    /// # Notes
+    ///
+    /// One of the use cases for the information returned by this method is to enable automatic
+    /// color conversion when saving images. See [`DynamicImage::save`] for more information.
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
         None
     }
 }
@@ -136,17 +120,219 @@ impl<T: ImageEncoder> ImageEncoderBoxed for T {
     }
 }
 
-/// Implement `dynimage_conversion_sequence` for the common case of supporting only 8-bit colors
-/// (with and without alpha).
-#[allow(unused)]
-pub(crate) fn dynimage_conversion_8bit(img: &DynamicImage) -> Option<DynamicImage> {
-    use ColorType::*;
+pub(crate) fn make_compatible_img(
+    img: &DynamicImage,
+    supported: Option<&[ExtendedColorType]>,
+) -> Option<DynamicImage> {
+    let color = img.color();
+    let to = to_supported_color(color, supported?)?;
+    if to == color {
+        // no conversion necessary
+        return None;
+    }
 
-    match img.color() {
-        Rgb8 | Rgba8 | L8 | La8 => None,
-        L16 | L32F => Some(img.to_luma8().into()),
-        La16 | La32F => Some(img.to_luma_alpha8().into()),
-        Rgb16 | Rgb32F => Some(img.to_rgb8().into()),
-        Rgba16 | Rgba32F => Some(img.to_rgba8().into()),
+    let color = decompose_color_type(color);
+    let to = decompose_color_type(to);
+
+    if color.has_color != to.has_color {
+        // We don't want to convert RGB <-> Luma, because it's not clear how
+        // this conversion should treat the color space information.
+        return None;
+    }
+
+    // add or remove alpha as necessary
+    let img = if to.has_alpha != color.has_alpha {
+        Cow::Owned(toggle_alpha(img))
+    } else {
+        Cow::Borrowed(img)
+    };
+
+    // adjust precision as necessary
+    let img = if to.precision != color.precision {
+        Cow::Owned(match to.precision {
+            Precision::U8 => img.to_u8(),
+            Precision::U16 => img.to_u16(),
+            Precision::F32 => img.to_f32(),
+        })
+    } else {
+        img
+    };
+
+    match img {
+        Cow::Borrowed(_) => None,
+        Cow::Owned(img) => Some(img),
+    }
+}
+fn to_supported_color(from: ColorType, supported: &[ExtendedColorType]) -> Option<ColorType> {
+    let from = decompose_color_type(from);
+
+    supported
+        .iter()
+        .filter_map(|c| c.color_type())
+        .min_by_key(|&to| {
+            let to = decompose_color_type(to);
+            let mut loss = 0;
+
+            // channel losses are heavily penalized, since a lot of information is lost
+            // channel gains are penalized, since they are inefficient and don't add any information
+            const ALPHA_LOST: u16 = 100;
+            const ALPHA_GAIN: u16 = 3;
+            const COLOR_LOST: u16 = 200;
+            const COLOR_GAIN: u16 = 6;
+
+            match (from.has_alpha, to.has_alpha) {
+                (true, false) => loss += ALPHA_LOST,
+                (false, true) => loss += ALPHA_GAIN,
+                _ => {}
+            }
+            match (from.has_color, to.has_color) {
+                (true, false) => loss += COLOR_LOST,
+                (false, true) => loss += COLOR_GAIN,
+                _ => {}
+            }
+
+            const PRECISION_LOST: u16 = 10;
+            const PRECISION_GAIN: u16 = 1;
+            match (to.precision as i16) - (from.precision as i16) {
+                m @ 1.. => loss += PRECISION_LOST * m as u16,
+                m @ ..=-1 => loss += PRECISION_GAIN * m.unsigned_abs(),
+                0 => {}
+            }
+
+            loss
+        })
+}
+
+/// If the image has an alpha channel, remove it. Otherwise, add an alpha channel with full opacity.
+fn toggle_alpha(image: &DynamicImage) -> DynamicImage {
+    match image {
+        // no alpha => add it
+        DynamicImage::ImageLuma8(buffer) => DynamicImage::ImageLumaA8(buffer.convert()),
+        DynamicImage::ImageRgb8(buffer) => DynamicImage::ImageRgba8(buffer.convert()),
+        DynamicImage::ImageLuma16(buffer) => DynamicImage::ImageLumaA16(buffer.convert()),
+        DynamicImage::ImageRgb16(buffer) => DynamicImage::ImageRgba16(buffer.convert()),
+        DynamicImage::ImageLuma32F(buffer) => DynamicImage::ImageLumaA32F(buffer.convert()),
+        DynamicImage::ImageRgb32F(buffer) => DynamicImage::ImageRgba32F(buffer.convert()),
+        // alpha => remove it
+        DynamicImage::ImageLumaA8(buffer) => DynamicImage::ImageLuma8(buffer.convert()),
+        DynamicImage::ImageRgba8(buffer) => DynamicImage::ImageRgb8(buffer.convert()),
+        DynamicImage::ImageLumaA16(buffer) => DynamicImage::ImageLuma16(buffer.convert()),
+        DynamicImage::ImageRgba16(buffer) => DynamicImage::ImageRgb16(buffer.convert()),
+        DynamicImage::ImageLumaA32F(buffer) => DynamicImage::ImageLuma32F(buffer.convert()),
+        DynamicImage::ImageRgba32F(buffer) => DynamicImage::ImageRgb32F(buffer.convert()),
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum Precision {
+    U8 = 0,
+    U16 = 1,
+    F32 = 2,
+}
+struct ColorDesc {
+    /// RGB if true, Luma if false
+    has_color: bool,
+    /// Alpha if true, no alpha if false
+    has_alpha: bool,
+    precision: Precision,
+}
+fn decompose_color_type(color: ColorType) -> ColorDesc {
+    use ColorType::*;
+    ColorDesc {
+        has_color: color.has_color(),
+        has_alpha: color.has_alpha(),
+        precision: match color {
+            L8 | La8 | Rgb8 | Rgba8 => Precision::U8,
+            L16 | La16 | Rgb16 | Rgba16 => Precision::U16,
+            L32F | La32F | Rgb32F | Rgba32F => Precision::F32,
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_conversion_png() {
+        let png_supported_colors = &[
+            ExtendedColorType::Rgb8,
+            ExtendedColorType::Rgba8,
+            ExtendedColorType::L8,
+            ExtendedColorType::La8,
+            ExtendedColorType::Rgb16,
+            ExtendedColorType::Rgba16,
+            ExtendedColorType::L16,
+            ExtendedColorType::La16,
+        ];
+        let to = |from| to_supported_color(from, png_supported_colors).unwrap_or(from);
+
+        assert_eq!(to(ColorType::L8), ColorType::L8);
+        assert_eq!(to(ColorType::La8), ColorType::La8);
+        assert_eq!(to(ColorType::Rgb8), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba8), ColorType::Rgba8);
+        assert_eq!(to(ColorType::L16), ColorType::L16);
+        assert_eq!(to(ColorType::La16), ColorType::La16);
+        assert_eq!(to(ColorType::Rgb16), ColorType::Rgb16);
+        assert_eq!(to(ColorType::Rgba16), ColorType::Rgba16);
+        assert_eq!(to(ColorType::Rgb32F), ColorType::Rgb16);
+        assert_eq!(to(ColorType::Rgba32F), ColorType::Rgba16);
+    }
+
+    #[test]
+    fn test_conversion_jpeg() {
+        let jpeg_supported_colors = &[ExtendedColorType::Rgb8, ExtendedColorType::L8];
+        let to = |from| to_supported_color(from, jpeg_supported_colors).unwrap_or(from);
+
+        assert_eq!(to(ColorType::L8), ColorType::L8);
+        assert_eq!(to(ColorType::La8), ColorType::L8);
+        assert_eq!(to(ColorType::Rgb8), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba8), ColorType::Rgb8);
+        assert_eq!(to(ColorType::L16), ColorType::L8);
+        assert_eq!(to(ColorType::La16), ColorType::L8);
+        assert_eq!(to(ColorType::Rgb16), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba16), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgb32F), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba32F), ColorType::Rgb8);
+    }
+
+    #[test]
+    fn test_conversion_bmp() {
+        let bmp_supported_colors = &[
+            ExtendedColorType::Rgb8,
+            ExtendedColorType::Rgba8,
+            ExtendedColorType::L1,
+            ExtendedColorType::L8,
+            ExtendedColorType::La8,
+        ];
+        let to = |from| to_supported_color(from, bmp_supported_colors).unwrap_or(from);
+
+        assert_eq!(to(ColorType::L8), ColorType::L8);
+        assert_eq!(to(ColorType::La8), ColorType::La8);
+        assert_eq!(to(ColorType::Rgb8), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba8), ColorType::Rgba8);
+        assert_eq!(to(ColorType::L16), ColorType::L8);
+        assert_eq!(to(ColorType::La16), ColorType::La8);
+        assert_eq!(to(ColorType::Rgb16), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba16), ColorType::Rgba8);
+        assert_eq!(to(ColorType::Rgb32F), ColorType::Rgb8);
+        assert_eq!(to(ColorType::Rgba32F), ColorType::Rgba8);
+    }
+
+    #[test]
+    fn test_conversion_hdr() {
+        let hdr_supported_colors = &[ExtendedColorType::Rgb32F];
+        let to = |from| to_supported_color(from, hdr_supported_colors).unwrap_or(from);
+
+        assert_eq!(to(ColorType::L8), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::La8), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgb8), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgba8), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::L16), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::La16), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgb16), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgba16), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgb32F), ColorType::Rgb32F);
+        assert_eq!(to(ColorType::Rgba32F), ColorType::Rgb32F);
     }
 }

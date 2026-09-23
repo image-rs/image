@@ -57,6 +57,8 @@ impl<W: Write> BmpEncoder<W> {
         color_type: ExtendedColorType,
         palette: Option<&[[u8; 3]]>,
     ) -> ImageResult<()> {
+        color_type.assert_buf_len(width, height, image);
+
         if palette.is_some()
             && color_type != ExtendedColorType::L1
             && color_type != ExtendedColorType::L8
@@ -76,14 +78,6 @@ impl<W: Write> BmpEncoder<W> {
                 crate::error::LimitErrorKind::DimensionError,
             )));
         }
-
-        let expected_buffer_len = color_type.buffer_size(width, height);
-        assert_eq!(
-            expected_buffer_len,
-            image.len() as u64,
-            "Invalid buffer length: expected {expected_buffer_len} got {} for {width}x{height} image",
-            image.len(),
-        );
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 

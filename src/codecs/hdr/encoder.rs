@@ -12,6 +12,7 @@ pub struct HdrEncoder<W: Write> {
 }
 
 impl<W: Write> ImageEncoder for HdrEncoder<W> {
+    #[track_caller]
     fn write_image(
         self,
         unaligned_bytes: &[u8],
@@ -19,9 +20,12 @@ impl<W: Write> ImageEncoder for HdrEncoder<W> {
         height: u32,
         color_type: ExtendedColorType,
     ) -> ImageResult<()> {
+        color_type.assert_buf_len(width, height, unaligned_bytes);
+
         match color_type {
             ExtendedColorType::Rgb32F => {
                 let bytes_per_pixel = color_type.bits_per_pixel() as usize / 8;
+
                 let rgbe_pixels = unaligned_bytes
                     .chunks_exact(bytes_per_pixel)
                     .map(|bytes| to_rgbe8(Rgb::<f32>(bytemuck::pod_read_unaligned(bytes))));

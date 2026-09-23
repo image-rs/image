@@ -2,12 +2,15 @@
 
 use std::collections::TryReserveError;
 
-/// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
-/// every `row_size` entries there are padding bits up to the next byte boundary.
+/// Expand a buffer of packed 1, 2, or 4 bits integers into u8's.
+///
+/// Assumes that:
+/// 1. scanlines begin on byte boundaries,
+/// 2. every `row_size` entries there are padding bits up to the next byte boundary.
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
-    // Note: this conversion assumes that the scanlines begin on byte boundaries
+    debug_assert!(bit_depth == 1 || bit_depth == 2 || bit_depth == 4);
     let mask = (1u8 << bit_depth as usize) - 1;
     let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
     let bit_width = row_size * u32::from(bit_depth);

@@ -355,6 +355,10 @@ fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> 
     let fb = read_rgbe(r)?;
     if fb.c[0] == 2 && fb.c[1] == 2 && fb.c[2] < 128 {
         // denormalized pixel value (2,2,<128,_) indicates new per component RLE method
+        let encoded_width = (usize::from(fb.c[2]) << 8) | usize::from(fb.e);
+        if encoded_width != width {
+            return Err(DecoderError::WrongScanlineLength(encoded_width, width).into());
+        }
         // decode_component guarantees that offset is within 0 .. width
         // therefore we can skip bounds checking here, but we will not
         decode_component(r, width, |offset, value| buf[offset].c[0] = value)?;
@@ -797,5 +801,42 @@ mod tests {
         assert!(
             HdrDecoder::with_spec_compliance(Cursor::new(data), SpecCompliance::Lenient).is_err()
         );
+    }
+
+    fn modern_rle_scanline(encoded_width: u16, decoded_width: usize) -> Vec<u8> {
+        let mut data = vec![2, 2, (encoded_width >> 8) as u8, encoded_width as u8];
+        for _ in 0..4 {
+            data.push(decoded_width as u8);
+            data.extend(std::iter::repeat_n(1, decoded_width));
+        }
+        data
+    }
+
+    #[test]
+    fn modern_rle_rejects_encoded_width_mismatch() {
+        let width = 8;
+        let mut buf = vec![Rgbe8Pixel::default(); width];
+        let err = read_scanline(&mut Cursor::new(modern_rle_scanline(7, width)), &mut buf)
+            .expect_err("marker width 7 must not decode as 8 pixels");
+        assert_eq!(
+            err.to_string(),
+            ImageError::from(DecoderError::WrongScanlineLength(7, 8)).to_string()
+        );
+
+        let mut buf = vec![Rgbe8Pixel::default(); width];
+        let err = read_scanline(&mut Cursor::new(modern_rle_scanline(9, width)), &mut buf)
+            .expect_err("marker width 9 must not decode as 8 pixels");
+        assert_eq!(
+            err.to_string(),
+            ImageError::from(DecoderError::WrongScanlineLength(9, 8)).to_string()
+        );
+    }
+
+    #[test]
+    fn modern_rle_accepts_matching_encoded_width() {
+        let width = 8;
+        let mut buf = vec![Rgbe8Pixel::default(); width];
+        read_scanline(&mut Cursor::new(modern_rle_scanline(8, width)), &mut buf).unwrap();
+        assert!(buf.iter().all(|p| p == &rgbe8(1, 1, 1, 1)));
     }
 }

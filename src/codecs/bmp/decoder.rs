@@ -1843,6 +1843,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     fn read_palettized_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        if self.indexed_color && self.bit_count != 8 {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Bmp.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Indexed color decoding is only supported for 8-bit palettized BMP".into(),
+                    ),
+                ),
+            ));
+        }
+
         let num_channels = self.num_channels();
         let row_byte_length = ((i32::from(self.bit_count) * self.width + 31) / 32 * 4) as usize;
         let mut indices = vec![0; row_byte_length];
@@ -3166,5 +3177,26 @@ mod test {
             result.is_err(),
             "Expected error in strict mode for truncated file"
         );
+    }
+
+    #[test]
+    fn test_indexed_color_sub_byte_rejected() {
+        use crate::ImageDecoder;
+        use std::io::Cursor;
+
+        // 1-bit BMP 2x2 image
+        let data = vec![
+            0x42, 0x4D, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
+        ];
+
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        decoder.set_indexed_color(true);
+        let mut buf = vec![0u8; 4];
+        let res = decoder.read_image(&mut buf);
+        assert!(res.is_err());
     }
 }

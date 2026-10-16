@@ -1401,10 +1401,13 @@ where
         } = source;
         let dx = x;
         let dy = y;
-        assert!(sx < self.width() && dx < self.width());
-        assert!(sy < self.height() && dy < self.height());
-        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height {
+        if source.test_in_bounds_of(self).is_err()
+            || (Rect { x, y, ..source }).test_in_bounds_of(self).is_err()
+        {
             return false;
+        }
+        if width == 0 || height == 0 {
+            return true;
         }
 
         if sy < dy {

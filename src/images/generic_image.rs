@@ -310,8 +310,9 @@ pub trait GenericImage: GenericImageView {
     /// The destination rectangle of the copy is specified with the top-left corner placed at (x, y).
     ///
     /// # Returns
-    /// `true` if the copy was successful, `false` if the image could not
-    /// be copied due to size constraints.
+    /// `true` if the copy was successful, `false` if either rectangle is out of bounds.
+    /// Empty rectangles are copied successfully without modifying the image, provided both
+    /// rectangles are in bounds.
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
         let Rect {
             x: sx,
@@ -321,10 +322,13 @@ pub trait GenericImage: GenericImageView {
         } = source;
         let dx = x;
         let dy = y;
-        assert!(sx < self.width() && dx < self.width());
-        assert!(sy < self.height() && dy < self.height());
-        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height {
+        if source.test_in_bounds_of(self).is_err()
+            || (Rect { x, y, ..source }).test_in_bounds_of(self).is_err()
+        {
             return false;
+        }
+        if width == 0 || height == 0 {
+            return true;
         }
         // since `.rev()` creates a new dype we would either have to go with dynamic dispatch for the ranges
         // or have quite a lot of code bloat. A macro gives us static dispatch with less visible bloat.

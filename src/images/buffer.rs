@@ -1807,11 +1807,13 @@ where
     where
         IntoType: Pixel<Subpixel = SelfPixel::Subpixel> + PixelWithColorType,
     {
+        let rgb = color.try_into_rgb()?;
         let transform =
             options.as_transform_fn::<SelfPixel, IntoType>(self.color_space(), color)?;
 
         let (width, height) = self.dimensions();
         let mut target = ImageBuffer::new(width, height);
+        target.set_rgb_color_space(rgb);
 
         let from = self.subpixels();
         let into = target.subpixels_mut();
@@ -2293,6 +2295,45 @@ mod test {
             .expect("supported transform");
 
         assert_eq!(target[(0, 0)], Rgb([234u8, 51, 35]));
+    }
+
+    /// The buffer returned by `to_color_space` must be tagged with the requested color space,
+    /// not inherit the source's, and the source must be left untouched. Converting onwards from
+    /// the result must then start from the new color space.
+    #[test]
+    fn to_color_updates_color_space() {
+        let mut source = ImageBuffer::from_fn(4, 4, |_, _| Rgba([0.5f32, 0.25, 0.125, 1.0]));
+        source.set_color_space(Cicp::SRGB).unwrap();
+
+        let linear = source
+            .to_color_space::<Rgba<f32>>(Cicp::SRGB_LINEAR, Default::default())
+            .expect("supported transform");
+
+        assert_eq!(source.color_space(), Cicp::SRGB);
+        assert_eq!(linear.color_space(), Cicp::SRGB_LINEAR);
+
+        // Converting back must use the linear tag as its source, so it round-trips.
+        let back = linear
+            .to_color_space::<Rgb<f32>>(Cicp::SRGB, Default::default())
+            .expect("supported transform");
+
+        assert_eq!(back.color_space(), Cicp::SRGB);
+        let Rgb([r, g, b]) = back[(0, 0)];
+        assert!((r - 0.5).abs() < 1e-3, "{r}");
+        assert!((g - 0.25).abs() < 1e-3, "{g}");
+        assert!((b - 0.125).abs() < 1e-3, "{b}");
+    }
+
+    /// Color spaces that an RGB buffer cannot represent, such as narrow range, are rejected
+    /// rather than silently dropping part of the requested encoding.
+    #[test]
+    fn to_color_rejects_non_rgb_cicp() {
+        let source = ImageBuffer::from_fn(4, 4, |_, _| Rgb([255u8, 0, 0]));
+        let mut cicp = Cicp::SRGB;
+        cicp.full_range = CicpVideoFullRangeFlag::NarrowRange;
+
+        let result = source.to_color_space::<Rgb<u8>>(cicp, Default::default());
+        assert!(matches!(result, Err(crate::ImageError::Parameter(_))));
     }
 
     #[test]

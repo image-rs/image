@@ -471,11 +471,18 @@ trait HeaderReader: Read {
     }
 
     fn read_next_line(&mut self) -> ImageResult<String> {
+        const MAX_LINE_LEN: usize = 4096;
         let mut buffer = Vec::new();
         loop {
             let mut byte = [0];
             if self.read(&mut byte)? == 0 || byte[0] == b'\n' {
                 break;
+            }
+            if buffer.len() >= MAX_LINE_LEN {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Pnm.into(),
+                    "PAM header line exceeds maximum permitted length",
+                )));
             }
             buffer.push(byte[0]);
         }
@@ -1578,5 +1585,21 @@ ENDHDR
         let data = b"P4 1 01234567890\n";
         let mut decoder = PnmDecoder::new(&data[..]).unwrap();
         assert!(decoder.prepare_image().unwrap().layout.dimensions() == (1, 1234567890));
+    }
+
+    #[test]
+    fn pam_header_line_too_long() {
+        let mut data = b"P7\nWIDTH 10\nHEIGHT 10\nDEPTH 1\nMAXVAL 255\nTUPLTYPE ".to_vec();
+        data.extend(vec![b'A'; 5000]);
+        data.push(b'\n');
+        data.extend(b"ENDHDR\n");
+        assert!(PnmDecoder::new(&data[..]).is_err());
+    }
+
+    #[test]
+    fn pam_header_non_terminated_line() {
+        let mut data = b"P7\nWIDTH 10\nTUPLTYPE ".to_vec();
+        data.extend(vec![b'A'; 5000]);
+        assert!(PnmDecoder::new(&data[..]).is_err());
     }
 }

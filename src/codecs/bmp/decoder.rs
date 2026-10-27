@@ -727,7 +727,9 @@ fn read_scanline(
             return Ok(());
         };
 
-        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
+        // The data offset can lie past the end of the file.
+        let remaining = end_pos.checked_sub(current_pos);
+        if remaining.and_then(|n| usize::try_from(n).ok()) == Some(head.len()) {
             reader.read_exact(head)?;
             *last = b'\0';
             return Ok(());
@@ -3160,6 +3162,16 @@ mod test {
                 "bitfields, offset {offset}"
             );
         }
+    }
+
+    /// A data_offset past the end of the file is an error, not a panic.
+    #[test]
+    fn test_data_offset_past_the_end_of_the_file_is_an_error() {
+        let pixels = [0, 0, 255, 255, 0, 0, 0, 0];
+        let data = bmp_2x1(24, 0, &[], &pixels, 1000);
+        let mut decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let mut buf = vec![0u8; decoder.prepare_image().unwrap().total_bytes() as usize];
+        assert!(decoder.read_image(&mut buf).is_err());
     }
 
     /// Test that strict mode correctly rejects RLE files with known corruptions.

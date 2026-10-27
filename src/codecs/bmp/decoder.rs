@@ -1558,16 +1558,15 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
 
                 // For no_file_header mode, capture data_offset now (after palette read)
                 // before ICC profile reading potentially changes reader position.
-                // For normal mode, clamp data_offset if it points into the DIB header
-                // (between FILE_HEADER_SIZE and bmp_header_end). Such values are invalid
-                // because they overlap with header data.
-                if self.no_file_header {
-                    self.data_offset = self.reader.stream_position()?;
-                } else if self.spec_strictness != SpecCompliance::Strict
-                    && self.data_offset >= FILE_HEADER_SIZE
-                    && self.data_offset < offsets.bmp_header_end
+                // For normal mode, a data_offset inside the file or DIB header (some
+                // writers leave it at 0) overlaps header data and is invalid. Leniently,
+                // the pixel data is taken to start where it does without a file header:
+                // after the bitmasks and the palette, which is the reader position now.
+                if self.no_file_header
+                    || (self.spec_strictness != SpecCompliance::Strict
+                        && self.data_offset < offsets.bmp_header_end)
                 {
-                    self.data_offset = offsets.bmp_header_end;
+                    self.data_offset = self.reader.stream_position()?;
                 }
 
                 // Always progress to ReadingIccProfile next
@@ -3080,6 +3079,87 @@ mod test {
             buf, ref_buf,
             "BMP with invalid data_offset=34 should decode identically to data_offset=54"
         );
+    }
+
+    /// A 2x1 BMP with a 40-byte info header, `extra` (bitmasks and palette) between the
+    /// headers and the pixels, and the given `data_offset` in its file header.
+    fn bmp_2x1(
+        bpp: u16,
+        compression: u32,
+        extra: &[u8],
+        pixels: &[u8],
+        data_offset: u32,
+    ) -> Vec<u8> {
+        let colors_used = if bpp <= 8 {
+            (extra.len() / 4) as u32
+        } else {
+            0
+        };
+        let mut b = b"BM".to_vec();
+        b.extend_from_slice(&(54 + (extra.len() + pixels.len()) as u32).to_le_bytes());
+        b.extend_from_slice(&[0; 4]);
+        b.extend_from_slice(&data_offset.to_le_bytes());
+        b.extend_from_slice(&40u32.to_le_bytes());
+        b.extend_from_slice(&2i32.to_le_bytes());
+        b.extend_from_slice(&1i32.to_le_bytes());
+        b.extend_from_slice(&1u16.to_le_bytes());
+        b.extend_from_slice(&bpp.to_le_bytes());
+        for v in [compression, pixels.len() as u32, 0, 0, colors_used, 0] {
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        b.extend_from_slice(extra);
+        b.extend_from_slice(pixels);
+        b
+    }
+
+    fn decode_rgb(data: &[u8]) -> Vec<u8> {
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        let mut buf = vec![0u8; decoder.prepare_image().unwrap().total_bytes() as usize];
+        decoder.read_image(&mut buf).unwrap();
+        buf
+    }
+
+    /// Some writers leave data_offset at 0. Like any offset inside the headers, it is taken
+    /// to mean the pixel data follows the bitmasks and the palette (as without a file header),
+    /// so the image decodes as it does with the right offset.
+    #[test]
+    fn test_data_offset_inside_the_headers_starts_after_the_palette_and_bitmasks() {
+        let red_blue = [255, 0, 0, 0, 0, 255];
+        // 24-bit: the pixels start at 54.
+        let pixels = [0, 0, 255, 255, 0, 0, 0, 0];
+        for offset in [0, 1, 13, 14, 53] {
+            assert_eq!(
+                decode_rgb(&bmp_2x1(24, 0, &[], &pixels, offset)),
+                red_blue,
+                "24-bit, offset {offset}"
+            );
+        }
+        // 8-bit with a two-colour palette: the pixels start at 62.
+        let palette = [0, 0, 255, 0, 255, 0, 0, 0];
+        for offset in [0, 13, 53] {
+            assert_eq!(
+                decode_rgb(&bmp_2x1(8, 0, &palette, &[0, 1, 0, 0], offset)),
+                red_blue,
+                "8-bit, offset {offset}"
+            );
+        }
+        assert_eq!(
+            decode_rgb(&bmp_2x1(8, 0, &palette, &[0, 1, 0, 0], 62)),
+            red_blue
+        );
+        // 16-bit BI_BITFIELDS (5-6-5) with its masks after the header: the pixels start at 66.
+        let mut masks = Vec::new();
+        for m in [0xF800u32, 0x07E0, 0x001F] {
+            masks.extend_from_slice(&m.to_le_bytes());
+        }
+        let pixels = [0x00, 0xF8, 0x1F, 0x00];
+        for offset in [0, 13, 53, 66] {
+            assert_eq!(
+                decode_rgb(&bmp_2x1(16, 3, &masks, &pixels, offset)),
+                red_blue,
+                "bitfields, offset {offset}"
+            );
+        }
     }
 
     /// Test that strict mode correctly rejects RLE files with known corruptions.

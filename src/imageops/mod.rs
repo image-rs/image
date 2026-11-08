@@ -1,7 +1,7 @@
 //! Image Processing Functions
 use crate::math::Rect;
 use crate::traits::{Lerp, Pixel, Primitive};
-use crate::{GenericImage, GenericImageView, SubImage};
+use crate::{GenericImage, GenericImageView, ImageBuffer, SubImage};
 
 /// Affine transformations
 pub use self::affine::{
@@ -322,6 +322,75 @@ where
         for x in 0..range_width {
             let p = top.get_pixel(origin_top_x + x, origin_top_y + y);
             bottom.put_pixel(origin_bottom_x + x, origin_bottom_y + y, p);
+        }
+    }
+}
+
+pub(crate) fn map_pixels<From: Pixel, To: Pixel>(
+    image: &impl GenericImageView<Pixel = From>,
+    f: impl Fn(From) -> To,
+) -> ImageBuffer<To, Vec<To::Subpixel>> {
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(width, height);
+    out.copy_color_space_from(&image.buffer_with_dimensions(0, 0));
+
+    // some of the below function don't like empty images
+    if width == 0 || height == 0 {
+        return out;
+    }
+
+    // fast path for row-major packed views
+    if let Some(view) = image.to_pixel_view() {
+        if let Some(row_iter) = view.iter_rows() {
+            for (row, out_row) in row_iter.zip(out.rows_mut()) {
+                let row_pixels = From::pixels_from_channels(row);
+                debug_assert_eq!(row_pixels.len(), out_row.len());
+
+                for (p, out_p) in row_pixels.iter().zip(out_row.iter_mut()) {
+                    *out_p = f(*p);
+                }
+            }
+            return out;
+        }
+    }
+
+    // fallback if no favorable view exists
+    for (x, y, pixel) in image.pixels() {
+        out.put_pixel(x, y, f(pixel));
+    }
+    out
+}
+pub(crate) fn map_pixels_in_place<P: Pixel>(
+    image: &mut impl GenericImage<Pixel = P>,
+    f: impl Fn(P) -> P,
+) {
+    let (width, height) = image.dimensions();
+
+    // some of the below function don't like empty images
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    // fast path for row-major packed views
+    if let Some(mut view) = image.to_pixel_view_mut() {
+        if let Some(row_iter) = view.iter_rows_mut() {
+            for row in row_iter {
+                let row_pixels = P::pixels_from_channels_mut(row);
+                debug_assert_eq!(row_pixels.len(), width as usize);
+
+                for p in row_pixels {
+                    *p = f(*p);
+                }
+            }
+            return;
+        }
+    }
+
+    // fallback if no favorable view exists
+    for y in 0..height {
+        for x in 0..width {
+            let p = image.get_pixel(x, y);
+            image.put_pixel(x, y, f(p));
         }
     }
 }

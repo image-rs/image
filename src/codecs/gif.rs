@@ -42,8 +42,8 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
-    FormatAttributes,
+    DecodedAnimationAttributes, DecodedColorProfile, DecodedImageAttributes, DecodedMetadataHint,
+    DecoderPreparedImage, FormatAttributes,
 };
 use crate::metadata::LoopCount;
 use crate::traits::Pixel;
@@ -117,6 +117,7 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
             // FIXME: may appear anywhere.
             xmp: DecodedMetadataHint::InHeader,
             icc: DecodedMetadataHint::InHeader,
+            color_profile: DecodedMetadataHint::InHeader,
             iptc: DecodedMetadataHint::None,
             // FIXME: there is some in a Photoshop 8BIM extension which we do not collect.
             exif: DecodedMetadataHint::Unsupported,
@@ -357,6 +358,10 @@ impl<R: BufRead + Seek> ImageDecoder for GifDecoder<R> {
         let decoder = self.ensure_decoder()?;
         // Similar to XMP metadata
         Ok(decoder.icc_profile().map(Vec::from))
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        Ok(self.icc_profile()?.map(DecodedColorProfile::from_icc))
     }
 
     fn xmp_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

@@ -181,10 +181,11 @@ fn bad_gif_oom() {
 #[cfg(feature = "png")]
 fn resizing_with_alpha() {
     use image::imageops::FilterType;
+    use image::metadata::Cicp;
     use image::GenericImageView as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
-    let image = image::ImageReaderOptions::open(
+    let mut image = image::ImageReaderOptions::open(
         base.join("regression/image/resize-with-alpha-original.png"),
     )
     .unwrap()
@@ -195,6 +196,9 @@ fn resizing_with_alpha() {
     let mut resizable = image.clone();
     resizable.resize_exact(2 * w, 2 * h, FilterType::Nearest);
     resizable.resize_exact(w, h, FilterType::Nearest);
+
+    image.set_color_space(Cicp::SRGB).unwrap();
+    resizable.set_color_space(Cicp::SRGB).unwrap();
 
     assert_eq!(image, resizable);
 }

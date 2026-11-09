@@ -4,8 +4,8 @@ use image_webp::LoopCount;
 
 use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::io::{
-    DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
-    FormatAttributes, SequenceControl,
+    DecodedAnimationAttributes, DecodedColorProfile, DecodedImageAttributes, DecodedMetadataHint,
+    DecoderPreparedImage, FormatAttributes, SequenceControl,
 };
 use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Rgba};
 
@@ -45,6 +45,7 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             // As per extended file format description:
             // <https://developers.google.com/speed/webp/docs/riff_container#extended_file_format>
             icc: DecodedMetadataHint::InHeader,
+            color_profile: DecodedMetadataHint::InHeader,
             exif: DecodedMetadataHint::InHeader,
             xmp: DecodedMetadataHint::InHeader,
             ..FormatAttributes::default()
@@ -109,6 +110,10 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
         self.inner
             .icc_profile()
             .map_err(ImageError::from_webp_decode)
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        Ok(self.icc_profile()?.map(DecodedColorProfile::from_icc))
     }
 
     fn exif_metadata(&mut self) -> ImageResult<Option<Vec<u8>>> {

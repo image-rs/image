@@ -8,7 +8,7 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// this crate.
 #[allow(private_bounds)]
 pub trait PrimitiveSealed:
-    Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + RgbToLuma
+    Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + RgbToLuma + SaturatingAdd + SaturatingSub
 {
 }
 
@@ -229,3 +229,47 @@ impl RgbToLuma for f32 {
     }
 }
 impl RgbToLuma for f64 {}
+
+pub(crate) trait SaturatingAdd: Sized {
+    fn saturating_add(self, rhs: Self) -> Self;
+}
+pub(crate) trait SaturatingSub: Sized {
+    fn saturating_sub(self, rhs: Self) -> Self;
+}
+impl SaturatingAdd for f32 {
+    fn saturating_add(self, rhs: Self) -> Self {
+        (self + rhs).clamp(0.0, 1.0)
+    }
+}
+impl SaturatingSub for f32 {
+    fn saturating_sub(self, rhs: Self) -> Self {
+        (self - rhs).clamp(0.0, 1.0)
+    }
+}
+impl SaturatingAdd for f64 {
+    fn saturating_add(self, rhs: Self) -> Self {
+        (self + rhs).clamp(0.0, 1.0)
+    }
+}
+impl SaturatingSub for f64 {
+    fn saturating_sub(self, rhs: Self) -> Self {
+        (self - rhs).clamp(0.0, 1.0)
+    }
+}
+
+macro_rules! impl_saturating_ops_for_ints {
+    ($($t:ty),+) => { $(
+        impl SaturatingAdd for $t {
+            fn saturating_add(self, rhs: Self) -> Self {
+                self.saturating_add(rhs)
+            }
+        }
+        impl SaturatingSub for $t {
+            fn saturating_sub(self, rhs: Self) -> Self {
+                self.saturating_sub(rhs)
+            }
+        }
+    )+ };
+}
+
+impl_saturating_ops_for_ints!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);

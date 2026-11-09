@@ -32,7 +32,8 @@ pub trait ImageEncoder {
     ///
     /// # Panics
     ///
-    /// Panics if `buf.len() as u64 != color_type.buffer_size(width, height)`.
+    /// Panics if `buf.len() != color_type.buffer_size(width, height)`.
+    /// See [`ExtendedColorType::buffer_size`] for more information.
     fn write_image(
         self,
         buf: &[u8],

@@ -715,15 +715,6 @@ impl<W: Write + Seek> TiffEncoder<W> {
 }
 
 impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
-    /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
-    ///
-    /// 16-bit types assume the buffer is native endian.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the buffer does not hold exactly the number of bytes required for the given
-    /// `width`, `height`, and `color_type`, accounting for rows padded to whole bytes for
-    /// sub-byte color types: `height * ((width * color_type.bits_per_pixel() as u32 + 7) / 8)`.
     #[track_caller]
     fn write_image(
         self,

@@ -317,10 +317,6 @@ impl<W> ImageEncoder for OpenExrEncoder<W>
 where
     W: Write + Seek,
 {
-    /// Writes the complete image.
-    ///
-    /// Assumes the writer is buffered. In most cases, you should wrap your writer in a `BufWriter`
-    /// for best performance.
     #[track_caller]
     fn write_image(
         self,

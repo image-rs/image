@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::codecs::png::PngEncoder;
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::{ExtendedColorType, ImageEncoder};
+use crate::error::{EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::{ExtendedColorType, ImageEncoder, ImageFormat};
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -101,21 +101,41 @@ impl<W: Write> IcoEncoder<W> {
                 )),
             )));
         }
-        let num_images = images.len() as u16;
 
-        let mut offset = ICO_ICONDIR_SIZE + (ICO_DIRENTRY_SIZE * (images.len() as u32));
-        write_icondir(&mut self.w, num_images)?;
-        for image in images {
+        write_icondir(&mut self.w, images.len() as u16)?;
+
+        let mut offset = ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE * images.len() as u32;
+        for (i, image) in images.iter().enumerate() {
+            let Ok(data_size) = u32::try_from(image.encoded_image.len()) else {
+                return Err(ImageError::Encoding(EncodingError::new(
+                    ImageFormat::Ico.into(),
+                    "the encoded image data must be at most 4 GiB",
+                )));
+            };
+
             write_direntry(
                 &mut self.w,
                 image.width,
                 image.height,
                 image.color_type,
                 offset,
-                image.encoded_image.len() as u32,
+                data_size,
             )?;
 
-            offset += image.encoded_image.len() as u32;
+            // The offset is always calculated for the next frame. So we want
+            // to skip it on the last frame since there is no next frame.
+            // This has the effect of allowing the last frame's content to go
+            // beyond the 4 GiB in the underlying writer.
+            if i == images.len() - 1 {
+                break;
+            }
+
+            offset = offset.checked_add(data_size).ok_or_else(|| {
+                ImageError::Encoding(EncodingError::new(
+                    ImageFormat::Ico.into(),
+                    "the total size of the ICO file must be at most 4 GiB",
+                ))
+            })?;
         }
         for image in images {
             self.w.write_all(&image.encoded_image)?;
@@ -177,8 +197,8 @@ fn write_direntry<W: Write>(
     w.write_u8(0)?;
     // Reserved field (must be zero):
     w.write_u8(0)?;
-    // Color planes:
-    w.write_u16::<LittleEndian>(0)?;
+    // Color planes: 1 is correct, 0 is merely accepted in most circumstances.
+    w.write_u16::<LittleEndian>(1)?;
     // Bits per pixel:
     w.write_u16::<LittleEndian>(color.bits_per_pixel())?;
     // Image data size, in bytes:
@@ -186,4 +206,33 @@ fn write_direntry<W: Write>(
     // Image data offset, in bytes:
     w.write_u32::<LittleEndian>(data_start)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    // Test that the encoder allows image where all frames have offsets < 4GiB
+    // (even if the total file size might be larger than 4 GiB), but disallows
+    // image where any frame has an offset >= 4 GiB.
+    #[test]
+    fn ico_larger_than_4_gib() {
+        // Allocate a 1 MiB ""image"" and make 4096 frames with it.
+        // The last frame will peek beyond the 4 GiB mark, since the header also takes a bit of memory.
+        let data = vec![0; 1024 * 1024];
+        let create_frame =
+            || IcoFrame::with_encoded(data.as_slice(), 256, 256, ExtendedColorType::Rgba8).unwrap();
+
+        let mut frames: Vec<IcoFrame> = (0..4096).map(|_| create_frame()).collect();
+
+        let encoder = IcoEncoder::new(io::sink());
+        let res = encoder.encode_images(&frames);
+        assert!(res.is_ok());
+
+        // adding just one more frame will cause the offset of the last frame to go beyond 4 GiB, which should cause an error.
+        frames.push(create_frame());
+        let encoder = IcoEncoder::new(io::sink());
+        let res = encoder.encode_images(&frames);
+        assert!(res.is_err());
+    }
 }

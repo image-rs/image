@@ -8,7 +8,6 @@ use std::cmp::min;
 use std::io::Write;
 use std::mem::size_of;
 
-use crate::buffer::ConvertBuffer;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
@@ -154,7 +153,7 @@ impl<W: Write> AvifEncoder<W> {
         color: ExtendedColorType,
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
-        fn try_from_raw<P: Pixel + 'static>(
+        fn try_from_raw<P: Pixel>(
             data: &[P::Subpixel],
             width: u32,
             height: u32,
@@ -172,7 +171,7 @@ impl<W: Write> AvifEncoder<W> {
             image: ImageBuffer<P, &[P::Subpixel]>,
         ) -> Img<&'buf [RGBA8]>
         where
-            P: Pixel + 'static,
+            P: Pixel,
             Rgba<u8>: FromColor<P>,
         {
             let (width, height) = image.dimensions();
@@ -223,7 +222,7 @@ impl<W: Write> AvifEncoder<W> {
                 let img = try_from_raw::<Rgb<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
                 // conversion but instead we use that a non-empty image must be addressable.
-                if img.pixels().len() == 0 {
+                if img.pixels().is_empty() {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::DimensionMismatch,
                     )));
@@ -240,7 +239,7 @@ impl<W: Write> AvifEncoder<W> {
                 let img = try_from_raw::<Rgba<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
                 // conversion but instead we use that a non-empty image must be addressable.
-                if img.pixels().len() == 0 {
+                if img.pixels().is_empty() {
                     return Err(ImageError::Parameter(ParameterError::from_kind(
                         ParameterErrorKind::DimensionMismatch,
                     )));

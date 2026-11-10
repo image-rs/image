@@ -42,5 +42,6 @@ multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
 skip = [
+    { name = "miniz_oxide", version = "0.8" }, # flate2 uses 0.8 while exr uses 0.9
     { name = "syn" },        # Some deps depend on 2 while others use 3 (e.g. newer serde-derive versions)
 ]

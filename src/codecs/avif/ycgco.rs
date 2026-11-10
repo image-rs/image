@@ -327,7 +327,7 @@ define_ycgco_half_chroma!(
     u8,
     RGBA_CN,
     8,
-    "Converts YCgCo 420 8-bit planar format to Rgba 8-bit"
+    "Converts YCgCo 422 8-bit planar format to Rgba 8-bit"
 );
 
 define_ycgco_half_chroma!(

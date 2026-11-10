@@ -1,16 +1,18 @@
 extern crate afl;
 extern crate image;
 
-use image::{DynamicImage, ImageDecoder};
 use image::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
+use image::{DynamicImage, ImageDecoder};
 
 #[inline(always)]
 fn pnm_decode(data: &[u8]) -> ImageResult<DynamicImage> {
-    let decoder = image::codecs::pnm::PnmDecoder::new(data)?;
-    let (width, height) = decoder.dimensions();
+    let mut decoder = image::codecs::pnm::PnmDecoder::new(data)?;
+    let total_bytes = decoder.prepare_image()?.total_bytes();
 
-    if width.saturating_mul(height) > 4_000_000 {
-        return Err(ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError)));
+    if total_bytes > 4_000_000 {
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::DimensionError,
+        )));
     }
 
     DynamicImage::from_decoder(decoder)

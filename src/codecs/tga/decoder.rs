@@ -1,6 +1,7 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
-use crate::error::DecodingError;
-use crate::io::ReadExt;
+use crate::error::{DecodingError, LimitError, LimitErrorKind};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, ReadExt};
+use crate::primitive_sealed::BgraSwizzle;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -76,20 +77,22 @@ impl TgaOrientation {
     }
 }
 
-/// This contains the nearest integers to the rational numbers
-/// `(255 x) / 31`, for each `x` between 0 and 31, inclusive.
-static LOOKUP_TABLE_5_BIT_TO_8_BIT: [u8; 32] = [
-    0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173,
-    181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
-];
-
 /// Convert TGA's 15/16-bit pixel format to its 24 bit pixel format
 fn expand_rgb15_to_rgb24(data: [u8; 2]) -> [u8; 3] {
+    /// Converts a 5-bit unorm to a 8-bit unorm.
+    /// This is equivalent to `round(x * 255 / 31)`.
+    /// Source: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
+    #[inline(always)]
+    fn unorm5_to_unorm8(x: u16) -> u8 {
+        debug_assert!(x <= 31);
+        ((x * 2108 + 92) >> 8) as u8
+    }
+
     let val = u16::from_le_bytes(data);
     [
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[(val & 0b11111) as usize],
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[((val >> 5) & 0b11111) as usize],
-        LOOKUP_TABLE_5_BIT_TO_8_BIT[((val >> 10) & 0b11111) as usize],
+        unorm5_to_unorm8(val & 0b11111),
+        unorm5_to_unorm8((val >> 5) & 0b11111),
+        unorm5_to_unorm8((val >> 10) & 0b11111),
     ]
 }
 
@@ -329,11 +332,8 @@ impl<R: Read> TgaDecoder<R> {
     fn reverse_encoding_in_output(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
-            ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_exact_mut(self.color_type.bytes_per_pixel().into()) {
-                    chunk.swap(0, 2);
-                }
-            }
+            ColorType::Rgb8 => BgraSwizzle::swizzle_rgb_bgr(pixels),
+            ColorType::Rgba8 => BgraSwizzle::swizzle_rgba_bgra(pixels),
             _ => {}
         }
     }
@@ -386,21 +386,23 @@ impl<R: Read> TgaDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        fn try_dimensions(value: usize) -> ImageResult<u32> {
+            value
+                .try_into()
+                .map_err(|_| LimitError::from_kind(LimitErrorKind::DimensionError))
+                .map_err(ImageError::Limits)
+        }
+
+        let width = try_dimensions(self.width)?;
+        let height = try_dimensions(self.height)?;
+
+        Ok(DecoderPreparedImage::new(width, height, self.color_type))
     }
 
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type
-            .unwrap_or_else(|| self.color_type().into())
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Decode the raw data
         //
@@ -452,10 +454,9 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
 
         self.reverse_encoding_in_output(buf);
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            original_color_type: self.original_color_type,
+            ..DecodedImageAttributes::default()
+        })
     }
 }

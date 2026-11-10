@@ -22,7 +22,7 @@
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes))?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -47,9 +47,8 @@
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).
 //!
-//! [`save`]: enum.DynamicImage.html#method.save
-//! [`write_to`]: enum.DynamicImage.html#method.write_to
-//! [`ImageReader`]: struct.Reader.html
+//! [`save`]: DynamicImage::save
+//! [`write_to`]: DynamicImage::write_to
 //!
 //! # Image buffers
 //!
@@ -64,11 +63,6 @@
 //! * [`flat`] module containing types for interoperability with generic channel
 //!   matrices and foreign interfaces.
 //!
-//! [`GenericImageView`]: trait.GenericImageView.html
-//! [`GenericImage`]: trait.GenericImage.html
-//! [`ImageBuffer`]: struct.ImageBuffer.html
-//! [`DynamicImage`]: enum.DynamicImage.html
-//! [`flat`]: flat/index.html
 //!
 //! # Low level encoding/decoding API
 //!
@@ -99,17 +93,15 @@
 //! # use image::codecs::png::PngDecoder;
 //! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
-//! let decoder = PngDecoder::new(&mut reader)?;
+//! let mut decoder = PngDecoder::new(&mut reader);
+//! let layout_etc = decoder.prepare_image()?;
+//!
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
 //! ```
-//!
-//! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
-//! [`ImageDecoder`]: trait.ImageDecoder.html
-//! [`ImageEncoder`]: trait.ImageEncoder.html
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
@@ -157,14 +149,16 @@ pub use crate::images::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open,
     write_buffer_with_format,
 };
+
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder},
+    decoder::ImageDecoder,
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::{ImageReader, SpecCompliance},
+    image_reader_type::{ImageReader, ImageReaderOptions, SpecCompliance},
     limits::{LimitSupport, Limits},
+    ImageLayout,
 };
 
 pub use crate::images::dynimage::DynamicImage;
@@ -178,8 +172,7 @@ pub mod error;
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::images::buffer::{
-        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
-        Pixels, PixelsMut, Rows, RowsMut,
+        EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut, Rows, RowsMut,
     };
 
     #[cfg(feature = "rayon")]
@@ -276,6 +269,7 @@ mod images;
 /// This is going to be internal.
 pub mod io;
 pub mod metadata;
+mod primitive_sealed;
 //TODO delete this module after a few releases
 mod traits;
 mod utils;

@@ -6,6 +6,7 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::AddAssign;
 
 use crate::color::{Luma, LumaA, Rgb, Rgba};
+use crate::primitive_sealed::PrimitiveSealed;
 use crate::ExtendedColorType;
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
@@ -33,27 +34,10 @@ impl EncodableLayout for [f32] {
     }
 }
 
-mod sealed {
-    pub trait PrimitiveSealed: Sized {}
-}
-
-impl sealed::PrimitiveSealed for usize {}
-impl sealed::PrimitiveSealed for u8 {}
-impl sealed::PrimitiveSealed for u16 {}
-impl sealed::PrimitiveSealed for u32 {}
-impl sealed::PrimitiveSealed for u64 {}
-impl sealed::PrimitiveSealed for isize {}
-impl sealed::PrimitiveSealed for i8 {}
-impl sealed::PrimitiveSealed for i16 {}
-impl sealed::PrimitiveSealed for i32 {}
-impl sealed::PrimitiveSealed for i64 {}
-impl sealed::PrimitiveSealed for f32 {}
-impl sealed::PrimitiveSealed for f64 {}
-
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive:
-    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + sealed::PrimitiveSealed
+    Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + PrimitiveSealed
 {
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
@@ -254,8 +238,8 @@ pub(crate) mod private {
     impl From<ColorType> for LayoutWithColor {
         fn from(color: ColorType) -> LayoutWithColor {
             match color {
-                ColorType::L8 | ColorType::L16 => LayoutWithColor::Luma,
-                ColorType::La8 | ColorType::La16 => LayoutWithColor::LumaAlpha,
+                ColorType::L8 | ColorType::L16 | ColorType::L32F => LayoutWithColor::Luma,
+                ColorType::La8 | ColorType::La16 | ColorType::La32F => LayoutWithColor::LumaAlpha,
                 ColorType::Rgb8 | ColorType::Rgb16 | ColorType::Rgb32F => LayoutWithColor::Rgb,
                 ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Rgba32F => LayoutWithColor::Rgba,
             }
@@ -472,7 +456,7 @@ pub trait Pixel: Copy + Clone {
     #[inline]
     fn alpha(&self) -> Self::Subpixel {
         if Self::HAS_ALPHA {
-            *self.to_luma_alpha().channels().last().unwrap()
+            self.to_luma_alpha().0[1]
         } else {
             Self::Subpixel::DEFAULT_MAX_VALUE
         }
@@ -489,6 +473,22 @@ pub trait Pixel: Copy + Clone {
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
+
+    /// Returns a slice of pixels from a slice of subpixels.
+    ///
+    /// If `slice.len()` is not a multiple of `CHANNEL_COUNT`, the longest prefix of whole pixels is returned.
+    fn pixels_from_channels(slice: &[Self::Subpixel]) -> &[Self];
+
+    /// Returns a mutable slice of pixels from a mutable slice of subpixels.
+    ///
+    /// If `slice.len()` is not a multiple of `CHANNEL_COUNT`, the longest prefix of whole pixels is returned.
+    fn pixels_from_channels_mut(slice: &mut [Self::Subpixel]) -> &mut [Self];
+
+    /// Returns a slice of subpixels from a slice of pixels.
+    fn pixels_as_channels(slice: &[Self]) -> &[Self::Subpixel];
+
+    /// Returns a mutable slice of subpixels from a mutable slice of pixels.
+    fn pixels_as_channels_mut(slice: &mut [Self]) -> &mut [Self::Subpixel];
 
     /// Create a pixel from setting all channels to the same value.
     fn broadcast(_: Self::Subpixel) -> Self;
@@ -508,7 +508,12 @@ pub trait Pixel: Copy + Clone {
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self
     where
-        F: FnMut(Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel) -> Self::Subpixel,
+    {
+        let mut this = *self;
+        this.apply(f);
+        this
+    }
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn apply<F>(&mut self, f: F)
@@ -520,7 +525,12 @@ pub trait Pixel: Copy + Clone {
     fn map_with_alpha<F, G>(&self, f: F, g: G) -> Self
     where
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
-        G: FnMut(Self::Subpixel) -> Self::Subpixel;
+        G: FnMut(Self::Subpixel) -> Self::Subpixel,
+    {
+        let mut this = *self;
+        this.apply_with_alpha(f, g);
+        this
+    }
 
     /// Apply the function ```f``` to each channel except the alpha channel.
     /// Apply the function ```g``` to the alpha channel. Works in-place.
@@ -534,9 +544,7 @@ pub trait Pixel: Copy + Clone {
     where
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
     {
-        let mut this = *self;
-        this.apply_with_alpha(f, |x| x);
-        this
+        self.map_with_alpha(f, |x| x)
     }
 
     /// Apply the function ```f``` to each channel except the alpha channel.
@@ -552,7 +560,12 @@ pub trait Pixel: Copy + Clone {
     /// ```other``` pairwise.
     fn map2<F>(&self, other: &Self, f: F) -> Self
     where
-        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel,
+    {
+        let mut this = *self;
+        this.apply2(other, f);
+        this
+    }
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise. Works in-place.

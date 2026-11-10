@@ -1,9 +1,6 @@
 use std::fs::{self, File};
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, ErrorKind};
 use std::path::PathBuf;
-
-#[cfg(feature = "webp")]
-use image::{codecs::webp::WebPDecoder, AnimationDecoder};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -47,6 +44,8 @@ fn check_regressions() {
 #[test]
 #[cfg(feature = "webp")]
 fn check_webp_frames_regressions() {
+    use image::{codecs::webp::WebPDecoder, ImageReader};
+
     let path: PathBuf = BASE_PATH
         .iter()
         .collect::<PathBuf>()
@@ -60,11 +59,13 @@ fn check_webp_frames_regressions() {
         let frame_count = image_webp::WebPDecoder::new(cursor.clone())
             .unwrap()
             .num_frames() as usize;
+
         let decoder = WebPDecoder::new(cursor).unwrap();
+        let reader = ImageReader::from_decoder(Box::new(decoder));
         // The `take` guards against a potentially infinitely running iterator.
         // Since we take `frame_count + 1`, we can assume that the last iteration already returns `None`.
         // We then check that each frame has been decoded successfully.
-        let decoded_frames_count = decoder
+        let decoded_frames_count = reader
             .into_frames()
             .take(frame_count + 1)
             .enumerate()
@@ -98,6 +99,32 @@ fn ico_bmp_v5_with_icc_profile() {
     // Verify the image has expected dimensions (127x64 from rgb24prof.bmp)
     assert_eq!(img.width(), 127);
     assert_eq!(img.height(), 64);
+}
+
+#[cfg(feature = "bmp")]
+#[test]
+fn bmp_v5_rejects_truncated_icc_profile_before_allocation() {
+    let mut bmp = vec![0; 138];
+    bmp[0..2].copy_from_slice(b"BM");
+    bmp[2..6].copy_from_slice(&138u32.to_le_bytes());
+    bmp[10..14].copy_from_slice(&138u32.to_le_bytes());
+    bmp[14..18].copy_from_slice(&124u32.to_le_bytes());
+    bmp[18..22].copy_from_slice(&1i32.to_le_bytes());
+    bmp[22..26].copy_from_slice(&1i32.to_le_bytes());
+    bmp[26..28].copy_from_slice(&1u16.to_le_bytes());
+    bmp[28..30].copy_from_slice(&32u16.to_le_bytes());
+    bmp[70..74].copy_from_slice(&u32::from_be_bytes(*b"MBED").to_le_bytes());
+    bmp[126..130].copy_from_slice(&0x90u32.to_le_bytes());
+    bmp[130..134].copy_from_slice(&u32::MAX.to_le_bytes());
+
+    let err = match image::codecs::bmp::BmpDecoder::new(Cursor::new(bmp)) {
+        Ok(_) => panic!("truncated ICC profile should fail"),
+        Err(err) => err,
+    };
+
+    assert!(
+        matches!(err, image::ImageError::IoError(err) if err.kind() == ErrorKind::UnexpectedEof)
+    );
 }
 
 // Test that BMP bitmaps with extra `BI_BITFIELD` values are parsed correctly.
@@ -157,11 +184,12 @@ fn resizing_with_alpha() {
     use image::GenericImageView as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
-    let image =
-        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
-            .unwrap()
-            .decode()
-            .unwrap();
+    let image = image::ImageReaderOptions::open(
+        base.join("regression/image/resize-with-alpha-original.png"),
+    )
+    .unwrap()
+    .decode()
+    .unwrap();
 
     let (w, h) = image.dimensions();
     let mut resizable = image.clone();
@@ -190,40 +218,70 @@ fn resizing_with_catmul() {
     use image::GenericImageView as _;
 
     let base: PathBuf = BASE_PATH.iter().collect();
-    let image =
-        image::ImageReader::open(base.join("regression/image/resize-with-alpha-original.png"))
-            .unwrap()
-            .decode()
-            .unwrap();
-
-    let expected = image::ImageReader::open(
-        base.join("regression/image/resize-with-alpha-original-half-size.png"),
+    let image = image::ImageReaderOptions::open(
+        base.join("regression/image/resize-with-alpha-original.png"),
     )
     .unwrap()
     .decode()
     .unwrap();
 
+    let target_path = base.join("regression/image/resize-with-alpha-original-half-size.png");
+
+    let expected = image::ImageReaderOptions::open(&target_path)
+        .unwrap()
+        .decode()
+        .unwrap();
+
     let (w, h) = image.dimensions();
     let (nw, nh) = (w.div_ceil(2), h.div_ceil(2));
     let mut resizable = image.clone();
     resizable.resize_exact(nw, nh, FilterType::CatmullRom);
-    assert_eq!(resizable, expected);
+    assert_eq!(resizable, expected, "Output (resized, target): {:?}", {
+        let path = base.join("output/image/resize-with-alpha-original-half-size.png");
+        save_image(&path, &resizable).unwrap();
+        (
+            path.display().to_string(),
+            target_path.display().to_string(),
+        )
+    });
 }
 
 #[test]
 #[cfg(feature = "gif")]
 fn gif_regressions() {
-    use image::codecs::gif::GifDecoder;
-    use image::AnimationDecoder as _;
+    use image::{codecs::gif::GifDecoder, ImageReader};
 
     let base: PathBuf = BASE_PATH.iter().collect();
     let path = base.join("regression/gif/zero-loop-count.gif");
     let file = BufReader::new(File::open(path).unwrap());
 
     let decoder = GifDecoder::new(file).expect("Failed to create GIF decoder for regression test");
+    let mut reader = ImageReader::from_decoder(Box::new(decoder));
 
-    let _ = decoder.loop_count();
-    let mut frames = decoder.into_frames();
+    let _ = reader.animation_attributes();
+    let mut frames = reader.into_frames();
 
     while let Some(Ok(_frame)) = frames.next() {}
+}
+
+fn save_image(
+    path: &std::path::Path,
+    image: &image::DynamicImage,
+) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(path.parent().unwrap())?;
+
+    // special path for PNG to apply more compression
+    #[cfg(feature = "png")]
+    if path.extension() == Some("png".as_ref()) {
+        use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+        image.write_with_encoder(PngEncoder::new_with_quality(
+            std::io::BufWriter::new(File::create(path).unwrap()),
+            CompressionType::Best,
+            FilterType::Adaptive,
+        ))?;
+        return Ok(());
+    }
+
+    image.save(path)?;
+    Ok(())
 }

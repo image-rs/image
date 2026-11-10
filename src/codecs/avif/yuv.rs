@@ -67,13 +67,13 @@ impl Display for YuvConversionError {
             YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
                 f.write_fmt(format_args!(
                     "For plane {} expected size is {} but was received {}",
-                    plane, error_size.received, error_size.expected,
+                    plane, error_size.expected, error_size.received,
                 ))
             }
             YuvConversionError::RgbDestinationSizeMismatch(error_size) => {
                 f.write_fmt(format_args!(
                     "For RGB destination expected size is {} but was received {}",
-                    error_size.received, error_size.expected,
+                    error_size.expected, error_size.received,
                 ))
             }
         }
@@ -89,7 +89,7 @@ pub(crate) fn check_yuv_plane_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if plane.len() != stride * height {
+    if Some(plane.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::YuvPlaneSizeMismatch(
@@ -110,7 +110,7 @@ pub(crate) fn check_rgb_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if rgb_data.len() != stride * height {
+    if Some(rgb_data.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::RgbDestinationSizeMismatch(ErrorSize {
@@ -136,7 +136,7 @@ fn get_inverse_transform(
     let cr_coeff = (2f32 * (1f32 - kr)) * range_uv;
     let cb_coeff = (2f32 * (1f32 - kb)) * range_uv;
     let kg = 1.0f32 - kr - kb;
-    assert_ne!(kg, 0., "1.0f - kr - kg must not be 0");
+    assert_ne!(kg, 0., "1.0f - kr - kb must not be 0");
     let g_coeff_1 = (2f32 * ((1f32 - kr) * kr / kg)) * range_uv;
     let g_coeff_2 = (2f32 * ((1f32 - kb) * kb / kg)) * range_uv;
     let exact_transform = CbCrInverseTransform {
@@ -224,8 +224,8 @@ impl YuvStandardMatrix {
                 kb: 0.0593f32,
             },
             YuvStandardMatrix::Smpte240 => YuvBias {
-                kr: 0.087f32,
-                kb: 0.212f32,
+                kr: 0.212f32,
+                kb: 0.087f32,
             },
             YuvStandardMatrix::Bt470_6 => YuvBias {
                 kr: 0.2220f32,

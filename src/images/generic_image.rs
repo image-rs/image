@@ -1,5 +1,5 @@
 use crate::error::{ImageError, ImageResult};
-use crate::flat::ViewOfPixel;
+use crate::flat::{ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -51,7 +51,7 @@ pub trait GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: #method.in_bounds
+    /// [`in_bounds`]: Self::in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -63,7 +63,13 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        let (width, height) = self.dimensions();
+        let (width, mut height) = self.dimensions();
+
+        // Ensures `height` can be used as a consistent bound so that only one check is required in
+        // the iteration of the iterator.
+        if width == 0 || height == 0 {
+            height = 0;
+        }
 
         Pixels {
             image: self,
@@ -95,7 +101,7 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        rect.test_in_bounds(self)?;
+        rect.test_in_bounds_of(self)?;
         Ok(SubImage::new(self, rect))
     }
 
@@ -135,6 +141,8 @@ pub trait GenericImageView {
     ///
     /// Implementation of this method should be cheap to call.
     ///
+    /// See [`GenericImage::to_pixel_view_mut`] for images that allow mutating pixels.
+    ///
     /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
     fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
         None
@@ -145,7 +153,9 @@ pub trait GenericImageView {
 #[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
+    /// Maintains `x < self.width` with a non-empty image.
     x: u32,
+    /// Maintains `y <= self.height` and `self.height == 0` with an empty image..
     y: u32,
     width: u32,
     height: u32,
@@ -155,23 +165,45 @@ impl<I: GenericImageView> Iterator for Pixels<'_, I> {
     type Item = (u32, u32, I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
+        if self.y >= self.height {
+            // No modification until here and this is the only `None` path, which justifies the
+            // below `FusedIterator` impls requirements.
+            return None;
+        }
+
+        let pixel = self.image.get_pixel(self.x, self.y);
+        let p = (self.x, self.y, pixel);
+
+        self.x += 1;
+
         if self.x >= self.width {
+            // Note: again in-bounds as we start with `height = 0` for empty images.
             self.x = 0;
+            // `self.y < self.height` at this point.
             self.y += 1;
         }
 
-        if self.y >= self.height {
-            None
+        Some(p)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let total = u64::from(self.width) * u64::from(self.height);
+        let done = u64::from(self.width) * u64::from(self.y) + u64::from(self.x);
+
+        let n = total
+            .checked_sub(done)
+            .and_then(|n| usize::try_from(n).ok());
+
+        if let Some(n) = n {
+            (n, Some(n))
         } else {
-            let pixel = self.image.get_pixel(self.x, self.y);
-            let p = (self.x, self.y, pixel);
-
-            self.x += 1;
-
-            Some(p)
+            (usize::MAX, None)
         }
     }
 }
+
+// Note: not mutated in the `None` path, i.e. continues to return it.
+impl<I: GenericImageView> std::iter::FusedIterator for Pixels<'_, I> {}
 
 impl<I: ?Sized> Clone for Pixels<'_, I> {
     fn clone(&self) -> Self {
@@ -195,7 +227,7 @@ pub trait GenericImage: GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
+    /// [`in_bounds`]: GenericImageView::in_bounds
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
@@ -213,19 +245,34 @@ pub trait GenericImage: GenericImageView {
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
     ///
-    /// [`GenericImageView::view`]: trait.GenericImageView.html#method.view
-    /// [`FlatSamples`]: flat/struct.FlatSamples.html
+    /// [`FlatSamples`]: crate::FlatSamples
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
+        // This makes it easy to keep the default implementation without sacrificing performance.
+        // It suffices for impls to override `copy_from_samples` for most of the gains.
         if let Some(flat) = other.to_pixel_view() {
             return self.copy_from_samples(flat, x, y);
         }
 
+        // Note the order: for types that implement an efficient assignment *from* a basic view we
+        // also expect that they know how to iterate themselves efficiently, they can do their own
+        // View-To-View performance or may do eve better than that if their view is more complex for
+        // some reason. Their choice. On the other hand if the source is _not_ a simple view then it
+        // will likely need to go through individual `GenericImageView::get_pixel` calls. And in
+        // this case we can still save on iterator calls for the target. The customization point
+        // however does not exist; any trait impl that intends to make this fast would need to
+        // provide a full `copy_from` impl. We only need to avoid the recursion here: `ViewMut` will
+        // override its `copy_from` with the intended effect by providing a non-trait inherent
+        // method instead.
+        if let Some(mut view) = self.to_pixel_view_mut() {
+            return view.inner_copy_from(other, x, y);
+        }
+
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
-        Rect::from_image_at(other, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(other, x, y).test_in_bounds_of(self)?;
 
         for k in 0..other.height() {
             for i in 0..other.width() {
@@ -246,7 +293,7 @@ pub trait GenericImage: GenericImageView {
     ) -> ImageResult<()> {
         // Even though the implementation is the same, do not just call `Self::copy_from` here to
         // avoid circular dependencies in careless implementations.
-        Rect::from_image_at(&samples, x, y).test_in_bounds(self)?;
+        Rect::from_image_at(&samples, x, y).test_in_bounds_of(self)?;
 
         for k in 0..samples.height() {
             for i in 0..samples.width() {
@@ -314,6 +361,22 @@ pub trait GenericImage: GenericImageView {
     {
         rect.assert_in_bounds_of(self);
         SubImage::new(self, rect)
+    }
+
+    /// If the buffer has a fitting layout, return a canonical mutable view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of generic
+    /// images access the sample data through a canonical descriptor of its layout directly instead
+    /// of pixel-by-pixel. This provides more efficient, batched, forms of access that the
+    /// [`GenericImage`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImageView::to_pixel_view`].
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        None
     }
 }
 
@@ -429,6 +492,19 @@ mod tests {
         source.view(Rect::from_xy_ranges(0..3, 0..3));
         source.view(Rect::from_xy_ranges(1..3, 1..3));
         source.view(Rect::from_xy_ranges(2..2, 2..2));
+    }
+
+    #[test]
+    fn pixels_empty_iterator() {
+        let source: GrayImage = ImageBuffer::new(0, u32::MAX);
+
+        let mut iter = GenericImageView::pixels(&source);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+        for _ in iter.by_ref() {}
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+
+        assert_eq!(iter.x, 0);
+        assert_eq!(iter.y, 0);
     }
 
     #[test]

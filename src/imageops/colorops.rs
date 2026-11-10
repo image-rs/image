@@ -306,6 +306,7 @@ impl HueRotation {
 
         Self { matrix }
     }
+    #[inline]
     fn apply<P: Pixel>(&self, mut pixel: P) -> P {
         let channels = pixel.channels_mut();
         let r = channels[0].to_f64().unwrap();

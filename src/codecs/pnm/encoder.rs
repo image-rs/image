@@ -594,8 +594,12 @@ impl SampleWriter<'_> {
     where
         V: Default + Eq + Copy,
     {
+        if width == 0 {
+            return Ok(());
+        }
+
         // The length of an encoded scanline
-        let line_width = (width - 1) / 8 + 1;
+        let line_width = width.div_ceil(8);
 
         // We'll be writing single bytes, so buffer
         let mut line_buffer = vec_try_with_capacity(line_width as usize)?;

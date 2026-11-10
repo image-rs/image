@@ -6,7 +6,9 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, ImageDecoder, ImageFormat, Rgb};
+use crate::io::DecoderPreparedImage;
+use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
+use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,6 +19,9 @@ enum DecoderError {
     TruncatedHeader,
     /// EOF instead of image dimensions
     TruncatedDimensions,
+    /// The end of the header, if it exists, is far enough in the file that
+    /// this is unlikely to be a valid image
+    HeaderTooLong,
 
     /// A value couldn't be parsed
     UnparsableF32(LineType, ParseFloatError),
@@ -35,6 +40,8 @@ enum DecoderError {
 
     /// The length of a scanline (1) wasn't a match for the specified length (2)
     WrongScanlineLength(usize, usize),
+    /// A chain of run length instructions would produce a too large run
+    OverlyLongRepeat,
     /// First pixel of a scanline is a run length marker
     FirstPixelRlMarker,
 }
@@ -47,6 +54,9 @@ impl fmt::Display for DecoderError {
             }
             DecoderError::TruncatedHeader => f.write_str("EOF in header"),
             DecoderError::TruncatedDimensions => f.write_str("EOF in dimensions line"),
+            DecoderError::HeaderTooLong => f.write_fmt(format_args!(
+                "Header end not in the first {MAX_HEADER_LENGTH} bytes, unlikely to be valid image"
+            )),
             DecoderError::UnparsableF32(line, pe) => {
                 f.write_fmt(format_args!("Cannot parse {line} value as f32: {pe}"))
             }
@@ -66,6 +76,9 @@ impl fmt::Display for DecoderError {
             DecoderError::WrongScanlineLength(len, expected) => f.write_fmt(format_args!(
                 "Wrong length of decoded scanline: got {len}, expected {expected}"
             )),
+            DecoderError::OverlyLongRepeat => f.write_str(
+                "Sequence of run length markers produces run longer than max image width",
+            ),
             DecoderError::FirstPixelRlMarker => {
                 f.write_str("First pixel of a scanline shouldn't be run length marker")
             }
@@ -115,12 +128,21 @@ impl fmt::Display for LineType {
 pub const SIGNATURE: &[u8] = b"#?RADIANCE";
 const SIGNATURE_LENGTH: usize = 10;
 
+/// An arbitrary and generous limit on the length of the image header.
+///
+/// The HdrDecoder retains essentially the entire header in memory, because any
+/// line could be a custom attribute, so a limit is useful to avoid allocating
+/// too much.
+///
+/// Older images produced by Radiance tools often included the commands used to
+/// generate the image;in particular, for composite images this could grow
+/// rather large: some historical images have headers of up to 2-3 kilobytes.
+const MAX_HEADER_LENGTH: usize = 1 << 16;
+
 /// An Radiance HDR decoder
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
     r: R,
-    width: u32,
-    height: u32,
     meta: HdrMetadata,
 }
 
@@ -143,17 +165,22 @@ impl Rgbe8Pixel {
     /// Converts `Rgbe8Pixel` into `Rgb<f32>` linearly
     #[inline]
     pub(crate) fn to_hdr(self) -> Rgb<f32> {
-        if self.e == 0 {
-            Rgb([0.0, 0.0, 0.0])
+        // Directly construct the exponent 2.0^{e - 128 - 8}; because the normal
+        // exponent value range of f32, 1..=254, is slightly smaller than the
+        // range for rgbe8 (1..=255), a special case is needed to create the
+        // subnormal intermediate value 2^{e - 128} for e=1; the branch also
+        // implements the special case mapping of e=0 to exp=0.0.
+        let exp = f32::from_bits(if self.e > 1 {
+            ((self.e - 1) as u32) << 23
         } else {
-            //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128.0 + 8.0));
-            Rgb([
-                exp * <f32 as From<_>>::from(self.c[0]),
-                exp * <f32 as From<_>>::from(self.c[1]),
-                exp * <f32 as From<_>>::from(self.c[2]),
-            ])
-        }
+            (self.e as u32) << 22
+        }) * 0.00390625;
+
+        Rgb([
+            exp * <f32 as From<_>>::from(self.c[0]),
+            exp * <f32 as From<_>>::from(self.c[1]),
+            exp * <f32 as From<_>>::from(self.c[2]),
+        ])
     }
 }
 
@@ -166,8 +193,14 @@ impl<R: Read> HdrDecoder<R> {
     }
 
     /// Allows reading old Radiance HDR images
+    #[deprecated(note = "Use `with_spec_compliance(reader, SpecCompliance::Lenient)` instead")]
     pub fn new_nonstrict(reader: R) -> ImageResult<Self> {
         Self::with_strictness(reader, false)
+    }
+
+    /// Create a new decoder with the given spec compliance mode.
+    pub(crate) fn with_spec_compliance(reader: R, spec: SpecCompliance) -> ImageResult<Self> {
+        Self::with_strictness(reader, spec == SpecCompliance::Strict)
     }
 
     /// Reads Radiance HDR image header from stream `reader`,
@@ -175,11 +208,18 @@ impl<R: Read> HdrDecoder<R> {
     ///
     /// strict enables strict mode
     ///
-    /// Warning! Reading wrong file in non-strict mode
-    ///   could consume file size worth of memory in the process.
+    /// Warning! Reading wrong file in non-strict mode could consume up to a few
+    ///   megabytes of memory before this errors, if the file is large enough.
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
 
+        // Limit the total header length, ensuring that the total memory allocated
+        // for lines and is not much more than a constant multiple of the length.
+        // Because a new entry in attributes.custom_attributes is made for each
+        // line, the constant may be quite large (at least `size_of::<String>()`,
+        // likely no more than 100 depending on allocation overhead.); but even
+        // so, in total no more than a few MB will be allocated.
+        let mut remaining_limit = MAX_HEADER_LENGTH;
         {
             // scope to make borrowck happy
             let r = &mut reader;
@@ -190,19 +230,21 @@ impl<R: Read> HdrDecoder<R> {
                     return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
                   // skip signature line ending
-                read_line_u8(r)?;
+                read_line_u8(r, remaining_limit)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
                 // Let them be parsed in non-strict mode
             }
             // read header data until empty line
             loop {
-                match read_line_u8(r)? {
+                match read_line_u8(r, remaining_limit)? {
                     None => {
                         // EOF before end of header
                         return Err(DecoderError::TruncatedHeader.into());
                     }
                     Some(line) => {
+                        remaining_limit = remaining_limit.saturating_sub(line.len() + 1);
+
                         if line.is_empty() {
                             // end of header
                             break;
@@ -219,7 +261,7 @@ impl<R: Read> HdrDecoder<R> {
             } // loop
         } // scope to end borrow of reader
           // parse dimensions
-        let (width, height) = match read_line_u8(&mut reader)? {
+        let (width, height) = match read_line_u8(&mut reader, remaining_limit)? {
             None => {
                 // EOF instead of image dimensions
                 return Err(DecoderError::TruncatedDimensions.into());
@@ -231,8 +273,9 @@ impl<R: Read> HdrDecoder<R> {
         };
 
         // color type is always rgb8
-        if crate::utils::check_dimension_overflow(width, height, ColorType::Rgb8.bytes_per_pixel())
-        {
+        let layout = crate::ImageLayout::new(width, height, ColorType::Rgb8);
+
+        if layout.total_bytes_overflows_u64() {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Hdr.into(),
@@ -246,8 +289,6 @@ impl<R: Read> HdrDecoder<R> {
         Ok(HdrDecoder {
             r: reader,
 
-            width,
-            height,
             meta: HdrMetadata {
                 width,
                 height,
@@ -260,62 +301,49 @@ impl<R: Read> HdrDecoder<R> {
     pub fn metadata(&self) -> HdrMetadata {
         self.meta.clone()
     }
-
-    /// Consumes decoder and returns a vector of transformed pixels
-    fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
-        mut self,
-        f: F,
-        output_slice: &mut [T],
-    ) -> ImageResult<()> {
-        assert_eq!(
-            output_slice.len(),
-            self.width as usize * self.height as usize
-        );
-
-        // Don't read anything if image is empty
-        if self.width == 0 || self.height == 0 {
-            return Ok(());
-        }
-
-        let chunks_iter = output_slice.chunks_mut(self.width as usize);
-
-        let mut buf = vec![Default::default(); self.width as usize];
-        for chunk in chunks_iter {
-            // read_scanline overwrites the entire buffer or returns an Err,
-            // so not resetting the buffer here is ok.
-            read_scanline(&mut self.r, &mut buf[..])?;
-            for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                *dst = f(pix);
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.meta.width, self.meta.height)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        let HdrMetadata { width, height, .. } = self.meta;
+        Ok(DecoderPreparedImage::new(width, height, ColorType::Rgb32F))
     }
 
-    fn color_type(&self) -> ColorType {
-        ColorType::Rgb32F
-    }
+    fn set_limits(&mut self, mut limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        limits.check_dimensions(self.meta.width, self.meta.height)?;
 
-    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-
-        let mut img = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_hdr(), &mut img[..])?;
-
-        for (i, Rgb(data)) in img.into_iter().enumerate() {
-            buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
-        }
-
+        let scanline_space = (self.meta.width as u64) * (size_of::<Rgbe8Pixel>() as u64);
+        limits.reserve(scanline_space)?;
         Ok(())
     }
 
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
+
+        // Don't read anything if image is empty
+        if self.meta.width == 0 || self.meta.height == 0 {
+            return Ok(DecodedImageAttributes::default());
+        }
+
+        let mut scanline = vec![Default::default(); self.meta.width as usize];
+
+        const PIXEL_SIZE: usize = size_of::<Rgb<f32>>();
+        let line_bytes = self.meta.width as usize * PIXEL_SIZE;
+
+        let chunks_iter = buf.chunks_exact_mut(line_bytes);
+        for chunk in chunks_iter {
+            // read_scanline overwrites the entire buffer or returns an Err,
+            // so not resetting the buffer here is ok.
+            read_scanline(&mut self.r, &mut scanline[..])?;
+            let dst_chunks = chunk.as_chunks_mut::<PIXEL_SIZE>().0.iter_mut();
+            for (dst, &pix) in dst_chunks.zip(scanline.iter()) {
+                dst.copy_from_slice(bytemuck::cast_slice(&pix.to_hdr().0));
+            }
+        }
+
+        Ok(DecodedImageAttributes::default())
     }
 }
 
@@ -417,27 +445,36 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) ->
     buf[0] = fb; // set first pixel of scanline
 
     let mut x_off = 1; // current offset from beginning of a scanline
-    let mut rl_mult = 1; // current run length multiplier
+    let mut rl_shift: u32 = 0; // current run length shift value
     let mut prev_pixel = fb;
     while x_off < width {
         let pix = read_rgbe(r)?;
         // it's harder to forget to increase x_off if I write this this way.
         x_off += {
             if let Some(rl) = rl_marker(pix) {
-                // rl_mult takes care of consecutive RL markers
-                let rl = rl * rl_mult;
-                rl_mult *= 256;
-                if x_off + rl <= width {
-                    // do run
-                    for b in &mut buf[x_off..x_off + rl] {
-                        *b = prev_pixel;
+                if rl_shift >= 32 {
+                    if rl != 0 {
+                        // run length of >= 2^32 rl
+                        return Err(DecoderError::OverlyLongRepeat.into());
+                    } else {
+                        0
                     }
                 } else {
-                    return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
-                };
-                rl // value to increase x_off by
+                    // rl_shift takes care of consecutive RL markers
+                    let rl = rl << rl_shift;
+                    rl_shift += 8;
+                    if x_off + rl <= width {
+                        // do run
+                        for b in &mut buf[x_off..x_off + rl] {
+                            *b = prev_pixel;
+                        }
+                    } else {
+                        return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
+                    };
+                    rl // value to increase x_off by
+                }
             } else {
-                rl_mult = 1; // chain of consecutive RL markers is broken
+                rl_shift = 0; // chain of consecutive RL markers is broken
                 prev_pixel = pix;
                 buf[x_off] = pix;
                 1 // value to increase x_off by
@@ -520,6 +557,7 @@ impl HdrMetadata {
         // parse known attributes
         match maybe_key_value {
             Some(("FORMAT", val)) => {
+                #[allow(clippy::collapsible_match)] // clippy wants confusing guard syntax here
                 if val.trim() != "32-bit_rle_rgbe" {
                     // XYZE isn't supported yet
                     return Err(ImageError::Unsupported(
@@ -683,7 +721,8 @@ fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)>
 // Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
+// Returns an error if the line would require more than max_len bytes
+fn read_line_u8<R: Read>(r: &mut R, max_len: usize) -> ImageResult<Option<Vec<u8>>> {
     // keeping repeated redundant allocations to avoid added complexity of having a `&mut tmp` argument
     #[allow(clippy::disallowed_methods)]
     let mut ret = Vec::with_capacity(16);
@@ -694,6 +733,10 @@ fn read_line_u8<R: Read>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
                 return Ok(None);
             }
             return Ok(Some(ret));
+        }
+
+        if ret.len() >= max_len {
+            return Err(DecoderError::HeaderTooLong.into());
         }
         ret.push(byte[0]);
     }
@@ -733,13 +776,17 @@ mod tests {
     fn read_line_u8_test() {
         let buf: Vec<_> = (&b"One\nTwo\nThree\nFour\n\n\n"[..]).into();
         let input = &mut Cursor::new(buf);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"One"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Two"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Three"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b"Four"[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
-        assert_eq!(read_line_u8(input).unwrap(), None);
+        let read_line = |input: &mut Cursor<Vec<u8>>| -> Option<Vec<u8>> {
+            read_line_u8(input, usize::MAX).unwrap()
+        };
+
+        assert_eq!(&read_line(input).unwrap()[..], &b"One"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Two"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Three"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b"Four"[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(&read_line(input).unwrap()[..], &b""[..]);
+        assert_eq!(read_line(input), None);
     }
 
     #[test]
@@ -747,6 +794,8 @@ mod tests {
         let data = b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n -Y 4294967295 +X 4294967295";
 
         assert!(HdrDecoder::new(Cursor::new(data)).is_err());
-        assert!(HdrDecoder::new_nonstrict(Cursor::new(data)).is_err());
+        assert!(
+            HdrDecoder::with_spec_compliance(Cursor::new(data), SpecCompliance::Lenient).is_err()
+        );
     }
 }

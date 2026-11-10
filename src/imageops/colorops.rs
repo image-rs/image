@@ -1,6 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::NumCast;
+use num_traits::{NumCast, ToPrimitive};
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA};
 use crate::metadata::{CicpColorPrimaries, CicpTransferCharacteristics};
@@ -90,8 +90,8 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut out = image.buffer_like();
 
@@ -156,8 +156,8 @@ where
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
     let mut out = image.buffer_like();
 
@@ -213,17 +213,37 @@ where
 }
 
 /// Hue rotate the supplied image.
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
 ///
-/// *[See also `huerotate_in_place`.][huerotate_in_place]*
+/// `value` is the angle in degrees to rotate the hue of each pixel by. 0 and 360
+/// do nothing. -15 is the same as 360-15 = 345. This behaves the same as the CSS
+/// filter [`hue-rotate()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/filter-function/hue-rotate).
+///
+/// # Notes
+///
+/// This method operates on pixel channel values directly without taking into
+/// account color space data. The HSV color space is dependent on the current
+/// color space primaries.
+///
+/// The first 3 channels are interpreted as RGB and the hue rotation is applied
+/// to those channels. Any additional channels (e.g. alpha) are left unchanged.
+/// Images with fewer than 3 channels are not modified.
+///
+/// # See also
+///
+/// * [`huerotate_in_place`] for an in-place version of this function.
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        let mut buffer = image.buffer_like();
+        buffer.copy_from(image, 0, 0).unwrap();
+        return buffer;
+    }
+
     let mut out = image.buffer_like();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -244,50 +264,42 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    for (x, y, pixel) in out.enumerate_pixels_mut() {
-        let p = image.get_pixel(x, y);
 
-        #[allow(deprecated)]
-        let (k1, k2, k3, k4) = p.channels4();
-        let vec: (f64, f64, f64, f64) = (
-            NumCast::from(k1).unwrap(),
-            NumCast::from(k2).unwrap(),
-            NumCast::from(k3).unwrap(),
-            NumCast::from(k4).unwrap(),
-        );
+    for (x, y, outpixel) in out.enumerate_pixels_mut() {
+        let mut pixel = image.get_pixel(x, y);
+        let channels = pixel.channels_mut();
 
-        let r = vec.0;
-        let g = vec.1;
-        let b = vec.2;
+        let r = channels[0].to_f64().unwrap();
+        let g = channels[1].to_f64().unwrap();
+        let b = channels[2].to_f64().unwrap();
 
         let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
 
-        #[allow(deprecated)]
-        let outpixel = Pixel::from_channels(
-            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-        );
-        *pixel = outpixel;
+        channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+        channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+        channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
+
+        *outpixel = pixel;
     }
+
     out
 }
 
 /// Hue rotate the supplied image in place.
 ///
-/// `value` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the given degree value.
-/// just like the css webkit filter hue-rotate(180)
-///
-/// *[See also `huerotate`.][huerotate]*
+/// See [`huerotate`] for more details.
 pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
+    if <I::Pixel as Pixel>::CHANNEL_COUNT < 3 {
+        // ignore grayscale and gray+alpha images
+        return;
+    }
+
     let (width, height) = image.dimensions();
 
     let angle: f64 = NumCast::from(value).unwrap();
@@ -312,36 +324,23 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+            let mut pixel = image.get_pixel(x, y);
+            let channels = pixel.channels_mut();
 
-            #[allow(deprecated)]
-            let (k1, k2, k3, k4) = pixel.channels4();
-
-            let vec: (f64, f64, f64, f64) = (
-                NumCast::from(k1).unwrap(),
-                NumCast::from(k2).unwrap(),
-                NumCast::from(k3).unwrap(),
-                NumCast::from(k4).unwrap(),
-            );
-
-            let r = vec.0;
-            let g = vec.1;
-            let b = vec.2;
+            let r = channels[0].to_f64().unwrap();
+            let g = channels[1].to_f64().unwrap();
+            let b = channels[2].to_f64().unwrap();
 
             let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
 
-            #[allow(deprecated)]
-            let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-            );
+            channels[0] = NumCast::from(clamp(new_r, 0.0, max)).unwrap();
+            channels[1] = NumCast::from(clamp(new_g, 0.0, max)).unwrap();
+            channels[2] = NumCast::from(clamp(new_b, 0.0, max)).unwrap();
 
-            image.put_pixel(x, y, outpixel);
+            image.put_pixel(x, y, pixel);
         }
     }
 }
@@ -371,7 +370,7 @@ pub trait ColorMap {
 ///
 /// # Examples
 /// ```
-/// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
+/// use image::imageops::{index_colors, BiLevel, ColorMap};
 /// use image::{ImageBuffer, Luma};
 ///
 /// let (w, h) = (16, 16);
@@ -491,10 +490,34 @@ macro_rules! do_dithering(
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Subpixel = u8>,
 {
     let (width, height) = image.dimensions();
+
+    if width == 0 || height == 0 {
+        return;
+    }
+
     let mut err: [i16; 3] = [0; 3];
+
+    // Special cases so the below loops need not worry about start and end fence posts overlapping.
+    if (width, height) == (1, 1) {
+        do_dithering!(color_map, image, err, 0, 0);
+        return;
+    }
+
+    if width == 1 {
+        for y in 0..height - 1 {
+            do_dithering!(color_map, image, err, 0, y);
+            diffuse_err(image.get_pixel_mut(0, y + 1), err, 5);
+        }
+
+        let y = height - 1;
+        do_dithering!(color_map, image, err, 0, y);
+        return;
+    }
+
+    // The height case 1 works fine since the loop starts at `0`, we propagate in one direction.
     for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
@@ -513,6 +536,7 @@ where
         diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
         diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
     }
+
     let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
@@ -532,13 +556,13 @@ pub fn index_colors<Pix, Map>(
 ) -> ImageBuffer<Luma<u8>, Vec<u8>>
 where
     Map: ColorMap<Color = Pix> + ?Sized,
-    Pix: Pixel<Subpixel = u8> + 'static,
+    Pix: Pixel<Subpixel = u8>,
 {
     // Special case, we do *not* want to copy the color space here.
     let mut indices = ImageBuffer::new(image.width(), image.height());
     indices.set_rgb_primaries(CicpColorPrimaries::Unspecified);
     indices.set_transfer_function(CicpTransferCharacteristics::Unspecified);
-    for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
+    for (pixel, idx) in image.pixels().iter().zip(indices.pixels_mut().iter_mut()) {
         *idx = Luma([color_map.index_of(pixel) as u8]);
     }
     indices
@@ -586,8 +610,48 @@ mod test {
         let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
-        assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0xFF, 0]);
         assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0]);
+    }
+
+    #[test]
+    fn test_dither_1x1() {
+        let mut image = ImageBuffer::from_raw(1, 1, vec![0xff]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0xff]);
+    }
+
+    #[test]
+    fn test_dither_1xn() {
+        let mut image = ImageBuffer::from_raw(1, 4, vec![127; 4]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0, 0xFF]);
+    }
+
+    #[test]
+    fn test_dither_nx1() {
+        let mut image = ImageBuffer::from_raw(4, 1, vec![127; 4]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[0, 0xFF, 0, 0xFF]);
+    }
+
+    #[test]
+    fn test_dither_empty() {
+        let mut image = ImageBuffer::from_raw(0, 0, vec![]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[]);
+    }
+
+    #[test]
+    fn test_dither_empty_oversized() {
+        let mut image = ImageBuffer::from_raw(0, 0, vec![0, 0xde, 0xad]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.subpixels(), &[]);
     }
 
     #[test]

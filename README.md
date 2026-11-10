@@ -50,7 +50,7 @@ implement it.
 
 | Feature           | Description
 | ----------------- | -----------
-| `default-formats` | **Default**<br>Format support for common image formats: AVIF, BMP, DDS, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
+| `default-formats` | **Default**<br>Format support for common image formats: AVIF, BMP, EXR, FF, GIF, HDR, ICO, JPEG, PNG, PNM, QOI, TGA, TIFF, and WebP
 | `rayon`           | **Default**<br>Enables multi-threading with rayon context in some dependencies
 | `nasm`            | Enables the build-time use of `nasm` for `ravif`, requires `nasm` installed
 | `color_quant`     | Includes `color_quant` as an implementation of `imageops::ColorMap`
@@ -85,12 +85,10 @@ The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
 
-## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
+## The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) Trait
 
 All image format decoders implement the `ImageDecoder` trait which provide
-basic methods for getting image metadata and decoding images. Some formats
-additionally provide `ImageDecoderRect` implementations which allow for
-decoding only part of an image at once.
+basic methods for getting image metadata and decoding images.
 
 The most important methods for decoders are...
 + **dimensions**: Return a tuple containing the width and height of the image.

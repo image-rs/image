@@ -4,6 +4,8 @@ use std::str::FromStr;
 
 use image::ImageDecoder;
 
+#[cfg(all(feature = "avif", feature = "avif-native"))]
+use image::codecs::avif::AvifDecoder;
 #[cfg(feature = "jpeg")]
 use image::codecs::jpeg::JpegDecoder;
 #[cfg(feature = "png")]
@@ -23,12 +25,22 @@ fn test_read_xmp_png() -> Result<(), image::ImageError> {
     const EXPECTED_PNG_METADATA: &str = "<?xpacket begin='\u{feff}' id='W5M0MpCehiHzreSzNTczkc9d'?>\n<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Image::ExifTool 13.25'>\n<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n\n <rdf:Description rdf:about=''\n  xmlns:dc='http://purl.org/dc/elements/1.1/'>\n  <dc:subject>\n   <rdf:Bag>\n    <rdf:li>sunset, mountains, nature</rdf:li>\n   </rdf:Bag>\n  </dc:subject>\n </rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end='r'?>";
 
     let img_path = PathBuf::from_str(XMP_PNG_PATH).unwrap();
-
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
-    let metadata = png_decoder.xmp_metadata()?;
-    assert!(metadata.is_some());
-    assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
+
+    {
+        let mut png_decoder = PngDecoder::new(std::io::Cursor::new(&data[..]));
+        png_decoder.prepare_image()?;
+        let metadata = png_decoder.xmp_metadata()?;
+        assert!(metadata.is_some());
+        assert_eq!(EXPECTED_PNG_METADATA.as_bytes(), metadata.unwrap());
+    }
+
+    {
+        let png_decoder = PngDecoder::new(std::io::Cursor::new(&data[..]));
+        let mut reader = image::ImageReader::from_decoder(Box::new(png_decoder));
+        let (_, mut meta) = reader.decode()?;
+        assert!(meta.xmp_metadata()?.as_deref() == Some(EXPECTED_PNG_METADATA.as_bytes()));
+    }
 
     Ok(())
 }
@@ -39,8 +51,8 @@ fn test_read_xmp_webp() -> Result<(), image::ImageError> {
     const XMP_WEBP_PATH: &str = "tests/images/webp/lossless_images/simple_xmp.webp";
     const EXPECTED_METADATA: &str = "<?xpacket begin='\u{feff}' id='W5M0MpCehiHzreSzNTczkc9d'?>\n<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Image::ExifTool 13.25'>\n<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n\n <rdf:Description rdf:about=''\n  xmlns:dc='http://purl.org/dc/elements/1.1/'>\n  <dc:subject>\n   <rdf:Bag>\n    <rdf:li>sunset, mountains, nature</rdf:li>\n   </rdf:Bag>\n  </dc:subject>\n </rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n                                                                                                    \n<?xpacket end='w'?>";
     let img_path = PathBuf::from_str(XMP_WEBP_PATH).unwrap();
-
     let data = fs::read(img_path)?;
+
     let mut webp_decoder = WebPDecoder::new(std::io::Cursor::new(data))?;
     let metadata = webp_decoder.xmp_metadata()?;
 
@@ -71,17 +83,16 @@ fn test_read_xmp_tiff() -> Result<(), image::ImageError> {
 fn test_read_iptc_jpeg() -> Result<(), image::ImageError> {
     const IPTC_JPG_PATH: &str = "tests/images/jpg/iptc.jpg";
     const EXPECTED_METADATA: &[u8] = &[
-        0, 56, 66, 73, 77, 4, 4, 0, 0, 0, 0, 0, 99, 28, 2, 90, 0, 8, 66, 117, 100, 97, 112, 101,
-        115, 116, 28, 2, 101, 0, 7, 72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 3, 72, 118, 75,
-        28, 2, 25, 0, 4, 50, 48, 48, 54, 28, 2, 25, 0, 6, 115, 117, 109, 109, 101, 114, 28, 2, 25,
-        0, 4, 74, 117, 108, 121, 28, 2, 25, 0, 7, 104, 111, 108, 105, 100, 97, 121, 28, 2, 25, 0,
-        7, 72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 8, 66, 117, 100, 97, 112, 101, 115, 116,
-        0,
+        56, 66, 73, 77, 4, 4, 0, 0, 0, 0, 0, 99, 28, 2, 90, 0, 8, 66, 117, 100, 97, 112, 101, 115,
+        116, 28, 2, 101, 0, 7, 72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 3, 72, 118, 75, 28,
+        2, 25, 0, 4, 50, 48, 48, 54, 28, 2, 25, 0, 6, 115, 117, 109, 109, 101, 114, 28, 2, 25, 0,
+        4, 74, 117, 108, 121, 28, 2, 25, 0, 7, 104, 111, 108, 105, 100, 97, 121, 28, 2, 25, 0, 7,
+        72, 117, 110, 103, 97, 114, 121, 28, 2, 25, 0, 8, 66, 117, 100, 97, 112, 101, 115, 116, 0,
     ];
     let img_path = PathBuf::from_str(IPTC_JPG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut jpeg_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
+    let mut jpeg_decoder = JpegDecoder::new(std::io::Cursor::new(data));
     let metadata = jpeg_decoder.iptc_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, metadata.unwrap());
@@ -109,7 +120,8 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
     let img_path = PathBuf::from_str(IPTC_PNG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data))?;
+    let mut png_decoder = PngDecoder::new(std::io::Cursor::new(data));
+    png_decoder.prepare_image()?;
     let metadata = png_decoder.iptc_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, metadata.unwrap());
@@ -121,14 +133,40 @@ fn test_read_iptc_png() -> Result<(), image::ImageError> {
 #[cfg(feature = "jpeg")]
 fn test_read_xmp_jpeg() -> Result<(), image::ImageError> {
     const IMG_PATH: &str = "tests/images/jpg/exif-xmp-metadata.jpg";
-    const EXPECTED_METADATA: &[u8] = include_bytes!("images/jpg/expected_xmp.bin");
+    const EXPECTED_METADATA: &[u8] = include_bytes!("assets/jpg/expected_xmp.bin");
     let img_path = PathBuf::from_str(IMG_PATH).unwrap();
 
     let data = fs::read(img_path)?;
-    let mut tiff_decoder = JpegDecoder::new(std::io::Cursor::new(data))?;
+    let mut tiff_decoder = JpegDecoder::new(std::io::Cursor::new(data));
     let metadata = tiff_decoder.xmp_metadata()?;
     assert!(metadata.is_some());
     assert_eq!(EXPECTED_METADATA, &metadata.unwrap());
+
+    Ok(())
+}
+
+#[test]
+#[cfg(all(feature = "avif", feature = "avif-native"))]
+fn test_read_avif_compatible_brands() -> Result<(), image::ImageError> {
+    use image::{DynamicImage, RgbImage};
+    use std::io::Cursor;
+    // See details at:
+    // https://source.chromium.org/chromium/chromium/src/+/823926119c0be100cc814c5e04bc4aa672785265:third_party/blink/renderer/platform/image-decoders/image_decoder_test.cc;l=349-366
+    // This test verifies the edge case of that the decoder can handle AVIF files with major_brand "mif1" or the other
+
+    // Generate a minimal 1x1 pixel AVIF image
+    let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(1, 1, image::Rgb([255, 0, 0])));
+    let mut data = Vec::new();
+    image.write_to(&mut Cursor::new(&mut data), image::ImageFormat::Avif)?;
+
+    assert_eq!(&data[4..8], b"ftyp");
+
+    // Modify the major_brand to "mif1" at offset 8-11 in the ftyp box
+    data[8..12].copy_from_slice(b"mif1");
+
+    // Verify decoder can successfully parse the file even though major_brand is "mif1"
+    let decoder = AvifDecoder::new(Cursor::new(&data));
+    assert!(decoder.is_ok());
 
     Ok(())
 }

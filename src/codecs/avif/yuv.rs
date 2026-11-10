@@ -67,13 +67,13 @@ impl Display for YuvConversionError {
             YuvConversionError::YuvPlaneSizeMismatch(plane, error_size) => {
                 f.write_fmt(format_args!(
                     "For plane {} expected size is {} but was received {}",
-                    plane, error_size.received, error_size.expected,
+                    plane, error_size.expected, error_size.received,
                 ))
             }
             YuvConversionError::RgbDestinationSizeMismatch(error_size) => {
                 f.write_fmt(format_args!(
                     "For RGB destination expected size is {} but was received {}",
-                    error_size.received, error_size.expected,
+                    error_size.expected, error_size.received,
                 ))
             }
         }
@@ -89,7 +89,7 @@ pub(crate) fn check_yuv_plane_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if plane.len() != stride * height {
+    if Some(plane.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::YuvPlaneSizeMismatch(
@@ -110,7 +110,7 @@ pub(crate) fn check_rgb_preconditions<V>(
     stride: usize,
     height: usize,
 ) -> Result<(), ImageError> {
-    if rgb_data.len() != stride * height {
+    if Some(rgb_data.len()) != stride.checked_mul(height) {
         return Err(ImageError::Decoding(DecodingError::new(
             ImageFormat::Avif.into(),
             YuvConversionError::RgbDestinationSizeMismatch(ErrorSize {
@@ -136,7 +136,7 @@ fn get_inverse_transform(
     let cr_coeff = (2f32 * (1f32 - kr)) * range_uv;
     let cb_coeff = (2f32 * (1f32 - kb)) * range_uv;
     let kg = 1.0f32 - kr - kb;
-    assert_ne!(kg, 0., "1.0f - kr - kg must not be 0");
+    assert_ne!(kg, 0., "1.0f - kr - kb must not be 0");
     let g_coeff_1 = (2f32 * ((1f32 - kr) * kr / kg)) * range_uv;
     let g_coeff_2 = (2f32 * ((1f32 - kb) * kb / kg)) * range_uv;
     let exact_transform = CbCrInverseTransform {
@@ -224,8 +224,8 @@ impl YuvStandardMatrix {
                 kb: 0.0593f32,
             },
             YuvStandardMatrix::Smpte240 => YuvBias {
-                kr: 0.087f32,
-                kb: 0.212f32,
+                kr: 0.212f32,
+                kb: 0.087f32,
             },
             YuvStandardMatrix::Bt470_6 => YuvBias {
                 kr: 0.2220f32,
@@ -367,7 +367,7 @@ where
 
         // All branches on generic const will be optimized out.
         for (y_src, rgb) in y_iter.zip(rgb_iter) {
-            let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+            let rgb_chunks = rgb.as_chunks_mut::<CHANNELS>().0.iter_mut();
 
             for (y_src, rgb_dst) in y_src.iter().zip(rgb_chunks) {
                 let r = *y_src;
@@ -403,7 +403,7 @@ where
 
     // All branches on generic const will be optimized out.
     for (y_src, rgb) in y_iter.zip(rgb_iter) {
-        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+        let rgb_chunks = rgb.as_chunks_mut::<CHANNELS>().0.iter_mut();
 
         for (y_src, rgb_dst) in y_src.iter().zip(rgb_chunks) {
             let y_value = (y_src.as_() - bias_y) * y_coef;
@@ -567,9 +567,11 @@ fn process_halved_chroma_row_cbcr<
 
     let bias_y = range.bias_y as i32;
     let bias_uv = range.bias_uv as i32;
-    let y_iter = y_plane.chunks_exact(2);
-    let rgb_chunks = rgba.chunks_exact_mut(CHANNELS * 2);
-    for (((y_src, &u_src), &v_src), rgb_dst) in y_iter.zip(u_plane).zip(v_plane).zip(rgb_chunks) {
+    let (y_iter, y_left) = y_plane.as_chunks::<2>();
+    let mut rgb_chunks = rgba.chunks_exact_mut(CHANNELS * 2);
+    for (((y_src, &u_src), &v_src), rgb_dst) in
+        y_iter.iter().zip(u_plane).zip(v_plane).zip(&mut rgb_chunks)
+    {
         let y_value0: i32 = y_src[0].as_() - bias_y;
         let cb_value: i32 = u_src.as_() - bias_uv;
         let cr_value: i32 = v_src.as_() - bias_uv;
@@ -599,11 +601,11 @@ fn process_halved_chroma_row_cbcr<
 
     // Process remainder if width is odd.
     if image.width & 1 != 0 {
-        let y_left = y_plane.chunks_exact(2).remainder();
-        let rgb_chunks = rgba
-            .chunks_exact_mut(CHANNELS * 2)
+        let rgb_chunks = rgb_chunks
             .into_remainder()
-            .chunks_exact_mut(CHANNELS);
+            .as_chunks_mut::<CHANNELS>()
+            .0
+            .iter_mut();
         let u_iter = u_plane.iter().rev();
         let v_iter = v_plane.iter().rev();
 
@@ -615,11 +617,7 @@ fn process_halved_chroma_row_cbcr<
             let cr_value = v_src.as_() - bias_uv;
 
             ycbcr_execute::<V, PRECISION, CHANNELS, BIT_DEPTH>(
-                rgb_dst.try_into().unwrap(),
-                y_value,
-                cb_value,
-                cr_value,
-                transform,
+                rgb_dst, y_value, cb_value, cr_value, transform,
             );
         }
     }
@@ -1098,7 +1096,7 @@ where
 
     // All branches on generic const will be optimized out.
     for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-        let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+        let rgb_chunks = rgb.as_chunks_mut::<CHANNELS>().0.iter_mut();
 
         for (((y_src, u_src), v_src), rgb_dst) in y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
         {
@@ -1107,7 +1105,7 @@ where
             let cr_value = v_src.as_() - bias_uv;
 
             ycbcr_execute::<V, PRECISION, CHANNELS, BIT_DEPTH>(
-                rgb_dst.try_into().unwrap(),
+                rgb_dst,
                 y_value,
                 cb_value,
                 cr_value,
@@ -1240,7 +1238,7 @@ where
             let y_bias = range.bias_y as i32;
 
             for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-                let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+                let rgb_chunks = rgb.as_chunks_mut::<CHANNELS>().0.iter_mut();
 
                 for (((&y_src, &u_src), &v_src), rgb_dst) in
                     y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)
@@ -1259,7 +1257,7 @@ where
         }
         YuvIntensityRange::Pc => {
             for (((y_src, u_src), v_src), rgb) in y_iter.zip(u_iter).zip(v_iter).zip(rgb_iter) {
-                let rgb_chunks = rgb.chunks_exact_mut(CHANNELS);
+                let rgb_chunks = rgb.as_chunks_mut::<CHANNELS>().0.iter_mut();
 
                 for (((&y_src, &u_src), &v_src), rgb_dst) in
                     y_src.iter().zip(u_src).zip(v_src).zip(rgb_chunks)

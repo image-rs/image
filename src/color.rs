@@ -1,10 +1,11 @@
 use std::ops::{Index, IndexMut};
 
-use num_traits::{NumCast, ToPrimitive, Zero};
+use num_traits::Zero;
 
 use crate::{
     error::TryFromExtendedColorError,
-    traits::{Enlargeable, Pixel, Primitive},
+    primitive_sealed::RgbToLuma,
+    traits::{Pixel, Primitive},
 };
 
 /// An enumeration over supported color types and bit depths
@@ -30,6 +31,10 @@ pub enum ColorType {
     /// Pixel is 16-bit RGBA
     Rgba16,
 
+    /// Pixel is 32-bit float luminance
+    L32F,
+    /// Pixel is 32-bit float luminance with an alpha channel
+    La32F,
     /// Pixel is 32-bit float RGB
     Rgb32F,
     /// Pixel is 32-bit float RGBA
@@ -44,9 +49,9 @@ impl ColorType {
             ColorType::L8 => 1,
             ColorType::L16 | ColorType::La8 => 2,
             ColorType::Rgb8 => 3,
-            ColorType::Rgba8 | ColorType::La16 => 4,
+            ColorType::Rgba8 | ColorType::La16 | ColorType::L32F => 4,
             ColorType::Rgb16 => 6,
-            ColorType::Rgba16 => 8,
+            ColorType::Rgba16 | ColorType::La32F => 8,
             ColorType::Rgb32F => 3 * 4,
             ColorType::Rgba32F => 4 * 4,
         }
@@ -57,8 +62,8 @@ impl ColorType {
     pub fn has_alpha(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | Rgb8 | Rgb16 | Rgb32F => false,
-            La8 | Rgba8 | La16 | Rgba16 | Rgba32F => true,
+            L8 | L16 | L32F | Rgb8 | Rgb16 | Rgb32F => false,
+            La8 | Rgba8 | La16 | Rgba16 | La32F | Rgba32F => true,
         }
     }
 
@@ -67,7 +72,7 @@ impl ColorType {
     pub fn has_color(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | La8 | La16 => false,
+            L8 | L16 | L32F | La8 | La16 | La32F => false,
             Rgb8 | Rgb16 | Rgba8 | Rgba16 | Rgb32F | Rgba32F => true,
         }
     }
@@ -125,6 +130,8 @@ pub enum ExtendedColorType {
     Rgb4,
     /// Pixel is 4-bit RGB with an alpha channel
     Rgba4,
+    /// Pixel contains 5-bit R, G and B channels packed into 2 bytes
+    Rgb5x1,
     /// Pixel is 8-bit luminance
     L8,
     /// Pixel is 8-bit luminance with an alpha channel
@@ -147,6 +154,10 @@ pub enum ExtendedColorType {
     Bgra8,
 
     // TODO f16 types?
+    /// Pixel is 32-bit float luminance
+    L32F,
+    /// Pixel is 32-bit float luminance with an alpha channel
+    La32F,
     /// Pixel is 32-bit float RGB
     Rgb32F,
     /// Pixel is 32-bit float RGBA
@@ -156,6 +167,9 @@ pub enum ExtendedColorType {
     Cmyk8,
     /// Pixel is 16-bit CMYK
     Cmyk16,
+
+    /// Pixel is 8-bit YCbCr
+    YCbCr8,
 
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
@@ -177,18 +191,22 @@ impl ExtendedColorType {
             | ExtendedColorType::L4
             | ExtendedColorType::L8
             | ExtendedColorType::L16
+            | ExtendedColorType::L32F
             | ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1
             | ExtendedColorType::La2
             | ExtendedColorType::La4
             | ExtendedColorType::La8
-            | ExtendedColorType::La16 => 2,
+            | ExtendedColorType::La16
+            | ExtendedColorType::La32F => 2,
             ExtendedColorType::Rgb1
             | ExtendedColorType::Rgb2
             | ExtendedColorType::Rgb4
+            | ExtendedColorType::Rgb5x1
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgb32F
+            | ExtendedColorType::YCbCr8
             | ExtendedColorType::Bgr8 => 3,
             ExtendedColorType::Rgba1
             | ExtendedColorType::Rgba2
@@ -219,6 +237,7 @@ impl ExtendedColorType {
             ExtendedColorType::La4 => 8,
             ExtendedColorType::Rgb4 => 12,
             ExtendedColorType::Rgba4 => 16,
+            ExtendedColorType::Rgb5x1 => 16,
             ExtendedColorType::L8 => 8,
             ExtendedColorType::La8 => 16,
             ExtendedColorType::Rgb8 => 24,
@@ -227,12 +246,15 @@ impl ExtendedColorType {
             ExtendedColorType::La16 => 32,
             ExtendedColorType::Rgb16 => 48,
             ExtendedColorType::Rgba16 => 64,
+            ExtendedColorType::L32F => 32,
+            ExtendedColorType::La32F => 64,
             ExtendedColorType::Rgb32F => 96,
             ExtendedColorType::Rgba32F => 128,
             ExtendedColorType::Bgr8 => 24,
             ExtendedColorType::Bgra8 => 32,
             ExtendedColorType::Cmyk8 => 32,
             ExtendedColorType::Cmyk16 => 64,
+            ExtendedColorType::YCbCr8 => 24,
             ExtendedColorType::Unknown(bpp) => bpp as u16,
         }
     }
@@ -270,14 +292,20 @@ impl ExtendedColorType {
             ExtendedColorType::La16 => Some(ColorType::La16),
             ExtendedColorType::Rgb16 => Some(ColorType::Rgb16),
             ExtendedColorType::Rgba16 => Some(ColorType::Rgba16),
+            ExtendedColorType::L32F => Some(ColorType::L32F),
+            ExtendedColorType::La32F => Some(ColorType::La32F),
             ExtendedColorType::Rgb32F => Some(ColorType::Rgb32F),
             ExtendedColorType::Rgba32F => Some(ColorType::Rgba32F),
             _ => None,
         }
     }
 
-    /// Returns the number of bytes required to hold a width x height image of this color type.
-    pub(crate) fn buffer_size(self, width: u32, height: u32) -> u64 {
+    /// Returns the number of bytes required to hold a `width x height` image of this color type.
+    ///
+    /// Each pixel row occupies exactly `width * bits_per_pixel()` bits, rounded **up to the
+    /// nearest byte** (no additional row padding is added). The total is `row_bytes * height`,
+    /// saturating at [`u64::MAX`] for astronomically large inputs.
+    pub fn buffer_size(self, width: u32, height: u32) -> u64 {
         let bpp = self.bits_per_pixel() as u64;
         let row_pitch = (width as u64 * bpp).div_ceil(8);
         row_pitch.saturating_mul(height as u64)
@@ -295,6 +323,8 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::La16 => ExtendedColorType::La16,
             ColorType::Rgb16 => ExtendedColorType::Rgb16,
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
+            ColorType::L32F => ExtendedColorType::L32F,
+            ColorType::La32F => ExtendedColorType::La32F,
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
         }
@@ -355,25 +385,40 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         }
     }
 
-    fn channels4(&self) -> (T, T, T, T) {
-        const CHANNELS: usize = $channels;
-        let mut channels = [T::DEFAULT_MAX_VALUE; 4];
-        channels[0..CHANNELS].copy_from_slice(&self.0);
-        (channels[0], channels[1], channels[2], channels[3])
-    }
-
-    fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        const CHANNELS: usize = $channels;
-        *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..CHANNELS])
-    }
-
+    #[track_caller]
     fn from_slice(slice: &[T]) -> &$ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { &*(slice.as_ptr() as *const $ident<T>) }
     }
+
+    #[track_caller]
     fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
+    }
+
+    fn pixels_from_channels(slice: &[T]) -> &[ $ident<T>] {
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const $ident<T>, len) }
+    }
+
+    fn pixels_from_channels_mut(slice: &mut [T]) -> &mut [ $ident<T>] {
+        let len = slice.len() / $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut $ident<T>, len) }
+    }
+
+    fn pixels_as_channels(slice: &[$ident<T>]) -> &[T] {
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const T, len) }
+    }
+
+    fn pixels_as_channels_mut(slice: &mut [$ident<T>]) -> &mut [T] {
+        let len = slice.len() * $channels;
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut T, len) }
+    }
+
+    fn broadcast(val: T) -> $ident<T> {
+        $ident([val; $channels])
     }
 
     fn to_rgb(&self) -> Rgb<T> {
@@ -400,22 +445,10 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         pix
     }
 
-    fn map<F>(& self, f: F) -> $ident<T> where F: FnMut(T) -> T {
-        let mut this = (*self).clone();
-        this.apply(f);
-        this
-    }
-
     fn apply<F>(&mut self, mut f: F) where F: FnMut(T) -> T {
         for v in &mut self.0 {
             *v = f(*v)
         }
-    }
-
-    fn map_with_alpha<F, G>(&self, f: F, g: G) -> $ident<T> where F: FnMut(T) -> T, G: FnMut(T) -> T {
-        let mut this = (*self).clone();
-        this.apply_with_alpha(f, g);
-        this
     }
 
     fn apply_with_alpha<F, G>(&mut self, mut f: F, mut g: G) where F: FnMut(T) -> T, G: FnMut(T) -> T {
@@ -428,12 +461,6 @@ impl<T: $($bound+)*> Pixel for $ident<T> {
         if let Some(v) = self.0.get_mut(ALPHA) {
             *v = g(*v)
         }
-    }
-
-    fn map2<F>(&self, other: &Self, f: F) -> $ident<T> where F: FnMut(T, T) -> T {
-        let mut this = (*self).clone();
-        this.apply2(other, f);
-        this
     }
 
     fn apply2<F>(&mut self, other: &$ident<T>, mut f: F) where F: FnMut(T, T) -> T {
@@ -482,11 +509,11 @@ define_colors! {
     ///
     /// For the purpose of color conversion, as well as blending, the implementation of `Pixel`
     /// assumes an `sRGB` color space of its data.
-    pub struct Rgb<T: Primitive Enlargeable>([T; 3, 0]) = "RGB";
+    pub struct Rgb<T: Primitive>([T; 3, 0]) = "RGB";
     /// Grayscale colors.
     pub struct Luma<T: Primitive>([T; 1, 0]) = "Y";
     /// RGB colors + alpha channel
-    pub struct Rgba<T: Primitive Enlargeable>([T; 4, 1]) = "RGBA";
+    pub struct Rgba<T: Primitive>([T; 4, 1]) = "RGBA";
     /// Grayscale colors + alpha channel
     pub struct LumaA<T: Primitive>([T; 2, 1]) = "YA";
 }
@@ -504,28 +531,37 @@ impl<T: Primitive> FromPrimitive<T> for T {
 }
 
 // from f32:
-// Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
-// as truncate towards zero. We emulate rounding by adding a bias.
 
-// All other special values are clamped inbetween 0.0 and 1.0 (infinities and subnormals)
-// NaN however always maps to NaN therefore we have to force it towards some value.
-// 1.0 (white) was picked as firefox and chrome choose to map NaN to that.
+// Note that float-to-int `as` casts truncate toward zero. We emulate rounding
+// to nearest by adding a bias of 0.5.
+//
+// The `as` cast also clamps all values outside the range of the target type to
+// the nearest bound, making explicit clamping unnecessary. The only exception
+// is NaN. `NaN as int` is 0, which is not what we want. Firefox and Chrome both
+// map NaN to the maximum value of the target type, so we do the same.
+//
+// To perform the mapping NaN -> 1.0, we use `float.min(1.0)`. This maps NaN
+// (and all values >1) to 1.0. Mapping values >1 to 1.0 is not a problem since
+// they will be clamped to the maximum value of the target type by the `as` cast
+// anyway.
+// Note that the value of 1.0 in `float.min(1.0)` was chosen arbitrarily. Any
+// value >= 1.0 would have the same effect.
 #[inline]
-fn normalize_float(float: f32, max: f32) -> f32 {
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let clamped = if !(float < 1.0) { 1.0 } else { float.max(0.0) };
-    (clamped * max).round()
+fn handle_nan_before_conversion(float: f32) -> f32 {
+    float.min(1.0)
 }
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(normalize_float(float, u8::MAX as f32)).unwrap()
+        let x = handle_nan_before_conversion(float);
+        (x * u8::MAX as f32 + 0.5) as u8
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(normalize_float(float, u16::MAX as f32)).unwrap()
+        let x = handle_nan_before_conversion(float);
+        (x * u16::MAX as f32 + 0.5) as u16
     }
 }
 
@@ -533,22 +569,19 @@ impl FromPrimitive<f32> for u16 {
 
 impl FromPrimitive<u16> for u8 {
     fn from_primitive(c16: u16) -> Self {
-        fn from(c: impl Into<u32>) -> u32 {
-            c.into()
-        }
-        // The input c is the numerator of `c / u16::MAX`.
-        // Derive numerator of `num / u8::MAX`, with rounding.
-        //
-        // This method is based on the inverse (see FromPrimitive<u8> for u16) and was tested
-        // exhaustively in Python. It's the same as the reference function:
-        //  round(c * (2**8 - 1) / (2**16 - 1))
-        NumCast::from((from(c16) + 128) / 257).unwrap()
+        // This expression calculates:
+        //    round(c * u8::MAX / u16::MAX)
+        //  = round(c * 255 / 65535)
+        //  = round(c / 257)
+        //  = trunc((c + 128) / 257)
+        let x: u32 = c16.into();
+        ((x + 128) / 257) as u8
     }
 }
 
 impl FromPrimitive<u16> for f32 {
     fn from_primitive(int: u16) -> Self {
-        (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
+        int as f32 / u16::MAX as f32
     }
 }
 
@@ -556,14 +589,17 @@ impl FromPrimitive<u16> for f32 {
 
 impl FromPrimitive<u8> for f32 {
     fn from_primitive(int: u8) -> Self {
-        (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
+        int as f32 / u8::MAX as f32
     }
 }
 
 impl FromPrimitive<u8> for u16 {
     fn from_primitive(c8: u8) -> Self {
-        let x = c8.to_u64().unwrap();
-        NumCast::from((x << 8) | x).unwrap()
+        // This weird casting to u64 and back to u16 is to help the compiler
+        // optimize RGBA8 -> RGBA16 conversions. Without it, the conversion is
+        // not properly vectorized and about 30% slower.
+        let x: u64 = c8.into();
+        ((x << 8) | x) as u16
     }
 }
 
@@ -589,25 +625,10 @@ where
 {
     #[allow(clippy::wrong_self_convention)]
     fn into_color(&self) -> O {
-        // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
-        // the pixel due to a current bug/limitation of consts.
-        #[allow(deprecated)]
-        let mut pix = O::from_channels(Zero::zero(), Zero::zero(), Zero::zero(), Zero::zero());
+        let mut pix = O::broadcast(Zero::zero());
         pix.from_color(self);
         pix
     }
-}
-
-/// Coefficients to transform from sRGB to a CIE Y (luminance) value.
-const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
-const SRGB_LUMA_DIV: u32 = 10000;
-
-#[inline]
-fn rgb_to_luma<T: Primitive + Enlargeable>(rgb: &[T]) -> T {
-    let l = <T::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * rgb[0].to_larger()
-        + <T::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * rgb[1].to_larger()
-        + <T::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * rgb[2].to_larger();
-    T::clamp_from(l / <T::Larger as NumCast>::from(SRGB_LUMA_DIV).unwrap())
 }
 
 // `FromColor` for Luma
@@ -631,26 +652,23 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for Luma<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgb<S>) {
-        let gray = self.channels_mut();
-        let rgb = other.channels();
-        gray[0] = T::from_primitive(rgb_to_luma(rgb));
+        let [r, g, b] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for Luma<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Luma<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgba<S>) {
-        let gray = self.channels_mut();
-        let rgb = other.channels();
-        let l = rgb_to_luma(rgb);
-        gray[0] = T::from_primitive(l);
+        let [r, g, b, _a] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
     }
 }
 
@@ -668,27 +686,25 @@ where
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgb<S>) {
-        let gray_a = self.channels_mut();
-        let rgb = other.channels();
-        gray_a[0] = T::from_primitive(rgb_to_luma(rgb));
-        gray_a[1] = T::DEFAULT_MAX_VALUE;
+        let [r, g, b] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
+        self.0[1] = T::DEFAULT_MAX_VALUE;
     }
 }
 
-impl<S: Primitive + Enlargeable, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
 where
     T: FromPrimitive<S>,
 {
     fn from_color(&mut self, other: &Rgba<S>) {
-        let gray_a = self.channels_mut();
-        let rgba = other.channels();
-        gray_a[0] = T::from_primitive(rgb_to_luma(rgba));
-        gray_a[1] = T::from_primitive(rgba[3]);
+        let [r, g, b, a] = other.0;
+        self.0[0] = T::from_primitive(RgbToLuma::rgb_to_luma(r, g, b));
+        self.0[1] = T::from_primitive(a);
     }
 }
 
@@ -848,8 +864,8 @@ impl<T: Primitive> Blend for LumaA<T> {
         let out_luma = out_luma_a / alpha_final;
 
         *self = LumaA([
-            NumCast::from(max_t * out_luma).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            T::nearest_from(max_t * out_luma),
+            T::nearest_from(max_t * alpha_final),
         ]);
     }
 }
@@ -916,10 +932,10 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Cast back to our initial type on return
         *self = Rgba([
-            NumCast::from(max_t * out_r).unwrap(),
-            NumCast::from(max_t * out_g).unwrap(),
-            NumCast::from(max_t * out_b).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap(),
+            T::nearest_from(max_t * out_r),
+            T::nearest_from(max_t * out_g),
+            T::nearest_from(max_t * out_b),
+            T::nearest_from(max_t * alpha_final),
         ]);
     }
 }

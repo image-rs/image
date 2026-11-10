@@ -13,7 +13,7 @@
 //!
 //! # High level API
 //!
-//! Load images using [`ImageReader`](crate::ImageReader):
+//! Load images using [`ImageReader`]:
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
@@ -22,7 +22,7 @@
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes))?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -47,9 +47,8 @@
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).
 //!
-//! [`save`]: enum.DynamicImage.html#method.save
-//! [`write_to`]: enum.DynamicImage.html#method.write_to
-//! [`ImageReader`]: struct.Reader.html
+//! [`save`]: DynamicImage::save
+//! [`write_to`]: DynamicImage::write_to
 //!
 //! # Image buffers
 //!
@@ -64,11 +63,6 @@
 //! * [`flat`] module containing types for interoperability with generic channel
 //!   matrices and foreign interfaces.
 //!
-//! [`GenericImageView`]: trait.GenericImageView.html
-//! [`GenericImage`]: trait.GenericImage.html
-//! [`ImageBuffer`]: struct.ImageBuffer.html
-//! [`DynamicImage`]: enum.DynamicImage.html
-//! [`flat`]: flat/index.html
 //!
 //! # Low level encoding/decoding API
 //!
@@ -88,7 +82,7 @@
 //! # }
 //! # #[cfg(not(feature = "jpeg"))] fn main() {}
 //! ```
-//! While [`ImageDecoder`] and [`ImageDecoderRect`] give access to more advanced decoding options:
+//! While [`ImageDecoder`] give access to more advanced decoding options:
 //!
 //! ```rust,no_run
 //! # use std::io::{BufReader, Cursor};
@@ -99,18 +93,15 @@
 //! # use image::codecs::png::PngDecoder;
 //! # let img: DynamicImage = unimplemented!();
 //! # let reader: BufReader<Cursor<&[u8]>> = unimplemented!();
-//! let decoder = PngDecoder::new(&mut reader)?;
+//! let mut decoder = PngDecoder::new(&mut reader);
+//! let layout_etc = decoder.prepare_image()?;
+//!
 //! let icc = decoder.icc_profile();
 //! let img = DynamicImage::from_decoder(decoder)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
 //! ```
-//!
-//! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
-//! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
-//! [`ImageDecoder`]: trait.ImageDecoder.html
-//! [`ImageEncoder`]: trait.ImageEncoder.html
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
@@ -158,14 +149,16 @@ pub use crate::images::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open,
     write_buffer_with_format,
 };
+
 pub use crate::io::free_functions::{guess_format, load, save_buffer, save_buffer_with_format};
 
 pub use crate::io::{
-    decoder::{AnimationDecoder, ImageDecoder, ImageDecoderRect},
+    decoder::ImageDecoder,
     encoder::ImageEncoder,
     format::ImageFormat,
-    image_reader_type::ImageReader,
+    image_reader_type::{ImageReader, ImageReaderOptions, SpecCompliance},
     limits::{LimitSupport, Limits},
+    ImageLayout,
 };
 
 pub use crate::images::dynimage::DynamicImage;
@@ -179,8 +172,7 @@ pub mod error;
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::images::buffer::{
-        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
-        Pixels, PixelsMut, Rows, RowsMut,
+        EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut, Rows, RowsMut,
     };
 
     #[cfg(feature = "rayon")]
@@ -204,7 +196,6 @@ pub use crate::images::flat;
 /// | ------- | -------- | -----
 /// | `avif`  | AVIF     | Decoding requires the `avif-native` feature, uses the libdav1d C library.
 /// | `bmp`   | BMP      |
-/// | `dds`   | DDS      | Only decoding is supported.
 /// | `exr`   | OpenEXR  |
 /// | `ff`    | Farbfeld |
 /// | `gif`   | GIF      |
@@ -244,8 +235,6 @@ pub mod codecs {
     pub mod avif;
     #[cfg(feature = "bmp")]
     pub mod bmp;
-    #[cfg(feature = "dds")]
-    pub mod dds;
     #[cfg(feature = "ff")]
     pub mod farbfeld;
     #[cfg(feature = "gif")]
@@ -270,9 +259,6 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
-
-    #[cfg(feature = "dds")]
-    mod dxt;
 }
 
 mod animation;
@@ -283,6 +269,7 @@ mod images;
 /// This is going to be internal.
 pub mod io;
 pub mod metadata;
+mod primitive_sealed;
 //TODO delete this module after a few releases
 mod traits;
 mod utils;

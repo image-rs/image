@@ -69,44 +69,20 @@ where
     f64: AsPrimitive<T>,
 {
     assert_eq!(image.len(), N * image_size.width * image_size.height);
+    let image = image.as_chunks::<N>().0;
 
     let pad_w = (kernel_size.width / 2).max(1);
 
-    let arena_width = image_size
-        .width
-        .safe_mul(N)?
-        .safe_add(pad_w.safe_mul(2 * N)?)?;
-
-    let source_offset = source_y * image_size.width * N;
+    let arena_width = image_size.width.safe_add(pad_w * 2)?.safe_mul(N)?;
     assert_eq!(row_buffer.len(), arena_width);
+    let row_buffer = row_buffer.as_chunks_mut::<N>().0;
 
-    let row_dst = &mut row_buffer[pad_w * N..(pad_w * N + image_size.width * N)];
+    let source_row = &image[source_y * image_size.width..][..image_size.width];
+    row_buffer[pad_w..(pad_w + image_size.width)].copy_from_slice(source_row);
 
-    let source_row = &image[source_offset..(source_offset + image_size.width * N)];
+    row_buffer[..pad_w].fill(*source_row.first().unwrap());
+    row_buffer[image_size.width + pad_w..].fill(*source_row.last().unwrap());
 
-    for (dst, src) in row_dst.iter_mut().zip(source_row.iter()) {
-        *dst = *src;
-    }
-
-    for (x, dst) in (0..pad_w).zip(row_buffer.chunks_exact_mut(N)) {
-        let old_x = x.saturating_sub(pad_w).min(image_size.width - 1);
-        let old_px = old_x * N;
-        let src_iter = &source_row[old_px..(old_px + N)];
-        for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {
-            *dst = *src;
-        }
-    }
-
-    for (x, dst) in
-        (image_size.width..(image_size.width + pad_w)).zip(row_buffer.chunks_exact_mut(N).rev())
-    {
-        let old_x = x.max(0).min(image_size.width - 1);
-        let old_px = old_x * N;
-        let src_iter = &source_row[old_px..(old_px + N)];
-        for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {
-            *dst = *src;
-        }
-    }
     Ok(())
 }
 
@@ -135,34 +111,16 @@ where
     assert_eq!(image.len(), N * image_size.width * image_size.height);
     let pad_h = kernel_size.height / 2;
 
-    let mut top_pad = vec![T::default(); pad_h * image_size.width * N];
-    let mut bottom_pad = vec![T::default(); pad_h * image_size.width * N];
+    let stride = image_size.width * N;
+    let mut top_pad = vec![T::default(); pad_h * stride];
+    let mut bottom_pad = vec![T::default(); pad_h * stride];
 
-    let top_pad_stride = image_size.width * N;
-
-    for (ky, dst) in (0..pad_h).zip(top_pad.chunks_exact_mut(top_pad_stride)) {
-        for (kx, dst) in (0..image_size.width).zip(dst.chunks_exact_mut(N)) {
-            let y = ky.saturating_sub(pad_h).min(image_size.height - 1);
-            let v_src = y * top_pad_stride + kx * N;
-
-            let src_iter = &image[v_src..(v_src + N)];
-            for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {
-                *dst = *src;
-            }
-        }
+    for dst in top_pad.chunks_exact_mut(stride) {
+        dst.copy_from_slice(&image[..stride]);
     }
 
-    let bottom_iter_dst = bottom_pad.chunks_exact_mut(top_pad_stride);
-
-    for (ky, dst) in (0..pad_h).zip(bottom_iter_dst) {
-        for (kx, dst) in (0..image_size.width).zip(dst.chunks_exact_mut(N)) {
-            let y = (ky + image_size.height).min(image_size.height - 1);
-            let v_src = y * top_pad_stride + kx * N;
-            let src_iter = &image[v_src..(v_src + N)];
-            for (dst, src) in dst.iter_mut().zip(src_iter.iter()) {
-                *dst = *src;
-            }
-        }
+    for dst in bottom_pad.chunks_exact_mut(stride) {
+        dst.copy_from_slice(&image[(image_size.height - 1) * stride..]);
     }
 
     ArenaColumns {
@@ -194,7 +152,7 @@ impl ToStorage<u16> for u32 {
 impl ToStorage<u16> for f32 {
     #[inline(always)]
     fn to_(self) -> u16 {
-        self.round().min(u16::MAX as f32) as u16
+        (self.min(u16::MAX as f32) + 0.5) as u16
     }
 }
 
@@ -210,11 +168,12 @@ impl ToStorage<f32> for f32 {
 /// Common convolution formula O(x,y)=∑K(k)⋅I(x,y+k); where sums goes from 0...R
 /// when filter is symmetric that we can half kernel reads by using formula
 /// O(x,y)=(∑K(k)⋅(I(x,y+k) + I(x,y+(R-k)))) + K(R/2)⋅I(x,y+R/2); where sums goes from 0...R/2
-fn filter_symmetric_column<T, F, const N: usize>(
+fn filter_symmetric_column<T, F>(
     arena_src: &[&[T]],
     dst_row: &mut [T],
     image_size: FilterImageSize,
     kernel: &[F],
+    n: usize,
 ) where
     T: Copy + AsPrimitive<F>,
     F: ToStorage<T>
@@ -225,7 +184,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
         + Copy
         + 'static,
 {
-    let dst_stride = image_size.width * N;
+    let dst_stride = image_size.width * n;
 
     let length = kernel.len();
     let half_len = length / 2;
@@ -237,7 +196,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
     let mut dst_rem = dst_row;
 
     if size_of::<T>() == 1 {
-        for chunk in dst_rem.chunks_exact_mut(32) {
+        for chunk in dst_rem.as_chunks_mut::<32>().0.iter_mut() {
             let mut store0: [F; 16] = [F::default(); 16];
             let mut store1: [F; 16] = [F::default(); 16];
 
@@ -269,13 +228,11 @@ fn filter_symmetric_column<T, F, const N: usize>(
                 }
             }
 
-            let shaped_dst0 = &mut chunk[..16];
+            let (shaped_dst0, shaped_dst1) = chunk.split_at_mut(16);
 
             for (src, dst) in store0.iter().zip(shaped_dst0.iter_mut()) {
                 *dst = src.to_();
             }
-
-            let shaped_dst1 = &mut chunk[16..32];
 
             for (src, dst) in store1.iter().zip(shaped_dst1.iter_mut()) {
                 *dst = src.to_();
@@ -284,10 +241,10 @@ fn filter_symmetric_column<T, F, const N: usize>(
             cx += 32;
         }
 
-        dst_rem = dst_rem.chunks_exact_mut(32).into_remainder();
+        dst_rem = dst_rem.as_chunks_mut::<32>().1;
     }
 
-    for chunk in dst_rem.chunks_exact_mut(16) {
+    for chunk in dst_rem.as_chunks_mut::<16>().0.iter_mut() {
         let mut store: [F; 16] = [F::default(); 16];
 
         let v_src = &arena_src[half_len][cx..(cx + 16)];
@@ -313,9 +270,9 @@ fn filter_symmetric_column<T, F, const N: usize>(
         cx += 16;
     }
 
-    dst_rem = dst_rem.chunks_exact_mut(16).into_remainder();
+    dst_rem = dst_rem.as_chunks_mut::<16>().1;
 
-    for chunk in dst_rem.chunks_exact_mut(4) {
+    for chunk in dst_rem.as_chunks_mut::<4>().0.iter_mut() {
         let v_src = &arena_src[half_len][cx..(cx + 4)];
 
         let mut k0 = v_src[0].as_().mul(coeff);
@@ -340,7 +297,7 @@ fn filter_symmetric_column<T, F, const N: usize>(
         cx += 4;
     }
 
-    dst_rem = dst_rem.chunks_exact_mut(4).into_remainder();
+    dst_rem = dst_rem.as_chunks_mut::<4>().1;
 
     for (chunk, x) in dst_rem.iter_mut().zip(cx..dst_stride) {
         let v_src = &arena_src[half_len][x..(x + 1)];
@@ -382,7 +339,9 @@ where
 
     let hc = scanned_kernel[half_len];
 
-    for (x, dst) in dst_row.chunks_exact_mut(4).enumerate() {
+    let (dst_row_chunks, remainder) = dst_row.as_chunks_mut::<4>();
+
+    for (x, dst) in dst_row_chunks.iter_mut().enumerate() {
         let v_cx = x * 4;
         let src = &src[v_cx..];
 
@@ -411,8 +370,7 @@ where
         dst[3] = k3.to_();
     }
 
-    let dzx = dst_row.chunks_exact_mut(4).len() * 4;
-    let remainder = dst_row.chunks_exact_mut(4).into_remainder();
+    let dzx = dst_row_chunks.len() * 4;
 
     for (x, dst) in remainder.iter_mut().enumerate() {
         let v_cx = x + dzx;
@@ -585,9 +543,7 @@ where
     // Distribute R0 up to half of kernel into a ring
     let (src_row, rest) = buffer.split_at_mut(full_width);
     for dst in rest.chunks_exact_mut(full_width).take(half_kernel) {
-        for (dst, src) in dst.iter_mut().zip(src_row.iter()) {
-            *dst = *src;
-        }
+        dst.copy_from_slice(src_row);
     }
 
     let mut start_ky = column_kernel_len / 2 + 1;
@@ -623,18 +579,17 @@ where
         // As we always in advance on half of vertical kernel so half_kernel = R0
         // this is real image start
         if y >= half_kernel {
-            let mut brows = vec![image; column_kernel_len];
-
-            for (i, brow) in brows.iter_mut().enumerate() {
+            let mut buffer_rows = vec![image; column_kernel_len];
+            for (i, row) in buffer_rows.iter_mut().enumerate() {
                 let ky = (i + start_ky + 1) % column_kernel_len;
-                *brow = &buffer[ky * full_width..(ky + 1) * full_width];
+                *row = &buffer[ky * full_width..(ky + 1) * full_width];
             }
 
             let dy = y - half_kernel;
 
             let dst = &mut destination[dy * full_width..(dy + 1) * full_width];
 
-            filter_symmetric_column::<T, I, N>(&brows, dst, image_size, column_kernel);
+            filter_symmetric_column::<T, I>(&buffer_rows, dst, image_size, column_kernel, N);
         }
 
         start_ky += 1;
@@ -785,9 +740,9 @@ where
         .chunks_exact_mut(image_size.width * N)
         .enumerate()
     {
-        let mut brows: Vec<&[T]> = vec![&transient_image_slice[0..]; column_kernel_shape.height];
+        let mut rows: Vec<&[T]> = vec![&transient_image_slice[0..]; column_kernel_shape.height];
 
-        for (k, row) in (0..column_kernel_shape.height).zip(brows.iter_mut()) {
+        for (k, row) in rows.iter_mut().enumerate() {
             if (y as i64 - pad_h as i64 + k as i64) < 0 {
                 *row = &top_pad[(pad_h - k - 1) * src_stride..];
             } else if (y as i64 - pad_h as i64 + k as i64) as usize >= image_size.height {
@@ -799,9 +754,7 @@ where
             }
         }
 
-        let brows_slice = brows.as_slice();
-
-        filter_symmetric_column::<T, I, N>(brows_slice, dst, image_size, &scanned_column_kernel);
+        filter_symmetric_column::<T, I>(&rows, dst, image_size, &scanned_column_kernel, N);
     }
 
     Ok(())

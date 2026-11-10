@@ -91,22 +91,22 @@ pub enum CicpColorPrimaries {
 }
 
 impl CicpColorPrimaries {
-    fn to_moxcms(self) -> moxcms::CicpColorPrimaries {
-        use moxcms::CicpColorPrimaries as M;
-
+    /// Do support these primaries in color [`CicpTransform`]?
+    pub const fn is_supported_for_transform(self) -> bool {
+        // Note: exhaustive match so we actively decide on future additions.
         match self {
-            CicpColorPrimaries::SRgb => M::Bt709,
-            CicpColorPrimaries::Unspecified => M::Unspecified,
-            CicpColorPrimaries::RgbM => M::Bt470M,
-            CicpColorPrimaries::RgbB => M::Bt470Bg,
-            CicpColorPrimaries::Bt601 => M::Bt601,
-            CicpColorPrimaries::Rgb240m => M::Smpte240,
-            CicpColorPrimaries::GenericFilm => M::GenericFilm,
-            CicpColorPrimaries::Rgb2020 => M::Bt2020,
-            CicpColorPrimaries::Xyz => M::Xyz,
-            CicpColorPrimaries::SmpteRp431 => M::Smpte431,
-            CicpColorPrimaries::SmpteRp432 => M::Smpte432,
-            CicpColorPrimaries::Industry22 => M::Ebu3213,
+            CicpColorPrimaries::SRgb
+            | CicpColorPrimaries::RgbM
+            | CicpColorPrimaries::RgbB
+            | CicpColorPrimaries::Bt601
+            | CicpColorPrimaries::Rgb240m
+            | CicpColorPrimaries::GenericFilm
+            | CicpColorPrimaries::Rgb2020
+            | CicpColorPrimaries::Xyz
+            | CicpColorPrimaries::SmpteRp431
+            | CicpColorPrimaries::SmpteRp432
+            | CicpColorPrimaries::Industry22 => true,
+            CicpColorPrimaries::Unspecified => false,
         }
     }
 }
@@ -171,27 +171,32 @@ pub enum CicpTransferCharacteristics {
 }
 
 impl CicpTransferCharacteristics {
-    fn to_moxcms(self) -> moxcms::TransferCharacteristics {
-        use moxcms::TransferCharacteristics as T;
-
+    /// Do support this transfer function in color [`CicpTransform`]?
+    pub const fn is_supported_for_transform(self) -> bool {
+        // Note: exhaustive match so we actively decide on future additions.
         match self {
-            CicpTransferCharacteristics::Bt709 => T::Bt709,
-            CicpTransferCharacteristics::Unspecified => T::Unspecified,
-            CicpTransferCharacteristics::Bt470M => T::Bt470M,
-            CicpTransferCharacteristics::Bt470BG => T::Bt470Bg,
-            CicpTransferCharacteristics::Bt601 => T::Bt601,
-            CicpTransferCharacteristics::Smpte240m => T::Smpte240,
-            CicpTransferCharacteristics::Linear => T::Linear,
-            CicpTransferCharacteristics::Log100 => T::Log100,
-            CicpTransferCharacteristics::LogSqrt => T::Log100sqrt10,
-            CicpTransferCharacteristics::Iec61966_2_4 => T::Iec61966,
-            CicpTransferCharacteristics::Bt1361 => T::Bt1361,
-            CicpTransferCharacteristics::SRgb => T::Srgb,
-            CicpTransferCharacteristics::Bt2020_10bit => T::Bt202010bit,
-            CicpTransferCharacteristics::Bt2020_12bit => T::Bt202012bit,
-            CicpTransferCharacteristics::Smpte2084 => T::Smpte2084,
-            CicpTransferCharacteristics::Smpte428 => T::Smpte428,
-            CicpTransferCharacteristics::Bt2100Hlg => T::Hlg,
+            CicpTransferCharacteristics::Bt709
+            | CicpTransferCharacteristics::Bt470M
+            | CicpTransferCharacteristics::Bt470BG
+            | CicpTransferCharacteristics::Bt601
+            | CicpTransferCharacteristics::Smpte240m
+            | CicpTransferCharacteristics::Linear
+            | CicpTransferCharacteristics::Log100
+            | CicpTransferCharacteristics::LogSqrt
+            | CicpTransferCharacteristics::Iec61966_2_4
+            | CicpTransferCharacteristics::Bt1361
+            | CicpTransferCharacteristics::SRgb
+            | CicpTransferCharacteristics::Bt2020_10bit
+            | CicpTransferCharacteristics::Bt2020_12bit
+            | CicpTransferCharacteristics::Smpte428
+            | CicpTransferCharacteristics::Bt2100Hlg => true,
+            CicpTransferCharacteristics::Unspecified
+            // Dolby patent WO 2022/066242; my problem not _only_ being the patent itself but also
+            // that the patent does not contain any useful information. It does *not* disclose the
+            // actual method. You get a graph of roughly the function. Fuck off.
+            //
+            // aka. Rec2100 PQ
+            | CicpTransferCharacteristics::Smpte2084 => false,
         }
     }
 }
@@ -251,32 +256,6 @@ pub enum CicpMatrixCoefficients {
     YCgCoRo = 17,
 }
 
-impl CicpMatrixCoefficients {
-    fn to_moxcms(self) -> Option<moxcms::MatrixCoefficients> {
-        use moxcms::MatrixCoefficients as M;
-
-        Some(match self {
-            CicpMatrixCoefficients::Identity => M::Identity,
-            CicpMatrixCoefficients::Unspecified => M::Unspecified,
-            CicpMatrixCoefficients::Bt709 => M::Bt709,
-            CicpMatrixCoefficients::UsFCC => M::Fcc,
-            CicpMatrixCoefficients::Bt470BG => M::Bt470Bg,
-            CicpMatrixCoefficients::Smpte170m => M::Smpte170m,
-            CicpMatrixCoefficients::Smpte240m => M::Smpte240m,
-            CicpMatrixCoefficients::YCgCo => M::YCgCo,
-            CicpMatrixCoefficients::Bt2020NonConstant => M::Bt2020Ncl,
-            CicpMatrixCoefficients::Bt2020Constant => M::Bt2020Cl,
-            CicpMatrixCoefficients::Smpte2085 => M::Smpte2085,
-            CicpMatrixCoefficients::ChromaticityDerivedNonConstant => M::ChromaticityDerivedNCL,
-            CicpMatrixCoefficients::ChromaticityDerivedConstant => M::ChromaticityDerivedCL,
-            CicpMatrixCoefficients::Bt2100 => M::ICtCp,
-            CicpMatrixCoefficients::IptPqC2
-            | CicpMatrixCoefficients::YCgCoRe
-            | CicpMatrixCoefficients::YCgCoRo => return None,
-        })
-    }
-}
-
 /// The used encoded value range.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -310,23 +289,23 @@ pub(crate) enum DerivedLuminance {
 /// that some particular combination is supported.
 #[derive(Clone)]
 pub struct CicpTransform {
-    from: Cicp,
-    into: Cicp,
-    u8: RgbTransforms<u8>,
-    u16: RgbTransforms<u16>,
-    f32: RgbTransforms<f32>,
+    pub(crate) from: Cicp,
+    pub(crate) into: Cicp,
+    pub(crate) u8: RgbTransforms<u8>,
+    pub(crate) u16: RgbTransforms<u16>,
+    pub(crate) f32: RgbTransforms<f32>,
     // Converting RGB to Y in the output.
-    output_coefs: [f32; 3],
+    pub(crate) output_coefs: [f32; 3],
 }
 
 pub(crate) type CicpApplicable<'lt, C> = dyn Fn(&[C], &mut [C]) + Send + Sync + 'lt;
 
 #[derive(Clone)]
-struct RgbTransforms<C> {
-    slices: [Arc<CicpApplicable<'static, C>>; 4],
-    luma_rgb: [Arc<CicpApplicable<'static, C>>; 4],
-    rgb_luma: [Arc<CicpApplicable<'static, C>>; 4],
-    luma_luma: [Arc<CicpApplicable<'static, C>>; 4],
+pub(crate) struct RgbTransforms<C> {
+    pub(crate) slices: [Arc<CicpApplicable<'static, C>>; 4],
+    pub(crate) luma_rgb: [Arc<CicpApplicable<'static, C>>; 4],
+    pub(crate) rgb_luma: [Arc<CicpApplicable<'static, C>>; 4],
+    pub(crate) luma_luma: [Arc<CicpApplicable<'static, C>>; 4],
 }
 
 impl CicpTransform {
@@ -337,82 +316,19 @@ impl CicpTransform {
     /// not make guarantees about adjusting the rounding modes, accuracy, and exact numeric values
     /// used in the transform. Also, out-of-gamut colors may be handled differently per API.
     ///
+    /// See the respective methods for supported
+    /// [primaries](`CicpColorPrimaries::is_supported_for_transform`) and
+    /// [transfer characteristics](`CicpTransferCharacteristics::is_supported_for_transform`). Note
+    /// that only identity and chromaticity derived non-constant matrices are supported; and only
+    /// full range colors.
+    ///
     /// Returns `None` if the transformation is not (yet) supported.
     ///
     /// This is used with [`ConvertColorOptions`][`crate::ConvertColorOptions`] in
     /// [`ImageBuffer::copy_from_color_space`][`crate::ImageBuffer::copy_from_color_space`],
     /// [`DynamicImage::copy_from_color_space`][`DynamicImage::copy_from_color_space`].
     pub fn new(from: Cicp, into: Cicp) -> Option<Self> {
-        if !from.qualify_stability() || !into.qualify_stability() {
-            // To avoid regressions, we do not support all kinds of transforms from the start.
-            // Instead, a selected list will be gradually enlarged as more in-depth tests are done
-            // and the selected implementation library is checked for suitability in use.
-            return None;
-        }
-
-        // Unused, but introduces symmetry to the supported color space transforms. That said we
-        // calculate the derived luminance coefficients for all color that have a matching moxcms
-        // profile so this really should not block anything.
-        let _input_coefs = from.into_rgb().derived_luminance()?;
-        let output_coefs = into.into_rgb().derived_luminance()?;
-
-        let mox_from = from.to_moxcms_compute_profile()?;
-        let mox_into = into.to_moxcms_compute_profile()?;
-
-        let opt = moxcms::TransformOptions::default();
-
-        let f32_fallback = {
-            let try_f32 = Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                let (from, from_layout) = mox_from.map_layout(from_layout);
-                let (into, into_layout) = mox_into.map_layout(into_layout);
-
-                from.create_transform_f32(from_layout, into, into_layout, opt)
-                    .map(Arc::<dyn moxcms::TransformExecutor<f32> + Send + Sync>::from)
-                    .ok()
-            });
-
-            if try_f32.iter().any(Option::is_none) {
-                return None;
-            }
-
-            try_f32.map(Option::unwrap)
-        };
-
-        // TODO: really these should be lazy, eh?
-        Some(CicpTransform {
-            from,
-            into,
-            u8: Self::build_transforms(
-                Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                    let (from, from_layout) = mox_from.map_layout(from_layout);
-                    let (into, into_layout) = mox_into.map_layout(into_layout);
-
-                    from.create_transform_8bit(from_layout, into, into_layout, opt)
-                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
-                        .ok()
-                }),
-                f32_fallback.clone(),
-                output_coefs,
-            )?,
-            u16: Self::build_transforms(
-                Self::LAYOUTS.map(|(from_layout, into_layout)| {
-                    let (from, from_layout) = mox_from.map_layout(from_layout);
-                    let (into, into_layout) = mox_into.map_layout(into_layout);
-
-                    from.create_transform_16bit(from_layout, into, into_layout, opt)
-                        .map(Arc::<dyn moxcms::TransformExecutor<_> + Send + Sync>::from)
-                        .ok()
-                }),
-                f32_fallback.clone(),
-                output_coefs,
-            )?,
-            f32: Self::build_transforms(
-                f32_fallback.clone().map(Some),
-                f32_fallback.clone(),
-                output_coefs,
-            )?,
-            output_coefs,
-        })
+        crate::metadata::cms_provider().transform(from, into)
     }
 
     /// For a Pixel with known color layout (`ColorType`) get a transform that is accurate.
@@ -447,228 +363,6 @@ impl CicpTransform {
 
         Ok(())
     }
-
-    fn build_transforms<P: ColorComponentForCicp + Default + 'static>(
-        trs: [Option<Arc<dyn moxcms::TransformExecutor<P> + Send + Sync>>; 4],
-        f32: [Arc<dyn moxcms::TransformExecutor<f32> + Send + Sync>; 4],
-        output_coef: [f32; 3],
-    ) -> Option<RgbTransforms<P>> {
-        // We would use `[array]::try_map` here, but it is not stable yet.
-        if trs.iter().any(Option::is_none) {
-            return None;
-        }
-
-        let trs = trs.map(Option::unwrap);
-
-        // rgb-rgb transforms are done directly via moxcms.
-        let slices = trs.clone().map(|tr| {
-            Arc::new(move |input: &[P], output: &mut [P]| {
-                tr.transform(input, output).expect("transform failed")
-            }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>
-        });
-
-        const N: usize = 256;
-
-        // luma-rgb transforms expand the Luma to Rgb (and LumaAlpha to Rgba)
-        let luma_rgb = {
-            let [tr33, tr34, tr43, tr44] = f32.clone();
-
-            [
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (luma, output) in input.chunks(N).zip(output.chunks_mut(3 * N)) {
-                        let n = luma.len();
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgb(luma, ibuffer);
-                        tr33.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb(obuffer, output);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (luma, output) in input.chunks(N).zip(output.chunks_mut(4 * N)) {
-                        let n = luma.len();
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgb(luma, ibuffer);
-                        tr34.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba(obuffer, output);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (luma, output) in input.chunks(2 * N).zip(output.chunks_mut(3 * N)) {
-                        let n = luma.len() / 2;
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgba(luma, ibuffer);
-                        tr43.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb(obuffer, output);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (luma, output) in input.chunks(2 * N).zip(output.chunks_mut(4 * N)) {
-                        let n = luma.len() / 2;
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgba(luma, ibuffer);
-                        tr44.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba(obuffer, output);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-            ]
-        };
-
-        // rgb-luma transforms contract Rgb to Luma (and Rgba to LumaAlpha)
-        let rgb_luma = {
-            let [tr33, tr34, tr43, tr44] = f32.clone();
-
-            [
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 3, output.len());
-
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (rgb, output) in input.chunks(3 * N).zip(output.chunks_mut(N)) {
-                        let n = output.len();
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_rgb(rgb, ibuffer);
-                        tr33.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 3, output.len() / 2);
-
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (rgb, output) in input.chunks(4 * N).zip(output.chunks_mut(2 * N)) {
-                        let n = output.len() / 2;
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_rgb(rgb, ibuffer);
-                        tr34.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 4, output.len());
-
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (rgba, output) in input.chunks(4 * N).zip(output.chunks_mut(N)) {
-                        let n = output.len();
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_rgba(rgba, ibuffer);
-                        tr43.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 4, output.len() / 2);
-
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (rgba, output) in input.chunks(4 * N).zip(output.chunks_mut(2 * N)) {
-                        let n = output.len() / 2;
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_rgba(rgba, ibuffer);
-                        tr44.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-            ]
-        };
-
-        // luma-luma both expand and contract
-        let luma_luma = {
-            let [tr33, tr34, tr43, tr44] = f32.clone();
-
-            [
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len(), output.len());
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (luma, output) in input.chunks(N).zip(output.chunks_mut(N)) {
-                        let n = luma.len();
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgb(luma, ibuffer);
-                        tr33.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len(), output.len() / 2);
-                    let mut ibuffer = [0.0f32; 3 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (luma, output) in input.chunks(N).zip(output.chunks_mut(2 * N)) {
-                        let n = luma.len();
-                        let ibuffer = &mut ibuffer[..3 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgb(luma, ibuffer);
-                        tr34.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 2, output.len());
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 3 * N];
-
-                    for (luma, output) in input.chunks(2 * N).zip(output.chunks_mut(N)) {
-                        let n = luma.len() / 2;
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..3 * n];
-                        Self::expand_luma_rgba(luma, ibuffer);
-                        tr43.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgb_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-                Arc::new(move |input: &[P], output: &mut [P]| {
-                    debug_assert_eq!(input.len() / 2, output.len() / 2);
-                    let mut ibuffer = [0.0f32; 4 * N];
-                    let mut obuffer = [0.0f32; 4 * N];
-
-                    for (luma, output) in input.chunks(2 * N).zip(output.chunks_mut(2 * N)) {
-                        let n = luma.len() / 2;
-                        let ibuffer = &mut ibuffer[..4 * n];
-                        let obuffer = &mut obuffer[..4 * n];
-                        Self::expand_luma_rgba(luma, ibuffer);
-                        tr44.transform(ibuffer, obuffer).expect("transform failed");
-                        Self::clamp_rgba_luma(obuffer, output, output_coef);
-                    }
-                }) as Arc<dyn Fn(&[P], &mut [P]) + Send + Sync>,
-            ]
-        };
-
-        Some(RgbTransforms {
-            slices,
-            luma_rgb,
-            rgb_luma,
-            luma_luma,
-        })
-    }
-
     pub(crate) fn transform_dynamic(&self, lhs: &mut DynamicImage, rhs: &DynamicImage) {
         const STEP: usize = 256;
 
@@ -727,62 +421,74 @@ impl CicpTransform {
             match rhs {
                 DynamicImage::ImageLuma8(buf) => {
                     CicpTransform::expand_luma_rgb(
-                        &buf.inner_pixels()[start_idx..end_idx],
+                        &buf.subpixels()[start_idx..end_idx],
                         &mut ibuffer[..3 * count],
                     );
                 }
                 DynamicImage::ImageLumaA8(buf) => {
                     CicpTransform::expand_luma_rgba(
-                        &buf.inner_pixels()[2 * start_idx..2 * end_idx],
+                        &buf.subpixels()[2 * start_idx..2 * end_idx],
                         &mut ibuffer[..4 * count],
                     );
                 }
                 DynamicImage::ImageRgb8(buf) => {
                     CicpTransform::expand_rgb(
-                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &buf.subpixels()[3 * start_idx..3 * end_idx],
                         &mut ibuffer[..3 * count],
                     );
                 }
                 DynamicImage::ImageRgba8(buf) => {
                     CicpTransform::expand_rgba(
-                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &buf.subpixels()[4 * start_idx..4 * end_idx],
                         &mut ibuffer[..4 * count],
                     );
                 }
                 DynamicImage::ImageLuma16(buf) => {
                     CicpTransform::expand_luma_rgb(
-                        &buf.inner_pixels()[start_idx..end_idx],
+                        &buf.subpixels()[start_idx..end_idx],
                         &mut ibuffer[..3 * count],
                     );
                 }
                 DynamicImage::ImageLumaA16(buf) => {
                     CicpTransform::expand_luma_rgba(
-                        &buf.inner_pixels()[2 * start_idx..2 * end_idx],
+                        &buf.subpixels()[2 * start_idx..2 * end_idx],
                         &mut ibuffer[..4 * count],
                     );
                 }
                 DynamicImage::ImageRgb16(buf) => {
                     CicpTransform::expand_rgb(
-                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &buf.subpixels()[3 * start_idx..3 * end_idx],
                         &mut ibuffer[..3 * count],
                     );
                 }
 
                 DynamicImage::ImageRgba16(buf) => {
                     CicpTransform::expand_rgba(
-                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &buf.subpixels()[4 * start_idx..4 * end_idx],
+                        &mut ibuffer[..4 * count],
+                    );
+                }
+                DynamicImage::ImageLuma32F(buf) => {
+                    CicpTransform::expand_luma_rgb(
+                        &buf.subpixels()[start_idx..end_idx],
+                        &mut ibuffer[..3 * count],
+                    );
+                }
+                DynamicImage::ImageLumaA32F(buf) => {
+                    CicpTransform::expand_luma_rgba(
+                        &buf.subpixels()[2 * start_idx..2 * end_idx],
                         &mut ibuffer[..4 * count],
                     );
                 }
                 DynamicImage::ImageRgb32F(buf) => {
                     CicpTransform::expand_rgb(
-                        &buf.inner_pixels()[3 * start_idx..3 * end_idx],
+                        &buf.subpixels()[3 * start_idx..3 * end_idx],
                         &mut ibuffer[..3 * count],
                     );
                 }
                 DynamicImage::ImageRgba32F(buf) => {
                     CicpTransform::expand_rgba(
-                        &buf.inner_pixels()[4 * start_idx..4 * end_idx],
+                        &buf.subpixels()[4 * start_idx..4 * end_idx],
                         &mut ibuffer[..4 * count],
                     );
                 }
@@ -797,66 +503,79 @@ impl CicpTransform {
                 DynamicImage::ImageLuma8(buf) => {
                     CicpTransform::clamp_rgb_luma(
                         &obuffer[..3 * count],
-                        &mut buf.inner_pixels_mut()[start_idx..end_idx],
+                        &mut buf.subpixels_mut()[start_idx..end_idx],
                         self.output_coefs,
                     );
                 }
                 DynamicImage::ImageLumaA8(buf) => {
                     CicpTransform::clamp_rgba_luma(
                         &obuffer[..4 * count],
-                        &mut buf.inner_pixels_mut()[2 * start_idx..2 * end_idx],
+                        &mut buf.subpixels_mut()[2 * start_idx..2 * end_idx],
                         self.output_coefs,
                     );
                 }
                 DynamicImage::ImageRgb8(buf) => {
                     CicpTransform::clamp_rgb(
                         &obuffer[..3 * count],
-                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                        &mut buf.subpixels_mut()[3 * start_idx..3 * end_idx],
                     );
                 }
                 DynamicImage::ImageRgba8(buf) => {
                     CicpTransform::clamp_rgba(
                         &obuffer[..4 * count],
-                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                        &mut buf.subpixels_mut()[4 * start_idx..4 * end_idx],
                     );
                 }
                 DynamicImage::ImageLuma16(buf) => {
                     CicpTransform::clamp_rgb_luma(
                         &obuffer[..3 * count],
-                        &mut buf.inner_pixels_mut()[start_idx..end_idx],
+                        &mut buf.subpixels_mut()[start_idx..end_idx],
                         self.output_coefs,
                     );
                 }
                 DynamicImage::ImageLumaA16(buf) => {
                     CicpTransform::clamp_rgba_luma(
                         &obuffer[..4 * count],
-                        &mut buf.inner_pixels_mut()[2 * start_idx..2 * end_idx],
+                        &mut buf.subpixels_mut()[2 * start_idx..2 * end_idx],
                         self.output_coefs,
                     );
                 }
                 DynamicImage::ImageRgb16(buf) => {
-                    CicpTransform::clamp_rgba(
+                    CicpTransform::clamp_rgb(
                         &obuffer[..3 * count],
-                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                        &mut buf.subpixels_mut()[3 * start_idx..3 * end_idx],
                     );
                 }
-
                 DynamicImage::ImageRgba16(buf) => {
                     CicpTransform::clamp_rgba(
                         &obuffer[..4 * count],
-                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                        &mut buf.subpixels_mut()[4 * start_idx..4 * end_idx],
+                    );
+                }
+                DynamicImage::ImageLuma32F(buf) => {
+                    CicpTransform::clamp_rgb_luma(
+                        &obuffer[..3 * count],
+                        &mut buf.subpixels_mut()[start_idx..end_idx],
+                        self.output_coefs,
+                    );
+                }
+                DynamicImage::ImageLumaA32F(buf) => {
+                    CicpTransform::clamp_rgba_luma(
+                        &obuffer[..4 * count],
+                        &mut buf.subpixels_mut()[2 * start_idx..2 * end_idx],
+                        self.output_coefs,
                     );
                 }
                 DynamicImage::ImageRgb32F(buf) => {
                     CicpTransform::clamp_rgb(
                         &obuffer[..3 * count],
-                        &mut buf.inner_pixels_mut()[3 * start_idx..3 * end_idx],
+                        &mut buf.subpixels_mut()[3 * start_idx..3 * end_idx],
                     );
                 }
                 DynamicImage::ImageRgba32F(buf) => {
                     CicpTransform::clamp_rgba(
                         &obuffer[..4 * count],
-                        &mut buf.inner_pixels_mut()[4 * start_idx..4 * end_idx],
+                        &mut buf.subpixels_mut()[4 * start_idx..4 * end_idx],
                     );
                 }
             }
@@ -890,7 +609,8 @@ impl CicpTransform {
         self.f32.select_transform::<O>(into)
     }
 
-    const LAYOUTS: [(LayoutWithColor, LayoutWithColor); 4] = [
+    /// The order of transforms in the conversion tables.
+    pub(crate) const LAYOUTS: [(LayoutWithColor, LayoutWithColor); 4] = [
         (LayoutWithColor::Rgb, LayoutWithColor::Rgb),
         (LayoutWithColor::Rgb, LayoutWithColor::Rgba),
         (LayoutWithColor::Rgba, LayoutWithColor::Rgb),
@@ -898,7 +618,7 @@ impl CicpTransform {
     ];
 
     pub(crate) fn expand_luma_rgb<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
-        for (&pix, rgb) in luma.iter().zip(rgb.chunks_exact_mut(3)) {
+        for (&pix, rgb) in luma.iter().zip(rgb.as_chunks_mut::<3>().0.iter_mut()) {
             let luma = pix.expand_to_f32();
             rgb[0] = luma;
             rgb[1] = luma;
@@ -907,7 +627,9 @@ impl CicpTransform {
     }
 
     pub(crate) fn expand_luma_rgba<P: ColorComponentForCicp>(luma: &[P], rgb: &mut [f32]) {
-        for (pix, rgb) in luma.chunks_exact(2).zip(rgb.chunks_exact_mut(4)) {
+        let luma_chunks = luma.as_chunks::<2>().0.iter();
+        let rgb_chunks = rgb.as_chunks_mut::<4>().0.iter_mut();
+        for (pix, rgb) in luma_chunks.zip(rgb_chunks) {
             let luma = pix[0].expand_to_f32();
             rgb[0] = luma;
             rgb[1] = luma;
@@ -946,7 +668,7 @@ impl CicpTransform {
         output: &mut [P],
         coef: [f32; 3],
     ) {
-        for (rgb, pix) in input.chunks_exact(3).zip(output) {
+        for (rgb, pix) in input.as_chunks::<3>().0.iter().zip(output) {
             let mut luma = 0.0;
 
             for (&component, coef) in rgb.iter().zip(coef) {
@@ -962,7 +684,9 @@ impl CicpTransform {
         output: &mut [P],
         coef: [f32; 3],
     ) {
-        for (rgba, pix) in input.chunks_exact(4).zip(output.chunks_exact_mut(2)) {
+        let input_chunks = input.as_chunks::<4>().0.iter();
+        let output_chunks = output.as_chunks_mut::<2>().0.iter_mut();
+        for (rgba, pix) in input_chunks.zip(output_chunks) {
             let mut luma = 0.0;
 
             for (&component, coef) in rgba[..3].iter().zip(coef) {
@@ -996,7 +720,26 @@ impl CicpRgb {
         use crate::traits::private::PrivateToken;
         let from_layout = <FromColor as SealedPixelWithColorType>::layout(PrivateToken);
         let into_layout = <IntoColor as SealedPixelWithColorType>::layout(PrivateToken);
+        // This method is instantiated *a lot*. Consequently every line here matters in terms of
+        // codegen. We outline all parts into separate methods where they monomorphize only over
+        // the channel type and not the whole pixel except what we needed here to satisfy the type
+        // sysstem.
+        self.cast_pixels_by_layout(buffer, color_space_fallback, from_layout, into_layout)
+    }
 
+    fn cast_pixels_by_layout<FromSubpixel, IntoSubpixel>(
+        &self,
+        buffer: &[FromSubpixel],
+        // Since this is not performance sensitive, we can use a dyn closure here instead of an
+        // impl closure just in case we call this from multiple different paths.
+        color_space_fallback: &dyn Fn() -> [f32; 3],
+        from_layout: LayoutWithColor,
+        into_layout: LayoutWithColor,
+    ) -> Vec<IntoSubpixel>
+    where
+        FromSubpixel: ColorComponentForCicp + Primitive,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
         let mut output = match self.cast_pixels_from_subpixels(buffer, from_layout, into_layout) {
             Ok(ok) => return ok,
             Err(buffer) => buffer,
@@ -1015,10 +758,7 @@ impl CicpRgb {
         // All of the following is done in-place; so we must allow the buffer space in which the
         // output is written ahead of time although such initialization is technically redundant.
         // We best do this once to allow for a very efficient memset initialization.
-        output.resize(
-            pixels * into_layout.channels(),
-            <IntoColor::Subpixel as Primitive>::DEFAULT_MIN_VALUE,
-        );
+        Self::create_output::<IntoSubpixel>(&mut output, pixels, into_layout);
 
         Self::cast_pixels_by_fallback(
             buffer,
@@ -1027,7 +767,16 @@ impl CicpRgb {
             into_layout,
             color_space_coefs,
         );
+
         output
+    }
+
+    fn create_output<Into: Primitive>(
+        output: &mut Vec<Into>,
+        pixels: usize,
+        into_layout: LayoutWithColor,
+    ) {
+        output.resize(pixels * into_layout.channels(), Into::DEFAULT_MIN_VALUE);
     }
 
     fn cast_pixels_by_fallback<
@@ -1084,11 +833,9 @@ impl CicpRgb {
             // for a full conversion.
             let obuffer = match (ibuf_step, obuf_step) {
                 (3, 4) => {
-                    for (rgb, rgba) in ibuffer
-                        .chunks_exact(3)
-                        .zip(obuffer.chunks_exact_mut(4))
-                        .take(count)
-                    {
+                    let ibuffer_chunks = ibuffer.as_chunks::<3>().0.iter();
+                    let obuffer_chunks = obuffer.as_chunks_mut::<4>().0.iter_mut();
+                    for (rgb, rgba) in ibuffer_chunks.zip(obuffer_chunks).take(count) {
                         rgba[0] = rgb[0];
                         rgba[1] = rgb[1];
                         rgba[2] = rgb[2];
@@ -1098,11 +845,9 @@ impl CicpRgb {
                     &obuffer[..4 * count]
                 }
                 (4, 3) => {
-                    for (rgba, rgb) in ibuffer
-                        .chunks_exact(4)
-                        .zip(obuffer.chunks_exact_mut(3))
-                        .take(count)
-                    {
+                    let ibuffer_chunks = ibuffer.as_chunks::<4>().0.iter();
+                    let obuffer_chunks = obuffer.as_chunks_mut::<3>().0.iter_mut();
+                    for (rgba, rgb) in ibuffer_chunks.zip(obuffer_chunks).take(count) {
                         rgb[0] = rgba[0];
                         rgb[1] = rgba[1];
                         rgb[2] = rgba[2];
@@ -1155,13 +900,27 @@ impl CicpRgb {
     {
         use crate::traits::private::LayoutWithColor as Layout;
 
-        assert!(buffer.len() % from_layout.channels() == 0);
+        assert!(buffer.len().is_multiple_of(from_layout.channels()));
         let pixels = buffer.len() / from_layout.channels();
 
         let mut output: Vec<IntoSubpixel> = vec_try_with_capacity(pixels * into_layout.channels())
             // Not entirely failsafe, if you expand luma to rgba you can get a factor of 4 but at
             // least this will not overflow. And that's why I'm a fan of in-place operations.
             .expect("input layout already allocated with appropriate layout");
+
+        // In most cases we perform a seemingly wasteful initialization, by initializing the output
+        // before writing. However, we gain it back in codegen. If we did not have the vector exist
+        // then the only safe way to add elements is via `push` or `extend_from_slice`. These
+        // methods will check the capacity of the vector on every call and branch to reallocate. In
+        // many cases this throws off loop analysis. LLVM does not seem to trust our capacity or
+        // any arithmetic checks we do before to ensure that the len does not increase beyond the
+        // capacity. The loop bodies that result are catastrophically bad and mostly not
+        // vectorized.
+        //
+        // The one case where this does not apply is when both have the same count of channels. In
+        // this case we can just extend into the output without worrying about the layout at all
+        // and the Iterator type (and its size_hint) is trivial to work with.
+
         let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
 
         match (from_layout, into_layout) {
@@ -1170,40 +929,107 @@ impl CicpRgb {
             | (Layout::Rgba, Layout::Rgba)
             | (Layout::Luma, Layout::Luma)
             | (Layout::LumaAlpha, Layout::LumaAlpha) => {
+                // Every component assigned accordingly. We do not care which as there is no
+                // conversion do to be done other than numeric one. (no tone mapping etc.).
                 output.extend(buffer.iter().copied().map(map_channel));
             }
             (Layout::Rgb, Layout::Rgba) => {
-                // Use `as_chunks` with Rust 1.88
-                output.extend(buffer.chunks_exact(3).flat_map(|rgb| {
-                    let &rgb: &[_; 3] = rgb.try_into().unwrap();
-                    let [r, g, b] = rgb.map(map_channel);
-                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
-                    [r, g, b, a]
-                }));
+                Self::subpixel_cast_rgb_to_rgba(&mut output, buffer);
             }
             (Layout::Rgba, Layout::Rgb) => {
-                output.extend(buffer.chunks_exact(4).flat_map(|rgb| {
-                    let &[r, g, b, _]: &[_; 4] = rgb.try_into().unwrap();
-                    [r, g, b].map(map_channel)
-                }));
+                Self::subpixel_cast_rgba_to_rgb(&mut output, buffer);
             }
             (Layout::Luma, Layout::LumaAlpha) => {
-                output.extend(buffer.iter().copied().flat_map(|luma| {
-                    let l = map_channel(luma);
-                    let a = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
-                    [l, a]
-                }));
+                Self::subpixel_cast_luma_to_luma_alpha(&mut output, buffer);
             }
             (Layout::LumaAlpha, Layout::Luma) => {
-                output.extend(buffer.chunks_exact(2).map(|rgb| {
-                    let &[luma, _]: &[_; 2] = rgb.try_into().unwrap();
-                    map_channel(luma)
-                }));
+                Self::subpixel_cast_luma_alpha_to_luma(&mut output, buffer);
             }
             _ => return Err(output),
         }
 
         Ok(output)
+    }
+
+    fn subpixel_cast_rgb_to_rgba<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgb.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgba);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+        let default_alpha = <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE;
+
+        let buffer_chunks = buffer.as_chunks::<3>().0;
+        let output_chunks = output.as_chunks_mut::<4>().0;
+
+        for (&[r, g, b], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [
+                map_channel(r),
+                map_channel(g),
+                map_channel(b),
+                default_alpha,
+            ];
+        }
+    }
+
+    fn subpixel_cast_rgba_to_rgb<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let pixels = buffer.len() / LayoutWithColor::Rgba.channels();
+        Self::create_output::<IntoSubpixel>(output, pixels, LayoutWithColor::Rgb);
+
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        let buffer_chunks = buffer.as_chunks::<4>().0;
+        let output_chunks = output.as_chunks_mut::<3>().0;
+
+        for (&[r, g, b, _], out) in buffer_chunks.iter().zip(output_chunks) {
+            *out = [map_channel(r), map_channel(g), map_channel(b)];
+        }
+    }
+
+    // Note: ~50% faster than the output-based fallback in Luma8->LumaA8 and Luma8->LumaA16 codegen
+    // so this one stays with `flat_map` for now.
+    fn subpixel_cast_luma_to_luma_alpha<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        output.extend(buffer.iter().copied().flat_map(|l| {
+            [
+                map_channel(l),
+                // Crucially inlined here. When I tried to move this out then it no longer
+                // optimizes any better than the output method. (#2804).
+                <IntoSubpixel as Primitive>::DEFAULT_MAX_VALUE,
+            ]
+        }));
+    }
+
+    fn subpixel_cast_luma_alpha_to_luma<FromSubpixel, IntoSubpixel>(
+        output: &mut Vec<IntoSubpixel>,
+        buffer: &[FromSubpixel],
+    ) where
+        FromSubpixel: ColorComponentForCicp,
+        IntoSubpixel: ColorComponentForCicp + FromPrimitive<FromSubpixel> + Primitive,
+    {
+        let map_channel = <IntoSubpixel as FromPrimitive<FromSubpixel>>::from_primitive;
+
+        let buffer_chunks = buffer.as_chunks::<2>().0;
+
+        output.extend(buffer_chunks.iter().map(|&[l, _]| map_channel(l)));
     }
 }
 
@@ -1249,8 +1075,12 @@ impl ColorComponentForCicp for u8 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        // Note: saturating conversion does the clamp for us
-        (val * Self::MAX as f32).round() as u8
+        // Standard trick to convert f32 (0.0-1.0) to u8 (0-255) with rounding
+        // to nearest. `as u8` saturates, so it will clamp values outside the
+        // range [0.0, 1.0] to 0 or 255 (NaN is mapped to 0). `as u8` also
+        // truncates towards zero, so adding a bias of 0.5 before the truncation
+        // achieves rounding to the nearest integer.
+        (val * Self::MAX as f32 + 0.5) as u8
     }
 }
 
@@ -1262,8 +1092,8 @@ impl ColorComponentForCicp for u16 {
 
     #[inline]
     fn clamp_from_f32(val: f32) -> Self {
-        // Note: saturating conversion does the clamp for us
-        (val * Self::MAX as f32).round() as u16
+        // Same as for u8.
+        (val * Self::MAX as f32 + 0.5) as u16
     }
 }
 
@@ -1335,52 +1165,6 @@ impl Cicp {
         full_range: CicpVideoFullRangeFlag::FullRange,
     };
 
-    /// Get an compute representation of an ICC profile for RGB.
-    ///
-    /// Note you should *not* be using this profile for export in a file, as discussed below.
-    ///
-    /// This is straightforward for Rgb and RgbA representations.
-    ///
-    /// Our luma models a Y component of a YCbCr color space. It turns out that ICC V4 does
-    /// not support pure Luma in any other whitepoint apart from D50 (the native profile
-    /// connection space). The use of a grayTRC does *not* take the chromatic adaptation
-    /// matrix into account. Of course we can encode the adaptation into the TRC as a
-    /// coefficient, the Y component of the product of the whitepoint adaptation matrix
-    /// inverse and the pcs's whitepoint XYZ, but that is only correct for gray -> gray
-    /// conversion (and that coefficient should generally be `1`).
-    ///
-    /// Hence we use a YCbCr. The data->pcs path could be modelled by ("M" curves, matrix, "B"
-    /// curves) where B curves or M curves are all the identity, depending on whether constant or
-    /// non-constant luma is in use. This is a subset of the capabilities that a lutAToBType
-    /// allows. Unfortunately, this is not implemented in moxcms yet and for efficiency we would
-    /// like to have a masked `create_transform_*` in which the CbCr channels are discarded /
-    /// assumed 0 instead of them being in memory. Due to this special case and for supporting
-    /// conversions between sample types, we implement said promotion as part of conversion to
-    /// Rgba32F in this crate.
-    ///
-    /// For export to file, it would arguably correct to use a carefully crafted gray profile which
-    /// we may implement in another function. That is, we could setup a tone reproduction curve
-    /// which maps each sample value (which ICC regards as D50) into XYZ D50 in such a way that it
-    /// _appears_ with the correct D50 luminance that we would get if we had used the conversion
-    /// unders its true input whitepoint. The resulting color has a slightly wrong chroma as it is
-    /// linearly dependent on D50 instead, but it's brightness would be correctly presented. At
-    /// least for perceptual intent this might be alright.
-    fn to_moxcms_compute_profile(self) -> Option<ColorProfile> {
-        let mut rgb = moxcms::ColorProfile::new_srgb();
-
-        rgb.update_rgb_colorimetry_from_cicp(moxcms::CicpProfile {
-            color_primaries: self.primaries.to_moxcms(),
-            transfer_characteristics: self.transfer.to_moxcms(),
-            matrix_coefficients: self.matrix.to_moxcms()?,
-            full_range: match self.full_range {
-                CicpVideoFullRangeFlag::NarrowRange => false,
-                CicpVideoFullRangeFlag::FullRange => true,
-            },
-        });
-
-        Some(ColorProfile { rgb })
-    }
-
     /// Whether we have invested enough testing to ensure that color values can be assumed to be
     /// stable and correspond to an intended effect, in particular if there even is a well-defined
     /// meaning to these color spaces.
@@ -1409,21 +1193,8 @@ impl Cicp {
                     // The equivalent of our Luma color as a type..
                     | CicpMatrixCoefficients::ChromaticityDerivedNonConstant
             )
-            && matches!(
-                self.primaries,
-                CicpColorPrimaries::SRgb
-                    | CicpColorPrimaries::SmpteRp431
-                    | CicpColorPrimaries::SmpteRp432
-                    | CicpColorPrimaries::Bt601
-                    | CicpColorPrimaries::Rgb240m
-            )
-            && matches!(
-                self.transfer,
-                CicpTransferCharacteristics::SRgb
-                    | CicpTransferCharacteristics::Bt709
-                    | CicpTransferCharacteristics::Bt601
-                    | CicpTransferCharacteristics::Linear
-            )
+            && self.transfer.is_supported_for_transform()
+            && self.primaries.is_supported_for_transform()
     }
 
     /// Discard matrix and range information.
@@ -1453,6 +1224,16 @@ impl Cicp {
 }
 
 impl CicpRgb {
+    /// If this CICP corresponds to a well-known named color space, return its name.
+    pub(crate) fn known_name(&self) -> Option<&'static str> {
+        match Cicp::from(*self) {
+            Cicp::SRGB => Some("sRGB"),
+            Cicp::SRGB_LINEAR => Some("sRGB Linear"),
+            Cicp::DISPLAY_P3 => Some("Display P3"),
+            _ => None,
+        }
+    }
+
     /// Calculate the luminance cofactors according to Rec H.273 (39) and (40).
     ///
     /// Returns cofactors for red, green, and blue in that order.
@@ -1503,28 +1284,6 @@ impl From<CicpRgb> for Cicp {
             transfer: cicp.transfer,
             matrix: CicpMatrixCoefficients::Identity,
             full_range: CicpVideoFullRangeFlag::FullRange,
-        }
-    }
-}
-
-/// An RGB profile with its related (same tone-mapping) gray profile.
-///
-/// This is the whole input information which we must be able to pass to the CMS in a support
-/// transform, to handle all possible combinations of `ColorType` pixels that can be thrown at us.
-/// For instance, in a previous iteration we had a separate gray profile here (but now handle that
-/// internally by expansion to RGB through an YCbCr). Future iterations may add additional structs
-/// to be computed for validating `CicpTransform::new`.
-struct ColorProfile {
-    rgb: moxcms::ColorProfile,
-}
-
-impl ColorProfile {
-    fn map_layout(&self, layout: LayoutWithColor) -> (&moxcms::ColorProfile, moxcms::Layout) {
-        match layout {
-            LayoutWithColor::Rgb => (&self.rgb, moxcms::Layout::Rgb),
-            LayoutWithColor::Rgba => (&self.rgb, moxcms::Layout::Rgba),
-            // See comment in `to_moxcms_profile`.
-            LayoutWithColor::Luma | LayoutWithColor::LumaAlpha => unreachable!(),
         }
     }
 }

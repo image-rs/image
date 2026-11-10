@@ -1,4 +1,5 @@
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageResult};
+use crate::flat::{ViewMutOfPixel, ViewOfPixel};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::{ImageBuffer, SubImage};
@@ -50,7 +51,7 @@ pub trait GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: #method.in_bounds
+    /// [`in_bounds`]: Self::in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -62,7 +63,13 @@ pub trait GenericImageView {
     where
         Self: Sized,
     {
-        let (width, height) = self.dimensions();
+        let (width, mut height) = self.dimensions();
+
+        // Ensures `height` can be used as a consistent bound so that only one check is required in
+        // the iteration of the iterator.
+        if width == 0 || height == 0 {
+            height = 0;
+        }
 
         Pixels {
             image: self,
@@ -80,36 +87,22 @@ pub trait GenericImageView {
     ///  # Panics
     ///
     /// Panics if the dimensions provided fall out of bounds.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
+    fn view(&self, rect: Rect) -> SubImage<&Self>
     where
         Self: Sized,
     {
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
-        SubImage::new(self, x, y, width, height)
+        rect.assert_in_bounds_of(self);
+        SubImage::new(self, rect)
     }
 
     /// Returns a subimage that is an immutable view into this image so long as
     /// the provided coordinates and dimensions are within the bounds of this Image.
-    fn try_view(
-        &self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-    ) -> Result<SubImage<&Self>, ImageError>
+    fn try_view(&self, rect: Rect) -> Result<SubImage<&Self>, ImageError>
     where
         Self: Sized,
     {
-        if u64::from(x) + u64::from(width) > u64::from(self.width())
-            || u64::from(y) + u64::from(height) > u64::from(self.height())
-        {
-            Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )))
-        } else {
-            Ok(SubImage::new(self, x, y, width, height))
-        }
+        rect.test_in_bounds_of(self)?;
+        Ok(SubImage::new(self, rect))
     }
 
     /// Create an empty [`ImageBuffer`] with the same pixel type as this image.
@@ -138,13 +131,31 @@ pub trait GenericImageView {
     ) -> ImageBuffer<Self::Pixel, Vec<<Self::Pixel as Pixel>::Subpixel>> {
         ImageBuffer::new(width, height)
     }
+
+    /// If the buffer has a fitting layout, return a canonical view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of
+    /// generic images access the sample data through a canonical descriptor of its layout directly
+    /// instead of pixel-by-pixel. This provides more efficient forms of access that the
+    /// [`GenericImageView`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImage::to_pixel_view_mut`] for images that allow mutating pixels.
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
+        None
+    }
 }
 
 /// Immutable pixel iterator
 #[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
+    /// Maintains `x < self.width` with a non-empty image.
     x: u32,
+    /// Maintains `y <= self.height` and `self.height == 0` with an empty image..
     y: u32,
     width: u32,
     height: u32,
@@ -154,23 +165,45 @@ impl<I: GenericImageView> Iterator for Pixels<'_, I> {
     type Item = (u32, u32, I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
+        if self.y >= self.height {
+            // No modification until here and this is the only `None` path, which justifies the
+            // below `FusedIterator` impls requirements.
+            return None;
+        }
+
+        let pixel = self.image.get_pixel(self.x, self.y);
+        let p = (self.x, self.y, pixel);
+
+        self.x += 1;
+
         if self.x >= self.width {
+            // Note: again in-bounds as we start with `height = 0` for empty images.
             self.x = 0;
+            // `self.y < self.height` at this point.
             self.y += 1;
         }
 
-        if self.y >= self.height {
-            None
+        Some(p)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let total = u64::from(self.width) * u64::from(self.height);
+        let done = u64::from(self.width) * u64::from(self.y) + u64::from(self.x);
+
+        let n = total
+            .checked_sub(done)
+            .and_then(|n| usize::try_from(n).ok());
+
+        if let Some(n) = n {
+            (n, Some(n))
         } else {
-            let pixel = self.image.get_pixel(self.x, self.y);
-            let p = (self.x, self.y, pixel);
-
-            self.x += 1;
-
-            Some(p)
+            (usize::MAX, None)
         }
     }
 }
+
+// Note: not mutated in the `None` path, i.e. continues to return it.
+impl<I: GenericImageView> std::iter::FusedIterator for Pixels<'_, I> {}
 
 impl<I: ?Sized> Clone for Pixels<'_, I> {
     fn clone(&self) -> Self {
@@ -180,29 +213,6 @@ impl<I: ?Sized> Clone for Pixels<'_, I> {
 
 /// A trait for manipulating images.
 pub trait GenericImage: GenericImageView {
-    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// Panics for dynamic images (this method is deprecated and will be removed).
-    ///
-    /// ## Known issues
-    ///
-    /// This requires the buffer to contain a unique set of continuous channels in the exact order
-    /// and byte representation that the pixel type requires. This is somewhat restrictive.
-    ///
-    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
-    /// while still doing only one array lookup:
-    ///
-    /// ```ignore
-    /// let px = image.pixel_entry_at(x,y);
-    /// px.set_from_rgba(rgba)
-    /// ```
-    #[deprecated(since = "0.24.0", note = "Use `get_pixel` and `put_pixel` instead.")]
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
     /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
@@ -217,17 +227,10 @@ pub trait GenericImage: GenericImageView {
     ///
     /// The coordinates must be [`in_bounds`] of the image.
     ///
-    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
+    /// [`in_bounds`]: GenericImageView::in_bounds
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
-
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    #[deprecated(
-        since = "0.24.0",
-        note = "Use iterator `pixels_mut` to blend the pixels directly"
-    )]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Copies all of the pixels from another image into this image.
     ///
@@ -242,19 +245,34 @@ pub trait GenericImage: GenericImageView {
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
     ///
-    /// [`GenericImageView::view`]: trait.GenericImageView.html#method.view
-    /// [`FlatSamples`]: flat/struct.FlatSamples.html
+    /// [`FlatSamples`]: crate::FlatSamples
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
+        // This makes it easy to keep the default implementation without sacrificing performance.
+        // It suffices for impls to override `copy_from_samples` for most of the gains.
+        if let Some(flat) = other.to_pixel_view() {
+            return self.copy_from_samples(flat, x, y);
+        }
+
+        // Note the order: for types that implement an efficient assignment *from* a basic view we
+        // also expect that they know how to iterate themselves efficiently, they can do their own
+        // View-To-View performance or may do eve better than that if their view is more complex for
+        // some reason. Their choice. On the other hand if the source is _not_ a simple view then it
+        // will likely need to go through individual `GenericImageView::get_pixel` calls. And in
+        // this case we can still save on iterator calls for the target. The customization point
+        // however does not exist; any trait impl that intends to make this fast would need to
+        // provide a full `copy_from` impl. We only need to avoid the recursion here: `ViewMut` will
+        // override its `copy_from` with the intended effect by providing a non-trait inherent
+        // method instead.
+        if let Some(mut view) = self.to_pixel_view_mut() {
+            return view.inner_copy_from(other, x, y);
+        }
+
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
-        if self.width() < other.width() + x || self.height() < other.height() + y {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
-        }
+        Rect::from_image_at(other, x, y).test_in_bounds_of(self)?;
 
         for k in 0..other.height() {
             for i in 0..other.width() {
@@ -262,6 +280,28 @@ pub trait GenericImage: GenericImageView {
                 self.put_pixel(i + x, k + y, p);
             }
         }
+
+        Ok(())
+    }
+
+    /// Copy pixels from a regular strided matrix of pixels.
+    fn copy_from_samples(
+        &mut self,
+        samples: ViewOfPixel<'_, Self::Pixel>,
+        x: u32,
+        y: u32,
+    ) -> ImageResult<()> {
+        // Even though the implementation is the same, do not just call `Self::copy_from` here to
+        // avoid circular dependencies in careless implementations.
+        Rect::from_image_at(&samples, x, y).test_in_bounds_of(self)?;
+
+        for k in 0..samples.height() {
+            for i in 0..samples.width() {
+                let p = samples.get_pixel(i, k);
+                self.put_pixel(i + x, k + y, p);
+            }
+        }
+
         Ok(())
     }
 
@@ -315,13 +355,28 @@ pub trait GenericImage: GenericImageView {
     /// Returns a mutable subimage that is a view into this image.
     /// If you want an immutable subimage instead, use [`GenericImageView::view`]
     /// The coordinates set the position of the top left corner of the `SubImage`.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self>
+    fn sub_image(&mut self, rect: Rect) -> SubImage<&mut Self>
     where
         Self: Sized,
     {
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.height()));
-        SubImage::new(self, x, y, width, height)
+        rect.assert_in_bounds_of(self);
+        SubImage::new(self, rect)
+    }
+
+    /// If the buffer has a fitting layout, return a canonical mutable view of the samples.
+    ///
+    /// This is the basis of optimization and by default return `None`. It lets consumers of generic
+    /// images access the sample data through a canonical descriptor of its layout directly instead
+    /// of pixel-by-pixel. This provides more efficient, batched, forms of access that the
+    /// [`GenericImage`] trait itself does not demand from all its implementations.
+    ///
+    /// Implementation of this method should be cheap to call.
+    ///
+    /// See [`GenericImageView::to_pixel_view`].
+    ///
+    /// If implemented, a [`SubImage`] proxy of this image will provide a sample view as well.
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        None
     }
 }
 
@@ -334,23 +389,11 @@ mod tests {
     use crate::{GrayImage, ImageBuffer};
 
     #[test]
-    #[allow(deprecated)]
-    /// Test that alpha blending works as expected
-    fn test_image_alpha_blending() {
+    fn test_image_put_pixel() {
         let mut target = ImageBuffer::new(1, 1);
-        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
-        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
-
-        // Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
-
-        // Blending two alpha channels
-        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+        let pixel: Rgba<u8> = Rgba([255, 0, 0, 255]);
+        target.put_pixel(0, 0, pixel);
+        assert_eq!(*target.get_pixel(0, 0), pixel);
     }
 
     #[test]
@@ -377,7 +420,7 @@ mod tests {
         let source = source.clone();
 
         // Clone a view into non-mutable to a separate buffer
-        let cloned = source.view(1, 1, 1, 1).to_image();
+        let cloned = source.view(Rect::from_xy_ranges(1..2, 1..2)).to_image();
 
         assert!(cloned.get_pixel(0, 0) == source.get_pixel(1, 1));
     }
@@ -387,17 +430,17 @@ mod tests {
         let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
 
         {
-            let mut sub1 = source.sub_image(0, 0, 2, 2);
-            let mut sub2 = sub1.sub_image(1, 1, 1, 1);
+            let mut sub1 = source.sub_image(Rect::from_xy_ranges(0..2, 0..2));
+            let mut sub2 = sub1.sub_image(Rect::from_xy_ranges(1..2, 1..2));
             sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
         }
 
         assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
 
-        let view1 = source.view(0, 0, 2, 2);
+        let view1 = source.view(Rect::from_xy_ranges(0..2, 0..2));
         assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
 
-        let view2 = view1.view(1, 1, 1, 1);
+        let view2 = view1.view(Rect::from_xy_ranges(1..2, 1..2));
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
     }
 
@@ -405,56 +448,69 @@ mod tests {
     #[should_panic]
     fn test_view_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 3, 3);
+        source.view(Rect::from_xy_ranges(1..4, 1..4));
     }
 
     #[test]
     #[should_panic]
     fn test_view_coordinates_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(3, 3, 3, 3);
+        source.view(Rect::from_xy_ranges(3..6, 3..6));
     }
 
     #[test]
     #[should_panic]
     fn test_view_width_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 3, 2);
+        source.view(Rect::from_xy_ranges(1..4, 1..3));
     }
 
     #[test]
     #[should_panic]
     fn test_view_height_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 1, 2, 3);
+        source.view(Rect::from_xy_ranges(1..3, 1..4));
     }
 
     #[test]
     #[should_panic]
     fn test_view_x_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(3, 1, 3, 3);
+        source.view(Rect::from_xy_ranges(3..6, 1..3));
     }
 
     #[test]
     #[should_panic]
     fn test_view_y_out_of_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(1, 3, 3, 3);
+        source.view(Rect::from_xy_ranges(1..3, 3..6));
     }
 
     #[test]
     fn test_view_in_bounds() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        source.view(0, 0, 3, 3);
-        source.view(1, 1, 2, 2);
-        source.view(2, 2, 0, 0);
+        source.view(Rect::from_xy_ranges(0..3, 0..3));
+        source.view(Rect::from_xy_ranges(1..3, 1..3));
+        source.view(Rect::from_xy_ranges(2..2, 2..2));
+    }
+
+    #[test]
+    fn pixels_empty_iterator() {
+        let source: GrayImage = ImageBuffer::new(0, u32::MAX);
+
+        let mut iter = GenericImageView::pixels(&source);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+        for _ in iter.by_ref() {}
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+
+        assert_eq!(iter.x, 0);
+        assert_eq!(iter.y, 0);
     }
 
     #[test]
     fn test_copy_sub_image() {
         let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
-        let view = source.view(0, 0, 3, 3);
+        let view = source.view(Rect::from_xy_ranges(0..3, 0..3));
         let _view2 = view;
         view.to_image();
     }
@@ -462,76 +518,27 @@ mod tests {
     #[test]
     fn test_generic_image_copy_within_oob() {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 5,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 5
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            1,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 1,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 4,
-                height: 4
-            },
-            0,
-            1
-        ));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 1,
-                width: 4,
-                height: 4
-            },
-            0,
-            0
-        ));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..5, 0..4), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..5), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..5, 0..4), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..4), 1, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 1..5), 0, 0));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..4, 0..4), 0, 1));
+        assert!(!image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..5, 0..4), 0, 0));
     }
 
     #[test]
@@ -539,16 +546,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 4, 0, 1, 2, 8, 4, 5, 6, 12, 8, 9, 10];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 3,
-                height: 3
-            },
-            1,
-            1
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..3, 0..3), 1, 1));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -557,16 +557,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 1, 2, 3, 1, 2, 3, 7, 5, 6, 7, 11, 9, 10, 11, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 0,
-                width: 3,
-                height: 3
-            },
-            0,
-            1
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..4, 0..3), 0, 1));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -575,16 +568,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [0, 4, 5, 6, 4, 8, 9, 10, 8, 12, 13, 14, 12, 13, 14, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 0,
-                y: 1,
-                width: 3,
-                height: 3
-            },
-            1,
-            0
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(0..3, 1..4), 1, 0));
         assert_eq!(&image.into_raw(), &expected);
     }
 
@@ -593,16 +579,9 @@ mod tests {
         let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let expected = [5, 6, 7, 3, 9, 10, 11, 7, 13, 14, 15, 11, 12, 13, 14, 15];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(
-            Rect {
-                x: 1,
-                y: 1,
-                width: 3,
-                height: 3
-            },
-            0,
-            0
-        ));
+        assert!(image
+            .sub_image(Rect::from_xy_ranges(0..4, 0..4))
+            .copy_within(Rect::from_xy_ranges(1..4, 1..4), 0, 0));
         assert_eq!(&image.into_raw(), &expected);
     }
 }

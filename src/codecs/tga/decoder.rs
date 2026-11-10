@@ -1,6 +1,7 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK};
-use crate::error::DecodingError;
-use crate::io::ReadExt;
+use crate::error::{DecodingError, LimitError, LimitErrorKind};
+use crate::io::{DecodedImageAttributes, DecoderPreparedImage, ReadExt};
+use crate::primitive_sealed::BgraSwizzle;
 use crate::utils::vec_try_with_capacity;
 use crate::{
     color::{ColorType, ExtendedColorType},
@@ -76,6 +77,25 @@ impl TgaOrientation {
     }
 }
 
+/// Convert TGA's 15/16-bit pixel format to its 24 bit pixel format
+fn expand_rgb15_to_rgb24(data: [u8; 2]) -> [u8; 3] {
+    /// Converts a 5-bit unorm to a 8-bit unorm.
+    /// This is equivalent to `round(x * 255 / 31)`.
+    /// Source: https://rundevelopment.github.io/blog/fast-unorm-conversions#constants
+    #[inline(always)]
+    fn unorm5_to_unorm8(x: u16) -> u8 {
+        debug_assert!(x <= 31);
+        ((x * 2108 + 92) >> 8) as u8
+    }
+
+    let val = u16::from_le_bytes(data);
+    [
+        unorm5_to_unorm8(val & 0b11111),
+        unorm5_to_unorm8((val >> 5) & 0b11111),
+        unorm5_to_unorm8((val >> 10) & 0b11111),
+    ]
+}
+
 impl<R: Read> TgaDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(mut r: R) -> ImageResult<TgaDecoder<R>> {
@@ -85,7 +105,7 @@ impl<R: Read> TgaDecoder<R> {
         let width = header.image_width as usize;
         let height = header.image_height as usize;
         let raw_bytes_per_pixel = (header.pixel_depth as usize).div_ceil(8);
-        let num_alpha_bits = header.image_desc & ALPHA_BIT_MASK;
+        let num_attrib_bits = header.image_desc & ALPHA_BIT_MASK;
 
         if width == 0 || height == 0 {
             return Err(ImageError::Decoding(DecodingError::new(
@@ -94,15 +114,6 @@ impl<R: Read> TgaDecoder<R> {
             )));
         }
 
-        // Validate header
-        if ![8, 16, 24, 32].contains(&header.pixel_depth) || ![0, 8].contains(&num_alpha_bits) {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tga.into(),
-                    UnsupportedErrorKind::Color(ExtendedColorType::Unknown(header.pixel_depth)),
-                ),
-            ));
-        }
         if image_type.is_color_mapped() {
             if header.map_type != 1 {
                 return Err(ImageError::Decoding(DecodingError::new(
@@ -126,49 +137,14 @@ impl<R: Read> TgaDecoder<R> {
             }
         }
 
-        // TODO: validate the rest of the fields in the header.
-
-        // Read image ID (and ignore it)
-        let mut tmp = [0u8; 256];
-        r.read_exact(&mut tmp[0..header.id_length as usize])?;
-
-        // Read color map
-        let mut color_map = None;
-        if header.map_type == 1 {
-            let entry_size = (header.map_entry_size as usize).div_ceil(8);
-            if ![2, 3, 4].contains(&entry_size) {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::GenericFeature(
-                            "Unsupported color map entry size".into(),
-                        ),
-                    ),
-                ));
-            }
-
-            let mut bytes = Vec::new();
-            r.read_exact_vec(&mut bytes, entry_size * header.map_length as usize)?;
-
-            // Color maps are technically allowed in non-color-mapped images, so check that we
-            // actually need the color map before storing it.
-            if image_type.is_color_mapped() {
-                color_map = Some(ColorMap {
-                    entry_size,
-                    start_offset: header.map_origin as usize,
-                    bytes,
-                });
-            }
-        }
-
         // Compute output pixel depth
-        let total_pixel_bits = if header.map_type == 1 {
+        let total_pixel_bits = if image_type.is_color_mapped() {
             header.map_entry_size
         } else {
             header.pixel_depth
         };
         let num_other_bits = total_pixel_bits
-            .checked_sub(num_alpha_bits)
+            .checked_sub(num_attrib_bits)
             .ok_or_else(|| {
                 ImageError::Decoding(DecodingError::new(
                     ImageFormat::Tga.into(),
@@ -179,12 +155,19 @@ impl<R: Read> TgaDecoder<R> {
         // Determine color type
         let color_type;
         let mut original_color_type = None;
-        match (num_alpha_bits, num_other_bits, image_type.is_color()) {
+        match (num_attrib_bits, num_other_bits, image_type.is_color()) {
             // really, the encoding is BGR and BGRA, this is fixed up with
             // `TgaDecoder::reverse_encoding`.
             (0, 32, true) => color_type = ColorType::Rgba8,
             (8, 24, true) => color_type = ColorType::Rgba8,
             (0, 24, true) => color_type = ColorType::Rgb8,
+            (1, 15, true) | (0, 15, true) | (0, 16, true) => {
+                // the 'A' bit for 5-bit-per-primary images is an 'attribute'
+                // bit, and cannot safely be interpreted as an alpha channel.
+                // (It may contain all zero values or a pattern unrelated to the image.)
+                color_type = ColorType::Rgb8;
+                original_color_type = Some(ExtendedColorType::Rgb5x1);
+            }
             (8, 8, false) => color_type = ColorType::La8,
             (0, 8, false) => color_type = ColorType::L8,
             (8, 0, false) => {
@@ -199,6 +182,51 @@ impl<R: Read> TgaDecoder<R> {
                         UnsupportedErrorKind::Color(ExtendedColorType::Unknown(header.pixel_depth)),
                     ),
                 ))
+            }
+        }
+
+        // TODO: validate the rest of the fields in the header.
+
+        // Read image ID (and ignore it)
+        let mut tmp = [0u8; 256];
+        r.read_exact(&mut tmp[0..header.id_length as usize])?;
+
+        // Read color map
+        let mut color_map = None;
+        if header.map_type == 1 {
+            if ![15, 16, 24, 32].contains(&header.map_entry_size) {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tga.into(),
+                        UnsupportedErrorKind::GenericFeature(
+                            "Unsupported color map entry size".into(),
+                        ),
+                    ),
+                ));
+            }
+            let mut entry_size = (header.map_entry_size as usize).div_ceil(8);
+
+            let mut bytes = Vec::new();
+            r.read_exact_vec(&mut bytes, entry_size * header.map_length as usize)?;
+
+            // Color maps are technically allowed in non-color-mapped images, so check that we
+            // actually need the color map before storing it.
+            if image_type.is_color_mapped() {
+                // Pre-expand 5-bit-per-primary values to simplify later decoding
+                if [15, 16].contains(&header.map_entry_size) {
+                    let mut expanded = Vec::new();
+                    for &entry in bytes.as_chunks::<2>().0.iter() {
+                        expanded.extend_from_slice(&expand_rgb15_to_rgb24(entry));
+                    }
+                    bytes = expanded;
+                    entry_size = 3;
+                }
+
+                color_map = Some(ColorMap {
+                    entry_size,
+                    start_offset: header.map_origin as usize,
+                    bytes,
+                });
             }
         }
 
@@ -278,11 +306,9 @@ impl<R: Read> TgaDecoder<R> {
                 }
             }
         } else if self.raw_bytes_per_pixel == 2 {
-            for (index, chunk) in input
-                .chunks_exact(2)
-                .zip(output.chunks_exact_mut(color_map.entry_size))
-            {
-                let index = u16::from_le_bytes(index.try_into().unwrap());
+            let input_chunks = input.as_chunks::<2>().0.iter();
+            for (&index, chunk) in input_chunks.zip(output.chunks_exact_mut(color_map.entry_size)) {
+                let index = u16::from_le_bytes(index);
                 if let Some(color) = color_map.get(index as usize) {
                     chunk.copy_from_slice(color);
                 } else {
@@ -306,17 +332,19 @@ impl<R: Read> TgaDecoder<R> {
     fn reverse_encoding_in_output(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
-            ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_mut(self.color_type.bytes_per_pixel().into()) {
-                    chunk.swap(0, 2);
-                }
-            }
+            ColorType::Rgb8 => BgraSwizzle::swizzle_rgb_bgr(pixels),
+            ColorType::Rgba8 => BgraSwizzle::swizzle_rgba_bgra(pixels),
             _ => {}
         }
     }
 
     /// Change image orientation depending on the flags set
     fn fixup_orientation(&mut self, pixels: &mut [u8]) {
+        // The below code assumes that the image is non-empty and will crash
+        // otherwise. The constructor *currently* disallows empty images, so
+        // this is method does not panic.
+        debug_assert!(self.width > 0 && self.height > 0);
+
         let orientation = TgaOrientation::from_image_desc_byte(self.header.image_desc);
 
         // Flip image if bottom->top direction
@@ -358,27 +386,42 @@ impl<R: Read> TgaDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for TgaDecoder<R> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
+        fn try_dimensions(value: usize) -> ImageResult<u32> {
+            value
+                .try_into()
+                .map_err(|_| LimitError::from_kind(LimitErrorKind::DimensionError))
+                .map_err(ImageError::Limits)
+        }
+
+        let width = try_dimensions(self.width)?;
+        let height = try_dimensions(self.height)?;
+
+        Ok(DecoderPreparedImage::new(width, height, self.color_type))
     }
 
-    fn color_type(&self) -> ColorType {
-        self.color_type
-    }
-
-    fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type
-            .unwrap_or_else(|| self.color_type().into())
-    }
-
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image(&mut self, buf: &mut [u8]) -> ImageResult<DecodedImageAttributes> {
+        let layout = self.prepare_image()?;
+        assert_eq!(u64::try_from(buf.len()), Ok(layout.total_bytes()));
 
         // Decode the raw data
         //
-        // We have already checked in `TgaDecoder::new` that the indices take less space than the
+        // We currently assume that the indices take less space than the
         // pixels they encode, so it is safe to read the raw data into `buf`.
+        if self.raw_bytes_per_pixel > self.color_type.bytes_per_pixel().into() {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tga.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Color-mapped images with indices wider than color are not supported"
+                            .into(),
+                    ),
+                ),
+            ));
+        }
         let num_raw_bytes = self.width * self.height * self.raw_bytes_per_pixel;
+        debug_assert!(num_raw_bytes <= buf.len());
+
         if self.image_type.is_encoded() {
             self.read_encoded_data(&mut buf[..num_raw_bytes])?;
         } else {
@@ -396,14 +439,24 @@ impl<R: Read> ImageDecoder for TgaDecoder<R> {
             rawbuf.extend_from_slice(&buf[..num_raw_bytes]);
 
             self.expand_color_map(&rawbuf, buf, color_map)?;
+        } else if self.original_color_type == Some(ExtendedColorType::Rgb5x1) {
+            // Expand the 15-bit to 24-bit representation for non-color-mapped images;
+            // the expansion for color-mapped 15-bit images was already done in the color map
+            let mut rawbuf = vec_try_with_capacity(num_raw_bytes)?;
+            rawbuf.extend_from_slice(&buf[..num_raw_bytes]);
+
+            let rawbuf_chunks = rawbuf.as_chunks::<2>().0.iter();
+            let buf_chunks = buf.as_chunks_mut::<3>().0.iter_mut();
+            for (&src, dst) in rawbuf_chunks.zip(buf_chunks) {
+                *dst = expand_rgb15_to_rgb24(src);
+            }
         }
 
         self.reverse_encoding_in_output(buf);
 
-        Ok(())
-    }
-
-    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
-        (*self).read_image(buf)
+        Ok(DecodedImageAttributes {
+            original_color_type: self.original_color_type,
+            ..DecodedImageAttributes::default()
+        })
     }
 }

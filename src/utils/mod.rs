@@ -1,35 +1,6 @@
 //!  Utilities
 
 use std::collections::TryReserveError;
-use std::iter::repeat;
-
-#[inline(always)]
-pub(crate) fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, mut func: F)
-where
-    F: FnMut(u8, &mut [u8]),
-{
-    let pixels = buf.len() / channels * bit_depth as usize;
-    let extra = pixels % 8;
-    let entries = pixels / 8
-        + match extra {
-            0 => 0,
-            _ => 1,
-        };
-    let mask = ((1u16 << bit_depth) - 1) as u8;
-    let i = (0..entries)
-        .rev() // Reverse iterator
-        .flat_map(|idx|
-            // This has to be reversed to
-            (0..8/bit_depth).map(|i| i*bit_depth).zip(repeat(idx)))
-        .skip(extra);
-    let buf_len = buf.len();
-    let j_inv = (channels..buf_len).step_by(channels);
-    for ((shift, i), j_inv) in i.zip(j_inv) {
-        let j = buf_len - j_inv;
-        let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j..(j + channels)]);
-    }
-}
 
 /// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
 /// every `row_size` entries there are padding bits up to the next byte boundary.
@@ -40,7 +11,7 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     let mask = (1u8 << bit_depth as usize) - 1;
     let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
     let bit_width = row_size * u32::from(bit_depth);
-    let skip = if bit_width % 8 == 0 {
+    let skip = if bit_width.is_multiple_of(8) {
         0
     } else {
         (8 - bit_width % 8) / u32::from(bit_depth)
@@ -63,11 +34,53 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     p
 }
 
-/// Checks if the provided dimensions would cause an overflow.
-#[allow(dead_code)]
-// When no image formats that use it are enabled
-pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel: u8) -> bool {
-    u64::from(width) * u64::from(height) > u64::MAX / u64::from(bytes_per_pixel)
+#[inline(always)]
+pub(crate) fn interleave_planes(out: &mut [u8], color: crate::ColorType, planes: &[&[u8]]) {
+    #[track_caller]
+    pub(crate) fn trampoline<const PLANES: usize, const N: usize>(
+        out: &mut [u8],
+        planes: &[&[u8]],
+    ) {
+        interleave_planes_inner::<PLANES, N>(
+            out.as_chunks_mut::<N>().0,
+            <[_; PLANES]>::try_from(planes)
+                .unwrap()
+                .map(|arr| arr.as_chunks::<N>().0),
+        )
+    }
+
+    assert_eq!(planes.len(), usize::from(color.channel_count()));
+
+    match color {
+        crate::ColorType::L8 => trampoline::<1, 1>(out, planes),
+        crate::ColorType::La8 => trampoline::<2, 1>(out, planes),
+        crate::ColorType::Rgb8 => trampoline::<3, 1>(out, planes),
+        crate::ColorType::Rgba8 => trampoline::<4, 1>(out, planes),
+        crate::ColorType::L16 => trampoline::<1, 2>(out, planes),
+        crate::ColorType::La16 => trampoline::<2, 2>(out, planes),
+        crate::ColorType::Rgb16 => trampoline::<3, 2>(out, planes),
+        crate::ColorType::Rgba16 => trampoline::<4, 2>(out, planes),
+        crate::ColorType::L32F => trampoline::<1, 4>(out, planes),
+        crate::ColorType::La32F => trampoline::<2, 4>(out, planes),
+        crate::ColorType::Rgb32F => trampoline::<3, 4>(out, planes),
+        crate::ColorType::Rgba32F => trampoline::<4, 4>(out, planes),
+    }
+}
+
+#[inline(always)]
+fn interleave_planes_inner<const PLANES: usize, const N: usize>(
+    out: &mut [[u8; N]],
+    planes: [&[[u8; N]]; PLANES],
+) {
+    let mut iters = planes.map(|plane| plane.iter().copied());
+    for out in out.as_chunks_mut::<PLANES>().0 {
+        let vals = iters.each_mut().map(Iterator::next);
+
+        // I'd like to use array::zip once stable.
+        for i in 0..PLANES {
+            out[i] = vals[i].unwrap_or(out[i]);
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -98,6 +111,31 @@ pub(crate) fn vec_try_with_capacity<T>(capacity: usize) -> Result<Vec<T>, TryRes
     let mut vec = Vec::new();
     vec.try_reserve_exact(capacity)?;
     Ok(vec)
+}
+
+/// Returns whether `T` can only represent integer values.
+#[inline]
+pub(crate) fn is_integer<T: num_traits::NumCast + num_traits::Zero>() -> bool {
+    // This uses a cast of 0.5 to T, because integers will truncate to zero
+    // while types that can represent fractional values will return something
+    // other than zero.
+    <T as num_traits::NumCast>::from(0.5).unwrap().is_zero()
+}
+
+/// This is equivalent to `r.seek(SeekFrom::Start(reader_offset + offset))`,
+/// but correctly handles the case where `reader_offset + offset` would overflow.
+pub(crate) fn seek_start_with_offset<R: std::io::Read + std::io::Seek>(
+    r: &mut R,
+    reader_offset: u64,
+    offset: u64,
+) -> std::io::Result<u64> {
+    let Some(offset) = reader_offset.checked_add(offset) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "offset overflow",
+        ));
+    };
+    r.seek(std::io::SeekFrom::Start(offset))
 }
 
 #[cfg(test)]

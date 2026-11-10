@@ -25,14 +25,14 @@ pub struct MethodSealedToImage;
 pub trait ImageEncoder {
     /// Writes all the bytes in an image to the encoder.
     ///
-    /// This function takes a slice of bytes of the pixel data of the image
-    /// and encodes them. Just like for [`ImageDecoder::read_image`], no particular
-    /// alignment is required and data is expected to be in native endian.
-    /// The implementation will reorder the endianness as necessary for the target encoding format.
+    /// This function takes a slice of bytes of the pixel data of the image and encodes them. Just
+    /// like for [`ImageDecoder::read_image`](crate::ImageDecoder), no particular alignment is
+    /// required and data is expected to be in native endian. The implementation will reorder the
+    /// endianness as necessary for the target encoding format.
     ///
     /// # Panics
     ///
-    /// Panics if `width * height * color_type.bytes_per_pixel() != buf.len()`.
+    /// Panics if `buf.len() as u64 != color_type.buffer_size(width, height)`.
     fn write_image(
         self,
         buf: &[u8],
@@ -76,6 +76,26 @@ pub trait ImageEncoder {
             ImageFormatHint::Unknown,
             UnsupportedErrorKind::GenericFeature(
                 "EXIF metadata is not supported for this format".into(),
+            ),
+        ))
+    }
+
+    /// Set the XMP metadata to use for the image.
+    ///
+    /// This function is a no-op for formats that don't support XMP metadata.
+    /// For formats that do support XMP metadata, the metadata will be embedded
+    /// in the image when it is saved.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the format does not support XMP metadata or if the
+    /// encoder doesn't implement saving XMP metadata yet.
+    fn set_xmp_metadata(&mut self, xmp: Vec<u8>) -> Result<(), UnsupportedError> {
+        let _ = xmp;
+        Err(UnsupportedError::from_format_and_kind(
+            ImageFormatHint::Unknown,
+            UnsupportedErrorKind::GenericFeature(
+                "XMP metadata is not supported for this format".into(),
             ),
         ))
     }
@@ -124,8 +144,8 @@ pub(crate) fn dynimage_conversion_8bit(img: &DynamicImage) -> Option<DynamicImag
 
     match img.color() {
         Rgb8 | Rgba8 | L8 | La8 => None,
-        L16 => Some(img.to_luma8().into()),
-        La16 => Some(img.to_luma_alpha8().into()),
+        L16 | L32F => Some(img.to_luma8().into()),
+        La16 | La32F => Some(img.to_luma_alpha8().into()),
         Rgb16 | Rgb32F => Some(img.to_rgb8().into()),
         Rgba16 | Rgba32F => Some(img.to_rgba8().into()),
     }

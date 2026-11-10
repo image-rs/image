@@ -1,4 +1,9 @@
-use crate::{GenericImage, GenericImageView, ImageBuffer, Pixel};
+use crate::{
+    flat::{ViewMutOfPixel, ViewOfPixel},
+    math::Rect,
+    GenericImage, GenericImageView, ImageBuffer, Pixel,
+};
+
 use std::ops::{Deref, DerefMut};
 
 /// A View into another image
@@ -49,14 +54,14 @@ type DerefSubpixel<I> = <DerefPixel<I> as Pixel>::Subpixel;
 impl<I> SubImage<I> {
     /// Construct a new subimage
     /// The coordinates set the position of the top left corner of the `SubImage`.
-    pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
+    pub fn new(image: I, rect: Rect) -> SubImage<I> {
         SubImage {
             inner: SubImageInner {
                 image,
-                xoffset: x,
-                yoffset: y,
-                xstride: width,
-                ystride: height,
+                xoffset: rect.x,
+                yoffset: rect.y,
+                xstride: rect.width,
+                ystride: rect.height,
             },
         }
     }
@@ -80,11 +85,23 @@ impl<I> SubImage<I> {
         I: Deref,
         I::Target: GenericImageView + 'static,
     {
+        let w = self.inner.xstride;
+        let h = self.inner.ystride;
         let borrowed = &*self.inner.image;
-        let mut out = borrowed.buffer_with_dimensions(self.inner.xstride, self.inner.ystride);
+        let mut out = borrowed.buffer_with_dimensions(w, h);
 
-        for y in 0..self.inner.ystride {
-            for x in 0..self.inner.xstride {
+        // fast path for row-major packed views
+        if let Some(view) = self.to_pixel_view() {
+            if let Some(row_iter) = view.iter_rows() {
+                for (row, out_row) in row_iter.zip(out.rows_mut()) {
+                    Pixel::pixels_as_channels_mut(out_row).copy_from_slice(row);
+                }
+                return out;
+            }
+        }
+
+        for y in 0..h {
+            for x in 0..w {
                 let p = borrowed.get_pixel(x + self.inner.xoffset, y + self.inner.yoffset);
                 out.put_pixel(x, y, p);
             }
@@ -110,21 +127,21 @@ where
     ///
     /// ```
     /// use image::{GenericImageView, RgbImage, SubImage};
+    /// use image::math::Rect;
     /// let buffer = RgbImage::new(10, 10);
     ///
-    /// let subimage: SubImage<&RgbImage> = buffer.view(0, 0, 10, 10);
-    /// let subview: SubImage<&RgbImage> = subimage.view(0, 0, 10, 10);
+    /// let selection = Rect::from_xy_ranges(0..10, 0..10);
+    /// let subimage: SubImage<&RgbImage> = buffer.view(selection);
+    /// let subview: SubImage<&RgbImage> = subimage.view(selection);
     ///
     /// // Less efficient and NOT &RgbImage
-    /// let _: SubImage<&_> = GenericImageView::view(&*subimage, 0, 0, 10, 10);
+    /// let _: SubImage<&_> = GenericImageView::view(&*subimage, selection);
     /// ```
-    pub fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&I::Target> {
-        use crate::GenericImageView as _;
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
-        let x = self.inner.xoffset.saturating_add(x);
-        let y = self.inner.yoffset.saturating_add(y);
-        SubImage::new(&*self.inner.image, x, y, width, height)
+    pub fn view(&self, mut rect: Rect) -> SubImage<&I::Target> {
+        rect.assert_in_bounds_of(&self.inner);
+        rect.x = self.inner.xoffset.saturating_add(rect.x);
+        rect.y = self.inner.yoffset.saturating_add(rect.y);
+        SubImage::new(&*self.inner.image, rect)
     }
 
     /// Get a reference to the underlying image.
@@ -141,18 +158,11 @@ where
     /// Create a mutable sub-view of the image.
     ///
     /// The coordinates given are relative to the current view on the underlying image.
-    pub fn sub_image(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-    ) -> SubImage<&mut I::Target> {
-        assert!(u64::from(x) + u64::from(width) <= u64::from(self.inner.width()));
-        assert!(u64::from(y) + u64::from(height) <= u64::from(self.inner.height()));
-        let x = self.inner.xoffset.saturating_add(x);
-        let y = self.inner.yoffset.saturating_add(y);
-        SubImage::new(&mut *self.inner.image, x, y, width, height)
+    pub fn sub_image(&mut self, mut rect: Rect) -> SubImage<&mut I::Target> {
+        rect.assert_in_bounds_of(&self.inner);
+        rect.x = self.inner.xoffset.saturating_add(rect.x);
+        rect.y = self.inner.yoffset.saturating_add(rect.y);
+        SubImage::new(&mut *self.inner.image, rect)
     }
 
     /// Get a mutable reference to the underlying image.
@@ -181,7 +191,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImageView for SubImageInner<I>
 where
     I: Deref,
@@ -208,33 +217,61 @@ where
     > {
         self.image.buffer_with_dimensions(width, height)
     }
+
+    fn to_pixel_view(&self) -> Option<ViewOfPixel<'_, Self::Pixel>> {
+        let inner = self.image.to_pixel_view()?;
+
+        // Now pivot the inner descriptor.
+        let mut descriptor = inner.into_inner();
+
+        let offset = descriptor.index(0, self.xoffset, self.yoffset)?;
+        descriptor.samples = descriptor.samples.get(offset..)?;
+        descriptor.layout.width = self.xstride;
+        descriptor.layout.height = self.ystride;
+
+        descriptor.into_view().ok()
+    }
 }
 
-#[allow(deprecated)]
 impl<I> GenericImage for SubImageInner<I>
 where
     I: DerefMut,
     I::Target: GenericImage + Sized,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
-        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .put_pixel(x + self.xoffset, y + self.yoffset, pixel);
     }
 
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> Result<(), crate::ImageError>
+    where
+        O: GenericImageView<Pixel = Self::Pixel>,
+    {
+        Rect::from_image_at(other, x, y).test_in_bounds_of(self)?;
+        // Dispatch the inner images `copy_from` method with adjusted offsets. this ensures its
+        // potentially optimized implementation gets used.
         self.image
-            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel);
+            .copy_from(other, x + self.xoffset, y + self.yoffset)
+    }
+
+    fn to_pixel_view_mut(&mut self) -> Option<ViewMutOfPixel<'_, Self::Pixel>> {
+        let inner = self.image.to_pixel_view_mut()?;
+
+        // Now pivot the inner descriptor.
+        let mut descriptor = inner.into_inner();
+
+        let offset = descriptor.index(0, self.xoffset, self.yoffset)?;
+        descriptor.samples = descriptor.samples.get_mut(offset..)?;
+        descriptor.layout.width = self.xstride;
+        descriptor.layout.height = self.ystride;
+
+        descriptor.into_view_mut().ok()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{metadata::Cicp, GenericImageView, RgbaImage};
+    use crate::{math::Rect, metadata::Cicp, GenericImageView, RgbaImage};
 
     #[test]
     fn preserves_color_space() {
@@ -242,7 +279,7 @@ mod tests {
         buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
         buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
 
-        let view = buffer.view(0, 0, 16, 16);
+        let view = buffer.view(Rect::from_xy_ranges(0..16, 0..16));
         let result = view.buffer_like();
 
         assert_eq!(buffer.color_space(), result.color_space());
@@ -254,8 +291,8 @@ mod tests {
         buffer[(0, 0)] = crate::Rgba([0xff, 0, 0, 255]);
         buffer.set_rgb_primaries(Cicp::DISPLAY_P3.primaries);
 
-        let view = buffer.view(0, 0, 16, 16);
-        let view = view.view(0, 0, 16, 16);
+        let view = buffer.view(Rect::from_xy_ranges(0..16, 0..16));
+        let view = view.view(Rect::from_xy_ranges(0..16, 0..16));
         let result = view.buffer_like();
 
         assert_eq!(buffer.color_space(), result.color_space());

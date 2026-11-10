@@ -126,6 +126,23 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
         }
     }
 
+    /// Construct a reader with a format derived from the given extension.
+    ///
+    /// If the extension does not map to a valid format, an error will be returned when attempting
+    /// to create a decoder or read the image. Consider using this method in combination with
+    /// [`with_guessed_format`](Self::with_guessed_format).
+    ///
+    /// Assumes the reader is already buffered. For optimal performance,
+    /// consider wrapping the reader with a `BufReader::new()`.
+    pub fn with_extension(buffered_reader: R, ext: impl Into<OsString>) -> Self {
+        ImageReaderOptions {
+            inner: buffered_reader,
+            format: Some(Format::Extension(ext.into())),
+            limits: Limits::default(),
+            spec_compliance: SpecCompliance::default(),
+        }
+    }
+
     /// Get the currently determined format.
     pub fn format(&self) -> Option<ImageFormat> {
         match self.format {
@@ -138,12 +155,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
     /// Supply the format as which to interpret the read image.
     pub fn set_format(&mut self, format: ImageFormat) {
         self.format = Some(Format::BuiltIn(format));
-    }
-    /// Supply the extension of the format as which to interpret the read image.
-    ///
-    /// The extension must be without the leading dot. E.g. `"png"` or `"jpeg"`.
-    pub fn set_format_with_extension(&mut self, ext: OsString) {
-        self.format = Some(Format::Extension(ext));
     }
 
     /// Remove the current information on the image format.

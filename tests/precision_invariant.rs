@@ -1,9 +1,7 @@
 //! Tests that operation results are always roughly the same regardless of the
 //! precision of the subpixels.
 
-use image::{
-    buffer::ConvertBuffer, imageops::GaussianBlurParameters, DynamicImage, ImageBuffer, Rgb,
-};
+use image::{imageops::GaussianBlurParameters, DynamicImage, ImageBuffer, Rgb};
 
 #[test]
 fn blur_precision_invariant() {

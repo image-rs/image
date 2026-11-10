@@ -7,6 +7,12 @@ use std::{
 use libtest_mimic::{Arguments, Trial};
 
 fn main() -> std::process::ExitCode {
+    if !cfg!(feature = "png") {
+        // We can read neither inputs not references, so there is nothing to test.
+        eprintln!("The 'png' feature is not enabled. Skipping tests.");
+        return std::process::ExitCode::SUCCESS;
+    }
+
     let tests_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests");
     let assets_dir = tests_dir.join("assets");
     let reference_dir = tests_dir.join("imageops");
@@ -89,12 +95,6 @@ impl ImageTrials {
         name: impl AsRef<str>,
         f: impl FnOnce() -> I + Send + 'static,
     ) {
-        if !cfg!(feature = "png") {
-            self.trials
-                .push(Trial::test(name.as_ref(), move || Ok(())).with_ignored_flag(true));
-            return;
-        }
-
         let path = self.reference_dir.join(format!("{}.png", name.as_ref()));
         self.trials.push(Trial::test(name.as_ref(), move || {
             let image = f().into();
@@ -114,11 +114,7 @@ impl Image {
     fn open(path: &Path) -> Self {
         let name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
-        let image = if cfg!(feature = "png") {
-            image::open(path).unwrap()
-        } else {
-            DynamicImage::new_rgb8(8, 8)
-        };
+        let image = image::open(path).unwrap();
 
         Self {
             name,

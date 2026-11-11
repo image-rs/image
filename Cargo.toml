@@ -142,14 +142,19 @@ path = "benches/imageops.rs"
 name = "imageops"
 harness = false
 
+[[bench]]
+path = "benches/bgra_to_rgba.rs"
+name = "bgra_to_rgba"
+harness = false
+
 [[test]]
 path = "tests/reference_images.rs"
 name = "reference_images"
 harness = false
 
-[[bench]]
-path = "benches/bgra_to_rgba.rs"
-name = "bgra_to_rgba"
+[[test]]
+path = "tests/imageops_reference.rs"
+name = "imageops_reference"
 harness = false
 
 # because of https://github.com/image-rs/image/pull/2583

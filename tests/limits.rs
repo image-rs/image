@@ -166,7 +166,6 @@ fn tiff() {
 
     // TiffDecoder
     let mut decoder = TiffDecoder::new(Cursor::new(&image)).unwrap();
-    decoder.prepare_image().unwrap();
     assert!(decoder.set_limits(width_height_limits()).is_err());
     // No tests for allocation limits because the caller is responsible for allocating the buffer in this case.
 }

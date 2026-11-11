@@ -430,18 +430,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
     fn set_limits(&mut self, limits: crate::Limits) -> ImageResult<()> {
         limits.check_support(&crate::LimitSupport::default())?;
 
-        let reserved = match self.info {
-            ImageState::At(info) => info,
-            // Construct a dummy info that did not consume any memory.
-            _ => ImageInfo {
-                dimensions: (0, 0),
-                color_type: ColorType::L8,
-                original_color_type: ExtendedColorType::L8,
-                ycbcr_coefficients: [0.0; 3],
-            },
-        };
-
-        let (width, height) = reserved.dimensions;
+        let (width, height) = self.peek_info()?.dimensions;
         limits.check_dimensions(width, height)?;
 
         let max_alloc = limits

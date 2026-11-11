@@ -135,6 +135,11 @@ impl<'a, R: 'a + BufRead + Seek> ImageReaderOptions<R> {
         }
     }
 
+    /// Returns `true` if the format is set.
+    pub fn has_format(&self) -> bool {
+        self.format.is_some()
+    }
+
     /// Supply the format as which to interpret the read image.
     pub fn set_format(&mut self, format: ImageFormat) {
         self.format = Some(Format::BuiltIn(format));

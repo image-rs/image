@@ -462,6 +462,10 @@ struct HeaderOffsets {
     bmp_header_end: u64,
     /// Offset where palette data starts (after headers).
     palette_offset: u64,
+    /// Size of the bit mask bytes that `BITMAPINFOHEADER` stores between the
+    /// header and the pixel data when it uses `BI_BITFIELDS`. The V2, V3, V4
+    /// and V5 headers contain the masks themselves, so this is zero for them.
+    masks_after_header: u64,
     /// ICC profile metadata if present.
     icc_profile: Option<ParsedIccProfile>,
 }
@@ -595,6 +599,9 @@ enum DecoderError {
     /// The palette is bigger than allowed by the bit count of the BMP
     PaletteSizeExceeded { colors_used: u32, bit_count: u16 },
 
+    /// `bfOffBits` points into the headers or bit masks, before the pixel array
+    DataOffsetInHeaders { data_offset: u64, data_start: u64 },
+
     /// read_image_data was called before read_metadata completed
     MetadataNotRead,
     /// Corrupt RLE data
@@ -637,6 +644,12 @@ impl fmt::Display for DecoderError {
                 bit_count,
             } => f.write_fmt(format_args!(
                 "Palette size {colors_used} exceeds maximum size for BMP with bit count of {bit_count}"
+            )),
+            DecoderError::DataOffsetInHeaders {
+                data_offset,
+                data_start,
+            } => f.write_fmt(format_args!(
+                "Pixel data offset {data_offset} points into the headers or bit masks (the pixel array starts at {data_start})"
             )),
             DecoderError::MetadataNotRead => {
                 f.write_str("read_image_data called before read_metadata completed")
@@ -1556,18 +1569,44 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
                     self.read_palette()?;
                 }
 
-                // For no_file_header mode, capture data_offset now (after palette read)
-                // before ICC profile reading potentially changes reader position.
-                // For normal mode, clamp data_offset if it points into the DIB header
-                // (between FILE_HEADER_SIZE and bmp_header_end). Such values are invalid
-                // because they overlap with header data.
+                // The pixel array is the last thing in a BMP, so it can only
+                // start at or after the end of the headers and bit masks, and,
+                // for images with a colour table, at or after the end of that
+                // table. A `bfOffBits` below that point makes the row readers
+                // decode header, mask or palette bytes as pixels, which
+                // silently yields the wrong picture. Treat such an offset in
+                // lenient mode like the `no_file_header` case and start the
+                // pixel data where it has to start (Pillow does the same for
+                // `bfOffBits = 0`); strict mode rejects the file instead.
+                //
+                // Only offsets that point before the colour table are adjusted:
+                // some writers store a truncated table and point `bfOffBits` at
+                // the end of the entries that are actually there, which lies
+                // inside the declared table (see `pal8os2sp.bmp` in the
+                // reference images).
+                let pixel_array_min = offsets.bmp_header_end + offsets.masks_after_header;
                 if self.no_file_header {
                     self.data_offset = self.reader.stream_position()?;
-                } else if self.spec_strictness != SpecCompliance::Strict
-                    && self.data_offset >= FILE_HEADER_SIZE
-                    && self.data_offset < offsets.bmp_header_end
-                {
-                    self.data_offset = offsets.bmp_header_end;
+                } else if self.data_offset < pixel_array_min {
+                    // `read_palette` leaves the reader on the first byte after
+                    // the colour table, or on the palette offset for images
+                    // that don't have one.
+                    let data_start = if matches!(
+                        self.image_type,
+                        ImageType::Palette | ImageType::RLE4 | ImageType::RLE8
+                    ) {
+                        self.reader.stream_position()?
+                    } else {
+                        pixel_array_min
+                    };
+                    if self.spec_strictness == SpecCompliance::Strict {
+                        return Err(DecoderError::DataOffsetInHeaders {
+                            data_offset: self.data_offset,
+                            data_start,
+                        }
+                        .into());
+                    }
+                    self.data_offset = data_start;
                 }
 
                 // Always progress to ReadingIccProfile next
@@ -1729,9 +1768,25 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
         // Calculate palette offset (position after headers)
         let palette_offset = bmp_header_end + bitmask_bytes_offset;
 
+        // `BITMAPINFOHEADER` stores the bit masks after the header itself; the
+        // V2 and later headers have room for them in the header.
+        let masks_after_header = if self.bmp_header_type == BMPHeaderType::Info
+            && matches!(
+                self.image_type,
+                ImageType::Bitfields16 | ImageType::Bitfields32
+            ) {
+            match bitfield_compression {
+                BitfieldCompression::Rgba => 16, // 4 masks * 4 bytes
+                BitfieldCompression::Rgb => 12,  // 3 masks * 4 bytes
+            }
+        } else {
+            0
+        };
+
         Ok(HeaderOffsets {
             bmp_header_end,
             palette_offset,
+            masks_after_header,
             icc_profile,
         })
     }
@@ -3080,6 +3135,205 @@ mod test {
             buf, ref_buf,
             "BMP with invalid data_offset=34 should decode identically to data_offset=54"
         );
+    }
+
+    /// Decode `data` in the given compliance mode, returning the pixel bytes.
+    fn decode_with(data: &[u8], spec_strictness: SpecCompliance) -> ImageResult<Vec<u8>> {
+        let mut decoder = BmpDecoder::with_spec_compliance(Cursor::new(data), spec_strictness)?;
+        let len = decoder.prepare_image()?.total_bytes();
+        let mut buf = vec![0u8; len as usize];
+        decoder.read_image(&mut buf)?;
+        Ok(buf)
+    }
+
+    /// A 2x1 24-bit BI_RGB BMP: one red pixel, then one blue pixel.
+    fn bmp_24(bf_off_bits: u32) -> Vec<u8> {
+        // BGR pixels, followed by the two bytes of row padding.
+        let pixels = [0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00];
+        let mut data = b"BM".to_vec();
+        data.extend_from_slice(&(54 + pixels.len() as u32).to_le_bytes()); // bfSize
+        data.extend_from_slice(&[0; 4]); // bfReserved1, bfReserved2
+        data.extend_from_slice(&bf_off_bits.to_le_bytes()); // bfOffBits
+        data.extend_from_slice(&40u32.to_le_bytes()); // biSize
+        data.extend_from_slice(&2i32.to_le_bytes()); // biWidth
+        data.extend_from_slice(&1i32.to_le_bytes()); // biHeight
+        data.extend_from_slice(&1u16.to_le_bytes()); // biPlanes
+        data.extend_from_slice(&24u16.to_le_bytes()); // biBitCount
+        data.extend_from_slice(&0u32.to_le_bytes()); // biCompression: BI_RGB
+        data.extend_from_slice(&(pixels.len() as u32).to_le_bytes()); // biSizeImage
+        data.extend_from_slice(&0u32.to_le_bytes()); // biXPelsPerMeter
+        data.extend_from_slice(&0u32.to_le_bytes()); // biYPelsPerMeter
+        data.extend_from_slice(&0u32.to_le_bytes()); // biClrUsed
+        data.extend_from_slice(&0u32.to_le_bytes()); // biClrImportant
+        data.extend_from_slice(&pixels);
+        data
+    }
+
+    /// A 1x1 8-bit paletted BMP whose only pixel uses the second (green)
+    /// colour table entry, so the colour table ends at offset 62.
+    fn bmp_8(bf_off_bits: u32) -> Vec<u8> {
+        let mut data = b"BM".to_vec();
+        data.extend_from_slice(&66u32.to_le_bytes()); // bfSize
+        data.extend_from_slice(&[0; 4]); // bfReserved1, bfReserved2
+        data.extend_from_slice(&bf_off_bits.to_le_bytes()); // bfOffBits
+        data.extend_from_slice(&40u32.to_le_bytes()); // biSize
+        data.extend_from_slice(&1i32.to_le_bytes()); // biWidth
+        data.extend_from_slice(&1i32.to_le_bytes()); // biHeight
+        data.extend_from_slice(&1u16.to_le_bytes()); // biPlanes
+        data.extend_from_slice(&8u16.to_le_bytes()); // biBitCount
+        data.extend_from_slice(&0u32.to_le_bytes()); // biCompression: BI_RGB
+        data.extend_from_slice(&4u32.to_le_bytes()); // biSizeImage
+        data.extend_from_slice(&0u32.to_le_bytes()); // biXPelsPerMeter
+        data.extend_from_slice(&0u32.to_le_bytes()); // biYPelsPerMeter
+        data.extend_from_slice(&2u32.to_le_bytes()); // biClrUsed: 2 colour table entries
+        data.extend_from_slice(&0u32.to_le_bytes()); // biClrImportant
+        data.extend_from_slice(&[0x00, 0x00, 0xFF, 0x00]); // entry 0: red
+        data.extend_from_slice(&[0x00, 0xFF, 0x00, 0x00]); // entry 1: green
+        data.extend_from_slice(&[1, 0, 0, 0]); // index 1, row padding
+        data
+    }
+
+    /// A 2x1 8-bit paletted BMP with the full 256-entry colour table that
+    /// `biClrUsed = 0` implies, like the images whose `bfOffBits` is 0 in the
+    /// wild: the pixel array starts after the 1024-byte table, at 1078.
+    fn bmp_8_full_palette(bf_off_bits: u32) -> Vec<u8> {
+        const TABLE: usize = 256 * 4;
+        let pixels = [1u8, 2, 0, 0]; // index 1 (green), index 2 (blue), padding
+        let mut data = b"BM".to_vec();
+        data.extend_from_slice(&((54 + TABLE + pixels.len()) as u32).to_le_bytes()); // bfSize
+        data.extend_from_slice(&[0; 4]); // bfReserved1, bfReserved2
+        data.extend_from_slice(&bf_off_bits.to_le_bytes()); // bfOffBits
+        data.extend_from_slice(&40u32.to_le_bytes()); // biSize
+        data.extend_from_slice(&2i32.to_le_bytes()); // biWidth
+        data.extend_from_slice(&1i32.to_le_bytes()); // biHeight
+        data.extend_from_slice(&1u16.to_le_bytes()); // biPlanes
+        data.extend_from_slice(&8u16.to_le_bytes()); // biBitCount
+        data.extend_from_slice(&0u32.to_le_bytes()); // biCompression: BI_RGB
+        data.extend_from_slice(&(pixels.len() as u32).to_le_bytes()); // biSizeImage
+        data.extend_from_slice(&0u32.to_le_bytes()); // biXPelsPerMeter
+        data.extend_from_slice(&0u32.to_le_bytes()); // biYPelsPerMeter
+        data.extend_from_slice(&0u32.to_le_bytes()); // biClrUsed: the full table
+        data.extend_from_slice(&0u32.to_le_bytes()); // biClrImportant
+                                                     // Entry 0 is red, entry 1 green, entry 2 blue and the rest black.
+        data.extend_from_slice(&[0x00, 0x00, 0xFF, 0x00]); // entry 0: red
+        data.extend_from_slice(&[0x00, 0xFF, 0x00, 0x00]); // entry 1: green
+        data.extend_from_slice(&[0xFF, 0x00, 0x00, 0x00]); // entry 2: blue
+        data.resize(54 + TABLE, 0); // the remaining 253 entries are black
+        data.extend_from_slice(&pixels);
+        data
+    }
+
+    /// A 16x1 8-bit `BITMAPCOREHEADER` BMP whose 256-entry colour table is only
+    /// stored as 252 three-byte entries, and whose `bfOffBits` points at the end
+    /// of the entries that are actually there (inside the declared table). This
+    /// is the layout of `pal8os2sp.bmp` in the reference images.
+    fn bmp_8_core_truncated_palette() -> Vec<u8> {
+        const ENTRIES: usize = 252;
+        const ROW: usize = 16; // 16 pixels, padded to 4 bytes per row
+        let palette_offset = 14 + 12;
+        let bf_off_bits = (palette_offset + ENTRIES * 3) as u32;
+        let mut data = b"BM".to_vec();
+        data.extend_from_slice(&(bf_off_bits + ROW as u32).to_le_bytes()); // bfSize
+        data.extend_from_slice(&[0; 4]); // bfReserved1, bfReserved2
+        data.extend_from_slice(&bf_off_bits.to_le_bytes()); // bfOffBits
+        data.extend_from_slice(&12u32.to_le_bytes()); // bcSize
+        data.extend_from_slice(&(ROW as u16).to_le_bytes()); // bcWidth
+        data.extend_from_slice(&1u16.to_le_bytes()); // bcHeight
+        data.extend_from_slice(&1u16.to_le_bytes()); // bcPlanes
+        data.extend_from_slice(&8u16.to_le_bytes()); // bcBitCount
+                                                     // Entry 0 is red, entry 1 green, entry 2 blue and the rest black.
+        data.extend_from_slice(&[0x00, 0x00, 0xFF]); // entry 0: red
+        data.extend_from_slice(&[0x00, 0xFF, 0x00]); // entry 1: green
+        data.extend_from_slice(&[0xFF, 0x00, 0x00]); // entry 2: blue
+        data.resize(palette_offset + ENTRIES * 3, 0); // entries 3..=251: black
+        data.extend_from_slice(&[1, 2, 0, 0, 0, 0, 0, 0]); // pixel row
+        data.extend_from_slice(&[0; ROW - 8]);
+        data
+    }
+
+    /// A `bfOffBits` that points into the headers or the bit masks makes the row
+    /// readers decode those bytes as pixels, which silently produces a shifted,
+    /// wrong picture. The pixel data can only start after the colour table, so
+    /// lenient mode must start it there and strict mode must reject the file.
+    #[test]
+    fn test_data_offset_before_pixel_data() {
+        let valid_24 = decode_with(&bmp_24(54), SpecCompliance::Lenient).unwrap();
+        assert_eq!(valid_24, [255, 0, 0, 0, 0, 255]);
+
+        // 0 to 13 points into the file header, 14 to 53 into the DIB header,
+        // and 54 is the first byte of the pixel array.
+        for bf_off_bits in [0, 1, 13, 14, 34, 53, 54] {
+            assert_eq!(
+                decode_with(&bmp_24(bf_off_bits), SpecCompliance::Lenient).unwrap(),
+                valid_24,
+                "bfOffBits = {bf_off_bits} should decode like bfOffBits = 54"
+            );
+        }
+
+        for bf_off_bits in [0, 34, 53] {
+            assert!(
+                decode_with(&bmp_24(bf_off_bits), SpecCompliance::Strict).is_err(),
+                "bfOffBits = {bf_off_bits} should be rejected in strict mode"
+            );
+        }
+        assert!(decode_with(&bmp_24(54), SpecCompliance::Strict).is_ok());
+
+        // The two-entry colour table ends at 62, so 0 to 53 point before it.
+        // Offsets from 54 to 61 point inside the table and are left alone: a
+        // truncated table ends there in real files (see the test below).
+        let valid_8 = decode_with(&bmp_8(62), SpecCompliance::Lenient).unwrap();
+        assert_eq!(valid_8, [0, 255, 0]);
+
+        for bf_off_bits in [0, 1, 13, 14, 34, 53, 62] {
+            assert_eq!(
+                decode_with(&bmp_8(bf_off_bits), SpecCompliance::Lenient).unwrap(),
+                valid_8,
+                "bfOffBits = {bf_off_bits} should decode like bfOffBits = 62"
+            );
+        }
+        assert!(decode_with(&bmp_8(62), SpecCompliance::Strict).is_ok());
+        for bf_off_bits in [0, 14, 53] {
+            assert!(
+                decode_with(&bmp_8(bf_off_bits), SpecCompliance::Strict).is_err(),
+                "bfOffBits = {bf_off_bits} should be rejected in strict mode"
+            );
+        }
+
+        // The reported case: an 8-bit image with a full 256-entry table and
+        // `bfOffBits = 0`, which has to start at 14 + 40 + 1024 = 1078.
+        let full_palette = decode_with(&bmp_8_full_palette(1078), SpecCompliance::Lenient).unwrap();
+        assert_eq!(full_palette, [0, 255, 0, 0, 0, 255]);
+        for bf_off_bits in [0, 1, 53] {
+            assert_eq!(
+                decode_with(&bmp_8_full_palette(bf_off_bits), SpecCompliance::Lenient).unwrap(),
+                full_palette,
+                "bfOffBits = {bf_off_bits} should decode like bfOffBits = 1078"
+            );
+        }
+        for bf_off_bits in [0, 1, 53] {
+            assert!(
+                decode_with(&bmp_8_full_palette(bf_off_bits), SpecCompliance::Strict).is_err(),
+                "bfOffBits = {bf_off_bits} should be rejected in strict mode"
+            );
+        }
+        assert!(decode_with(&bmp_8_full_palette(1078), SpecCompliance::Strict).is_ok());
+    }
+
+    /// Some writers store a truncated colour table and point `bfOffBits` at the
+    /// end of the entries that are actually present, which lies inside the table
+    /// that `biClrUsed = 0` (or a `BITMAPCOREHEADER`) declares. Adjusting such an
+    /// offset to the declared end of the table seeks past the pixel data.
+    #[test]
+    fn test_data_offset_inside_colour_table() {
+        // 782 bytes of table are declared but only 756 are stored, so the pixel
+        // array starts at 782 rather than at 26 + 252 * 3 + 12 = 794.
+        let data = bmp_8_core_truncated_palette();
+        let pixels = decode_with(&data, SpecCompliance::Lenient).unwrap();
+        assert_eq!(&pixels[..6], [0, 255, 0, 0, 0, 255]);
+
+        // The same layout in the reference images, from OS/2 1.x.
+        let pal8os2sp = std::fs::read("tests/images/bmp/images/pal8os2sp.bmp").unwrap();
+        decode_with(&pal8os2sp, SpecCompliance::Lenient).unwrap();
     }
 
     /// Test that strict mode correctly rejects RLE files with known corruptions.

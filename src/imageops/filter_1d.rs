@@ -7,6 +7,49 @@ use num_traits::{AsPrimitive, MulAdd};
 use std::mem::size_of;
 use std::ops::{Add, Mul};
 
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
+
+/// Estimated number of kernel taps applied per subpixel below
+/// which a separable filter runs sequentially even when the
+/// `rayon` feature is enabled. Splitting rows across threads
+/// costs a thread-pool dispatch and a per-band kernel overlap;
+/// below this much work the sequential pass is faster.
+#[cfg(feature = "rayon")]
+const PARALLEL_MIN_WORK: usize = 1 << 20;
+
+/// Number of threads a parallel filter pass may use.
+#[cfg(feature = "rayon")]
+fn available_threads() -> usize {
+    rayon::current_num_threads().max(1)
+}
+
+/// Whether a separable filter over `image_size` with the
+/// given kernels should run in parallel. Parallelism only
+/// ever partitions output rows, so it cannot change the
+/// result; this only decides whether it is worth doing.
+fn use_parallel(
+    image_size: FilterImageSize,
+    channels: usize,
+    row_kernel_len: usize,
+    column_kernel_len: usize,
+) -> bool {
+    #[cfg(feature = "rayon")]
+    {
+        let work = image_size
+            .width
+            .saturating_mul(image_size.height)
+            .saturating_mul(channels)
+            .saturating_mul(row_kernel_len.saturating_add(column_kernel_len));
+        available_threads() > 1 && image_size.height >= 2 && work >= PARALLEL_MIN_WORK
+    }
+    #[cfg(not(feature = "rayon"))]
+    {
+        let _ = (image_size, channels, row_kernel_len, column_kernel_len);
+        false
+    }
+}
+
 pub(crate) trait SafeMul<S> {
     fn safe_mul(&self, rhs: S) -> Result<S, ImageError>;
 }
@@ -599,6 +642,263 @@ where
     Ok(())
 }
 
+#[cfg(feature = "rayon")]
+/// Computes the output rows `first_row..first_row + rows`
+/// of the ring-queue filter into `destination`, which holds
+/// exactly those rows.
+///
+/// This is the multithreaded staging the ring-queue comment
+/// above describes: the worker walks its own ring of
+/// horizontally blurred rows over its band, recomputing the
+/// half-kernel of rows that overlap the previous band. Every
+/// output row is produced by the same row and column filters
+/// from the same source rows as in the sequential pass, so
+/// the result is identical; only the partitioning differs.
+#[allow(clippy::too_many_arguments)]
+fn filter_2d_separable_ring_queue_band<T, I, const N: usize>(
+    image: &[T],
+    destination: &mut [T],
+    image_size: FilterImageSize,
+    row_kernel: &[I],
+    column_kernel: &[I],
+    first_row: usize,
+) -> Result<(), ImageError>
+where
+    T: Copy + Default + Send + Sync + AsPrimitive<I>,
+    I: ToStorage<T>
+        + Mul<I, Output = I>
+        + Add<I, Output = I>
+        + MulAdd<I, Output = I>
+        + Send
+        + Sync
+        + PartialEq
+        + Default
+        + 'static
+        + Copy,
+    i32: AsPrimitive<I>,
+    f64: AsPrimitive<T>,
+{
+    if destination.is_empty() || image_size.height == 0 {
+        return Ok(());
+    }
+
+    let full_width = image_size.width * N;
+    let band_rows = destination.len() / full_width;
+
+    let column_kernel_len = column_kernel.len();
+    let half_kernel = column_kernel_len / 2;
+
+    let pad_w = (row_kernel.len() / 2).max(1);
+    let arena_width = image_size
+        .width
+        .safe_mul(N)?
+        .safe_add(pad_w.safe_mul(2 * N)?)?;
+    let mut row_buffer = vec![T::default(); arena_width];
+
+    // This band's own ring of horizontally blurred rows,
+    // indexed by source row modulo the kernel length. The
+    // rows a band needs are consecutive and advance one row
+    // per output row, so a slot is only ever overwritten by
+    // the row that replaces it in the window.
+    let mut buffer = vec![T::default(); full_width.safe_mul(column_kernel_len)?];
+
+    let last_row = image_size.height - 1;
+    let mut next_row = (first_row as i64 - half_kernel as i64).clamp(0, last_row as i64) as usize;
+
+    for local_y in 0..band_rows {
+        let y = first_row + local_y;
+        let need_hi = (y + half_kernel).min(last_row);
+        while next_row <= need_hi {
+            make_arena_row::<T, N>(
+                image,
+                &mut row_buffer,
+                next_row,
+                image_size,
+                KernelShape {
+                    width: row_kernel.len(),
+                    height: 0,
+                },
+            )?;
+
+            let slot = next_row % column_kernel_len;
+            filter_symmetric_row::<T, I, N>(
+                &row_buffer,
+                &mut buffer[slot * full_width..(slot + 1) * full_width],
+                row_kernel,
+            );
+            next_row += 1;
+        }
+
+        let mut buffer_rows = vec![image; column_kernel_len];
+        for (i, row) in buffer_rows.iter_mut().enumerate() {
+            let source_y =
+                (y as i64 - half_kernel as i64 + i as i64).clamp(0, last_row as i64) as usize;
+            let slot = source_y % column_kernel_len;
+            *row = &buffer[slot * full_width..(slot + 1) * full_width];
+        }
+
+        filter_symmetric_column::<T, I>(
+            &buffer_rows,
+            &mut destination[local_y * full_width..(local_y + 1) * full_width],
+            image_size,
+            column_kernel,
+            N,
+        );
+    }
+
+    Ok(())
+}
+
+/// The ring-queue filter with output rows partitioned into
+/// bands computed in parallel, one ring buffer per band.
+/// Falls back to the sequential pass when there is nothing
+/// to gain from splitting.
+#[cfg(feature = "rayon")]
+fn filter_2d_separable_ring_queue_parallel<T, I, const N: usize>(
+    image: &[T],
+    destination: &mut [T],
+    image_size: FilterImageSize,
+    row_kernel: &[I],
+    column_kernel: &[I],
+) -> Result<(), ImageError>
+where
+    T: Copy + Default + Send + Sync + AsPrimitive<I>,
+    I: ToStorage<T>
+        + Mul<I, Output = I>
+        + Add<I, Output = I>
+        + MulAdd<I, Output = I>
+        + Send
+        + Sync
+        + PartialEq
+        + Default
+        + 'static
+        + Copy,
+    i32: AsPrimitive<I>,
+    f64: AsPrimitive<T>,
+{
+    let threads = available_threads().min(image_size.height);
+    if threads <= 1 {
+        return filter_2d_separable_ring_queue::<T, I, N>(
+            image,
+            destination,
+            image_size,
+            row_kernel,
+            column_kernel,
+        );
+    }
+
+    let full_width = image_size.width * N;
+    let band_rows = image_size.height.div_ceil(threads);
+    destination
+        .par_chunks_mut(band_rows * full_width)
+        .enumerate()
+        .try_for_each(|(band, chunk)| {
+            filter_2d_separable_ring_queue_band::<T, I, N>(
+                image,
+                chunk,
+                image_size,
+                row_kernel,
+                column_kernel,
+                band * band_rows,
+            )
+        })
+}
+
+/// Performs one horizontal pass over the whole image into a
+/// transient buffer, one source row at a time.
+fn convolve_rows<T, I, const N: usize>(
+    image: &[T],
+    transient_image: &mut [T],
+    image_size: FilterImageSize,
+    kernel: &[I],
+) -> Result<(), ImageError>
+where
+    T: Copy + Default + Send + Sync + AsPrimitive<I> + 'static,
+    I: ToStorage<T>
+        + Mul<I, Output = I>
+        + Add<I, Output = I>
+        + MulAdd<I, Output = I>
+        + Default
+        + 'static
+        + Copy,
+    i32: AsPrimitive<I>,
+    f64: AsPrimitive<T>,
+{
+    let pad_w = (kernel.len() / 2).max(1);
+    let arena_width = image_size.width * N + pad_w * 2 * N;
+    let mut row_buffer = vec![T::default(); arena_width];
+
+    for (y, dst) in transient_image
+        .chunks_exact_mut(image_size.width * N)
+        .enumerate()
+    {
+        // This is important to perform padding before convolution.
+        // That approach allows to iterate without unnecessary branching
+        // and highly effective from low sized kernels to reasonable huge kernels.
+        // It is especially more effective for low sized kernels than copying
+        // specifically for big sized images.
+        // If image row is `asdfgh` then this method with clamp will produce row
+        // `aaa asdfgh hhh` padded exactly on half kernel size
+        make_arena_row::<T, N>(
+            image,
+            &mut row_buffer,
+            y,
+            image_size,
+            KernelShape {
+                width: kernel.len(),
+                height: 0,
+            },
+        )?;
+
+        filter_symmetric_row::<T, I, N>(&row_buffer, dst, kernel);
+    }
+
+    Ok(())
+}
+
+/// Computes one output row of the vertical pass over a
+/// transient image, reading the clamped rows around `y` from
+/// the transient image or from its virtual pad arenas.
+fn convolve_column_at<T, I, const N: usize>(
+    transient_image: &[T],
+    column_arena: &ArenaColumns<T>,
+    image_size: FilterImageSize,
+    kernel: &[I],
+    y: usize,
+    dst: &mut [T],
+) where
+    T: Copy + AsPrimitive<I>,
+    I: ToStorage<T>
+        + Mul<I, Output = I>
+        + Add<I, Output = I>
+        + MulAdd<I, Output = I>
+        + Default
+        + 'static
+        + Copy,
+{
+    let top_pad = column_arena.top_pad.as_slice();
+    let bottom_pad = column_arena.bottom_pad.as_slice();
+
+    let pad_h = kernel.len() / 2;
+    let src_stride = image_size.width * N;
+
+    let mut rows: Vec<&[T]> = vec![&transient_image[0..]; kernel.len()];
+
+    for (k, row) in rows.iter_mut().enumerate() {
+        if (y as i64 - pad_h as i64 + k as i64) < 0 {
+            *row = &top_pad[(pad_h - k - 1) * src_stride..];
+        } else if (y as i64 - pad_h as i64 + k as i64) as usize >= image_size.height {
+            *row = &bottom_pad[(k - pad_h - 1) * src_stride..];
+        } else {
+            let fy = (y as i64 + k as i64 - pad_h as i64) as usize;
+            let start_offset = src_stride * fy;
+            *row = &transient_image[start_offset..(start_offset + src_stride)];
+        }
+    }
+
+    filter_symmetric_column::<T, I>(&rows, dst, image_size, kernel, N);
+}
+
 /// Performs 2D separable convolution on the image
 ///
 /// Currently implemented only for symmetrical filters
@@ -618,6 +918,48 @@ fn filter_2d_separable<T, F, I, const N: usize>(
     image_size: FilterImageSize,
     row_kernel: &[F],
     column_kernel: &[F],
+) -> Result<(), ImageError>
+where
+    T: Copy + AsPrimitive<F> + Default + Send + Sync + KernelTransformer<F, I> + AsPrimitive<I>,
+    F: Default + 'static + Copy,
+    I: ToStorage<T>
+        + Mul<I, Output = I>
+        + Add<I, Output = I>
+        + MulAdd<I, Output = I>
+        + Send
+        + Sync
+        + PartialEq
+        + Default
+        + 'static
+        + Copy,
+    i32: AsPrimitive<F> + AsPrimitive<I>,
+    f64: AsPrimitive<T>,
+{
+    let parallel = use_parallel(image_size, N, row_kernel.len(), column_kernel.len());
+    filter_2d_separable_inner::<T, F, I, N>(
+        image,
+        destination,
+        image_size,
+        row_kernel,
+        column_kernel,
+        parallel,
+    )
+}
+
+/// The separable convolution itself. `parallel` partitions
+/// output rows across the rayon thread pool when the `rayon`
+/// feature is enabled; each output row is computed by the
+/// same filters either way, so the result does not depend on
+/// it.
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(not(feature = "rayon"), allow(unused_variables))]
+fn filter_2d_separable_inner<T, F, I, const N: usize>(
+    image: &[T],
+    destination: &mut [T],
+    image_size: FilterImageSize,
+    row_kernel: &[F],
+    column_kernel: &[F],
+    parallel: bool,
 ) -> Result<(), ImageError>
 where
     T: Copy + AsPrimitive<F> + Default + Send + Sync + KernelTransformer<F, I> + AsPrimitive<I>,
@@ -671,6 +1013,16 @@ where
     }
 
     if column_kernel.len() < RING_QUEUE_CIRCULAR_CUTOFF {
+        #[cfg(feature = "rayon")]
+        if parallel {
+            return filter_2d_separable_ring_queue_parallel::<T, I, N>(
+                image,
+                destination,
+                image_size,
+                &scanned_row_kernel,
+                &scanned_column_kernel,
+            );
+        }
         return filter_2d_separable_ring_queue::<T, I, N>(
             image,
             destination,
@@ -680,37 +1032,42 @@ where
         );
     }
 
-    let pad_w = (scanned_row_kernel.len() / 2).max(1);
-
-    let arena_width = image_size.width * N + pad_w * 2 * N;
-    let mut row_buffer = vec![T::default(); arena_width];
-
     let mut transient_image = vec![T::default(); image_size.width * image_size.height * N];
 
-    for (y, dst) in transient_image
-        .chunks_exact_mut(image_size.width * N)
-        .enumerate()
-    {
-        // This is important to perform padding before convolution.
-        // That approach allows to iterate without unnecessary branching
-        // and highly effective from low sized kernels to reasonable huge kernels.
-        // It is especially more effective for low sized kernels than copying
-        // specifically for big sized images.
-        // If image row is `asdfgh` then this method with clamp will produce row
-        // `aaa asdfgh hhh` padded exactly on half kernel size
-        make_arena_row::<T, N>(
-            image,
-            &mut row_buffer,
-            y,
-            image_size,
-            KernelShape {
-                width: scanned_row_kernel.len(),
-                height: 0,
-            },
-        )?;
+    let src_stride = image_size.width * N;
 
-        filter_symmetric_row::<T, I, N>(&row_buffer, dst, &scanned_row_kernel);
+    #[cfg(feature = "rayon")]
+    if parallel {
+        let threads = available_threads().min(image_size.height.max(1));
+        let band_rows = image_size.height.div_ceil(threads);
+        transient_image
+            .par_chunks_mut(band_rows * src_stride)
+            .enumerate()
+            .try_for_each(|(band, chunk)| -> Result<(), ImageError> {
+                let pad_w = (scanned_row_kernel.len() / 2).max(1);
+                let arena_width = image_size.width * N + pad_w * 2 * N;
+                let mut row_buffer = vec![T::default(); arena_width];
+                for (local_y, dst) in chunk.chunks_exact_mut(src_stride).enumerate() {
+                    make_arena_row::<T, N>(
+                        image,
+                        &mut row_buffer,
+                        band * band_rows + local_y,
+                        image_size,
+                        KernelShape {
+                            width: scanned_row_kernel.len(),
+                            height: 0,
+                        },
+                    )?;
+                    filter_symmetric_row::<T, I, N>(&row_buffer, dst, &scanned_row_kernel);
+                }
+                Ok(())
+            })?;
+    } else {
+        convolve_rows::<T, I, N>(image, &mut transient_image, image_size, &scanned_row_kernel)?;
     }
+
+    #[cfg(not(feature = "rayon"))]
+    convolve_rows::<T, I, N>(image, &mut transient_image, image_size, &scanned_row_kernel)?;
 
     let column_kernel_shape = KernelShape {
         width: 0,
@@ -727,34 +1084,50 @@ where
     let column_arena_k =
         make_columns_arenas::<T, N>(transient_image.as_slice(), image_size, column_kernel_shape);
 
-    let top_pad = column_arena_k.top_pad.as_slice();
-    let bottom_pad = column_arena_k.bottom_pad.as_slice();
-
-    let pad_h = column_kernel_shape.height / 2;
-
-    let transient_image_slice = transient_image.as_slice();
-
-    let src_stride = image_size.width * N;
-
-    for (y, dst) in destination
-        .chunks_exact_mut(image_size.width * N)
-        .enumerate()
-    {
-        let mut rows: Vec<&[T]> = vec![&transient_image_slice[0..]; column_kernel_shape.height];
-
-        for (k, row) in rows.iter_mut().enumerate() {
-            if (y as i64 - pad_h as i64 + k as i64) < 0 {
-                *row = &top_pad[(pad_h - k - 1) * src_stride..];
-            } else if (y as i64 - pad_h as i64 + k as i64) as usize >= image_size.height {
-                *row = &bottom_pad[(k - pad_h - 1) * src_stride..];
-            } else {
-                let fy = (y as i64 + k as i64 - pad_h as i64) as usize;
-                let start_offset = src_stride * fy;
-                *row = &transient_image_slice[start_offset..(start_offset + src_stride)];
-            }
+    #[cfg(feature = "rayon")]
+    if parallel {
+        let threads = available_threads().min(image_size.height.max(1));
+        let band_rows = image_size.height.div_ceil(threads);
+        let transient_image_slice = transient_image.as_slice();
+        destination
+            .par_chunks_mut(band_rows * src_stride)
+            .enumerate()
+            .try_for_each(|(band, chunk)| -> Result<(), ImageError> {
+                for (local_y, dst) in chunk.chunks_exact_mut(src_stride).enumerate() {
+                    convolve_column_at::<T, I, N>(
+                        transient_image_slice,
+                        &column_arena_k,
+                        image_size,
+                        &scanned_column_kernel,
+                        band * band_rows + local_y,
+                        dst,
+                    );
+                }
+                Ok(())
+            })?;
+    } else {
+        for (y, dst) in destination.chunks_exact_mut(src_stride).enumerate() {
+            convolve_column_at::<T, I, N>(
+                transient_image.as_slice(),
+                &column_arena_k,
+                image_size,
+                &scanned_column_kernel,
+                y,
+                dst,
+            );
         }
+    }
 
-        filter_symmetric_column::<T, I>(&rows, dst, image_size, &scanned_column_kernel, N);
+    #[cfg(not(feature = "rayon"))]
+    for (y, dst) in destination.chunks_exact_mut(src_stride).enumerate() {
+        convolve_column_at::<T, I, N>(
+            transient_image.as_slice(),
+            &column_arena_k,
+            image_size,
+            &scanned_column_kernel,
+            y,
+            dst,
+        );
     }
 
     Ok(())
@@ -950,4 +1323,274 @@ pub(crate) fn filter_2d_sep_plane_u16(
         row_kernel,
         column_kernel,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The gaussian kernel for `sigma`, built with the same
+    /// formula as `GaussianBlurParameters::new_from_sigma` and
+    /// `get_gaussian_kernel_1d` in `sample.rs`.
+    fn gaussian_kernel(sigma: f32) -> Vec<f32> {
+        let width = ((6.66666 * sigma - 2.3333333).max(3.) as u32 | 1) as usize;
+        let mut sum_norm: f32 = 0f32;
+        let mut kernel = vec![0f32; width];
+        let scale = 1f32 / (f32::sqrt(2f32 * std::f32::consts::PI) * sigma);
+        let mean = (width / 2) as f32;
+        for (x, weight) in kernel.iter_mut().enumerate() {
+            let new_weight =
+                f32::exp(-0.5f32 * f32::powf((x as f32 - mean) / sigma, 2.0f32)) * scale;
+            *weight = new_weight;
+            sum_norm += new_weight;
+        }
+        if sum_norm != 0f32 {
+            let sum_scale = 1f32 / sum_norm;
+            for weight in &mut kernel {
+                *weight = weight.mul(sum_scale);
+            }
+        }
+        kernel
+    }
+
+    /// Deterministic photo-like content: smooth gradients in
+    /// two channels and high-frequency detail from a small
+    /// LCG in the others, so both flat and busy regions are
+    /// covered without external test assets.
+    fn synthetic(width: usize, height: usize, channels: usize) -> Vec<u8> {
+        let mut state: u32 = 0x1234_5678;
+        let mut image = Vec::new();
+        for y in 0..height {
+            for x in 0..width {
+                for c in 0..channels {
+                    state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let detail = (state >> 24) as u8 / 4;
+                    let base = match c % 4 {
+                        0 => ((x * 255) / width.max(1)) as u8,
+                        1 => ((y * 255) / height.max(1)) as u8,
+                        2 => ((x + y) % 256) as u8,
+                        _ => 255 - ((x * 255) / width.max(1)) as u8,
+                    };
+                    image.push(base.wrapping_add(detail));
+                }
+            }
+        }
+        image
+    }
+
+    /// A hard-edged checkerboard, the worst case for edge
+    /// handling at band boundaries.
+    #[cfg(feature = "rayon")]
+    fn checker(width: usize, height: usize, channels: usize) -> Vec<u8> {
+        let mut image = Vec::new();
+        for y in 0..height {
+            for x in 0..width {
+                let on = ((x / 8) + (y / 8)) % 2 == 0;
+                for c in 0..channels {
+                    image.push(if on ^ (c % 2 == 0) { 255 } else { 0 });
+                }
+            }
+        }
+        image
+    }
+
+    fn run_sequential<T, I, const N: usize>(
+        image: &[T],
+        size: FilterImageSize,
+        row_kernel: &[f32],
+        column_kernel: &[f32],
+    ) -> Vec<T>
+    where
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + Send
+            + Sync
+            + KernelTransformer<f32, I>
+            + AsPrimitive<I>,
+        I: ToStorage<T>
+            + Mul<I, Output = I>
+            + Add<I, Output = I>
+            + MulAdd<I, Output = I>
+            + Send
+            + Sync
+            + PartialEq
+            + Default
+            + 'static
+            + Copy,
+        i32: AsPrimitive<f32> + AsPrimitive<I>,
+        f64: AsPrimitive<T>,
+    {
+        let mut destination = vec![T::default(); image.len()];
+        filter_2d_separable_inner::<T, f32, I, N>(
+            image,
+            &mut destination,
+            size,
+            row_kernel,
+            column_kernel,
+            false,
+        )
+        .unwrap();
+        destination
+    }
+
+    #[cfg(feature = "rayon")]
+    fn run_parallel<T, I, const N: usize>(
+        image: &[T],
+        size: FilterImageSize,
+        row_kernel: &[f32],
+        column_kernel: &[f32],
+    ) -> Vec<T>
+    where
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + Send
+            + Sync
+            + KernelTransformer<f32, I>
+            + AsPrimitive<I>,
+        I: ToStorage<T>
+            + Mul<I, Output = I>
+            + Add<I, Output = I>
+            + MulAdd<I, Output = I>
+            + Send
+            + Sync
+            + PartialEq
+            + Default
+            + 'static
+            + Copy,
+        i32: AsPrimitive<f32> + AsPrimitive<I>,
+        f64: AsPrimitive<T>,
+    {
+        let mut destination = vec![T::default(); image.len()];
+        filter_2d_separable_inner::<T, f32, I, N>(
+            image,
+            &mut destination,
+            size,
+            row_kernel,
+            column_kernel,
+            true,
+        )
+        .unwrap();
+        destination
+    }
+
+    /// The parallel pass must produce exactly the sequential
+    /// result: banding partitions output rows only, and every
+    /// row is computed by the same filters from the same
+    /// source rows. Compared for both engines (sigma 16 gives
+    /// a kernel past the ring-queue cutoff, taking the
+    /// transient path), anisotropic kernels, and sizes whose
+    /// edges and chunk tails are easy to get wrong.
+    #[test]
+    #[cfg(feature = "rayon")]
+    fn parallel_matches_sequential_u8() {
+        let sigmas = [0.5f32, 1.0, 2.0, 4.0, 8.0, 16.0];
+        let sizes = [(333, 257), (64, 48), (7, 5), (3, 2), (1, 1), (31, 17)];
+        for (width, height) in sizes {
+            let size = FilterImageSize { width, height };
+            for source in [synthetic(width, height, 3), checker(width, height, 3)] {
+                for sigma in sigmas {
+                    let kernel = gaussian_kernel(sigma);
+                    let sequential = run_sequential::<u8, u32, 3>(&source, size, &kernel, &kernel);
+                    let parallel = run_parallel::<u8, u32, 3>(&source, size, &kernel, &kernel);
+                    assert_eq!(
+                        sequential, parallel,
+                        "rgb u8 {width}x{height} sigma {sigma}"
+                    );
+                }
+            }
+        }
+
+        // Anisotropic kernels: a ring-queue row kernel with a
+        // transient-length column kernel and the reverse.
+        let size = FilterImageSize {
+            width: 129,
+            height: 97,
+        };
+        let source = synthetic(129, 97, 3);
+        for (row_sigma, column_sigma) in [(2.0f32, 16.0f32), (16.0, 2.0), (0.5, 8.0)] {
+            let row_kernel = gaussian_kernel(row_sigma);
+            let column_kernel = gaussian_kernel(column_sigma);
+            let sequential =
+                run_sequential::<u8, u32, 3>(&source, size, &row_kernel, &column_kernel);
+            let parallel = run_parallel::<u8, u32, 3>(&source, size, &row_kernel, &column_kernel);
+            assert_eq!(
+                sequential, parallel,
+                "rgb u8 anisotropic {row_sigma}/{column_sigma}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "rayon")]
+    fn parallel_matches_sequential_rgba_u8() {
+        let size = FilterImageSize {
+            width: 111,
+            height: 83,
+        };
+        let source = synthetic(111, 83, 4);
+        for sigma in [0.5f32, 2.0, 8.0, 16.0] {
+            let kernel = gaussian_kernel(sigma);
+            let sequential = run_sequential::<u8, u32, 4>(&source, size, &kernel, &kernel);
+            let parallel = run_parallel::<u8, u32, 4>(&source, size, &kernel, &kernel);
+            assert_eq!(sequential, parallel, "rgba u8 sigma {sigma}");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "rayon")]
+    fn parallel_matches_sequential_u16() {
+        let size = FilterImageSize {
+            width: 97,
+            height: 65,
+        };
+        let source: Vec<u16> = synthetic(97, 65, 3)
+            .into_iter()
+            .map(|v| (v as u16) << 8 | v as u16)
+            .collect();
+        for sigma in [1.0f32, 4.0, 16.0] {
+            let kernel = gaussian_kernel(sigma);
+            let sequential = run_sequential::<u16, u32, 3>(&source, size, &kernel, &kernel);
+            let parallel = run_parallel::<u16, u32, 3>(&source, size, &kernel, &kernel);
+            assert_eq!(sequential, parallel, "rgb u16 sigma {sigma}");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "rayon")]
+    fn parallel_matches_sequential_f32() {
+        let size = FilterImageSize {
+            width: 103,
+            height: 71,
+        };
+        let source: Vec<f32> = synthetic(103, 71, 3)
+            .into_iter()
+            .map(|v| v as f32 / 255.0)
+            .collect();
+        for sigma in [0.5f32, 2.0, 8.0, 16.0] {
+            let kernel = gaussian_kernel(sigma);
+            let sequential = run_sequential::<f32, f32, 3>(&source, size, &kernel, &kernel);
+            let parallel = run_parallel::<f32, f32, 3>(&source, size, &kernel, &kernel);
+            assert_eq!(sequential, parallel, "rgb f32 sigma {sigma}");
+        }
+    }
+
+    /// Without rayon the dispatch still has to produce the
+    /// sequential result through the public entry points,
+    /// including at a size where the parallel threshold would
+    /// be met if the feature were enabled.
+    #[test]
+    fn public_entry_matches_sequential() {
+        let size = FilterImageSize {
+            width: 240,
+            height: 180,
+        };
+        let source = synthetic(240, 180, 3);
+        let kernel = gaussian_kernel(2.0);
+        let sequential = run_sequential::<u8, u32, 3>(&source, size, &kernel, &kernel);
+        let mut destination = vec![0u8; source.len()];
+        filter_2d_sep_rgb(&source, &mut destination, size, &kernel, &kernel).unwrap();
+        assert_eq!(sequential, destination);
+    }
 }

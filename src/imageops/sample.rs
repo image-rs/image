@@ -544,7 +544,7 @@ where
         }
 
         for x in 0..width {
-            let mut pix = crate::Rgba([1.0; 4]);
+            let mut pix = crate::Rgba([0.0; 4]);
 
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
@@ -1942,5 +1942,43 @@ mod tests {
         // 1024^2 * 65535 obviously overflows 2^32
         let huge_u16 = ImageBuffer::from_pixel(1024, 1024, crate::Luma([65535_u16]));
         super::thumbnail(&huge_u16, 1, 1);
+    }
+
+    #[test]
+    fn resize_preserves_a_constant_image() {
+        const FILTERS: [FilterType; 5] = [
+            FilterType::Nearest,
+            FilterType::Triangle,
+            FilterType::CatmullRom,
+            FilterType::Gaussian,
+            FilterType::Lanczos3,
+        ];
+
+        for filter in FILTERS {
+            for (width, height) in [(3, 5), (16, 12), (8, 8)] {
+                let rgb = RgbImage::from_pixel(8, 8, crate::Rgb([10, 20, 30]));
+                let out = resize(&rgb, width, height, filter);
+                assert!(
+                    out.pixels().iter().all(|p| *p == crate::Rgb([10, 20, 30])),
+                    "{filter:?} Rgb8 {width}x{height}"
+                );
+
+                let rgba = crate::RgbaImage::from_pixel(8, 8, crate::Rgba([10, 20, 30, 40]));
+                let out = resize(&rgba, width, height, filter);
+                assert!(
+                    out.pixels()
+                        .iter()
+                        .all(|p| *p == crate::Rgba([10, 20, 30, 40])),
+                    "{filter:?} Rgba8 {width}x{height}"
+                );
+
+                let luma = crate::GrayImage::from_pixel(8, 8, crate::Luma([77]));
+                let out = resize(&luma, width, height, filter);
+                assert!(
+                    out.pixels().iter().all(|p| *p == crate::Luma([77])),
+                    "{filter:?} Luma8 {width}x{height}"
+                );
+            }
+        }
     }
 }

@@ -21,6 +21,9 @@ Features:
 Structural changes:
   - Increased MSRV to 1.88.0 (from 1.85.0)
 
+Bug fixes:
+ - PNG: `gamma_value()` uses `Info::gamma()` so gAMA and sRGB chunks are reported again after the png 0.18 upgrade
+
 ### Version 0.25.9
 
 Features:

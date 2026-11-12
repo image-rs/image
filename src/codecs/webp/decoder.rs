@@ -2,12 +2,15 @@ use std::io::{BufRead, Seek};
 
 use image_webp::LoopCount;
 
-use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
+    ParameterErrorKind,
+};
 use crate::io::{
     DecodedAnimationAttributes, DecodedImageAttributes, DecodedMetadataHint, DecoderPreparedImage,
     FormatAttributes, SequenceControl,
 };
-use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Rgba};
+use crate::{ColorType, Delay, ImageDecoder, ImageFormat, Limits, Rgba};
 
 /// WebP Image format decoder.
 ///
@@ -126,6 +129,17 @@ impl<R: BufRead + Seek> ImageDecoder for WebPDecoder<R> {
             .map_err(ImageError::from_webp_decode)
     }
 
+    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        limits.check_support(&crate::LimitSupport::default())?;
+        let layout = self.prepare_image()?;
+        limits.check_layout_dimensions(&layout)?;
+
+        let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
+        self.inner
+            .set_memory_limit(usize::try_from(max_alloc).unwrap_or(usize::MAX));
+        Ok(())
+    }
+
     fn more_images(&self) -> SequenceControl {
         if self.current == self.inner.num_frames() {
             SequenceControl::None
@@ -141,6 +155,9 @@ impl ImageError {
             image_webp::DecodingError::IoError(e) => ImageError::IoError(e),
             image_webp::DecodingError::NoMoreFrames => {
                 ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::NoMoreData))
+            }
+            image_webp::DecodingError::MemoryLimitExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
             }
             _ => ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e)),
         }
@@ -165,5 +182,28 @@ mod tests {
         let data = std::io::Cursor::new(bytes);
 
         let _ = WebPDecoder::new(data);
+    }
+
+    #[test]
+    fn metadata_chunk_respects_max_alloc() {
+        // Extended 1x1 lossless image followed by an EXIF chunk that declares ~4 GiB
+        // but carries only a few bytes.
+        let bytes = vec![
+            0x52, 0x49, 0x46, 0x46, 0x38, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50,
+            0x38, 0x58, 0x0a, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x56, 0x50, 0x38, 0x4c, 0x0d, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00,
+            0x00, 0xcd, 0x55, 0x20, 0x22, 0x02, 0x11, 0x11, 0x09, 0x00, 0x45, 0x58, 0x49, 0x46,
+            0xf0, 0xff, 0xff, 0xff, 0x49, 0x49, 0x2a, 0x00,
+        ];
+
+        let mut decoder = WebPDecoder::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut limits = Limits::no_limits();
+        limits.max_alloc = Some(1 << 20);
+        decoder.set_limits(limits).unwrap();
+
+        assert!(matches!(
+            decoder.exif_metadata(),
+            Err(ImageError::Limits(_))
+        ));
     }
 }

@@ -727,10 +727,12 @@ fn read_scanline(
             return Ok(());
         };
 
-        if Ok(head.len()) == usize::try_from(end_pos - current_pos) {
-            reader.read_exact(head)?;
-            *last = b'\0';
-            return Ok(());
+        if let Some(remaining) = end_pos.checked_sub(current_pos) {
+            if Ok(head.len()) == usize::try_from(remaining) {
+                reader.read_exact(head)?;
+                *last = b'\0';
+                return Ok(());
+            }
         }
     }
 

@@ -791,6 +791,52 @@ impl CicpRgb {
     ) {
         use LayoutWithColor as Layout;
 
+        // These layout pairs do not need the scratch buffers. Each output pixel uses only its
+        // input pixel, with the same operations as the general path below.
+        match (from_layout, into_layout) {
+            (Layout::Rgb, Layout::Luma) => {
+                return Self::fused_rgb_to_luma::<From, Into, 3, 1>(
+                    buffer,
+                    output,
+                    color_space_coefs,
+                )
+            }
+            (Layout::Rgba, Layout::Luma) => {
+                return Self::fused_rgb_to_luma::<From, Into, 4, 1>(
+                    buffer,
+                    output,
+                    color_space_coefs,
+                )
+            }
+            (Layout::Rgb, Layout::LumaAlpha) => {
+                return Self::fused_rgb_to_luma::<From, Into, 3, 2>(
+                    buffer,
+                    output,
+                    color_space_coefs,
+                )
+            }
+            (Layout::Rgba, Layout::LumaAlpha) => {
+                return Self::fused_rgb_to_luma::<From, Into, 4, 2>(
+                    buffer,
+                    output,
+                    color_space_coefs,
+                )
+            }
+            (Layout::Luma, Layout::Rgb) => {
+                return Self::fused_luma_to_rgb::<From, Into, 1, 3>(buffer, output)
+            }
+            (Layout::Luma, Layout::Rgba) => {
+                return Self::fused_luma_to_rgb::<From, Into, 1, 4>(buffer, output)
+            }
+            (Layout::LumaAlpha, Layout::Rgb) => {
+                return Self::fused_luma_to_rgb::<From, Into, 2, 3>(buffer, output)
+            }
+            (Layout::LumaAlpha, Layout::Rgba) => {
+                return Self::fused_luma_to_rgb::<From, Into, 2, 4>(buffer, output)
+            }
+            _ => {}
+        }
+
         const STEP: usize = 256;
         let pixels = buffer.len() / from_layout.channels();
 
@@ -884,6 +930,65 @@ impl CicpRgb {
                 }
             }
         }
+    }
+
+    fn fused_luma_to_rgb<
+        From: ColorComponentForCicp,
+        Into: ColorComponentForCicp,
+        const IC: usize,
+        const OC: usize,
+    >(
+        buffer: &[From],
+        output: &mut [Into],
+    ) {
+        let input_chunks = buffer.as_chunks::<IC>().0.iter();
+        let output_chunks = output.as_chunks_mut::<OC>().0.iter_mut();
+        for (pix, out) in input_chunks.zip(output_chunks) {
+            let luma = Into::clamp_from_f32(pix[0].expand_to_f32());
+            out[0] = luma;
+            out[1] = luma;
+            out[2] = luma;
+            if let Some(alpha) = out.get_mut(3) {
+                let a = match pix.get(1) {
+                    Some(a) => a.expand_to_f32(),
+                    None => 1.0,
+                };
+                *alpha = Into::clamp_from_f32(a);
+            }
+        }
+    }
+
+    fn fused_rgb_to_luma<
+        From: ColorComponentForCicp,
+        Into: ColorComponentForCicp,
+        const IC: usize,
+        const OC: usize,
+    >(
+        buffer: &[From],
+        output: &mut [Into],
+        coef: [f32; 3],
+    ) {
+        let input_chunks = buffer.as_chunks::<IC>().0.iter();
+        let output_chunks = output.as_chunks_mut::<OC>().0.iter_mut();
+        for (pix, out) in input_chunks.zip(output_chunks) {
+            out[0] = Into::clamp_from_f32(Self::rgb_luma(pix, coef));
+            if let Some(alpha) = out.get_mut(1) {
+                let a = match pix.get(3) {
+                    Some(a) => a.expand_to_f32(),
+                    None => 1.0,
+                };
+                *alpha = Into::clamp_from_f32(a);
+            }
+        }
+    }
+
+    /// The same operations, in the same order, as `CicpTransform::clamp_rgb_luma`.
+    fn rgb_luma<From: ColorComponentForCicp>(pix: &[From], coef: [f32; 3]) -> f32 {
+        let mut luma = 0.0;
+        for (component, coef) in pix[..3].iter().zip(coef) {
+            luma = multiply_accumulate(luma, component.expand_to_f32(), coef);
+        }
+        luma
     }
 
     /// Make sure this is only monomorphized for subpixel combinations, not for every pixel

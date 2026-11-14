@@ -781,7 +781,7 @@ impl CicpRgb {
 
     fn cast_pixels_by_fallback<
         From: Primitive + ColorComponentForCicp,
-        Into: ColorComponentForCicp,
+        Into: ColorComponentForCicp + FromPrimitive<From> + Primitive,
     >(
         buffer: &[From],
         output: &mut [Into],
@@ -934,7 +934,7 @@ impl CicpRgb {
 
     fn fused_luma_to_rgb<
         From: ColorComponentForCicp,
-        Into: ColorComponentForCicp,
+        Into: ColorComponentForCicp + FromPrimitive<From> + Primitive,
         const IC: usize,
         const OC: usize,
     >(
@@ -943,17 +943,17 @@ impl CicpRgb {
     ) {
         let input_chunks = buffer.as_chunks::<IC>().0.iter();
         let output_chunks = output.as_chunks_mut::<OC>().0.iter_mut();
+        let map_channel = <Into as FromPrimitive<From>>::from_primitive;
         for (pix, out) in input_chunks.zip(output_chunks) {
-            let luma = Into::clamp_from_f32(pix[0].expand_to_f32());
+            let luma = map_channel(pix[0]);
             out[0] = luma;
             out[1] = luma;
             out[2] = luma;
             if let Some(alpha) = out.get_mut(3) {
-                let a = match pix.get(1) {
-                    Some(a) => a.expand_to_f32(),
-                    None => 1.0,
+                *alpha = match pix.get(1) {
+                    Some(&a) => map_channel(a),
+                    None => <Into as Primitive>::DEFAULT_MAX_VALUE,
                 };
-                *alpha = Into::clamp_from_f32(a);
             }
         }
     }

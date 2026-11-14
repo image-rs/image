@@ -960,7 +960,7 @@ impl CicpRgb {
 
     fn fused_rgb_to_luma<
         From: ColorComponentForCicp,
-        Into: ColorComponentForCicp,
+        Into: ColorComponentForCicp + FromPrimitive<From> + Primitive,
         const IC: usize,
         const OC: usize,
     >(
@@ -973,11 +973,10 @@ impl CicpRgb {
         for (pix, out) in input_chunks.zip(output_chunks) {
             out[0] = Into::clamp_from_f32(Self::rgb_luma(pix, coef));
             if let Some(alpha) = out.get_mut(1) {
-                let a = match pix.get(3) {
-                    Some(a) => a.expand_to_f32(),
-                    None => 1.0,
+                *alpha = match pix.get(3) {
+                    Some(&a) => <Into as FromPrimitive<From>>::from_primitive(a),
+                    None => <Into as Primitive>::DEFAULT_MAX_VALUE,
                 };
-                *alpha = Into::clamp_from_f32(a);
             }
         }
     }

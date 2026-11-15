@@ -116,6 +116,13 @@ impl ParsedCoreHeader {
         let width = i32::from(u16::from_le_bytes(buffer[0..2].try_into().unwrap()));
         let height = i32::from(u16::from_le_bytes(buffer[2..4].try_into().unwrap()));
 
+        if width == 0 {
+            return Err(DecoderError::NegativeWidth(width).into());
+        }
+        if height == 0 {
+            return Err(DecoderError::InvalidHeight.into());
+        }
+
         let planes = u16::from_le_bytes(buffer[4..6].try_into().unwrap());
         if spec_strictness == SpecCompliance::Strict && planes != 1 {
             return Err(DecoderError::MoreThanOnePlane.into());
@@ -157,15 +164,16 @@ impl ParsedInfoHeader {
         let width = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let mut height = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
-        // Width cannot be negative
-        if width < 0 {
+        if width <= 0 {
             return Err(DecoderError::NegativeWidth(width).into());
-        } else if width > MAX_WIDTH_HEIGHT || height > MAX_WIDTH_HEIGHT {
-            return Err(DecoderError::ImageTooLarge(width, height).into());
         }
 
-        if height == i32::MIN {
+        if height == 0 || height == i32::MIN {
             return Err(DecoderError::InvalidHeight.into());
+        }
+
+        if width > MAX_WIDTH_HEIGHT || height.abs() > MAX_WIDTH_HEIGHT {
+            return Err(DecoderError::ImageTooLarge(width, height).into());
         }
 
         // A negative height indicates a top-down DIB
@@ -1843,6 +1851,17 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     }
 
     fn read_palettized_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        if self.indexed_color && self.bit_count != 8 {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Bmp.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Indexed color decoding is only supported for 8-bit palettized BMP".into(),
+                    ),
+                ),
+            ));
+        }
+
         let num_channels = self.num_channels();
         let row_byte_length = ((i32::from(self.bit_count) * self.width + 31) / 32 * 4) as usize;
         let mut indices = vec![0; row_byte_length];
@@ -3166,5 +3185,43 @@ mod test {
             result.is_err(),
             "Expected error in strict mode for truncated file"
         );
+    }
+
+    #[test]
+    fn test_indexed_color_sub_byte_rejected() {
+        use crate::ImageDecoder;
+        use std::io::Cursor;
+
+        // 1-bit BMP 2x2 image
+        let data = vec![
+            0x42, 0x4D, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
+        ];
+
+        let mut decoder = BmpDecoder::new(Cursor::new(data)).unwrap();
+        decoder.set_indexed_color(true);
+        let mut buf = vec![0u8; 4];
+        let res = decoder.read_image(&mut buf);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_bmp_zero_height_rejected() {
+        use crate::codecs::bmp::BmpDecoder;
+        use std::io::Cursor;
+
+        // Minimal 54-byte BMP header with width=10, height=0
+        let data = vec![
+            0x42, 0x4D, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        let result = BmpDecoder::new(Cursor::new(data));
+        assert!(result.is_err());
     }
 }

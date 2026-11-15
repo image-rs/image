@@ -463,13 +463,19 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) ->
                     // rl_shift takes care of consecutive RL markers
                     let rl = rl << rl_shift;
                     rl_shift += 8;
-                    if x_off + rl <= width {
+                    let end_offset = match x_off.checked_add(rl) {
+                        Some(end) => end,
+                        None => {
+                            return Err(DecoderError::WrongScanlineLength(usize::MAX, width).into());
+                        }
+                    };
+                    if end_offset <= width {
                         // do run
-                        for b in &mut buf[x_off..x_off + rl] {
+                        for b in &mut buf[x_off..end_offset] {
                             *b = prev_pixel;
                         }
                     } else {
-                        return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
+                        return Err(DecoderError::WrongScanlineLength(end_offset, width).into());
                     };
                     rl // value to increase x_off by
                 }

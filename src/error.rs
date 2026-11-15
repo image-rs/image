@@ -81,6 +81,8 @@ pub enum UnsupportedErrorKind {
     Color(ExtendedColorType),
     /// Dealing with an intricate layout is not implemented for an algorithm.
     ColorLayout(ExtendedColorType),
+    /// The color profile of the image could not be interpreted as the required type
+    ColorProfileUnconvertible(String),
     /// The colors or transfer function of the CICP are not supported.
     ColorspaceCicp(Cicp),
     /// An image format is not supported.
@@ -398,6 +400,11 @@ impl fmt::Display for UnsupportedError {
             UnsupportedErrorKind::ColorLayout(layout) => write!(
                 fmt,
                 "Converting with the texel memory layout {layout:?} is not supported",
+            ),
+            UnsupportedErrorKind::ColorProfileUnconvertible(msg) => write!(
+                fmt,
+                "The encoder or decoder for {} could not translate the color profile into the expected system: {}",
+                self.format, msg,
             ),
             UnsupportedErrorKind::ColorspaceCicp(color) => write!(
                 fmt,

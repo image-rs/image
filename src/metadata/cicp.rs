@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 /// CICP (coding independent code points) defines the colorimetric interpretation of rgb-ish color
 /// components.
@@ -111,6 +111,41 @@ impl CicpColorPrimaries {
     }
 }
 
+/// Converting [`u8`] to [`CicpColorPrimaries`] failed.
+#[derive(Debug, Clone, Copy)]
+pub struct UnsupportedCicpColorPrimariesError(pub u8);
+
+impl fmt::Display for UnsupportedCicpColorPrimariesError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is not a known CICP color primaries value", self.0)
+    }
+}
+
+impl TryFrom<u8> for CicpColorPrimaries {
+    type Error = UnsupportedCicpColorPrimariesError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use CicpColorPrimaries::*;
+        Ok(match value {
+            1 => SRgb,
+            2 => Unspecified,
+            4 => RgbM,
+            5 => RgbB,
+            6 => Bt601,
+            7 => Rgb240m,
+            8 => GenericFilm,
+            9 => Rgb2020,
+            10 => Xyz,
+            11 => SmpteRp431,
+            12 => SmpteRp432,
+            22 => Industry22,
+            _ => {
+                return Err(UnsupportedCicpColorPrimariesError(value));
+            }
+        })
+    }
+}
+
 /// The transfer characteristics, expressing relation between encoded values and linear color
 /// values.
 ///
@@ -201,6 +236,50 @@ impl CicpTransferCharacteristics {
     }
 }
 
+/// Converting [`u8`] to [`CicpTransferCharacteristics`] failed.
+#[derive(Debug, Clone, Copy)]
+pub struct UnsupportedCicpTransferCharacteristicsError(pub u8);
+
+impl fmt::Display for UnsupportedCicpTransferCharacteristicsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} is not a known CICP transfer characteristics value",
+            self.0
+        )
+    }
+}
+
+impl TryFrom<u8> for CicpTransferCharacteristics {
+    type Error = UnsupportedCicpTransferCharacteristicsError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use CicpTransferCharacteristics::*;
+        Ok(match value {
+            1 => Bt709,
+            2 => Unspecified,
+            4 => Bt470M,
+            5 => Bt470BG,
+            6 => Bt601,
+            7 => Smpte240m,
+            8 => Linear,
+            9 => Log100,
+            10 => LogSqrt,
+            11 => Iec61966_2_4,
+            12 => Bt1361,
+            13 => SRgb,
+            14 => Bt2020_10bit,
+            15 => Bt2020_12bit,
+            16 => Smpte2084,
+            17 => Smpte428,
+            18 => Bt2100Hlg,
+            _ => {
+                return Err(UnsupportedCicpTransferCharacteristicsError(value));
+            }
+        })
+    }
+}
+
 ///
 /// Refer to Rec H.273 Table 4.
 #[repr(u8)]
@@ -256,6 +335,50 @@ pub enum CicpMatrixCoefficients {
     YCgCoRo = 17,
 }
 
+/// Converting [`u8`] to [`CicpMatrixCoefficients`] failed.
+#[derive(Clone, Copy, Debug)]
+pub struct UnsupportedCicpMatrixCoefficientsError(pub u8);
+
+impl fmt::Display for UnsupportedCicpMatrixCoefficientsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} is not a known CICP matrix coefficients value",
+            self.0
+        )
+    }
+}
+
+impl TryFrom<u8> for CicpMatrixCoefficients {
+    type Error = UnsupportedCicpMatrixCoefficientsError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use CicpMatrixCoefficients::*;
+        Ok(match value {
+            0 => Identity,
+            1 => Bt709,
+            2 => Unspecified,
+            4 => UsFCC,
+            5 => Bt470BG,
+            6 => Smpte170m,
+            7 => Smpte240m,
+            8 => YCgCo,
+            9 => Bt2020NonConstant,
+            10 => Bt2020Constant,
+            11 => Smpte2085,
+            12 => ChromaticityDerivedNonConstant,
+            13 => ChromaticityDerivedConstant,
+            14 => Bt2100,
+            15 => IptPqC2,
+            16 => YCgCoRe,
+            17 => YCgCoRo,
+            _ => {
+                return Err(UnsupportedCicpMatrixCoefficientsError(value));
+            }
+        })
+    }
+}
+
 /// The used encoded value range.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -267,6 +390,35 @@ pub enum CicpVideoFullRangeFlag {
     NarrowRange = 0,
     /// The color components are encoded in the full range, e.g., 0-255 for 8-bit.
     FullRange = 1,
+}
+
+/// Converting [`u8`] to [`CicpVideoFullRangeFlag`] failed.
+#[derive(Clone, Copy, Debug)]
+pub struct UnsupportedCicpVideoFullRangeFlagError(pub u8);
+
+impl fmt::Display for UnsupportedCicpVideoFullRangeFlagError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} is not a known CICP video full range flag value",
+            self.0
+        )
+    }
+}
+
+impl TryFrom<u8> for CicpVideoFullRangeFlag {
+    type Error = UnsupportedCicpVideoFullRangeFlagError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use CicpVideoFullRangeFlag::*;
+        Ok(match value {
+            0 => NarrowRange,
+            1 => FullRange,
+            _ => {
+                return Err(UnsupportedCicpVideoFullRangeFlagError(value));
+            }
+        })
+    }
 }
 
 #[repr(u8)]

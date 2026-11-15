@@ -6,8 +6,12 @@ use std::{error, fmt};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::io::DecoderPreparedImage;
 use crate::io::{image_reader_type::SpecCompliance, DecodedImageAttributes};
+use crate::io::{DecodedColorProfile, DecodedMetadataHint, DecoderPreparedImage, FormatAttributes};
+use crate::metadata::{
+    Cicp, CicpColorPrimaries, CicpMatrixCoefficients, CicpTransferCharacteristics,
+    CicpVideoFullRangeFlag,
+};
 use crate::{ColorType, ImageDecoder, ImageFormat, Limits, Rgb};
 
 /// Errors that can occur during decoding and parsing of a HDR image
@@ -304,6 +308,18 @@ impl<R: Read> HdrDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for HdrDecoder<R> {
+    fn format_attributes(&self) -> FormatAttributes {
+        FormatAttributes {
+            supports_animation: false,
+            supports_sequence: false,
+            icc: DecodedMetadataHint::Unsupported,
+            color_profile: DecodedMetadataHint::InHeader,
+            exif: DecodedMetadataHint::None,
+            xmp: DecodedMetadataHint::None,
+            iptc: DecodedMetadataHint::None,
+        }
+    }
+
     fn prepare_image(&mut self) -> ImageResult<DecoderPreparedImage> {
         let HdrMetadata { width, height, .. } = self.meta;
         Ok(DecoderPreparedImage::new(width, height, ColorType::Rgb32F))
@@ -344,6 +360,36 @@ impl<R: Read> ImageDecoder for HdrDecoder<R> {
         }
 
         Ok(DecodedImageAttributes::default())
+    }
+
+    fn color_profile(&mut self) -> ImageResult<Option<DecodedColorProfile>> {
+        // Radiance HDR images by convention are mostly used with linear light;
+        // however, the color primaries are rarely specified, and the original
+        // Radiance renderer and spec defaulted to BT470 system B primaries
+        // except with 1/3-1/3-1/3 white point. Modern HDR files most likely
+        // use different primaries.
+        if self
+            .metadata()
+            .custom_attributes
+            .iter()
+            .any(|(k, _v)| k == "PRIMARIES")
+        {
+            // TODO: map custom primaries to CICP primaries when possible.
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Hdr.into(),
+                    UnsupportedErrorKind::ColorProfileUnconvertible(
+                        "custom primaries not yet supported".into(),
+                    ),
+                ),
+            ));
+        }
+        Ok(Some(DecodedColorProfile::from_plain_cicp(Cicp {
+            primaries: CicpColorPrimaries::Unspecified,
+            transfer: CicpTransferCharacteristics::Linear,
+            matrix: CicpMatrixCoefficients::Identity,
+            full_range: CicpVideoFullRangeFlag::FullRange,
+        })))
     }
 }
 

@@ -114,7 +114,6 @@ where
             (tiff::ColorType::Gray(1), Uint) => ColorType::L8,
             (tiff::ColorType::Gray(8), Uint) => ColorType::L8,
             (tiff::ColorType::Gray(16), Uint) => ColorType::L16,
-            (tiff::ColorType::Gray(32), IEEEFP) => ColorType::L32F,
             (tiff::ColorType::GrayA(8), Uint) => ColorType::La8,
             (tiff::ColorType::GrayA(16), Uint) => ColorType::La16,
             (tiff::ColorType::RGB(8), Uint) => ColorType::Rgb8,
@@ -123,9 +122,13 @@ where
             (tiff::ColorType::RGBA(16), Uint) => ColorType::Rgba16,
             (tiff::ColorType::CMYK(8), Uint) => ColorType::Rgb8,
             (tiff::ColorType::CMYK(16), Uint) => ColorType::Rgb16,
-            (tiff::ColorType::RGB(32), IEEEFP) => ColorType::Rgb32F,
-            (tiff::ColorType::RGBA(32), IEEEFP) => ColorType::Rgba32F,
             (tiff::ColorType::YCbCr(8), Uint) => ColorType::Rgb8,
+            (tiff::ColorType::Gray(16), IEEEFP) => ColorType::L32F,
+            (tiff::ColorType::Gray(32), IEEEFP) => ColorType::L32F,
+            (tiff::ColorType::RGB(16), IEEEFP) => ColorType::Rgb32F,
+            (tiff::ColorType::RGB(32), IEEEFP) => ColorType::Rgb32F,
+            (tiff::ColorType::RGBA(16), IEEEFP) => ColorType::Rgba32F,
+            (tiff::ColorType::RGBA(32), IEEEFP) => ColorType::Rgba32F,
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -143,6 +146,9 @@ where
             (tiff::ColorType::CMYK(8), Uint) => ExtendedColorType::Cmyk8,
             (tiff::ColorType::CMYK(16), Uint) => ExtendedColorType::Cmyk16,
             (tiff::ColorType::YCbCr(8), Uint) => ExtendedColorType::YCbCr8,
+            (tiff::ColorType::Gray(16), IEEEFP) => ExtendedColorType::L16F,
+            (tiff::ColorType::RGB(16), IEEEFP) => ExtendedColorType::Rgb16F,
+            (tiff::ColorType::RGBA(16), IEEEFP) => ExtendedColorType::Rgba16F,
             _ => color_type.into(),
         };
 
@@ -517,6 +523,18 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 let out = buf.as_chunks_mut::<3>().0;
 
                 ycbcr_to_rgb8(ycbcr, lr, lg, lb, out);
+            }
+            DecodingResult::F16(v)
+                if matches!(
+                    info.original_color_type,
+                    ExtendedColorType::L16F
+                        | ExtendedColorType::Rgb16F
+                        | ExtendedColorType::Rgba16F
+                ) =>
+            {
+                for (half, out) in v.iter().zip(buf.as_chunks_mut::<4>().0.iter_mut()) {
+                    *out = half.to_f32().to_ne_bytes();
+                }
             }
             DecodingResult::U8(v) => {
                 buf.copy_from_slice(v);

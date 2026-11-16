@@ -153,7 +153,16 @@ pub enum ExtendedColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
-    // TODO f16 types?
+    // TODO: Should the new f16 types come after Ycbcr8 for serde backwards compatibility?
+    /// Pixel is 16-bit float luminance
+    L16F,
+    /// Pixel is 16-bit float luminance with an alpha channel
+    La16F,
+    /// Pixel is 16-bit float RGB
+    Rgb16F,
+    /// Pixel is 16-bit float RGBA
+    Rgba16F,
+
     /// Pixel is 32-bit float luminance
     L32F,
     /// Pixel is 32-bit float luminance with an alpha channel
@@ -191,6 +200,7 @@ impl ExtendedColorType {
             | ExtendedColorType::L4
             | ExtendedColorType::L8
             | ExtendedColorType::L16
+            | ExtendedColorType::L16F
             | ExtendedColorType::L32F
             | ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1
@@ -198,6 +208,7 @@ impl ExtendedColorType {
             | ExtendedColorType::La4
             | ExtendedColorType::La8
             | ExtendedColorType::La16
+            | ExtendedColorType::La16F
             | ExtendedColorType::La32F => 2,
             ExtendedColorType::Rgb1
             | ExtendedColorType::Rgb2
@@ -205,6 +216,7 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgb5x1
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgb16
+            | ExtendedColorType::Rgb16F
             | ExtendedColorType::Rgb32F
             | ExtendedColorType::YCbCr8
             | ExtendedColorType::Bgr8 => 3,
@@ -213,6 +225,7 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgba4
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Rgba16
+            | ExtendedColorType::Rgba16F
             | ExtendedColorType::Rgba32F
             | ExtendedColorType::Bgra8
             | ExtendedColorType::Cmyk8
@@ -246,6 +259,10 @@ impl ExtendedColorType {
             ExtendedColorType::La16 => 32,
             ExtendedColorType::Rgb16 => 48,
             ExtendedColorType::Rgba16 => 64,
+            ExtendedColorType::L16F => 16,
+            ExtendedColorType::La16F => 32,
+            ExtendedColorType::Rgb16F => 48,
+            ExtendedColorType::Rgba16F => 64,
             ExtendedColorType::L32F => 32,
             ExtendedColorType::La32F => 64,
             ExtendedColorType::Rgb32F => 96,

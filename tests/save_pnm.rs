@@ -2,50 +2,98 @@
 #![cfg(all(feature = "png", feature = "pnm"))]
 
 extern crate image;
-use std::fs;
+use std::{fs::File, io::Read, path::Path};
 
-use image::{GenericImageView as _, Luma, Rgb};
+fn compare_exact(dst_path: &str, ref_path: &str) {
+    let mut output = Vec::new();
+    let mut reference = Vec::new();
+    File::open(dst_path)
+        .unwrap()
+        .read_to_end(&mut output)
+        .unwrap();
+    File::open(ref_path)
+        .unwrap()
+        .read_to_end(&mut reference)
+        .unwrap();
+    assert_eq!(output, reference);
+}
 
-#[test]
-fn save_16bit_to_pbm() {
-    let output_dir = "tests/output/pbm/images";
-    fs::create_dir_all(output_dir).expect("failed to create output directory");
-    let output_file = "tests/output/pbm/images/basi0g16.pbm";
+/// Convert `src_path` to `dst_path`, and compare with the content of
+/// `ref_path`.
+fn convert_and_check(src_path: &str, dst_path: &str, ref_path: &str) {
+    let img = image::open(src_path).unwrap();
+    std::fs::create_dir_all(Path::new(dst_path).parent().unwrap()).unwrap();
+    img.save(dst_path).unwrap();
+    compare_exact(dst_path, ref_path);
+}
 
-    let img = image::open("tests/images/png/16bpc/basi0g16.png").expect("failed to load image");
-    img.save(output_file).expect("failed to save image");
+fn convert_and_check_pbm(src_path: &str, dst_path: &str, ref_path: &str) {
+    let img = image::open(src_path).unwrap();
 
-    // inspect image written
-    let img = image::open(output_file).expect("failed to load saved image");
-    assert_eq!(img.color(), image::ColorType::L16);
-    assert_eq!(img.dimensions(), (32, 32));
+    let mut img = img.to_luma8();
+    img.iter_mut().for_each(|x| {
+        *x = match *x {
+            255 => 1,
+            0 => 0,
+            _ => unreachable!(),
+        }
+    });
 
-    let img = img.as_luma16().unwrap();
-
-    // inspect a few pixels
-    assert_eq!(*img.get_pixel(0, 0), Luma([0]));
-    assert_eq!(*img.get_pixel(31, 0), Luma([47871]));
-    assert_eq!(*img.get_pixel(22, 29), Luma([65535]));
+    std::fs::create_dir_all(Path::new(dst_path).parent().unwrap()).unwrap();
+    img.save(dst_path).unwrap();
+    compare_exact(dst_path, ref_path);
 }
 
 #[test]
-fn save_16bit_to_ppm() {
-    let output_dir = "tests/output/ppm/images";
-    fs::create_dir_all(output_dir).expect("failed to create output directory");
-    let output_file = "tests/output/ppm/images/basn2c16.ppm";
+fn save_pbm() {
+    convert_and_check_pbm(
+        "tests/images/pnm/pbm/l1a.pbm",
+        "tests/output/pnm/pbm/l1b.pbm",
+        "tests/images/pnm/pbm/l1b.pnm",
+    );
+}
 
-    let img = image::open("tests/images/png/16bpc/basn2c16.png").expect("failed to load image");
-    img.save(output_file).expect("failed to save image");
+#[test]
+fn save_pgm() {
+    convert_and_check(
+        "tests/images/pnm/pgm/l8a.pgm",
+        "tests/output/pnm/pgm/l8b.pnm",
+        "tests/images/pnm/pgm/l8b.pgm",
+    );
 
-    // inspect image written
-    let img = image::open(output_file).expect("failed to load saved image");
-    assert_eq!(img.color(), image::ColorType::Rgb16);
-    assert_eq!(img.dimensions(), (32, 32));
+    convert_and_check(
+        "tests/images/pnm/pgm/l16a.pgm",
+        "tests/output/pnm/pgm/l16b.pnm",
+        "tests/images/pnm/pgm/l16b.pnm",
+    );
+}
 
-    let img = img.as_rgb16().unwrap();
+#[test]
+fn save_ppm() {
+    convert_and_check(
+        "tests/images/pnm/ppm/r8a.ppm",
+        "tests/output/pnm/ppm/r8b.ppm",
+        "tests/images/pnm/ppm/r8b.pnm",
+    );
 
-    // inspect a few pixels
-    assert_eq!(*img.get_pixel(0, 0), Rgb([65535, 65535, 0]));
-    assert_eq!(*img.get_pixel(31, 0), Rgb([0, 65535, 0]));
-    assert_eq!(*img.get_pixel(22, 29), Rgb([19026, 4228, 42281]));
+    convert_and_check(
+        "tests/images/pnm/ppm/r16a.ppm",
+        "tests/output/pnm/ppm/r8a.pnm",
+        "tests/images/pnm/ppm/r16b.ppm",
+    );
+}
+
+#[test]
+fn save_pam() {
+    convert_and_check(
+        "tests/images/pnm/pam/ra16.pam",
+        "tests/output/pnm/pam/ra16.pam",
+        "tests/images/pnm/pam/ra16.pam",
+    );
+
+    convert_and_check(
+        "tests/images/pnm/pam/la8.pam",
+        "tests/output/pnm/pam/la8.pam",
+        "tests/images/pnm/pam/la8.pam",
+    );
 }

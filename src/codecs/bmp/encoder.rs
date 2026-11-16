@@ -40,8 +40,10 @@ impl<W: Write> BmpEncoder<W> {
         self.encode_with_palette(image, width, height, c, None)
     }
 
-    /// Same as `encode`, but allow a palette to be passed in. The `palette` is ignored for color
-    /// types other than Luma/Luma-with-alpha.
+    /// Same as `encode`, but allow a palette to be passed in.
+    ///
+    /// A palette is only allowed if the color type is L1, L2, L4, L8 or La8 (alpha will be ignored).
+    /// For all other color types, an error will be returned.
     ///
     /// # Panics
     ///
@@ -59,12 +61,14 @@ impl<W: Write> BmpEncoder<W> {
     ) -> ImageResult<()> {
         if palette.is_some()
             && color_type != ExtendedColorType::L1
+            && color_type != ExtendedColorType::L2
+            && color_type != ExtendedColorType::L4
             && color_type != ExtendedColorType::L8
             && color_type != ExtendedColorType::La8
         {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(
-                    "Palette given which must only be used with L1, L8 or La8 color types"
+                    "Palette given which must only be used with L1, L2, L4, L8 or La8 color types"
                         .to_string(),
                 ),
             )));
@@ -180,14 +184,14 @@ impl<W: Write> BmpEncoder<W> {
         match color_type {
             ExtendedColorType::Rgb8 => self.encode_rgb(image, width, height, row_padding, 3)?,
             ExtendedColorType::Rgba8 => self.encode_rgba(image, width, height, row_padding, 4)?,
-            ExtendedColorType::L1 => {
-                self.encode_1bit_palette(image, width, height, row_padding, palette)?;
-            }
-            ExtendedColorType::L8 => {
-                self.encode_gray(image, width, height, row_padding, 1, palette)?;
+            ExtendedColorType::L1
+            | ExtendedColorType::L2
+            | ExtendedColorType::L4
+            | ExtendedColorType::L8 => {
+                self.encode_n_bit_gray(image, width, row_padding, bits_per_pixel as u8, palette)?;
             }
             ExtendedColorType::La8 => {
-                self.encode_gray(image, width, height, row_padding, 2, palette)?;
+                self.encode_gray_alpha_8(image, width, row_padding, palette)?;
             }
             _ => {
                 return Err(ImageError::Unsupported(
@@ -259,46 +263,22 @@ impl<W: Write> BmpEncoder<W> {
         Ok(())
     }
 
-    fn encode_gray(
+    fn encode_gray_alpha_8(
         &mut self,
         image: &[u8],
         width: u32,
-        height: u32,
         row_padding: u32,
-        bytes_per_pixel: u32,
         palette: Option<&[[u8; 3]]>,
     ) -> io::Result<()> {
-        // write grayscale palette
-        if let Some(palette) = palette {
-            for item in palette {
-                // each color is written as BGRA, where A is always 0
-                self.writer.write_all(&[item[2], item[1], item[0], 0])?;
-            }
-        } else {
-            for val in 0u8..=255 {
-                // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
-                self.writer.write_all(&[val, val, val, 0])?;
-            }
-        }
+        self.write_n_bit_gray_palette(8, palette)?;
 
         // write image data
-        let x_stride = bytes_per_pixel;
-        let y_stride = width * x_stride;
-        for row in (0..height).rev() {
+        let bytes_per_row = width as usize * 2;
+        for row in image.chunks_exact(bytes_per_row).rev() {
             // from the bottom up
-            let row_start = row * y_stride;
-
-            // color value is equal to the palette index
-            if x_stride == 1 {
-                // improve performance by writing the whole row at once
-                self.writer
-                    .write_all(&image[row_start as usize..][..y_stride as usize])?;
-            } else {
-                for col in 0..width {
-                    let pixel_start = (row_start + (col * x_stride)) as usize;
-                    self.writer.write_u8(image[pixel_start])?;
-                    // alpha is never written as it's not widely supported
-                }
+            for [g, _a] in row.as_chunks::<2>().0 {
+                self.writer.write_u8(*g)?;
+                // alpha is never written as it's not widely supported
             }
 
             self.write_row_pad(row_padding)?;
@@ -307,39 +287,46 @@ impl<W: Write> BmpEncoder<W> {
         Ok(())
     }
 
-    fn encode_1bit_palette(
+    fn encode_n_bit_gray(
         &mut self,
         image: &[u8],
         width: u32,
-        _height: u32,
         row_padding: u32,
+        n: u8,
         palette: Option<&[[u8; 3]]>,
     ) -> io::Result<()> {
-        // write 2-color palette (1-bit images have exactly 2 colors)
-        if let Some(palette) = palette {
-            // Use custom palette (should have exactly 2 colors)
-            for item in palette.iter().take(2) {
-                // each color is written as BGRA, where A is always 0
-                self.writer.write_all(&[item[2], item[1], item[0], 0])?;
-            }
-            // If palette has less than 2 colors, pad with black
-            for _ in palette.len()..2 {
-                self.writer.write_all(&[0, 0, 0, 0])?;
-            }
-        } else {
-            // Default palette: black and white
-            self.writer.write_all(&[0, 0, 0, 0])?; // color 0: black
-            self.writer.write_all(&[255, 255, 255, 0])?; // color 1: white
-        }
+        debug_assert!(matches!(n, 1 | 2 | 4 | 8));
+        self.write_n_bit_gray_palette(n, palette)?;
 
         // write image data
-        // Input is already packed: 8 pixels per byte, MSB first
-        // Bit 7 = pixel 0, Bit 6 = pixel 1, ..., Bit 0 = pixel 7
-        let bytes_per_row = width.div_ceil(8) as usize;
+        // Input is already packed: 8/n pixels per byte, MSB first
+        // E.g. for n=1:
+        //   Bit 7 = pixel 0, Bit 6 = pixel 1, ..., Bit 0 = pixel 7
+        let bytes_per_row = width.div_ceil(8 / n as u32) as usize;
         for row in image.chunks_exact(bytes_per_row).rev() {
             // from the bottom up
             self.writer.write_all(row)?;
             self.write_row_pad(row_padding)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_n_bit_gray_palette(&mut self, n: u8, palette: Option<&[[u8; 3]]>) -> io::Result<()> {
+        debug_assert!(matches!(n, 1 | 2 | 4 | 8));
+        let max = 1 << n;
+
+        if let Some(palette) = palette {
+            // Use custom palette (should have at most 2^N colors)
+            for item in palette.iter().take(max) {
+                // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
+                self.writer.write_all(&[item[2], item[1], item[0], 0])?;
+            }
+        } else {
+            // Default grayscale palette
+            for val in (0u8..=255).step_by(255 / (max - 1)) {
+                self.writer.write_all(&[val, val, val, 0])?;
+            }
         }
 
         Ok(())
@@ -380,24 +367,14 @@ fn written_pixel_info(
     c: ExtendedColorType,
     palette: Option<&[[u8; 3]]>,
 ) -> Result<(u32, u16, u32), ImageError> {
-    let (header, bits_per_pixel, palette_count) = match c {
-        ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 24, Some(0)),
-        ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 32, Some(0)),
-        ExtendedColorType::L1 => (
-            BITMAPINFOHEADER_SIZE,
-            1,
-            u32::try_from(palette.map(|p| p.len()).unwrap_or(2)).ok(),
-        ),
-        ExtendedColorType::L8 => (
-            BITMAPINFOHEADER_SIZE,
-            8,
-            u32::try_from(palette.map(|p| p.len()).unwrap_or(256)).ok(),
-        ),
-        ExtendedColorType::La8 => (
-            BITMAPINFOHEADER_SIZE,
-            8,
-            u32::try_from(palette.map(|p| p.len()).unwrap_or(256)).ok(),
-        ),
+    let (header, bits_per_pixel, max_palette_count) = match c {
+        ExtendedColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 24, 0),
+        ExtendedColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 32, 0),
+        ExtendedColorType::L1 => (BITMAPINFOHEADER_SIZE, 1, 2),
+        ExtendedColorType::L2 => (BITMAPINFOHEADER_SIZE, 2, 4),
+        ExtendedColorType::L4 => (BITMAPINFOHEADER_SIZE, 4, 16),
+        ExtendedColorType::L8 => (BITMAPINFOHEADER_SIZE, 8, 256),
+        ExtendedColorType::La8 => (BITMAPINFOHEADER_SIZE, 8, 256),
         _ => {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
@@ -408,12 +385,10 @@ fn written_pixel_info(
         }
     };
 
-    let palette_count = palette_count.ok_or_else(|| {
-        ImageError::Encoding(EncodingError::new(
-            ImageFormatHint::Exact(ImageFormat::Bmp),
-            "calculated palette size larger than 2^32",
-        ))
-    })?;
+    let palette_count = match palette {
+        Some(palette) => palette.len().min(max_palette_count as usize) as u32,
+        None => max_palette_count,
+    };
 
     Ok((header, bits_per_pixel, palette_count))
 }
@@ -428,16 +403,26 @@ mod tests {
     use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ExtendedColorType) -> Vec<u8> {
+        round_trip_image_palette(image, width, height, c, None)
+    }
+    fn round_trip_image_palette(
+        image: &[u8],
+        width: u32,
+        height: u32,
+        c: ExtendedColorType,
+        palette: Option<&[[u8; 3]]>,
+    ) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
             let mut encoder = BmpEncoder::new(&mut encoded_data);
             encoder
-                .encode(image, width, height, c)
+                .encode_with_palette(image, width, height, c, palette)
                 .expect("could not encode image");
         }
 
         let mut decoder = BmpDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
         let layout = decoder.prepare_image().unwrap();
+        assert_eq!(layout.layout.dimensions(), (width, height));
         let mut buf = vec![0; layout.total_bytes() as usize];
         decoder.read_image(&mut buf).expect("failed to decode");
         buf
@@ -596,26 +581,14 @@ mod tests {
             [0, 0, 255], // blue for 1
         ];
 
-        let mut encoded_data = Vec::new();
-        {
-            let mut encoder = BmpEncoder::new(&mut encoded_data);
-            encoder
-                .encode_with_palette(&image, 4, 1, ExtendedColorType::L1, Some(&palette))
-                .expect("could not encode image with custom palette");
-        }
-
-        // Decode and verify
-        let mut decoder = BmpDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
-        let layout = decoder.prepare_image().unwrap();
-        let mut buf = vec![0; layout.total_bytes() as usize];
-        decoder.read_image(&mut buf).expect("failed to decode");
+        let decoded = round_trip_image_palette(&image, 4, 1, ExtendedColorType::L1, Some(&palette));
 
         // Should be decoded as RGB with custom colors
-        assert_eq!(12, buf.len()); // 4 pixels * 3 bytes
-        assert_eq!(&buf[0..3], &[255, 0, 0]); // red
-        assert_eq!(&buf[3..6], &[0, 0, 255]); // blue
-        assert_eq!(&buf[6..9], &[255, 0, 0]); // red
-        assert_eq!(&buf[9..12], &[0, 0, 255]); // blue
+        assert_eq!(12, decoded.len()); // 4 pixels * 3 bytes
+        assert_eq!(&decoded[0..3], &[255, 0, 0]); // red
+        assert_eq!(&decoded[3..6], &[0, 0, 255]); // blue
+        assert_eq!(&decoded[6..9], &[255, 0, 0]); // red
+        assert_eq!(&decoded[9..12], &[0, 0, 255]); // blue
     }
 
     #[test]
@@ -732,6 +705,83 @@ mod tests {
             255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, // pixels 8-12
         ];
         assert_eq!(&decoded[78..117], &row2_expected);
+    }
+
+    #[test]
+    fn round_trip_2bit() {
+        let image = [
+            0b00_01_10_00, // Row 0
+            0b11_10_01_00, // Row 1
+        ];
+        let image_8 = [
+            0x0, 0x1, 0x2, // Row 0
+            0x3, 0x2, 0x1, // Row 1
+        ];
+
+        let decoded = round_trip_image(&image, 3, 2, ExtendedColorType::L2);
+        assert_eq!(
+            &decoded,
+            image_8
+                .map(|v| [v * 85, v * 85, v * 85])
+                .concat()
+                .as_slice()
+        );
+
+        let palette: &[[u8; 3]; 4] = &[[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]];
+
+        let decoded = round_trip_image_palette(&image, 3, 2, ExtendedColorType::L2, Some(palette));
+        assert_eq!(
+            &decoded,
+            image_8.map(|v| palette[v as usize]).concat().as_slice()
+        );
+    }
+
+    #[test]
+    fn round_trip_4bit() {
+        let image = [
+            0x01, 0x23, 0x40, // Row 0
+            0x56, 0x78, 0x90, // Row 1
+            0xAB, 0xCD, 0xE0, // Row 2
+        ];
+        let image_8 = [
+            0x0, 0x1, 0x2, 0x3, 0x4, // Row 0
+            0x5, 0x6, 0x7, 0x8, 0x9, // Row 1
+            0xA, 0xB, 0xC, 0xD, 0xE, // Row 2
+        ];
+
+        let decoded = round_trip_image(&image, 5, 3, ExtendedColorType::L4);
+        assert_eq!(
+            &decoded,
+            image_8
+                .map(|v| [v * 17, v * 17, v * 17])
+                .concat()
+                .as_slice()
+        );
+
+        // palette is less than 2^4=16, but enough for this image
+        let palette: &[[u8; 3]; 15] = &[
+            [255, 0, 0],
+            [0, 255, 0],
+            [0, 0, 255],
+            [255, 255, 0],
+            [255, 0, 255],
+            [0, 255, 255],
+            [128, 128, 128],
+            [64, 64, 64],
+            [192, 192, 192],
+            [32, 32, 32],
+            [224, 224, 224],
+            [16, 16, 16],
+            [240, 240, 240],
+            [8, 8, 8],
+            [248, 248, 248],
+        ];
+
+        let decoded = round_trip_image_palette(&image, 5, 3, ExtendedColorType::L4, Some(palette));
+        assert_eq!(
+            &decoded,
+            image_8.map(|v| palette[v as usize]).concat().as_slice()
+        );
     }
 
     // Test that dimensions must be representable by i32

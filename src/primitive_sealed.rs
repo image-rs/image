@@ -8,7 +8,7 @@ use crate::imageops::fast_blur::BlurAccumulator;
 /// this crate.
 #[allow(private_bounds)]
 pub trait PrimitiveSealed:
-    Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + RgbToLuma
+    Sized + NearestFrom<f32> + WithBlurAcc + BgraSwizzle + RgbToLuma + InvertRange
 {
 }
 
@@ -229,3 +229,35 @@ impl RgbToLuma for f32 {
     }
 }
 impl RgbToLuma for f64 {}
+
+pub(crate) trait InvertRange {
+    /// Inverts the default range of this value.
+    ///
+    /// This has the following properties:
+    /// - `self.invert_range().invert_range() == self`
+    /// - `T::DEFAULT_MIN_VALUE.invert_range() == T::DEFAULT_MAX_VALUE` and
+    ///   `T::DEFAULT_MAX_VALUE.invert_range() == T::DEFAULT_MIN_VALUE`
+    ///
+    /// For floats, this is `1.0 - self`. For integers, this is `!self`.
+    fn invert_range(self) -> Self;
+}
+impl InvertRange for f32 {
+    fn invert_range(self) -> Self {
+        1.0 - self
+    }
+}
+impl InvertRange for f64 {
+    fn invert_range(self) -> Self {
+        1.0 - self
+    }
+}
+macro_rules! impl_invert_range_for_ints {
+    ($($t:ty),+) => { $(
+        impl InvertRange for $t {
+            fn invert_range(self) -> Self {
+                !self
+            }
+        }
+    )+ };
+}
+impl_invert_range_for_ints!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);

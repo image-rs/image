@@ -1,6 +1,6 @@
 use super::header::Header;
 use crate::{codecs::tga::header::ImageType, error::EncodingError, utils::vec_try_with_capacity};
-use crate::{DynamicImage, ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
+use crate::{ExtendedColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 use std::{error, fmt, io::Write};
 
 /// Errors that can occur during encoding and saving of a TGA image.
@@ -253,12 +253,9 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
         self.encode(buf, width, height, color_type)
     }
 
-    fn make_compatible_img(
-        &self,
-        _: crate::io::encoder::MethodSealedToImage,
-        img: &DynamicImage,
-    ) -> Option<DynamicImage> {
-        crate::io::encoder::dynimage_conversion_8bit(img)
+    fn supported_colors(&self) -> Option<&[ExtendedColorType]> {
+        use ExtendedColorType::*;
+        Some(&[Rgb8, Rgba8, L8, La8])
     }
 }
 

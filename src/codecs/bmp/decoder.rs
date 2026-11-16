@@ -1234,6 +1234,10 @@ impl<R: BufRead + Seek> BmpDecoder<R> {
     pub(crate) fn reader(&mut self) -> &mut R {
         &mut self.reader
     }
+    #[cfg(feature = "ico")]
+    pub(crate) fn bit_count(&self) -> u16 {
+        self.bit_count
+    }
 
     fn read_file_header(&mut self) -> ImageResult<()> {
         if self.no_file_header {

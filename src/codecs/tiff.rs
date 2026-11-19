@@ -9,13 +9,14 @@ use std::io::{BufRead, Seek, Write};
 
 use tiff::decoder::ifd::Value;
 use tiff::decoder::{Decoder, DecodingResult};
-use tiff::tags::Tag;
+use tiff::tags::{ExtraSamples, Tag};
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::imageops::resize::unpremultiply_alpha_samples;
 use crate::io::decoder::DecodedMetadataHint;
 use crate::io::{DecodedImageAttributes, DecoderPreparedImage, FormatAttributes};
 use crate::metadata::Orientation;
@@ -50,6 +51,9 @@ struct ImageInfo {
     color_type: ColorType,
     original_color_type: ExtendedColorType,
     ycbcr_coefficients: [f32; 3],
+    /// The alpha channel is associated (premultiplied) and must be converted to the
+    /// unassociated alpha used by our color types.
+    associated_alpha: bool,
 }
 
 impl<R> TiffDecoder<R>
@@ -152,11 +156,14 @@ where
             ycbcr_coefficients = read_ycbcr_coefficients(reader)?;
         }
 
+        let associated_alpha = color_type.has_alpha() && has_associated_alpha(reader)?;
+
         self.info = ImageState::At(ImageInfo {
             dimensions,
             color_type,
             original_color_type,
             ycbcr_coefficients,
+            associated_alpha,
         });
 
         self.redistribute_limits();
@@ -300,6 +307,18 @@ fn check_ycbcr_subsampling<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> Image
     Ok(())
 }
 
+/// Whether the first extra sample is associated (premultiplied) alpha.
+///
+/// Only the first extra sample is considered, matching how `tiff` determines the color type.
+fn has_associated_alpha<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> ImageResult<bool> {
+    let extra_samples = decoder
+        .find_tag_unsigned_vec::<u16>(Tag::ExtraSamples)
+        .map_err(ImageError::from_tiff_decode)?;
+
+    Ok(extra_samples.and_then(|samples| samples.first().copied())
+        == Some(ExtraSamples::AssociatedAlpha.to_u16()))
+}
+
 fn read_ycbcr_coefficients<R: BufRead + Seek>(decoder: &mut Decoder<R>) -> ImageResult<[f32; 3]> {
     let value = decoder
         .find_tag(TAG_YCBCR_COEFFICIENTS)
@@ -438,6 +457,7 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 color_type: ColorType::L8,
                 original_color_type: ExtendedColorType::L8,
                 ycbcr_coefficients: [0.0; 3],
+                associated_alpha: false,
             },
         };
 
@@ -484,6 +504,9 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
             // Note that we do not support planar layouts if we have to do conversion. Yet. See a
             // more detailed comment in the implementation.
             self.interleave_planes(info, layout, buf)?;
+            if info.associated_alpha {
+                unpremultiply_alpha_samples(info.color_type, buf);
+            }
             return Ok(DecodedImageAttributes::default());
         }
 
@@ -549,6 +572,10 @@ impl<R: BufRead + Seek> ImageDecoder for TiffDecoder<R> {
                 buf.copy_from_slice(bytemuck::cast_slice(v));
             }
             DecodingResult::F16(_) => unreachable!(),
+        }
+
+        if info.associated_alpha {
+            unpremultiply_alpha_samples(info.color_type, buf);
         }
 
         let orientation = reader
@@ -845,5 +872,178 @@ mod tests {
 
             assert_eq!(img_rgba8, decoded_rgba8);
         }
+    }
+
+    /// Encode an RGB image with one extra alpha sample of the given kind.
+    fn encode_rgb_with_extra_alpha<C>(
+        width: u32,
+        height: u32,
+        extra: tiff::tags::ExtraSamples,
+        samples: &[C::Inner],
+    ) -> Vec<u8>
+    where
+        C: tiff::encoder::colortype::ColorType,
+        [C::Inner]: tiff::encoder::TiffValue,
+    {
+        let mut encoded = Vec::new();
+        let mut encoder = tiff::encoder::TiffEncoder::new(Cursor::new(&mut encoded)).unwrap();
+        let mut image = encoder.new_image::<C>(width, height).unwrap();
+        image.extra_samples(&[extra]).unwrap();
+        image.write_data(samples).unwrap();
+        encoded
+    }
+
+    #[test]
+    fn decode_associated_alpha_rgba8() {
+        // Premultiplied samples chosen so that unpremultiplying is exact.
+        let premultiplied = [
+            0u8, 10, 51, 51, // 20% opacity: alpha 51 = 255 / 5
+            30, 60, 90, 255, // opaque: unchanged
+            0, 0, 0, 0, // fully transparent
+        ];
+        let encoded = encode_rgb_with_extra_alpha::<tiff::encoder::colortype::RGB8>(
+            3,
+            1,
+            tiff::tags::ExtraSamples::AssociatedAlpha,
+            &premultiplied,
+        );
+
+        let (decoded, _) = ImageReader::new(Cursor::new(encoded))
+            .unwrap()
+            .decode()
+            .unwrap();
+        let decoded = decoded.into_rgba8();
+
+        assert_eq!(decoded.get_pixel(0, 0), &Rgba([0, 50, 255, 51]));
+        assert_eq!(decoded.get_pixel(1, 0), &Rgba([30, 60, 90, 255]));
+        assert_eq!(decoded.get_pixel(2, 0), &Rgba([0, 0, 0, 0]));
+    }
+
+    #[test]
+    fn decode_associated_alpha_rgba16() {
+        // Alpha 13107 = 65535 / 5, so unpremultiplying multiplies color by exactly 5.
+        let premultiplied = [1000u16, 2000, 13107, 13107];
+        let encoded = encode_rgb_with_extra_alpha::<tiff::encoder::colortype::RGB16>(
+            1,
+            1,
+            tiff::tags::ExtraSamples::AssociatedAlpha,
+            &premultiplied,
+        );
+
+        let (decoded, _) = ImageReader::new(Cursor::new(encoded))
+            .unwrap()
+            .decode()
+            .unwrap();
+        let decoded = decoded.into_rgba16();
+
+        assert_eq!(decoded.get_pixel(0, 0), &Rgba([5000, 10000, 65535, 13107]));
+    }
+
+    #[test]
+    fn decode_associated_alpha_rgba32f() {
+        // Powers of two keep the division exact. Zero alpha leaves the (zero) color as is.
+        let premultiplied = [0.25f32, 0.125, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0];
+        let encoded = encode_rgb_with_extra_alpha::<tiff::encoder::colortype::RGB32Float>(
+            2,
+            1,
+            tiff::tags::ExtraSamples::AssociatedAlpha,
+            &premultiplied,
+        );
+
+        let (decoded, _) = ImageReader::new(Cursor::new(encoded))
+            .unwrap()
+            .decode()
+            .unwrap();
+        let decoded = decoded.into_rgba32f();
+
+        assert_eq!(decoded.get_pixel(0, 0), &Rgba([0.5, 0.25, 1.0, 0.5]));
+        assert_eq!(decoded.get_pixel(1, 0), &Rgba([0.0, 0.0, 0.0, 0.0]));
+    }
+
+    /// Build an uncompressed little-endian planar (`PlanarConfiguration = 2`) RGBA8 TIFF with
+    /// associated alpha. The `tiff` encoder cannot write planar images, so this is done by hand.
+    fn planar_rgba8_associated_alpha(width: u32, planes: [&[u8]; 4]) -> Vec<u8> {
+        const SHORT: u16 = 3;
+        const LONG: u16 = 4;
+        let pixels = planes[0].len() as u32;
+        let height = pixels / width;
+
+        let entries = 11u32;
+        let ifd_len = 2 + entries * 12 + 4;
+        let bits_offset = 8 + ifd_len;
+        let strip_offsets_offset = bits_offset + 4 * 2;
+        let strip_counts_offset = strip_offsets_offset + 4 * 4;
+        let data_offset = strip_counts_offset + 4 * 4;
+
+        let mut out = Vec::new();
+        out.extend_from_slice(b"II*\0");
+        out.extend_from_slice(&8u32.to_le_bytes());
+        out.extend_from_slice(&(entries as u16).to_le_bytes());
+        let mut entry = |tag: u16, kind: u16, count: u32, value: u32| {
+            out.extend_from_slice(&tag.to_le_bytes());
+            out.extend_from_slice(&kind.to_le_bytes());
+            out.extend_from_slice(&count.to_le_bytes());
+            out.extend_from_slice(&value.to_le_bytes());
+        };
+        entry(256, LONG, 1, width); // ImageWidth
+        entry(257, LONG, 1, height); // ImageLength
+        entry(258, SHORT, 4, bits_offset); // BitsPerSample
+        entry(259, SHORT, 1, 1); // Compression: none
+        entry(262, SHORT, 1, 2); // PhotometricInterpretation: RGB
+        entry(273, LONG, 4, strip_offsets_offset); // StripOffsets, one strip per plane
+        entry(277, SHORT, 1, 4); // SamplesPerPixel
+        entry(278, LONG, 1, height); // RowsPerStrip
+        entry(279, LONG, 4, strip_counts_offset); // StripByteCounts
+        entry(284, SHORT, 1, 2); // PlanarConfiguration: planar
+        entry(338, SHORT, 1, 1); // ExtraSamples: associated alpha
+        out.extend_from_slice(&0u32.to_le_bytes()); // no next IFD
+
+        for _ in 0..4 {
+            out.extend_from_slice(&8u16.to_le_bytes());
+        }
+        for plane in 0..4 {
+            out.extend_from_slice(&(data_offset + plane * pixels).to_le_bytes());
+        }
+        for _ in 0..4 {
+            out.extend_from_slice(&pixels.to_le_bytes());
+        }
+        for plane in planes {
+            out.extend_from_slice(plane);
+        }
+        out
+    }
+
+    #[test]
+    fn decode_associated_alpha_planar_rgba8() {
+        // Two pixels: [0, 10, 51 | alpha 51] and opaque [30, 60, 90 | alpha 255].
+        let encoded =
+            planar_rgba8_associated_alpha(2, [&[0, 30], &[10, 60], &[51, 90], &[51, 255]]);
+
+        let (decoded, _) = ImageReader::new(Cursor::new(encoded))
+            .unwrap()
+            .decode()
+            .unwrap();
+        let decoded = decoded.into_rgba8();
+
+        assert_eq!(decoded.get_pixel(0, 0), &Rgba([0, 50, 255, 51]));
+        assert_eq!(decoded.get_pixel(1, 0), &Rgba([30, 60, 90, 255]));
+    }
+
+    #[test]
+    fn decode_unassociated_alpha_is_unchanged() {
+        let straight = [0u8, 10, 51, 51];
+        let encoded = encode_rgb_with_extra_alpha::<tiff::encoder::colortype::RGB8>(
+            1,
+            1,
+            tiff::tags::ExtraSamples::UnassociatedAlpha,
+            &straight,
+        );
+
+        let (decoded, _) = ImageReader::new(Cursor::new(encoded))
+            .unwrap()
+            .decode()
+            .unwrap();
+
+        assert_eq!(decoded.into_rgba8().get_pixel(0, 0), &Rgba(straight));
     }
 }

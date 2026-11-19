@@ -7,7 +7,7 @@
 
 use std::ops::{AddAssign, BitXor};
 
-use crate::{imageops::FilterType, DynamicImage, ImageBuffer, Pixel};
+use crate::{imageops::FilterType, ColorType, DynamicImage, ImageBuffer, Pixel};
 use pic_scale_safe::ResamplingFunction;
 
 pub(crate) fn resize_impl(
@@ -148,6 +148,36 @@ fn unpremultiply_alpha(image: &mut DynamicImage) {
         DynamicImage::ImageLumaA32F(buf) => unpremultiply_luma_alpha_f32(buf.subpixels_mut()),
         DynamicImage::ImageRgb32F(_) => (),
         DynamicImage::ImageRgba32F(buf) => unpremultiply_rgba_f32(buf.subpixels_mut()),
+    }
+}
+
+/// Reverses premultiplication by alpha in a buffer of native-endian samples of `color`.
+///
+/// Color types without an alpha channel are left untouched.
+pub(crate) fn unpremultiply_alpha_samples(color: ColorType, samples: &mut [u8]) {
+    use pic_scale_safe::*;
+    match color {
+        ColorType::La8 => unpremultiply_la8(samples),
+        ColorType::Rgba8 => unpremultiply_rgba8(samples),
+        ColorType::La16 => with_aligned_samples::<u16>(samples, |s| unpremultiply_la16(s, 16)),
+        ColorType::Rgba16 => {
+            with_aligned_samples::<u16>(samples, |s| unpremultiply_rgba16(s, 16));
+        }
+        ColorType::La32F => with_aligned_samples::<f32>(samples, unpremultiply_luma_alpha_f32),
+        ColorType::Rgba32F => with_aligned_samples::<f32>(samples, unpremultiply_rgba_f32),
+        _ => (),
+    }
+}
+
+/// Runs `f` on `bytes` viewed as `T` samples, copying through an aligned buffer if needed.
+fn with_aligned_samples<T: bytemuck::Pod>(bytes: &mut [u8], f: impl FnOnce(&mut [T])) {
+    debug_assert_eq!(bytes.len() % size_of::<T>(), 0, "partial sample in buffer");
+    if let Ok(samples) = bytemuck::try_cast_slice_mut(bytes) {
+        f(samples);
+    } else {
+        let mut samples: Vec<T> = bytemuck::pod_collect_to_vec(bytes);
+        f(&mut samples);
+        bytes.copy_from_slice(bytemuck::cast_slice(&samples));
     }
 }
 

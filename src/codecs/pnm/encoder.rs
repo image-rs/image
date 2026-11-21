@@ -407,7 +407,7 @@ impl<'a> UncheckedHeader<'a> {
 impl<'a> CheckedDimensions<'a> {
     // Check color compatibility with the header. This will only error when we are certain that
     // the combination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
-    // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
+    // combinations (basically an ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ExtendedColorType) -> ImageResult<CheckedHeaderColor<'a>> {
         let components = u32::from(color.channel_count());
 

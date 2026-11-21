@@ -449,7 +449,7 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: Rgbe8Pixel, buf: &mut [Rgbe8Pixel]) ->
     let mut prev_pixel = fb;
     while x_off < width {
         let pix = read_rgbe(r)?;
-        // it's harder to forget to increase x_off if I write this this way.
+        // it's harder to forget to increase x_off if I write this way.
         x_off += {
             if let Some(rl) = rl_marker(pix) {
                 if rl_shift >= 32 {

@@ -947,7 +947,7 @@ impl DynamicImage {
 
     /// Set primaries and transfer characteristics from a Cicp color space.
     ///
-    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// Returns an error if `cicp` uses features that are not supported with an RGB color space, e.g.
     /// a matrix or narrow range (studio encoding) channels.
     pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
         dynamic_map!(self, ref mut p, p.set_color_space(cicp))

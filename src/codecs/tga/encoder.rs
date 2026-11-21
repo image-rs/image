@@ -291,7 +291,7 @@ mod tests {
                 assert_eq!(*err, EncoderError::WidthInvalid(dimension));
             }
             other => panic!(
-                "Encoding an image that is too wide should return a InvalidWidth \
+                "Encoding an image that is too wide should return an InvalidWidth \
                 it returned {other:?} instead"
             ),
         }

@@ -396,7 +396,7 @@ impl ColorProfile {
 }
 
 impl Cicp {
-    /// Get an compute representation of an ICC profile for RGB.
+    /// Get a compute representation of an ICC profile for RGB.
     ///
     /// Note you should *not* be using this profile for export in a file, as discussed below.
     ///

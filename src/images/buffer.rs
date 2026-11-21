@@ -664,7 +664,7 @@ where
         SampleLayout::row_major_packed(<P as Pixel>::CHANNEL_COUNT, self.width, self.height)
     }
 
-    /// Return the raw sample buffer with its stride an dimension information.
+    /// Return the raw sample buffer with its stride and dimension information.
     ///
     /// The returned buffer is guaranteed to be well formed in all cases. It is laid out by
     /// colors, width then height, meaning `channel_stride <= width_stride <= height_stride`. All
@@ -1096,7 +1096,7 @@ impl<P: Pixel, Container> ImageBuffer<P, Container> {
 
     /// Set primaries and transfer characteristics from a Cicp color space.
     ///
-    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// Returns an error if `cicp` uses features that are not supported with an RGB color space, e.g.
     /// a matrix or narrow range (studio encoding) channels.
     pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
         self.color = cicp.try_into_rgb()?;

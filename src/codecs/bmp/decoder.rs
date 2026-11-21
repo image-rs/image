@@ -752,7 +752,7 @@ fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<(
         })
 }
 
-/// Calculate how many many bytes a buffer holding a decoded image with these properties would
+/// Calculate how many bytes a buffer holding a decoded image with these properties would
 /// require. Returns `None` if the buffer size would overflow or if one of the sizes are negative.
 fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
     if width <= 0 || length <= 0 {

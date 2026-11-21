@@ -385,7 +385,7 @@ pub trait ColorMap {
 ///     cmap.lookup(p.0[0] as usize)
 ///         .expect("indexed color out-of-range")
 /// });
-/// // Create an black and white image of expected output.
+/// // Create a black and white image of expected output.
 /// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
 ///     if x <= (w / 2) {
 ///         [0].into()

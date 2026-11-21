@@ -650,7 +650,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit RGB image
+    /// Return a reference to a 16bit RGB image
     #[must_use]
     pub fn as_rgb16(&self) -> Option<&Rgb16Image> {
         match *self {
@@ -659,7 +659,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit RGB image
+    /// Return a mutable reference to a 16bit RGB image
     pub fn as_mut_rgb16(&mut self) -> Option<&mut Rgb16Image> {
         match *self {
             DynamicImage::ImageRgb16(ref mut p) => Some(p),
@@ -667,7 +667,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit RGBA image
+    /// Return a reference to a 16bit RGBA image
     #[must_use]
     pub fn as_rgba16(&self) -> Option<&Rgba16Image> {
         match *self {
@@ -676,7 +676,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit RGBA image
+    /// Return a mutable reference to a 16bit RGBA image
     pub fn as_mut_rgba16(&mut self) -> Option<&mut Rgba16Image> {
         match *self {
             DynamicImage::ImageRgba16(ref mut p) => Some(p),
@@ -684,7 +684,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 32bit RGB image
+    /// Return a reference to a 32bit RGB image
     #[must_use]
     pub fn as_rgb32f(&self) -> Option<&Rgb32FImage> {
         match *self {
@@ -693,7 +693,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 32bit RGB image
+    /// Return a mutable reference to a 32bit RGB image
     pub fn as_mut_rgb32f(&mut self) -> Option<&mut Rgb32FImage> {
         match *self {
             DynamicImage::ImageRgb32F(ref mut p) => Some(p),
@@ -701,7 +701,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 32bit RGBA image
+    /// Return a reference to a 32bit RGBA image
     #[must_use]
     pub fn as_rgba32f(&self) -> Option<&Rgba32FImage> {
         match *self {
@@ -710,7 +710,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 32bit RGBA image
+    /// Return a mutable reference to a 32bit RGBA image
     pub fn as_mut_rgba32f(&mut self) -> Option<&mut Rgba32FImage> {
         match *self {
             DynamicImage::ImageRgba32F(ref mut p) => Some(p),
@@ -718,7 +718,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit Grayscale image
+    /// Return a reference to a 16bit Grayscale image
     #[must_use]
     pub fn as_luma16(&self) -> Option<&Gray16Image> {
         match *self {
@@ -727,7 +727,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 32bit Grayscale image
+    /// Return a reference to a 32bit Grayscale image
     #[must_use]
     pub fn as_luma32f(&self) -> Option<&Gray32FImage> {
         match *self {
@@ -736,7 +736,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit Grayscale image
+    /// Return a mutable reference to a 16bit Grayscale image
     pub fn as_mut_luma16(&mut self) -> Option<&mut Gray16Image> {
         match *self {
             DynamicImage::ImageLuma16(ref mut p) => Some(p),
@@ -744,7 +744,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 32bit Grayscale image
+    /// Return a mutable reference to a 32bit Grayscale image
     #[must_use]
     pub fn as_mut_luma32f(&mut self) -> Option<&mut Gray32FImage> {
         match *self {
@@ -753,7 +753,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit Grayscale image with an alpha channel
+    /// Return a reference to a 16bit Grayscale image with an alpha channel
     #[must_use]
     pub fn as_luma_alpha16(&self) -> Option<&GrayAlpha16Image> {
         match *self {
@@ -762,7 +762,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 32bit Grayscale image with an alpha channel
+    /// Return a reference to a 32bit Grayscale image with an alpha channel
     pub fn as_luma_alpha32f(&self) -> Option<&GrayAlpha32FImage> {
         match *self {
             DynamicImage::ImageLumaA32F(ref p) => Some(p),
@@ -770,7 +770,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit Grayscale image with an alpha channel
+    /// Return a mutable reference to a 16bit Grayscale image with an alpha channel
     pub fn as_mut_luma_alpha16(&mut self) -> Option<&mut GrayAlpha16Image> {
         match *self {
             DynamicImage::ImageLumaA16(ref mut p) => Some(p),
@@ -778,7 +778,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 32bit Grayscale image with an alpha channel
+    /// Return a mutable reference to a 32bit Grayscale image with an alpha channel
     pub fn as_mut_luma_alpha32f(&mut self) -> Option<&mut GrayAlpha32FImage> {
         match *self {
             DynamicImage::ImageLumaA32F(ref mut p) => Some(p),
@@ -947,7 +947,7 @@ impl DynamicImage {
 
     /// Set primaries and transfer characteristics from a Cicp color space.
     ///
-    /// Returns an error if `cicp` uses features that are not support with an RGB color space, e.g.
+    /// Returns an error if `cicp` uses features that are not supported with an RGB color space, e.g.
     /// a matrix or narrow range (studio encoding) channels.
     pub fn set_color_space(&mut self, cicp: Cicp) -> ImageResult<()> {
         dynamic_map!(self, ref mut p, p.set_color_space(cicp))

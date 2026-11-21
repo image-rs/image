@@ -190,7 +190,7 @@ fn reshape_plane(
         return Ok(vec![]);
     }
 
-    // Except for an empty image a true stride is required..
+    // Except for an empty image a true stride is required.
     if stride == 0 {
         return Err(error_map(AvifDecoderError::InvalidStride(stride)));
     }

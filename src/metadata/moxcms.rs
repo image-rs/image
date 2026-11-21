@@ -378,7 +378,7 @@ impl Moxcms {
 /// This is the whole input information which we must be able to pass to the CMS in a support
 /// transform, to handle all possible combinations of `ColorType` pixels that can be thrown at us.
 /// For instance, in a previous iteration we had a separate gray profile here (but now handle that
-/// internally by expansion to RGB through an YCbCr). Future iterations may add additional structs
+/// internally by expansion to RGB through a YCbCr). Future iterations may add additional structs
 /// to be computed for validating `CicpTransform::new`.
 struct ColorProfile {
     rgb: moxcms::ColorProfile,

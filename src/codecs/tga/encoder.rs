@@ -320,7 +320,7 @@ mod tests {
                 assert_eq!(*err, EncoderError::HeightInvalid(dimension));
             }
             other => panic!(
-                "Encoding an image that is too tall should return a InvalidHeight \
+                "Encoding an image that is too tall should return an InvalidHeight \
                 it returned {other:?} instead"
             ),
         }

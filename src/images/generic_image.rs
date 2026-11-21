@@ -155,7 +155,7 @@ pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
     /// Maintains `x < self.width` with a non-empty image.
     x: u32,
-    /// Maintains `y <= self.height` and `self.height == 0` with an empty image..
+    /// Maintains `y <= self.height` and `self.height == 0` with an empty image.
     y: u32,
     width: u32,
     height: u32,

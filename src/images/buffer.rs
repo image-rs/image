@@ -664,7 +664,7 @@ where
         SampleLayout::row_major_packed(<P as Pixel>::CHANNEL_COUNT, self.width, self.height)
     }
 
-    /// Return the raw sample buffer with its stride an dimension information.
+    /// Return the raw sample buffer with its stride and dimension information.
     ///
     /// The returned buffer is guaranteed to be well formed in all cases. It is laid out by
     /// colors, width then height, meaning `channel_stride <= width_stride <= height_stride`. All

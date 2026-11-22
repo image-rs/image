@@ -79,7 +79,7 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
                     .all(|&required|  // alpha will be optional
                     header.channels.find_index_of_channel(&Text::from(required)).is_some());
 
-                // we currently dont support deep images, or images with other color spaces than rgb
+                // we currently don't support deep images, or images with other color spaces than rgb
                 !header.deep && has_rgb
             })
             .ok_or_else(|| {

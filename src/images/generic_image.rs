@@ -342,7 +342,7 @@ pub trait GenericImage: GenericImageView {
                 }
             };
         }
-        // check how target and source rectangles relate to each other so we dont overwrite data before we copied it.
+        // check how target and source rectangles relate to each other so we don't overwrite data before we copied it.
         match (sx < dx, sy < dy) {
             (true, true) => copy_within_impl_!((0..width).rev(), (0..height).rev()),
             (true, false) => copy_within_impl_!((0..width).rev(), 0..height),

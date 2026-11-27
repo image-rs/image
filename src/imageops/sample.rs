@@ -112,6 +112,12 @@ pub enum FilterType {
 
     /// Lanczos with window 3
     Lanczos3,
+
+    /// Area averaging, like OpenCV's `INTER_AREA`
+    ///
+    /// When downscaling, each output pixel is the average of the input pixels
+    /// it covers, weighted by how much of each pixel it covers.
+    Area,
 }
 
 /// A Representation of a separable filter.
@@ -204,11 +210,31 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
     1.0
 }
 
+/// Build an area-averaging filter for one axis, where `ratio` is the input size
+/// divided by the output size.
+///
+/// Each output pixel covers `ratio` input pixels. An input pixel's weight is
+/// the length of its overlap with that span, so pixels at the edges of the span
+/// count in part. Modelled on OpenCV's `INTER_AREA`.
+fn area_filter(ratio: f32) -> Filter<'static> {
+    // The samplers pass the distance between pixel centres divided by this.
+    let scale = ratio.max(1.0);
+    let half = ratio / 2.0;
+    Filter {
+        kernel: Box::new(move |x| {
+            let d = x * scale;
+            ((d + 0.5).min(half) - (d - 0.5).max(-half)).max(0.0)
+        }),
+        support: (half + 0.5) / scale,
+    }
+}
+
 // Sample the rows of the supplied image using the provided filter.
 //
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
+// ```clamp_float``` clamps float output to [0, 1].
 // ```image``` is not necessarily Rgba and the order of channels is passed through.
 //
 // Note: if an empty image is passed in, panics unless the image is truly empty.
@@ -218,6 +244,7 @@ fn horizontal_sample<P, S>(
     image: &Rgba32FImage,
     new_width: u32,
     filter: &mut Filter,
+    clamp_float: bool,
 ) -> ImageBuffer<P, Vec<S>>
 where
     P: Pixel<Subpixel = S>,
@@ -328,7 +355,11 @@ where
 
                 // Write directly to the output slice, bypassing put_pixel's bounds checks.
                 for (&tc, pc) in t.iter().zip(dst.iter_mut()) {
-                    *pc = S::clamp_nearest_from(tc);
+                    *pc = if clamp_float {
+                        S::clamp_nearest_from(tc)
+                    } else {
+                        S::nearest_from(tc)
+                    };
                 }
             }
         }
@@ -1005,7 +1036,7 @@ pub fn resize<I: GenericImageView>(
         return tmp;
     }
 
-    let mut method = match filter {
+    let make_filter = |ratio: f32| match filter {
         FilterType::Nearest => Filter {
             kernel: Box::new(box_kernel),
             support: 0.0,
@@ -1026,11 +1057,20 @@ pub fn resize<I: GenericImageView>(
             kernel: Box::new(lanczos3_kernel),
             support: 3.0,
         },
+        FilterType::Area => area_filter(ratio),
     };
 
+    let (width, height) = image.dimensions();
+    let mut vertical = make_filter(height as f32 / nheight as f32);
+    let mut horizontal = make_filter(width as f32 / nwidth as f32);
+
+    // Area weights are never negative, so the output stays within the input's
+    // range. Skip the clamp so float values above 1.0 are kept.
+    let clamp_float = filter != FilterType::Area;
+
     // Note: tmp is not necessarily actually Rgba
-    let tmp: Rgba32FImage = vertical_sample(image, nheight, &mut method);
-    horizontal_sample(&tmp, nwidth, &mut method)
+    let tmp: Rgba32FImage = vertical_sample(image, nheight, &mut vertical);
+    horizontal_sample(&tmp, nwidth, &mut horizontal, clamp_float)
 }
 
 /// Performs a Gaussian blur on the supplied image.
@@ -1874,7 +1914,7 @@ mod tests {
     #[test]
     #[cfg(feature = "png")]
     fn resize_transparent_image() {
-        use super::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
+        use super::FilterType::{Area, CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
         use crate::imageops::crop;
         use crate::math::Rect;
         use crate::RgbaImage;
@@ -1898,7 +1938,7 @@ mod tests {
         );
         let img = crate::open(path).unwrap();
         let rgba8 = img.as_rgba8().unwrap();
-        let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
+        let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3, Area];
         for filter in filters {
             assert_resize(rgba8, *filter);
         }
@@ -1946,12 +1986,13 @@ mod tests {
 
     #[test]
     fn resize_preserves_a_constant_image() {
-        const FILTERS: [FilterType; 5] = [
+        const FILTERS: [FilterType; 6] = [
             FilterType::Nearest,
             FilterType::Triangle,
             FilterType::CatmullRom,
             FilterType::Gaussian,
             FilterType::Lanczos3,
+            FilterType::Area,
         ];
 
         for filter in FILTERS {
@@ -1980,5 +2021,37 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn resize_area() {
+        use crate::GrayImage;
+
+        // (input, output width, expected output)
+        let cases: [(&[u8], u32, &[u8]); 3] = [
+            // Integer factor: each output pixel is the mean of two input pixels.
+            (&[0, 10, 20, 40], 2, &[5, 30]),
+            // Each output pixel covers one and a half input pixels.
+            (&[0, 90, 180], 2, &[30, 150]),
+            // Upscaling: the middle output pixel covers a third of each input pixel.
+            (&[0, 90], 3, &[0, 45, 90]),
+        ];
+
+        for (input, width, expected) in cases {
+            let len = input.len() as u32;
+            let row = GrayImage::from_raw(len, 1, input.to_vec()).unwrap();
+            let out = resize(&row, width, 1, FilterType::Area);
+            assert_eq!(out.as_raw().as_slice(), expected, "row {input:?}");
+
+            let col = GrayImage::from_raw(1, len, input.to_vec()).unwrap();
+            let out = resize(&col, 1, width, FilterType::Area);
+            assert_eq!(out.as_raw().as_slice(), expected, "column {input:?}");
+        }
+
+        // Float values above 1.0 are not clamped.
+        let pixels = [0.0, 3.0, 6.0].map(|v| [v; 3]).concat();
+        let row = crate::Rgb32FImage::from_raw(3, 1, pixels).unwrap();
+        let out = resize(&row, 2, 1, FilterType::Area);
+        assert_eq!(out.as_raw().as_slice(), [1.0, 1.0, 1.0, 5.0, 5.0, 5.0]);
     }
 }

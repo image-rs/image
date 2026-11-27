@@ -36,6 +36,9 @@ pub(crate) fn resize_impl(
     use pic_scale_safe::*;
     use DynamicImage::*;
     let mut resized = match image {
+        // pic-scale-safe's area filter gives whole input pixels full weight
+        // when downscaling by a non-integer factor, so use our own.
+        _ if alg == ResamplingFunction::Area => resize_area(image, dst_width, dst_height),
         ImageLuma8(src) => {
             let resized = resize_plane8(src.subpixels(), src_size, dst_size, alg)?;
             ImageLuma8(ImageBuffer::from_raw(dst_width, dst_height, resized).unwrap())
@@ -92,6 +95,26 @@ pub(crate) fn resize_impl(
     Ok(())
 }
 
+fn resize_area(image: &DynamicImage, dst_width: u32, dst_height: u32) -> DynamicImage {
+    use crate::imageops::resize;
+    use DynamicImage::*;
+    let (w, h, f) = (dst_width, dst_height, FilterType::Area);
+    match image {
+        ImageLuma8(src) => ImageLuma8(resize(src, w, h, f)),
+        ImageLumaA8(src) => ImageLumaA8(resize(src, w, h, f)),
+        ImageRgb8(src) => ImageRgb8(resize(src, w, h, f)),
+        ImageRgba8(src) => ImageRgba8(resize(src, w, h, f)),
+        ImageLuma16(src) => ImageLuma16(resize(src, w, h, f)),
+        ImageLumaA16(src) => ImageLumaA16(resize(src, w, h, f)),
+        ImageRgb16(src) => ImageRgb16(resize(src, w, h, f)),
+        ImageRgba16(src) => ImageRgba16(resize(src, w, h, f)),
+        ImageLuma32F(src) => ImageLuma32F(resize(src, w, h, f)),
+        ImageLumaA32F(src) => ImageLumaA32F(resize(src, w, h, f)),
+        ImageRgb32F(src) => ImageRgb32F(resize(src, w, h, f)),
+        ImageRgba32F(src) => ImageRgba32F(resize(src, w, h, f)),
+    }
+}
+
 fn convert_filter_type(filter: FilterType) -> ResamplingFunction {
     match filter {
         FilterType::Nearest => ResamplingFunction::Nearest,
@@ -99,6 +122,7 @@ fn convert_filter_type(filter: FilterType) -> ResamplingFunction {
         FilterType::CatmullRom => ResamplingFunction::CatmullRom,
         FilterType::Gaussian => ResamplingFunction::Gaussian,
         FilterType::Lanczos3 => ResamplingFunction::Lanczos3,
+        FilterType::Area => ResamplingFunction::Area,
     }
 }
 
@@ -227,5 +251,39 @@ mod tests {
         resize_impl(&mut image, 5, 5, crate::imageops::FilterType::Lanczos3).unwrap();
         assert_eq!(image.height(), 5);
         assert_eq!(image.width(), 5);
+    }
+
+    #[test]
+    fn area() {
+        // (input, output width, expected output)
+        let cases: [(&[u8], u32, &[u8]); 3] = [
+            // Integer factor: each output pixel is the mean of two input pixels.
+            (&[0, 10, 20, 40], 2, &[5, 30]),
+            // Each output pixel covers one and a half input pixels.
+            (&[0, 90, 180], 2, &[30, 150]),
+            // Upscaling: the middle output pixel covers a third of each input pixel.
+            (&[0, 90], 3, &[0, 45, 90]),
+        ];
+
+        for (input, width, expected) in cases {
+            let len = input.len() as u32;
+            let row = crate::GrayImage::from_raw(len, 1, input.to_vec()).unwrap();
+            let mut image = DynamicImage::ImageLuma8(row);
+            resize_impl(&mut image, width, 1, crate::imageops::FilterType::Area).unwrap();
+            assert_eq!(image.as_bytes(), expected, "row {input:?}");
+
+            let col = crate::GrayImage::from_raw(1, len, input.to_vec()).unwrap();
+            let mut image = DynamicImage::ImageLuma8(col);
+            resize_impl(&mut image, 1, width, crate::imageops::FilterType::Area).unwrap();
+            assert_eq!(image.as_bytes(), expected, "column {input:?}");
+        }
+
+        // Float values above 1.0 are not clamped.
+        let pixels = [0.0, 3.0, 6.0].map(|v| [v; 3]).concat();
+        let row = crate::Rgb32FImage::from_raw(3, 1, pixels).unwrap();
+        let mut image = DynamicImage::ImageRgb32F(row);
+        resize_impl(&mut image, 2, 1, crate::imageops::FilterType::Area).unwrap();
+        let out = image.as_rgb32f().unwrap().as_raw();
+        assert_eq!(out.as_slice(), [1.0, 1.0, 1.0, 5.0, 5.0, 5.0]);
     }
 }

@@ -17,6 +17,7 @@ Breaking Changes:
 Features:
  - Added `RbgImage::from_raw_bgr` and `RbgaImage::from_raw_bgra` constructors, which convert
    from `BGR(A)` with an optimized specialization for bytes of `BGRA`
+ - Added `FilterType::Area` for area-averaging resize, like OpenCV's `INTER_AREA` (#1941)
 
 Structural changes:
   - Increased MSRV to 1.88.0 (from 1.85.0)
